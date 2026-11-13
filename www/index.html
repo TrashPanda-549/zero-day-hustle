@@ -467,7 +467,26 @@ const WTYPE = {
   gun: ['Firearms', 'Loud: raises your Heat, a lot when used on the law.', 12, 3],
   heavy: ['Military hardware', 'Very loud: a big Heat spike every time you fire.', 16, 5],
 };
-const GUN_SPOT = 'Strip Mall', GUN_STORE = 'Pew Pew Emporium';
+const GUN_SPOT = 'Strip Mall', GUN_STORE = 'Pew Pew Emporium', OUTFITTER = 'Ctrl+Alt+Drip';
+// Firearms and military hardware burn one round per shot. Listed worst to best:
+// kind: [name, price for a box of 20, change to the chance to hit (in %), sold at the legal gun store?, short label]
+const AMMO = {
+  budget: ['Bargain Bin Bullets', 100, -5, true, 'BIN'],
+  std: ['Vanilla Rounds', 240, 0, true, 'VAN'],
+  hollow: ['Hollow Promises', 600, 8, true, 'HOL'],
+  ap: ['Firewall Piercers', 1400, 15, true, 'FWP'],
+  smart: ['Aimbot Rounds', 3600, 25, false, 'AIM'],
+};
+const AMMO_BOX = 20, AMMO_MAX = 999;
+const noAmmo = () => ({budget: 0, std: 0, hollow: 0, ap: 0, smart: 0});
+const usesAmmo = w => !!w && (w[4] === 'gun' || w[4] === 'heavy');
+// The ammo a shot will actually use: the kind you loaded if any is left, otherwise the best kind you have.
+function activeAmmo() {
+  if (S.ammo[S.loaded] > 0) return S.loaded;
+  const have = Object.keys(AMMO).filter(k => S.ammo[k] > 0);
+  return have.length ? have[have.length - 1] : null;
+}
+const hitChange = k => (AMMO[k][2] ? `${AMMO[k][2] > 0 ? '+' : ''}${AMMO[k][2]}% to hit` : 'normal chance to hit');
 const MAX_EMP = 5;
 // Single-use gadgets, keyed by the name of their counter in the run state:
 // [name, price, most you can carry, what it does, short label]
@@ -603,8 +622,8 @@ const STATS = {
 };
 const BAG_SIZE = 12, MAX_MED = 5, MED_HEAL = 40;
 
-function makeItem(rar) {
-  const slot = pick(Object.keys(SLOTS));
+function makeItem(rar, slot) {
+  slot = slot || pick(Object.keys(SLOTS));
   const [, names, pool] = SLOTS[slot];
   const count = Math.min(pool.length, [1, pick([1, 2]), 2, 3, pick([3, 4])][rar]);
   const stats = {};
@@ -1630,7 +1649,7 @@ function log(text, cls) {
 
 function rollMarket() {
   if (S.loc === BUNKER) {   // nobody trades at your hideout
-    S.prices = {}; S.flags = {}; S.news = []; S.contracts = []; S.shop = [];
+    S.prices = {}; S.flags = {}; S.news = []; S.contracts = []; S.shop = []; S.store = [];
     return;
   }
   // Each place has one market per day: coming back the same day finds the same prices,
@@ -1638,7 +1657,7 @@ function rollMarket() {
   const today = S.markets[S.loc];
   if (today) {
     S.prices = today.prices; S.flags = today.flags; S.news = today.news;
-    S.contracts = today.contracts; S.shop = today.shop;
+    S.contracts = today.contracts; S.shop = today.shop; S.store = today.store || [];
     return;
   }
   for (;;) {
@@ -1656,13 +1675,14 @@ function rollMarket() {
   rollContracts();
   // Today's gear on the black market: up to Epic, never Legendary.
   S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(S.day * 0.3))));
-  S.markets[S.loc] = {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
+  S.store = S.loc === GUN_SPOT ? outfitStock() : [];
+  S.markets[S.loc] = {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop, store: S.store};
 }
 
 function newGame() {
   S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
+    contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   starterGear();
@@ -1818,19 +1838,112 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
         const price = priceOf(w), owned = i === S.weapon, ok = !owned && S.cash >= price;
         html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${i}"` : ''}>` + withIcon(weaponIcon(i),
           `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? 'yours' : money(price)}</span> &middot; <b>${w[0]}</b><br>` +
-          `${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit`) + '</div>';
+          `${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit${usesAmmo(w) ? ' &middot; <span class="dim">uses ammo</span>' : ''}`) + '</div>';
       });
+    }
+    // Ammunition: the gun store stocks the ordinary kinds, the van has everything.
+    html += `<p class="dim" style="margin:12px 0 4px"><b class="cyan">AMMUNITION</b><br>Sold in boxes of ${AMMO_BOX}. ` +
+      'Firearms and military hardware use one round a shot; better rounds hit more often.</p>';
+    for (const [key, [name, boxPrice, , legal]] of Object.entries(AMMO)) {
+      if (!hot && !legal) continue;
+      const price = Math.round(boxPrice * scale * (hot && legal ? markup : 1));
+      const ok = S.cash >= price && S.ammo[key] + AMMO_BOX <= AMMO_MAX;
+      html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="a:${key}"` : ''}>` + withIcon(ammoIcon(key),
+        `<span class="${ok ? 'amber' : 'red'}">${money(price)}</span> &middot; <b>${name}</b><br>${hitChange(key)} &middot; you have ${S.ammo[key]}`) + '</div>';
     }
     html += '<p class="dim">Tap a weapon to buy it. You carry one at a time, and your old one is traded in.' +
       (hot ? ' Hardware from the van is hot: each purchase adds 5% Heat.' : '') + '</p>';
     const choice = await dialog(title, html, [['Leave', null, 'primary']]);
     if (choice === null) return;
+    if (String(choice).startsWith('a:')) {   // a box of ammo
+      const key = choice.slice(2), price = Math.round(AMMO[key][1] * scale * (hot && AMMO[key][3] ? markup : 1));
+      if (S.cash < price) continue;
+      S.cash -= price;
+      S.ammo[key] += AMMO_BOX;
+      if (!S.ammo[S.loaded]) S.loaded = key;
+      log(`Bought ${AMMO_BOX} ${AMMO[key][0]} for ${money(price)}.`);
+      render();
+      continue;
+    }
     const index = Number(choice), w = WEAPONS[index], price = priceOf(w);
     if (!w || index === S.weapon || S.cash < price) continue;
     S.cash -= price;
     S.weapon = index;
+    if (usesAmmo(w)) {   // every firearm comes with a few rounds to get you started
+      S.ammo.std = Math.min(AMMO_MAX, S.ammo.std + 10);
+      if (!S.ammo[S.loaded]) S.loaded = 'std';
+    }
     if (hot) S.heat = Math.min(100, S.heat + 5);
     log(`Bought: ${w[0]} for ${money(price)}.`);
+    render();
+  }
+}
+
+// Choose which ammo to load. Costs nothing and takes no time.
+async function pickAmmo() {
+  for (;;) {
+    const active = activeAmmo();
+    const html = '<p>Better rounds hit more often. Your weapon fires the kind you load here; if that runs out it falls back to the best kind you have left.</p>' +
+      Object.entries(AMMO).map(([key, [name]]) => {
+        const have = S.ammo[key];
+        return `<div class="syn${have ? ' pickable' : ''}"${have ? ` data-pick="${key}"` : ''}>` + withIcon(ammoIcon(key),
+          `<b class="${key === S.loaded && have ? 'amber' : have ? '' : 'dim'}">${name}</b>${key === active ? ' <span class="green">&larr; loaded</span>' : ''}` +
+          `<br>${hitChange(key)} &middot; ${have ? `${have} rounds` : '<span class="dim">none</span>'}`) + '</div>';
+      }).join('') +
+      `<p class="dim">Ammo is sold at ${GUN_STORE} and by the arms dealer. Rival crews sometimes drop it.</p>`;
+    const choice = await dialog('Ammunition', html, [['Done', null, 'primary']]);
+    if (choice === null || !AMMO[choice]) return;
+    S.loaded = choice;
+    render();
+  }
+}
+// A picture of a cartridge, coloured by how good the round is.
+function ammoIcon(key) {
+  const c = {budget: '#8a8fa8', std: '#ffd24a', hollow: '#ff8a1e', ap: '#00e5ff', smart: '#ff4fd8'}[key];
+  return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><g stroke="#0b0a19" stroke-width=".8">' +
+    `<rect x="8.5" y="10" width="7" height="11" rx="1" fill="#b98a55"/><path d="M8.5 10 q0 -7 3.5 -8 q3.5 1 3.5 8 z" fill="${c}"/>` +
+    `<rect x="7.5" y="19.5" width="9" height="2" fill="#8a5a2e"/></g>${key === 'smart' ? '<circle cx="12" cy="6.5" r="1.4" fill="#fff"/>' : ''}</svg>`;
+}
+
+// ---------- clothing and armour store ----------
+// Two items for every slot each day: one plain, one from the better rack.
+function outfitStock() {
+  const stock = [];
+  for (const slot of Object.keys(SLOTS)) {
+    stock.push(makeItem(pick([0, 0, 1]), slot));
+    stock.push(makeItem(Math.min(3, Math.max(1, rollRarity(S.day * 0.3 + 5))), slot));
+  }
+  return stock;
+}
+
+async function outfitShop() {
+  for (;;) {
+    const scale = 1 + Math.floor(S.day / 10) * 0.5, full = career.bag.length >= BAG_SIZE;
+    let html = '<p>"Welcome to Ctrl+Alt+Drip. Streetwear, body armour, and things with too many pockets."</p>' +
+      `<p>Cash: <span class="green">${money(S.cash)}</span>. Bag ${career.bag.length}/${BAG_SIZE}.</p>` +
+      (full ? '<p class="red">Your bag is full. Scrap or store something before you buy more.</p>' : '');
+    for (const [slot, [label]] of Object.entries(SLOTS)) {
+      const rack = S.store.map((it, i) => [it, i]).filter(([it]) => it.slot === slot);
+      if (!rack.length) continue;
+      html += `<p class="dim" style="margin:12px 0 4px"><b class="cyan">${label.toUpperCase()}</b></p>`;
+      for (const [it, i] of rack) {
+        const price = Math.round(itemValue(it) * scale * 0.9), ok = !full && S.cash >= price;
+        html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${i}"` : ''}><span class="${ok ? 'amber' : 'red'}">${money(price)}</span>${itemHtml(it)}</div>`;
+      }
+    }
+    html += S.store.length ? '<p class="dim">Tap an item to buy it. It goes into your bag; put it on from the Gear screen. New stock arrives every day.</p>'
+      : '<p>You bought everything on the racks. New stock arrives tomorrow.</p>';
+    const choice = await dialog(OUTFITTER, html, [['Leave', null, 'primary']]);
+    if (choice === null) return;
+    const it = S.store[Number(choice)];
+    if (!it) continue;
+    const price = Math.round(itemValue(it) * scale * 0.9);
+    if (S.cash < price || career.bag.length >= BAG_SIZE) continue;
+    S.cash -= price;
+    S.store.splice(Number(choice), 1);
+    career.bag.push(it);
+    saveCareer();
+    log(`Bought: <span class="r${it.rar}">${it.name}</span> for ${money(price)}.`);
     render();
   }
 }
@@ -1910,6 +2023,8 @@ function render() {
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
     ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
+    ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
+      usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
     ['Gadgets', Object.keys(GADGETS).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
@@ -1951,7 +2066,11 @@ function render() {
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
-  if (S.loc === GUN_SPOT) acts += `<button data-act="gunstore">${GUN_STORE} (gun store)</button>`;
+  if (S.loc === GUN_SPOT) {
+    acts += `<button data-act="gunstore">${GUN_STORE} (guns, ammo)</button>` +
+      `<button data-act="outfitter">${OUTFITTER} (clothing, armour)</button>`;
+  }
+  if (Object.values(S.ammo).some(q => q > 0)) acts += '<button data-act="ammo">Change ammo</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
@@ -2192,6 +2311,16 @@ const ACTIONS = {
       ['gun', 'heavy'], 1.4, true);
   },
 
+  // Clothing and body armour, at the Strip Mall.
+  async outfitter() {
+    if (S.loc !== GUN_SPOT) return;
+    await outfitShop();
+  },
+
+  async ammo() {
+    await pickAmmo();
+  },
+
   // Burn a fake identity to cool your Heat.
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
@@ -2279,7 +2408,7 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
       [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (gun store)' : l, l]);
+        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', tired
       ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
@@ -2530,7 +2659,12 @@ async function fight(E) {
     const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
     const payoff = Math.max(500, Math.floor(S.cash * 0.2));
     const buttons = [];
-    if (!raid && W) buttons.push([`Use ${W[0]}`, 'shoot']);
+    const round = usesAmmo(W) ? activeAmmo() : null;
+    if (!raid && W) {
+      buttons.push([!usesAmmo(W) ? `Use ${W[0]}` : round ? `Fire ${W[0]} (${AMMO[round][4]} x${S.ammo[round]})`
+        : `Club them with ${W[0]} (no ammo)`, 'shoot']);
+      if (usesAmmo(W) && Object.values(S.ammo).filter(q => q > 0).length > 1) buttons.push(['Change ammo', 'ammo']);
+    }
     if (!raid && S.emp) buttons.push([`${GADGETS.emp[0]} (${S.emp})`, 'emp']);
     if (S.proxies) buttons.push([raid ? 'Hack them' : 'Counter-hack', 'hack']);
     if (S.bomb) buttons.push([`${GADGETS.bomb[0]} (${S.bomb})`, 'bomb']);
@@ -2547,17 +2681,29 @@ async function fight(E) {
       `<p>${msg}</p>${vitals()}${meter('Hostiles', n, total, `${n} / ${total}`, 'red')}` +
       `<p class="dim" style="margin-top:10px">${hint}</p>`, buttons, 'danger');
 
+    if (cmd === 'ammo') { await pickAmmo(); continue; }   // swapping ammo does not cost a turn
     let kills = 0, stunned = false;
     physical = !raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run' || cmd === 'med');
-    if (cmd === 'shoot') {
+    if (cmd === 'shoot' && usesAmmo(W) && !activeAmmo()) {
+      // No rounds left: all you can do is swing the thing.
+      if (Math.random() < 0.3 + bonus('aim') / 100) kills = 1;
+      violent = true;
+      S.heat = Math.min(100, S.heat + (law ? 5 : 0));
+      msg = kills ? `Click. Empty. You club one of them with the ${W[0]}.` : `Click. Empty. You swing the ${W[0]} and miss.`;
+    } else if (cmd === 'shoot') {
       const kind = WTYPE[W[4]] || WTYPE.gun;
-      for (let i = 0; i < W[2]; i++) if (Math.random() < W[3] + bonus('aim') / 100) kills++;
+      const round = usesAmmo(W) ? activeAmmo() : null;                    // which ammo this volley uses
+      const shots = round ? Math.min(W[2], S.ammo[round]) : W[2];
+      const hit = W[3] + bonus('aim') / 100 + (round ? AMMO[round][2] / 100 : 0);   // better rounds hit more often
+      for (let i = 0; i < shots; i++) if (Math.random() < hit) kills++;
+      if (round) S.ammo[round] -= shots;
       kills = Math.min(n, kills);
       violent = true;
       S.heat = Math.min(100, S.heat + kind[law ? 2 : 3]);   // blades are silent, guns are loud
       stunned = W[4] === 'blunt' && kills > 0 && Math.random() < 0.4;
       msg = (kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`) +
-        (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '');
+        (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '') +
+        (round ? ` (${S.ammo[round]} ${AMMO[round][0]} left.)` : '');
     } else if (cmd === 'emp') {
       S.emp--;
       kills = Math.min(n, rnd(2, 3));
@@ -2647,6 +2793,11 @@ async function fight(E) {
           const k = pick(spare);
           S[k]++;
           log(`You also grab a ${GADGETS[k][0]} off them.`);
+        }
+        if (Math.random() < 0.4) {
+          const k = pick(['budget', 'std', 'std', 'hollow', 'hollow', 'ap', 'smart']), found = rnd(5, 15);
+          S.ammo[k] = Math.min(AMMO_MAX, S.ammo[k] + found);
+          log(`You scoop up ${found} ${AMMO[k][0]}.`);
         }
         if (Math.random() < (raid ? 0.85 : 0.6)) {
           await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
@@ -2790,14 +2941,15 @@ async function selfTest() {
       newGame();
       S.proxies = rnd(0, 3); S.weapon = rnd(0, WEAPONS.length - 1);
       S.emp = rnd(0, 2); S.smoke = rnd(0, 2); S.bomb = rnd(0, 2); S.fakeid = rnd(0, 2);
+      for (const k of Object.keys(AMMO)) S.ammo[k] = pick([0, 0, rnd(1, 40)]);
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore']) : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
+          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore', 'outfitter', 'ammo']) : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if ((act === 'gear' || act === 'dealer') && !GEAR_SPOTS.includes(S.loc)) continue;
-        if (act === 'gunstore' && S.loc !== GUN_SPOT) continue;
+        if ((act === 'gunstore' || act === 'outfitter') && S.loc !== GUN_SPOT) continue;
         if (act === 'raid') raids++;
         if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
@@ -2818,7 +2970,7 @@ async function selfTest() {
         await levelUpCheck();
         render();
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
-          career.bag.length > BAG_SIZE || !(S.trips >= 0 && S.trips <= TRIPS_PER_DAY) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
+          career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= TRIPS_PER_DAY) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
           Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
@@ -2883,6 +3035,9 @@ async function selfTest() {
     delete S.armor;
     S.weapon = S.weapon || 0;
     for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
+    S.ammo = Object.assign(noAmmo(), S.ammo);
+    if (!AMMO[S.loaded]) S.loaded = 'std';
+    S.store = S.store || [];
     S.grudge = Object.assign(noGrudges(), S.grudge);
     S.raided = !!S.raided;
     log('Run resumed.');
@@ -2902,7 +3057,8 @@ async function selfTest() {
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
     '<p>When cornered you can shoot, hack, run or pay. Shootouts cost <span class="green">Health</span>, hack fights cost ' +
-    '<span class="green">OpSec</span>; lose either and you go down. Gear, a street doc and an arms dealer are at the black market; the gun store is at the ' + GUN_SPOT + '.</p>' +
+    '<span class="green">OpSec</span>; lose either and you go down. Gear, a street doc and an arms dealer are at the black market; guns, ammo and a clothing store are at the ' + GUN_SPOT + '.</p>' +
+    '<p>Firearms need <span class="amber">ammo</span>, and better rounds hit more often.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');

@@ -33,6 +33,8 @@ Grab the latest build from the [Releases page](../../releases):
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
 - When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
 - Weapons come in four kinds. Blunt weapons are quiet and can stun, blades are silent, firearms are loud, and military hardware is very loud. The gun store at the Strip Mall sells the first three but runs a background check on firearms; the arms dealer at the black market sells firearms at a markup and military hardware with no questions asked.
+- Firearms and military hardware use ammunition, one round a shot. There are five kinds, from Bargain Bin Bullets (5% worse) to Aimbot Rounds (25% better at hitting). Out of ammo, a gun is just a club.
+- Ctrl+Alt+Drip at the Strip Mall sells clothing and body armour, with two items for every gear slot each day.
 - You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.
 - Sleeping cools your Heat and restores Health and OpSec. Medkits heal you any time, even mid-fight; you start each run with two, and with a basic item in every gear slot.
 - Gear for five slots (head, body, hands, feet, deck) boosts your stats and comes in five rarities: Common, Uncommon, Rare, Epic and Legendary. Rival crews drop it, the black market sells it, and it stays with you between runs.
