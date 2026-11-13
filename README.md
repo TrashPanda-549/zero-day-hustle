@@ -31,7 +31,8 @@ Grab the latest build from the [Releases page](../../releases):
 - Big deals raise your Heat, and Heat decides who hunts you: the police, then the Feds, then the NSA. Police and Feds seize your goods, fine you and cost you days. The NSA ends the run.
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
 - When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
-- Laying low for a day cools your Heat and restores some OpSec.
+- You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.
+- Laying low for a day cools your Heat and restores some Health and OpSec.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.
 
 ## Terminal version

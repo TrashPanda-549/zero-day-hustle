@@ -55,6 +55,12 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #career .bar{flex:1;height:8px;background:#000;border:1px solid var(--line);border-radius:4px;overflow:hidden;min-width:40px}
 #career .bar i{display:block;height:100%;background:var(--cyan)}
 #career .xp{color:var(--dim);white-space:nowrap}
+#vitals{margin:6px 0 8px}
+.meter{display:grid;grid-template-columns:64px 1fr 58px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
+.meter span:first-child{color:var(--dim);letter-spacing:1px;text-transform:uppercase;font-size:11px}
+.meter .track{height:11px;background:#000;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.meter .track i{display:block;height:100%;transition:width .25s}
+.meter b{text-align:right;white-space:nowrap}
 #jobs{margin-top:10px}
 #jobs h3{margin:0 0 6px;font-size:13px;letter-spacing:2px;color:var(--dim);font-weight:normal}
 .job{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 9px;margin-bottom:6px;
@@ -94,6 +100,7 @@ input[type=range]{width:100%;accent-color:var(--green);height:28px}
   <header><h1>ZERO DAY HUSTLE</h1><button class="small" data-act="restart">New run</button></header>
   <div id="career" data-act="profile"></div>
   <div id="dayloc"></div>
+  <section id="vitals"></section>
   <section id="stats"></section>
   <section id="news"></section>
   <section id="market"></section>
@@ -254,6 +261,14 @@ const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
 const cap = () => S.drive + (inSyn('null') ? 60 : 0);
 const free = () => cap() - used();
 const pick = list => list[rnd(0, list.length - 1)];
+// A labelled bar: Health, OpSec, or the hostiles left in a fight.
+function meter(label, value, max, text, color) {
+  const width = Math.max(0, Math.min(100, Math.round(value / max * 100)));
+  color = color || (width > 60 ? 'green' : width > 30 ? 'amber' : 'red');
+  return `<div class="meter"><span>${label}</span><span class="track">` +
+    `<i style="width:${width}%;background:var(--${color})"></i></span><b class="${color}">${text}</b></div>`;
+}
+const vitals = () => meter('Health', S.hp, 100, S.hp + '%') + meter('OpSec', S.opsec, 100, S.opsec + '%');
 const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
 const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn);
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
@@ -319,7 +334,7 @@ function rollMarket() {
 function newGame() {
   S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
+    contracts: [], xpRun: 0, cleared: false, hp: 100, armor: false, weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   rollMarket();
@@ -421,13 +436,14 @@ function render() {
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
     ['Debt', money(S.debt), S.debt ? 'red' : ''],
     ['Drive', `${used()}/${cap()}`, free() <= 0 ? 'amber' : ''],
-    ['OpSec', S.opsec + '%', S.opsec <= 35 ? 'red' : ''],
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
     ['Weapon', (WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None') + (S.emp ? ` +${S.emp} EMP` : ''), ''],
+    ['Armour', S.armor ? 'Vest' : 'None', ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
+  $('#vitals').innerHTML = vitals();
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
@@ -554,13 +570,17 @@ const ACTIONS = {
         text: `single use, fries 2 to 3 hostiles (you have ${S.emp})`});
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and contracts (you have ${S.proxies})`});
+      if (!S.armor) offers.push({key: 'a', name: 'Armoured vest', price: Math.round(3500 * scale),
+        text: 'cuts the damage to your Health by 40%'});
+      if (S.hp < 100) offers.push({key: 'd', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
+        text: `patches you up from ${S.hp}% to full Health`});
       const have = WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'nothing';
       const html = `<p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ${have}.</p>` +
         (offers.length ? offers.map(o => `<div class="syn"><b>${o.name}</b> &middot; ` +
           `<span class="${S.cash >= o.price ? 'amber' : 'red'}">${money(o.price)}</span><br>${o.text}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
         '<p class="dim">Weapons work on the law and on rival crews. Using them on the law raises your Heat.</p>';
-      const buttons = offers.filter(o => S.cash >= o.price).map(o => [`Buy ${o.name}`, o.key]);
+      const buttons = offers.filter(o => S.cash >= o.price).map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key]);
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
@@ -568,8 +588,10 @@ const ACTIONS = {
       S.cash -= o.price;
       if (key === 'w') S.weapon++;
       else if (key === 'e') S.emp++;
+      else if (key === 'a') S.armor = true;
+      else if (key === 'd') S.hp = 100;
       else S.proxies++;
-      log(`Bought a ${o.name} for ${money(o.price)}.`);
+      log(key === 'd' ? `The street doc patched you up for ${money(o.price)}.` : `Bought: ${o.name} for ${money(o.price)}.`);
       render();
     }
   },
@@ -619,12 +641,13 @@ const ACTIONS = {
 
   async laylow() {
     if (S.day >= DAYS) return ACTIONS.cashout();
-    if (!await confirmDlg('Lay low', '<p>Go dark for a day? Heat drops by a lot and OpSec recovers a little. ' +
+    if (!await confirmDlg('Lay low', '<p>Go dark for a day? Heat drops by a lot, and you recover 20% Health and 10% OpSec. ' +
       'Prices will change and your debt still grows.</p>', 'Go dark', 'Cancel')) return;
     nextDay();
     S.heat = Math.max(0, S.heat - 30);
     S.opsec = Math.min(100, S.opsec + 10);
-    log(`Day ${S.day}: you unplugged everything and read paperbacks.`);
+    S.hp = Math.min(100, S.hp + 20);
+    log(`Day ${S.day}: you unplugged everything, slept and read paperbacks.`);
   },
 
   async cashout() {
@@ -689,6 +712,7 @@ function nextDay() {
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   S.raided = false;
+  S.hp = Math.min(100, S.hp + 3);
   rollMarket();
 }
 
@@ -770,9 +794,10 @@ async function fight(E) {
   const title = law ? `!! ${E.name.replace(/^the /, '').toUpperCase()} !!`
     : raid ? `RAID: ${E.name}` : `!! ${E.name.toUpperCase()} ATTACK !!`;
   const hint = law
-    ? 'Weapons work, but firing on the law sends your Heat way up. Hacking keeps it quiet. Wiping the drive loses your goods but always escapes.'
-    : raid ? 'This is a remote fight: only hacking tools work. Jack out any time to leave empty-handed.'
-    : 'Fight them off, hack them back, run, or pay them to go away.';
+    ? 'Shooting, EMPs and running risk your Health. Hacking risks your OpSec and keeps your Heat down. Wiping the drive loses your goods but always escapes.'
+    : raid ? 'A remote fight: only hacking tools work and only your OpSec is at risk. Jack out any time to leave empty-handed.'
+    : 'Shooting, EMPs and running risk your Health. Hacking back risks your OpSec. Or pay them to go away.';
+  let physical = false;
   for (;;) {
     render();
     const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
@@ -787,10 +812,11 @@ async function fight(E) {
     if (E.kind === 'gang' && S.cash >= payoff) buttons.push([`Pay them ${money(payoff)}`, 'pay']);
     buttons[0][2] = 'primary';
     const cmd = await dialog(title,
-      `<p>${msg}</p><p>Hostiles: <b>${n}</b> &middot; OpSec: <b>${S.opsec}%</b> &middot; Proxies: <b>${S.proxies}</b></p>` +
-      `<p class="dim">${hint}</p>`, buttons, 'danger');
+      `<p>${msg}</p>${vitals()}${meter('Hostiles', n, total, `${n} / ${total}`, 'red')}` +
+      `<p class="dim" style="margin-top:10px">${hint}</p>`, buttons, 'danger');
 
     let kills = 0;
+    physical = !raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run');
     if (cmd === 'shoot') {
       for (let i = 0; i < W[2]; i++) if (Math.random() < W[3]) kills++;
       kills = Math.min(n, kills);
@@ -861,19 +887,26 @@ async function fight(E) {
 
     let dmg = 0;
     for (let i = 0; i < n; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
-    if (dmg) {
+    if (dmg && physical) {
+      // In the open they hurt you, not your rig. Armour soaks up part of it.
+      if (S.armor) dmg = Math.ceil(dmg * 0.6);
+      S.hp -= dmg;
+      msg += ` <span class="red">${law ? 'They open fire' : 'They jump you'}: Health -${dmg}%${S.armor ? ' (vest took the rest)' : ''}.</span>`;
+    } else if (dmg) {
       S.opsec -= dmg;
       msg += ` <span class="red">They ${law ? 'unmask part of your trail' : 'tear into your defences'}: OpSec -${dmg}%.</span>`;
     } else {
       msg += ' Their attacks miss.';
     }
-    if (S.opsec <= 0) return lose(E);
+    if (S.opsec <= 0 || S.hp <= 0) return lose(E);
   }
 }
 
-// OpSec hit zero.
+// Health or OpSec hit zero.
 async function lose(E) {
-  S.opsec = 0;
+  const hurt = S.hp <= 0;
+  S.opsec = Math.max(0, S.opsec);
+  S.hp = Math.max(0, S.hp);
   if (E.kind !== 'law') {
     // Rival crews rob you but don't end the run.
     const cash = Math.floor(S.cash * 0.35);
@@ -884,11 +917,18 @@ async function lose(E) {
       goods += take;
       removeItems(name, take);
     }
-    S.opsec = 40;
+    S.opsec = Math.max(S.opsec, 40);
+    let clinic = '';
+    if (hurt) {
+      // Beaten unconscious: a day in a back-room clinic.
+      S.hp = 50;
+      if (S.day < DAYS) { nextDay(); clinic = '<p>You wake up a day later in a back-room clinic, stitched up to 50% Health.</p>'; }
+    }
     log(`<span class="red">${E.name} cleaned you out: ${money(cash)} and ${num(goods)} goods.</span>`);
     render();
-    return alertDlg('Robbed', `<p>${E.name} own your rig. They take <b>${money(cash)}</b> and <b>${num(goods)}</b> of your goods ` +
-      'before you pull the plug.</p>', 'danger');
+    return alertDlg(hurt ? 'Beaten and robbed' : 'Robbed',
+      `<p>${E.name} ${hurt ? 'leave you on the floor' : 'own your rig'}. They take <b>${money(cash)}</b> and ` +
+      `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${clinic}`, 'danger');
   }
   if (E.tier === 2) {
     S.busted = S.over = true;
@@ -900,11 +940,13 @@ async function lose(E) {
   S.inv = {}; S.cost = {};
   let served = 0;
   while (served < days && S.day < DAYS) { nextDay(); served++; }
-  S.opsec = E.tier ? 50 : 60;
+  S.opsec = Math.max(S.opsec, E.tier ? 50 : 60);
+  S.hp = Math.max(S.hp, 50);
   S.heat = E.tier ? 20 : 10;
   log(`<span class="red">Arrested by ${E.name}: goods seized, ${money(fine)} fine, ${served} day${served === 1 ? '' : 's'} inside.</span>`);
   render();
-  await alertDlg('Arrested', `<p>${E.name[0].toUpperCase() + E.name.slice(1)} kicks the door in.</p>` +
+  await alertDlg('Arrested', `<p>${E.name[0].toUpperCase() + E.name.slice(1)} ` +
+    `${hurt ? 'drags you out on a stretcher' : 'kicks the door in'}.</p>` +
     `<p>Your goods are seized, you pay <b>${money(fine)}</b> and lose <b>${served} day${served === 1 ? '' : 's'}</b> ` +
     'before a lawyer gets you out. Your debt kept growing.</p>' +
     '<p class="dim">The cold wallet was never found.</p>', 'danger');
@@ -987,7 +1029,7 @@ async function selfTest() {
         await levelUpCheck();
         render();
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > cap() ||
-          !Number.isInteger(career.xp) || S.emp < 0 || S.emp > MAX_EMP || S.weapon > 3 || S.proxies > MAX_PROXIES ||
+          !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || S.emp < 0 || S.emp > MAX_EMP || S.weapon > 3 || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
@@ -1023,6 +1065,8 @@ async function selfTest() {
     S = saved;
     // Fill in anything a save from an older version lacks.
     S.contracts = S.contracts || [];
+    S.hp = Number.isInteger(S.hp) ? S.hp : 100;
+    S.armor = !!S.armor;
     S.weapon = S.weapon || 0;
     S.emp = S.emp || 0;
     S.grudge = Object.assign(noGrudges(), S.grudge);
@@ -1042,7 +1086,8 @@ async function selfTest() {
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the Feds, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
-    '<p>When cornered you can shoot, hack, run or pay. Gear is sold at the black market.</p>' +
+    '<p>When cornered you can shoot, hack, run or pay. Shootouts cost <span class="green">Health</span>, hack fights cost ' +
+    '<span class="green">OpSec</span>; lose either and you go down. Gear and a street doc are at the black market.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
   busy = false;
   save();
