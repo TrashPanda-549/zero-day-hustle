@@ -57,8 +57,46 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 /* heads-up panel: avatar, level, health */
 #hud{display:grid;grid-template-columns:66px 1fr;gap:10px;margin-top:10px;align-items:stretch}
 #ava{cursor:pointer;background:linear-gradient(#0b0a1c,#17132f);border:1px solid var(--line);
-  border-bottom:2px solid var(--magenta);display:flex;align-items:flex-end}
+  border-bottom:2px solid var(--magenta);display:flex;align-items:flex-end;overflow:hidden}
 .avatar{display:block;width:100%;height:auto}
+/* avatar effects: breathing, blinking, rarity glows, glitches, sirens */
+.av-fig{transform-origin:100px 336px;animation:avbreathe 3.6s ease-in-out infinite}
+@keyframes avbreathe{50%{transform:scaleY(1.012)}}
+.av-blink{opacity:0;animation:avblink 5.2s infinite}
+@keyframes avblink{0%,93%{opacity:0}94%,96%{opacity:1}97%,100%{opacity:0}}
+.av-streak{animation:avflick 4.1s infinite steps(1)}
+@keyframes avflick{0%,100%{opacity:1}47%{opacity:.35}49%{opacity:1}52%{opacity:.5}54%{opacity:1}}
+.av-epic{animation:avpulse 1.7s ease-in-out infinite alternate}
+@keyframes avpulse{from{filter:drop-shadow(0 0 1px var(--rc))}to{filter:drop-shadow(0 0 6px var(--rc))}}
+.av-leg{animation:avshimmer 1.2s ease-in-out infinite alternate}
+@keyframes avshimmer{from{filter:drop-shadow(0 0 3px var(--rc)) brightness(1)}
+  to{filter:drop-shadow(0 0 8px #fff3b0) brightness(1.45)}}
+.av-spark{opacity:0;animation:avspark 2.2s linear infinite}
+@keyframes avspark{0%{opacity:0;transform:translateY(0)}20%{opacity:1}100%{opacity:0;transform:translateY(-28px)}}
+.av-shake{animation:avshake 2.6s infinite steps(1)}
+.av-shake.bad{animation-duration:1.3s}
+@keyframes avshake{0%,100%{transform:none}8%{transform:translateX(3px)}10%{transform:translateX(-4px) skewX(-4deg)}
+  12%{transform:none}61%{transform:translateX(-3px)}63%{transform:none}}
+.av-static rect{opacity:0;animation:avstatic 1.7s infinite steps(1)}
+.av-static rect:nth-child(2n){animation-duration:2.3s;animation-delay:-.6s}
+@keyframes avstatic{0%{opacity:0;transform:translateY(0)}15%{opacity:.55}30%{opacity:0;transform:translateY(22px)}
+  55%{opacity:.45}62%{opacity:0;transform:translateY(-14px)}85%{opacity:.4}92%,100%{opacity:0}}
+.av-cops ellipse{opacity:.15}
+.av-cops .a{animation:avcop 1s infinite steps(1)}
+.av-cops .b{animation:avcop 1s -.5s infinite steps(1)}
+@keyframes avcop{0%{opacity:.8}50%{opacity:.15}}
+.av-search{transform-origin:100px 0;animation:avsearch 4.5s ease-in-out infinite alternate}
+@keyframes avsearch{from{transform:rotate(-13deg)}to{transform:rotate(13deg)}}
+.av-reticle{transform-origin:100px 40px;animation:avret 1.3s ease-in-out infinite alternate}
+@keyframes avret{from{transform:scale(1.3);opacity:.45}to{transform:scale(.92);opacity:1}}
+.av-aura,.av-eye{animation:avglow 2.4s ease-in-out infinite alternate}
+@keyframes avglow{from{opacity:.5}to{opacity:1}}
+.av-ring{animation:avdash 3s linear infinite}
+@keyframes avdash{to{stroke-dashoffset:-44}}
+.av-zap{animation:blink .35s infinite steps(1)}
+.av-bill{animation:avfall 3.3s linear infinite}
+@keyframes avfall{from{transform:translateY(-20px)}to{transform:translateY(370px)}}
+@media (prefers-reduced-motion:reduce){.avatar *{animation:none!important}}
 #career{display:flex;align-items:center;gap:8px;padding:6px 9px;background:var(--panel);
   border:1px solid var(--line);border-left:3px solid var(--magenta);cursor:pointer;font-size:13px}
 #career .lvl{color:var(--magenta);font-weight:bold;white-space:nowrap;text-shadow:0 0 8px rgba(255,79,216,.6)}
@@ -130,6 +168,15 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 /* gear screen */
 .avatarbox{display:grid;grid-template-columns:128px 1fr;gap:10px;align-items:start;margin-bottom:10px}
 .avatarbox .avatar{background:linear-gradient(#0b0a1c,#1a1535);border:1px solid var(--line);border-bottom:2px solid var(--magenta)}
+/* a posed avatar in a dialog, and the two sides of a fight */
+.posebox{max-width:150px;margin:0 auto 12px}
+.posebox.wide{max-width:280px}
+.posebox .avatar,.versus .avatar{background:linear-gradient(#0b0a1c,#1a1535);border:1px solid var(--line);
+  border-bottom:2px solid var(--magenta)}
+.versus{display:grid;grid-template-columns:86px auto 86px;gap:14px;align-items:center;justify-content:center;margin-bottom:10px}
+.versus .foe{border-bottom-color:var(--pink)}
+.versus b{color:var(--pink);font-style:italic;font-size:20px;text-shadow:0 0 10px rgba(255,42,109,.6)}
+.versus small{display:block;text-align:center;color:var(--dim);font-size:11px;letter-spacing:1px;margin-top:3px}
 .slotline{font-size:12px;margin-bottom:7px;line-height:1.3}
 .slotline .dim{letter-spacing:1px;text-transform:uppercase;font-size:10px}
 /* gear rarity colours: common, uncommon, rare, epic, legendary */
@@ -296,8 +343,27 @@ const JOBS = {
   'Warez': ['Stock a pirate cinema for an off-grid festival', 'Load up a school lab the district forgot to fund'],
 };
 // name, price, shots per round, chance to hit
-const WEAPONS = [null, ['Stun gun', 1200, 1, 0.45], ['Pistol', 4500, 1, 0.6], ['Shotgun', 12000, 2, 0.6]];
-const EMP_PRICE = 2000, MAX_EMP = 5;
+const WEAPONS = [null,
+  ['Rubber Duck of Debugging', 400, 1, 0.35],
+  ['Clicky Keyboard', 1200, 1, 0.45],
+  ['USB Killer.exe', 2500, 1, 0.52],
+  ['Taser.bat', 4500, 1, 0.6],
+  ['Ban Hammer', 8000, 1, 0.7],
+  ['Packet Sniper', 13000, 1, 0.8],
+  ['DDoS Cannon', 22000, 2, 0.6],
+  ['Fork Bomb Launcher', 38000, 3, 0.5],
+  ['Ping of Death Ray', 65000, 2, 0.8],
+  ['Blue Screen of Death', 110000, 3, 0.75],
+];
+const MAX_EMP = 5;
+// Single-use gadgets, keyed by the name of their counter in the run state:
+// [name, price, most you can carry, what it does, short label]
+const GADGETS = {
+  emp: ['EMP.exe', 2000, MAX_EMP, 'fries 2 to 3 hostiles in a fight', 'EMP'],
+  smoke: ['Smoke.bat', 1500, 3, 'a sure escape from any fight in the open', 'SMK'],
+  bomb: ['Logic Bomb.zip', 3000, 3, 'a hack that knocks 2 to 3 hostiles offline, even in raids', 'LGB'],
+  fakeid: ['Fake ID.jpg', 5000, 2, 'use any time to drop your Heat by 40%', 'ID'],
+};
 const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black market trades
 // Who comes for you depends on your Heat.
 const LAW = [
@@ -379,7 +445,21 @@ async function levelUpCheck() {
 // Gear belongs to the career, so it carries over between runs.
 const RARITY = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
 const RARITY_MULT = [1, 1.5, 2.2, 3, 4];
-const RARITY_PREFIX = ['Worn', 'Tuned', 'Custom', 'Prototype', 'Mythic'];
+const RARITY_PREFIX = ['Worn', 'Tuned', 'Custom', 'Prototype', 'Mythic'];   // names on items from older saves
+// Every item is named "<something from this list> <item type>", e.g. "Kernel Panic Trench Coat".
+// One list per rarity, Common to Legendary.
+const GEAR_NAMES = [
+  ['n00b', 'Script Kiddie', 'Dial-Up', 'Password123', 'Hello World', 'Unpaid Intern', 'Floppy Disk', 'Lorem Ipsum',
+    'Spaghetti Code', 'Works-On-My-Machine', 'Default Settings', 'Trial Version'],
+  ['Ctrl+Alt+Del', '404', 'Chmod 777', 'Localhost', 'Git Blame', 'Off-By-One', 'Tinfoil', 'Rubber Duck',
+    'Dark Mode', 'Hotfix', 'Copy-Paste', 'Stack Overflow'],
+  ['Segfault', 'Buffer Overflow', 'Fork Bomb', 'Stack Trace', 'Memory Leak', 'Race Condition', 'Infinite Loop',
+    'Regex', 'Incognito', 'RGB', 'Brute Force', 'Packet Loss'],
+  ['Kernel Panic', 'Ping of Death', 'rm -rf', 'sudo', 'Heisenbug', 'Blue Screen', 'DROP TABLE', 'Null Pointer',
+    'Friday Deploy', 'l33t', 'Man-in-the-Middle', 'Backdoor'],
+  ['God Mode', 'Root Access', 'h4x0r Supreme', 'Its-Always-DNS', 'Turn-It-Off-And-On-Again', '1337 Ultra',
+    'Zero-Day', 'Admin/Admin', 'Uncrackable', 'Final_v2_REAL', 'Segmentation Fault Core Dumped', 'Legendary.exe'],
+];
 // slot: [label, item names, stats this slot can roll]
 const SLOTS = {
   head: ['Head', ['Beanie', 'Hood', 'AR Visor', 'Neural Band'], ['firewall', 'hack', 'stealth', 'charm']],
@@ -411,7 +491,7 @@ function makeItem(rar) {
   for (const key of pool.slice().sort(() => Math.random() - 0.5).slice(0, count)) {
     stats[key] = Math.max(1, Math.round(STATS[key][1] * RARITY_MULT[rar] * (0.8 + Math.random() * 0.4)));
   }
-  return {slot, rar, name: `${RARITY_PREFIX[rar]} ${pick(names)}`, stats};
+  return {slot, rar, name: `${pick(GEAR_NAMES[rar])} ${pick(names)}`, stats};
 }
 // boost shifts the odds toward rarer items
 function rollRarity(boost) {
@@ -432,7 +512,7 @@ const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], f
 function starterGear() {
   for (const [slot, [index, stat]] of Object.entries(STARTER)) {
     if (!career.gear[slot]) {
-      career.gear[slot] = {slot, rar: 0, name: `Worn ${SLOTS[slot][1][index]}`, stats: {[stat]: STATS[stat][1]}};
+      career.gear[slot] = {slot, rar: 0, name: `n00b ${SLOTS[slot][1][index]}`, stats: {[stat]: STATS[stat][1]}};
     }
   }
   saveCareer();
@@ -462,26 +542,45 @@ async function dropLoot(from, boost) {
   saveCareer();
 }
 
-// ---------- avatar: a full-body figure that wears whatever is equipped ----------
+// ---------- avatar: a figure that wears your gear and shows the state of the run ----------
 const RCOL = ['#c9d1d5', '#39ff7a', '#4da3ff', '#c77dff', '#ff9d2e'];
+// Looks the player can choose. They belong to the career, so they carry over between runs.
+const SKINS = [['Pale', '#f1c9a5', '#d3a27c'], ['Fair', '#e0ac84', '#bd8760'], ['Tan', '#c98f6b', '#a8704f'],
+  ['Brown', '#a56c4a', '#855235'], ['Deep', '#7a4a30', '#5e3722'], ['Dark', '#4f2f20', '#3a2115']];
+const HAIRSTYLES = ['Crop', 'Mohawk', 'Long', 'Buzz', 'Bald'];
+const HAIRCOLS = [['Violet', '#2b1b3f'], ['Black', '#15131c'], ['Brown', '#4a2c1a'], ['Blonde', '#d9b45a'],
+  ['Red', '#a8321f'], ['Silver', '#b9c0d0'], ['Teal', '#0f6f78']];
+const STREAKS = [['Magenta', '#ff4fd8'], ['Cyan', '#00e5ff'], ['Yellow', '#fcee0a'], ['Green', '#3dff9a'], ['None', null]];
+const SYN_COL = {ghost: '#00e5ff', ledger: '#ffd24a', null: '#3dff9a', red: '#ff3b5c'};
+// Cyberware that appears on the avatar as you level up.
+const WARE = [[8, 'optic implant'], [9, 'wired forearm'], [20, 'aura'], [25, 'brighter aura'], [30, 'full aura and halo']];
+let avSeq = 0;
 
-function avatarSvg() {
-  // For each slot: which item shape to draw, its rarity colour, and whether it glows (Rare and up).
-  const part = slot => {
-    const it = career.gear[slot];
-    if (!it) return null;
-    return {kind: Math.max(0, SLOTS[slot][1].findIndex(name => it.name.endsWith(name))), c: RCOL[it.rar], glow: it.rar >= 2};
-  };
-  const INK = '#0b0a19', SKIN = '#c98f6b', SHADE = '#a8704f', HAIR = '#2b1b3f';
+function getLook() {
+  const L = career.look || {}, ok = (v, n, d) => Number.isInteger(v) && v >= 0 && v < n ? v : d;
+  return {skin: ok(L.skin, SKINS.length, 2), hair: ok(L.hair, HAIRSTYLES.length, 0),
+    col: ok(L.col, HAIRCOLS.length, 0), streak: ok(L.streak, STREAKS.length, 0)};
+}
+
+// Draws one person in a 200 x 352 box. Used for the player and for everyone who comes after them.
+// F: {look, gear: {slot: {kind, c, rar, fill}}, syn, level, weapon, emp, hp, mood, gold, ko, cuffs}
+function figure(F) {
+  const INK = '#0b0a19', EYE = '#1b1426', GOLD = '#ffd24a', CYAN = '#00e5ff';
+  const [, SKIN, SHADE] = SKINS[F.look.skin];
+  const HAIR = HAIRCOLS[F.look.col][1], STREAK = STREAKS[F.look.streak][1], hair = F.look.hair;
+  const {head, body, hands, feet, deck} = F.gear;
+  const hurt = F.hp <= 35 && !F.ko;
   // A shape and its mirror image, for the left and right side of the body.
   const both = d => `<path d="${d}"/><path d="${d}" transform="translate(200 0) scale(-1 1)"/>`;
+  const flip = s => `<g transform="translate(200 0) scale(-1 1)">${s}</g>`;
   // A piece of clothing: solid material colour, thin trim in the rarity colour.
-  const wear = (p, fill, shapes) => `<g fill="${fill}" stroke="${p.c}" stroke-width="1.5" stroke-linejoin="round" ` +
-    `stroke-linecap="round"${p.glow ? ` style="filter:drop-shadow(0 0 3px ${p.c})"` : ''}>${shapes}</g>`;
-  const head = part('head'), body = part('body'), hands = part('hands'), feet = part('feet'), deck = part('deck');
+  // Rare glows, Epic pulses, Legendary shimmers.
+  const wear = (p, fill, shapes) => `<g${p.rar >= 3 ? ` class="${p.rar === 4 ? 'av-leg' : 'av-epic'}"` : ''} ` +
+    `fill="${p.fill || fill}" stroke="${p.c}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"` +
+    `${p.rar >= 2 ? ` style="--rc:${p.c};filter:drop-shadow(0 0 3px ${p.c})"` : ''}>${shapes}</g>`;
   const SLEEVE = 'M70 76 Q56 80 52 96 Q46 140 42 196 L57 199 Q60 160 67 118 Z';
   const TORSO = 'M70 75 Q100 68 130 75 L137 84 L139 120 Q134 160 132 190 L68 190 Q66 160 61 120 L63 84 Z';
-  let out = '<ellipse cx="100" cy="337" rx="60" ry="8" fill="rgba(255,79,216,.2)"/>';
+  let out = '';
 
   // --- behind the body ---
   if (deck && deck.kind === 2) {   // Mesh Rig: backpack with an antenna array
@@ -490,8 +589,11 @@ function avatarSvg() {
       `<circle cx="58" cy="32" r="4" fill="${deck.c}"/><circle cx="142" cy="32" r="4" fill="${deck.c}"/>` +
       `<circle cx="100" cy="20" r="4" fill="${deck.c}"/>`);
   }
+  if (hair === 2) {   // long hair falls behind the shoulders
+    out += `<path d="M81 30 Q74 62 79 90 L121 90 Q126 62 119 30 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>`;
+  }
   if (head && head.kind === 1) {   // back of the hood
-    out += wear(head, '#3c4460', '<path d="M76 46 Q72 8 100 8 Q128 8 124 46 Q126 66 114 76 L86 76 Q74 66 76 46 Z"/>');
+    out += wear(head, '#222539', '<path d="M76 46 Q72 8 100 8 Q128 8 124 46 Q126 66 114 76 L86 76 Q74 66 76 46 Z"/>');
   }
 
   // --- legs and shoes ---
@@ -500,6 +602,10 @@ function avatarSvg() {
     '<path d="M100 184 L126 184 L126 200 Q124 250 121 322 L105 322 Q102 250 101 200 Z"/></g>' +
     '<path d="M87 200 Q86 250 86 318 M113 200 Q114 250 114 318" stroke="#1d2540" stroke-width="2" fill="none"/>' +
     `<g fill="#3a3d4d" stroke="${INK}" stroke-width="1">${both('M77 320 L96 320 L97 331 Q88 336 71 334 Q71 325 77 320 Z')}</g>`;
+  if (F.syn === 'null') {   // Null Sector: smuggler's thigh pouches
+    out += `<g fill="#39402f" stroke="${SYN_COL.null}" stroke-width="1" stroke-linejoin="round">` +
+      both('M75 224 L99 225 L99 228 L75 227 Z') + both('M72 228 h13 v17 h-13 z') + both('M72 233 h13') + '</g>';
+  }
   if (feet) {
     out += wear(feet, ['#e9e9f0', '#1d1d26', '#2b3050'][feet.kind], [
       // Sneakers
@@ -523,8 +629,14 @@ function avatarSvg() {
     `<path d="M74 187 h52" stroke="#151827" stroke-width="4"/><rect x="96" y="184" width="8" height="6" fill="#8a8fa8"/>`;
 
   // --- body gear ---
-  if (body) {
-    out += wear(body, ['#3d5f94', '#566080', '#7a5a40', '#454d6e'][body.kind], [
+  if (body && body.kind === 'suit') {   // only agents wear one, so it is not in the SLOTS list
+    out += wear(body, '#16161f', `<path d="${TORSO}"/>${both(SLEEVE)}` +
+      '<path d="M89 72 L100 104 L111 72 Z" fill="#e8e8f0"/>' +
+      `<path d="M98 78 h4 l2.5 26 l-4.5 7 l-4.5 -7 Z" fill="${body.c}" stroke-width=".8"/>` +
+      '<path d="M89 72 L100 104 L111 72 M100 108 V190" fill="none"/>');
+  } else if (body) {
+    // One fill colour and one drawing per name in SLOTS.body, in the same order.
+    out += wear(body, ['#3d5f94', '#3b3f4f', '#2c2838', '#2a2e3f'][body.kind], [
       // Denim Jacket
       `<path d="${TORSO}"/>${both(SLEEVE)}` +
         '<path d="M100 96 V190 M86 72 L100 96 L114 72" fill="#32364f"/>' +
@@ -544,6 +656,23 @@ function avatarSvg() {
     ][body.kind]);
   }
 
+  // --- syndicate marks ---
+  if (F.syn === 'ledger' || F.gold) {   // Black Ledger: gold chain and watch
+    out += `<g fill="none" stroke="${GOLD}" stroke-width="2.2" stroke-dasharray="2.6 1.5">` +
+      `<path d="M88 75 Q100 101 112 75"/>${F.gold ? '<path d="M85 76 Q100 122 115 76"/>' : ''}</g>` +
+      `<circle cx="100" cy="${F.gold ? 100 : 89}" r="${F.gold ? 5 : 3.4}" fill="${GOLD}" stroke="${INK}" stroke-width="1"/>` +
+      `<rect x="143.5" y="190" width="14" height="5" rx="1.5" fill="${GOLD}" stroke="${INK}" stroke-width=".8"/>`;
+  }
+  if (F.syn === 'red') {   // Red Team Zero: armband
+    out += flip(`<path d="M48 120 L66.5 123 L65.5 135 L47 132 Z" fill="${SYN_COL.red}" stroke="${INK}" stroke-width="1"/>` +
+      '<circle cx="56.5" cy="127.5" r="3" fill="none" stroke="#fff" stroke-width="1.4"/>');
+  }
+  if (F.syn === 'null') {   // Null Sector: bandolier of pouches
+    out += `<g fill="#39402f" stroke="${SYN_COL.null}" stroke-width="1" stroke-linejoin="round">` +
+      '<path d="M75 79 L80 76 L128 172 L123 176 Z"/><path d="M84 100 l9 -4 l5 10 l-9 4 z M97 126 l9 -4 l5 10 l-9 4 z ' +
+      'M110 152 l9 -4 l5 10 l-9 4 z"/></g>';
+  }
+
   // --- something carried or strapped on, then the hands over it ---
   if (deck && deck.kind === 0) {   // Burner Laptop under the arm
     out += wear(deck, '#2a2d3f', '<rect x="140" y="184" width="32" height="22" rx="2"/>' +
@@ -556,6 +685,61 @@ function avatarSvg() {
   }
   if (deck && deck.kind === 2) {   // Mesh Rig shoulder straps
     out += wear(deck, 'none', '<path d="M82 76 Q80 110 82 150 M118 76 Q120 110 118 150 M82 112 h36" stroke-width="3"/>');
+  }
+  (F.belt || []).slice(0, 4).forEach((c, i) => {   // single-use gadgets clipped to the belt
+    out += `<rect x="${104 + i * 6.6}" y="182" width="5.4" height="11" rx="2" fill="#2a2d3f" stroke="${c}" stroke-width="1"/>` +
+      `<circle cx="${106.7 + i * 6.6}" cy="185" r="1.2" fill="${c}" class="av-eye"/>`;
+  });
+  if (F.level >= 9) {   // wired forearm
+    out += `<g fill="none" stroke="${CYAN}" stroke-width="1.2" stroke-linecap="round" style="filter:drop-shadow(0 0 2px ${CYAN})">` +
+      '<path d="M148 134 L150.5 158 L147.5 176 L151.5 195 M144.5 148 L150.5 158 M153 168 L147.5 176"/>' +
+      `<g fill="${CYAN}" stroke="none" class="av-eye"><circle cx="150.5" cy="158" r="1.8"/><circle cx="147.5" cy="176" r="1.8"/></g></g>`;
+  }
+  if (F.hp <= 35 && !F.ko) {   // bandaged forearm
+    out += `<path d="M46.5 158 L61 160 L60 172 L45.5 170 Z" fill="#e9e4d8" stroke="${INK}" stroke-width=".7"/>` +
+      '<path d="M47 163 L60 166 M53 159 L52 171" stroke="#c9423a" stroke-width="1"/>';
+  }
+  if (F.weapon > 0) {
+    // The weapon in hand, in the same order as WEAPONS. Anything past the end of the list shows the last drawing.
+    const zap = (d, c) => `<path d="${d}" fill="none" stroke="${c || CYAN}" stroke-width="1.2" class="av-zap"/>`;
+    const held = [
+      // Rubber Duck of Debugging
+      `<g stroke="${INK}" stroke-width="1"><ellipse cx="48" cy="221" rx="8.5" ry="6" fill="#fcee0a"/><circle cx="53.5" cy="212.5" r="5" fill="#fcee0a"/>` +
+        '<path d="M57.5 211.5 l5.5 1.5 l-5.5 2.2 z" fill="#ff9d2e"/></g><circle cx="54.6" cy="211.4" r="1" fill="#0b0a19"/>',
+      // Clicky Keyboard, carried by one end
+      `<rect x="42" y="203" width="14" height="50" rx="2" fill="#2a2d3f" stroke="#8a8fa8" stroke-width="1"/>` +
+        '<path d="M45.5 209 v40 M49 209 v40 M52.5 209 v40" stroke="#c9d1d5" stroke-width="2" stroke-dasharray="2.4 1.6"/>',
+      // USB Killer.exe
+      `<g stroke="${INK}" stroke-width="1"><rect x="44.5" y="204" width="9" height="20" rx="1.5" fill="#ff3b5c"/>` +
+        '<rect x="45.8" y="224" width="6.4" height="8" fill="#c9d1d5"/></g>' + zap('M45 236 l2 -2.4 l2 2.4 l2 -2.4 l2 2.4', '#fcee0a'),
+      // Taser.bat
+      `<path d="M44 203 h10 v17 h-10 z" fill="#fcee0a" stroke="${INK}" stroke-width="1"/>` +
+        '<path d="M44 209 h10" stroke="#0b0a19" stroke-width="2"/><path d="M46.5 220 v6 M51.5 220 v6" stroke="#c9d1d5" stroke-width="1.5"/>' +
+        zap('M46.5 228 l1.7 -2 l1.6 2 l1.7 -2'),
+      // Ban Hammer, head down
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><rect x="47" y="204" width="5" height="48" fill="#6b4a2e"/>` +
+        '<rect x="36.5" y="250" width="26" height="15" rx="2" fill="#8a8fa8"/><rect x="36.5" y="255" width="26" height="5" fill="#ff3b5c"/></g>',
+      // Packet Sniper, carried along the arm
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><path d="M44 126 L52.5 126 L53 156 L46 156 Z" fill="#3a3d4d"/>` +
+        '<path d="M47.5 154 L52.5 154 L53 286 L49.5 286 Z" fill="#2c2f3c" stroke="#8a8fa8"/>' +
+        `<rect x="54" y="166" width="5" height="30" rx="2.5" fill="#2c2f3c" stroke="#8a8fa8"/></g><circle cx="56.5" cy="168" r="1.6" fill="${CYAN}" class="av-eye"/>`,
+      // DDoS Cannon
+      `<g stroke="#8a8fa8" stroke-width="1"><rect x="40" y="186" width="18" height="70" rx="4" fill="#2a2d3f"/>` +
+        `<rect x="38" y="252" width="22" height="9" rx="2" fill="#3a3d4d"/></g><path d="M43 200 h12 M43 212 h12 M43 224 h12" stroke="${CYAN}" stroke-width="2" class="av-eye"/>`,
+      // Fork Bomb Launcher
+      `<g stroke="#8a8fa8" stroke-width="1"><rect x="41" y="184" width="16" height="62" rx="3" fill="#39402f"/></g>` +
+        '<path d="M42 246 v20 M49 246 v24 M56 246 v20 M42 252 h14" fill="none" stroke="#c9d1d5" stroke-width="2.2" stroke-linecap="round"/>' +
+        '<circle cx="49" cy="198" r="3" fill="#ff9d2e" class="av-eye"/>',
+      // Ping of Death Ray
+      `<g stroke="${INK}" stroke-width="1"><path d="M43 203 h12 l2 26 h-16 z" fill="#c9d1d5"/><circle cx="49" cy="210" r="3.4" fill="#3dff9a"/></g>` +
+        '<g fill="none" stroke="#3dff9a" stroke-width="1.8" class="av-eye"><ellipse cx="49" cy="234" rx="7" ry="2.4"/>' +
+        '<ellipse cx="49" cy="241" rx="5" ry="2"/><ellipse cx="49" cy="247" rx="3" ry="1.6"/></g>',
+      // Blue Screen of Death
+      `<rect x="33" y="206" width="30" height="40" rx="2" fill="#0a3fd0" stroke="#c9d1d5" stroke-width="1.5" style="filter:drop-shadow(0 0 3px #4d7dff)"/>` +
+        '<text x="38" y="222" fill="#fff" font-size="13" font-weight="bold" font-family="monospace">:(</text>' +
+        '<path d="M38 229 h20 M38 234 h14 M38 239 h17" stroke="#fff" stroke-width="1.4"/>',
+    ];
+    out += held[Math.min(F.weapon, held.length) - 1];
   }
   out += `<g fill="${SKIN}" stroke="${INK}" stroke-width="1">` +
     '<ellipse cx="49" cy="208" rx="6.5" ry="9"/><ellipse cx="151" cy="208" rx="6.5" ry="9"/></g>';
@@ -573,22 +757,82 @@ function avatarSvg() {
         '<path d="M40 220 l-4 5 M49 221 v6 M58 220 l4 5 M142 220 l-4 5 M151 221 v6 M160 220 l4 5" fill="none"/>',
     ][hands.kind]);
   }
+  if (F.cuffs) {   // handcuffs
+    out += '<g fill="none" stroke="#c9d1d5" stroke-width="2.4"><ellipse cx="49" cy="198" rx="8.5" ry="3.6"/>' +
+      '<ellipse cx="151" cy="198" rx="8.5" ry="3.6"/><path d="M57 200 Q100 232 143 200" stroke-width="1.6" stroke-dasharray="3 2"/></g>';
+  }
 
-  // --- neck, head, hair and face ---
+  // --- neck, head and hair ---
   out += `<path d="M93 56 h14 v18 q-7 5 -14 0 z" fill="${SHADE}" stroke="${INK}" stroke-width="1"/>` +
     `<g fill="${SKIN}" stroke="${INK}" stroke-width="1"><ellipse cx="83" cy="41" rx="3" ry="5"/><ellipse cx="117" cy="41" rx="3" ry="5"/>` +
-    '<path d="M83 36 Q83 20 100 19 Q117 20 117 36 Q117 50 110 57 Q100 64 90 57 Q83 50 83 36 Z"/></g>' +
-    `<path d="M82 39 Q78 15 100 13 Q122 15 118 39 Q115 27 105 25 Q92 24 85 31 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>` +
-    '<path d="M104 14 Q117 18 117 34 Q113 24 104 23 Z" fill="#ff4fd8"/>' +
-    '<ellipse cx="93" cy="40" rx="3.2" ry="2.1" fill="#fff"/><ellipse cx="107" cy="40" rx="3.2" ry="2.1" fill="#fff"/>' +
-    `<circle cx="93.4" cy="40" r="1.6" fill="${HAIR}"/><circle cx="107.4" cy="40" r="1.6" fill="${HAIR}"/>` +
-    `<path d="M89 35.5 q4 -2 8 0 M103 35.5 q4 -2 8 0" stroke="${HAIR}" stroke-width="1.6" fill="none" stroke-linecap="round"/>` +
-    `<path d="M100 42 q-2 6 0 8 q1.5 .6 2.5 0" stroke="${SHADE}" stroke-width="1.2" fill="none" stroke-linecap="round"/>` +
-    '<path d="M94.5 54 q5.5 2.4 11 0" stroke="#8a4a3c" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+    '<path d="M83 36 Q83 20 100 19 Q117 20 117 36 Q117 50 110 57 Q100 64 90 57 Q83 50 83 36 Z"/></g>';
+  const streak = d => STREAK ? `<path class="av-streak" d="${d}" fill="${STREAK}"/>` : '';
+  if (hair === 0 || hair === 2) {
+    out += `<path d="M82 39 Q78 15 100 13 Q122 15 118 39 Q115 27 105 25 Q92 24 85 31 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>`;
+    if (hair === 2) {
+      out += `<g fill="${HAIR}" stroke="${INK}" stroke-width=".8">${both('M82 34 Q77 58 81 82 L87 80 Q84 58 86 38 Z')}</g>` +
+        streak('M118 34 Q123 58 119 82 L113 80 Q116 58 114 38 Z');
+    } else {
+      out += streak('M104 14 Q117 18 117 34 Q113 24 104 23 Z');
+    }
+  } else if (hair === 1) {
+    out += `<path d="M83 34 Q83 20 100 19 Q117 20 117 34 Q112 24 100 23 Q88 24 83 34 Z" fill="${HAIR}" opacity=".4"/>` +
+      `<path d="M93 25 Q91 4 100 1 Q109 4 107 25 Q100 21 93 25 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>` +
+      streak('M100 1.6 Q108.4 4.4 106.4 24 Q103 22.2 100 22 Z');
+  } else if (hair === 3) {
+    out += `<path d="M83 36 Q82 17 100 16 Q118 17 117 36 Q113 25 100 24 Q87 25 83 36 Z" fill="${HAIR}" opacity=".85"/>` +
+      streak('M108 17.5 L111 18.5 L116 31 L113.6 28 Z');
+  }
+
+  // --- face: eyes, brows, nose, mouth ---
+  const mood = F.ko ? 'ko' : F.mood || '';
+  if (F.ko) {
+    out += '<path d="M90.5 38 l5 4 m0 -4 l-5 4 M104.5 38 l5 4 m0 -4 l-5 4" stroke="#1b1426" stroke-width="1.4" fill="none" stroke-linecap="round"/>';
+  } else {
+    out += '<ellipse cx="93" cy="40" rx="3.2" ry="2.1" fill="#fff"/>' +
+      `<circle cx="93.4" cy="40" r="1.6" fill="${EYE}"/>`;
+    if (F.level >= 8) {   // optic implant
+      out += `<ellipse cx="107" cy="40" rx="3.4" ry="2.3" fill="#05131a" stroke="${CYAN}" stroke-width=".6"/>` +
+        `<circle cx="107.2" cy="40" r="1.7" fill="${CYAN}" class="av-eye" style="filter:drop-shadow(0 0 2px ${CYAN})"/>` +
+        `<path d="M110.6 41 L114 44 L114 50" fill="none" stroke="${CYAN}" stroke-width=".8"/>`;
+    } else {
+      out += '<ellipse cx="107" cy="40" rx="3.2" ry="2.1" fill="#fff"/>' + `<circle cx="107.4" cy="40" r="1.6" fill="${EYE}"/>`;
+    }
+    if (hurt) out += `<path d="M89.4 38.3 h7.2 M103.4 38.3 h7.2" stroke="${SKIN}" stroke-width="2.2"/>`;
+    out += `<g class="av-blink" fill="${SKIN}"><ellipse cx="93" cy="40" rx="3.8" ry="2.7"/><ellipse cx="107" cy="40" rx="3.8" ry="2.7"/></g>`;
+  }
+  const brows = {
+    grin: 'M89 35.5 q4 -2 8 0 M103 34.2 q4 -2.6 8 -.6',
+    ouch: 'M89 36.6 L97 34.4 M103 34.4 L111 36.6',
+    mean: 'M89 34.2 L97 36.6 M103 36.6 L111 34.2',
+    ko: 'M89 35 h8 M103 35 h8',
+  }[hurt ? 'ouch' : mood] || 'M89 35.5 q4 -2 8 0 M103 35.5 q4 -2 8 0';
+  out += `<path d="${brows}" stroke="${hair === 4 ? EYE : HAIR}" stroke-width="1.6" fill="none" stroke-linecap="round"/>` +
+    `<path d="M100 42 q-2 6 0 8 q1.5 .6 2.5 0" stroke="${SHADE}" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
+  if (hurt) {   // gritted teeth
+    out += '<rect x="95" y="52.4" width="10" height="3.6" rx="1.2" fill="#fff" stroke="#8a4a3c" stroke-width=".8"/>' +
+      '<path d="M97.5 52.4 v3.6 M100 52.4 v3.6 M102.5 52.4 v3.6" stroke="#8a4a3c" stroke-width=".5"/>';
+  } else {
+    const mouth = {grin: 'M93.5 53 q6.5 5 12.5 -1.2', ouch: 'M95 55.6 q5 -2.8 10 0', mean: 'M95 54.8 h10',
+      ko: 'M95 55 q2.5 -2 5 0 q2.5 2 5 0'}[mood] || 'M94.5 54 q5.5 2.4 11 0';
+    out += `<path d="${mouth}" stroke="#8a4a3c" stroke-width="1.5" fill="none" stroke-linecap="round"/>`;
+  }
+  if (F.hp <= 60) out += '<ellipse cx="111" cy="47.5" rx="3.3" ry="2.3" fill="#6b2d6b" opacity=".55"/>';
+  if (F.hp <= 35) {
+    out += `<rect x="85.5" y="45.5" width="8" height="3.4" rx="1" fill="#e9d9b8" stroke="${INK}" stroke-width=".5" transform="rotate(-20 90 47)"/>`;
+  }
+  if (F.hp <= 15) out += '<path d="M101.6 50.6 v3.6" stroke="#c9423a" stroke-width="1.3" stroke-linecap="round"/>';
 
   // --- headgear ---
-  if (head) {
-    out += wear(head, ['#4a5078', '#566080', head.c, '#1b1e30'][head.kind], [
+  if (head && head.kind === 'cap') {   // peaked cap (police); agent headgear is not in the SLOTS list
+    out += wear(head, '#1c2f5e', '<path d="M82 29 Q82 11 100 10 Q118 11 118 29 Z"/>' +
+      '<path d="M80 28 Q100 23 120 28 L123 34 Q100 29 77 34 Z" fill="#0d0f1a"/><circle cx="100" cy="19" r="3.2" fill="#ffd24a" stroke="none"/>');
+  } else if (head && head.kind === 'shades') {   // dark glasses and an earpiece (agents)
+    out += wear(head, '#05060a', '<path d="M86 37 h12 v4.5 q-6 3.5 -12 0 z M102 37 h12 v4.5 q-6 3.5 -12 0 z" stroke-width="1"/>' +
+      '<path d="M98 38.5 h4 M118.5 43 q3.5 7 0 15" fill="none" stroke-width="1"/>');
+  } else if (head) {
+    // One fill colour and one drawing per name in SLOTS.head, in the same order.
+    out += wear(head, ['#3b3f5e', '#2b2f48', head.c, '#1b1e30'][head.kind], [
       // Beanie
       '<path d="M82 33 Q81 12 100 12 Q119 12 118 33 Z"/><path d="M81 30 Q100 26 119 30 L119 38 Q100 34 81 38 Z"/>',
       // Hood, open at the face
@@ -602,8 +846,235 @@ function avatarSvg() {
         `<circle cx="83" cy="30" r="3" fill="${head.c}"/><circle cx="117" cy="30" r="3" fill="${head.c}"/>`,
     ][head.kind]);
   }
+  if (F.gold) {   // gold-rimmed shades for a big score
+    out += `<path d="M86 37 h12 v4.5 q-6 3.5 -12 0 z M102 37 h12 v4.5 q-6 3.5 -12 0 z" fill="#05060a" stroke="${GOLD}" stroke-width="1.2"/>` +
+      `<path d="M98 38.5 h4" stroke="${GOLD}" stroke-width="1.2"/>`;
+  }
+  if (F.ko) {   // seeing stars
+    const star = (x, y) => `<path d="M${x} ${y} l1.5 3.5 l3.5 1.5 l-3.5 1.5 l-1.5 3.5 l-1.5 -3.5 l-3.5 -1.5 l3.5 -1.5 z"/>`;
+    out += `<g fill="#fcee0a" class="av-zap">${star(70, 12)}${star(129, 10)}${star(100, 3)}</g>`;
+  }
 
-  return `<svg class="avatar" viewBox="0 0 200 352" role="img" aria-label="Your character">${out}</svg>`;
+  // --- Legendary gear throws off sparks ---
+  const anchor = {head: [100, 22], body: [100, 120], hands: [49, 206], feet: [100, 322], deck: [152, 182]};
+  for (const [slot, [x, y]] of Object.entries(anchor)) {
+    const p = F.gear[slot];
+    if (!p || p.rar !== 4) continue;
+    for (let i = 0; i < 4; i++) {
+      out += `<circle class="av-spark" cx="${x + [-17, 9, -5, 19][i]}" cy="${y + [4, -2, 8, 6][i]}" r="1.7" fill="${p.c}" ` +
+        `style="animation-delay:${(-i * 0.55 - x / 90).toFixed(2)}s"/>`;
+    }
+  }
+  return out;
+}
+
+// A dim scene behind the avatar for each location. The tops of things sit high enough to show in the portrait crop.
+function backdrop(loc) {
+  const lights = (y, cols) => cols.map((c, i) => `<circle cx="${14 + i * 172 / (cols.length - 1)}" cy="${y + 9 - Math.abs(i - (cols.length - 1) / 2) * 2}" r="2.6" fill="${c}"/>`).join('');
+  const scenes = {
+    'The Hackerspace':
+      '<path d="M0 72 h200 M0 132 h200" stroke="#2b2752" stroke-width="3"/>' +
+      '<rect x="8" y="50" width="24" height="21" fill="#1e2a4a"/><rect x="36" y="57" width="13" height="14" fill="#3a2350"/>' +
+      '<rect x="150" y="46" width="32" height="25" fill="#1e2a4a"/><rect x="186" y="58" width="10" height="13" fill="#3a2350"/>' +
+      '<rect x="12" y="108" width="32" height="23" fill="#23304f"/><rect x="158" y="112" width="26" height="19" fill="#3a2350"/>' +
+      '<path d="M0 18 Q50 34 100 22 T200 18" stroke="#7c81ab" fill="none"/>' +
+      lights(16, ['#fcee0a', '#ff4fd8', '#00e5ff', '#3dff9a', '#fcee0a', '#ff4fd8', '#00e5ff']) +
+      '<rect x="0" y="262" width="52" height="70" fill="#15132c"/><rect x="150" y="250" width="50" height="82" fill="#15132c"/>' +
+      '<rect x="6" y="238" width="30" height="22" fill="#0c2a2e" stroke="#00e5ff" stroke-opacity=".5"/>',
+    'Tor Bazaar':
+      '<path d="M132 108 Q120 78 150 56 L150 40 L150 56 Q180 78 168 108 Z" fill="#1b1840" stroke="#5a3a8a"/>' +
+      '<path d="M0 100 L26 70 L62 100 Z" fill="#5a1f4a"/><path d="M14 100 L26 70 L38 100 Z" fill="#7a2a5e"/>' +
+      '<path d="M0 100 h62 v8 h-62 z" fill="#3a2350"/><path d="M6 108 v224 M56 108 v224" stroke="#3a2350" stroke-width="3"/>' +
+      '<path d="M128 150 L164 124 L200 150 Z" fill="#1f4a5a"/><path d="M152 150 L164 124 L176 150 Z" fill="#2a6a7a"/>' +
+      '<path d="M134 150 v182 M194 150 v182" stroke="#23304f" stroke-width="3"/>' +
+      '<path d="M0 30 Q100 52 200 30" stroke="#7c81ab" fill="none"/>' + lights(30, ['#ff9d2e', '#ff9d2e', '#ff9d2e', '#ff9d2e', '#ff9d2e']) +
+      '<rect x="6" y="250" width="50" height="16" fill="#23304f"/><rect x="134" y="262" width="60" height="16" fill="#3a2350"/>',
+    'IRC Backchannel':
+      '<rect x="4" y="26" width="66" height="78" fill="#0b1420" stroke="#00e5ff" stroke-opacity=".5"/>' +
+      '<path d="M4 36 h66" stroke="#00e5ff" stroke-opacity=".5"/>' +
+      '<path d="M10 46 h30 M10 54 h48 M10 62 h22 M10 70 h40 M10 78 h34 M10 86 h50 M10 94 h18" stroke="#3dff9a" stroke-opacity=".6" stroke-width="2"/>' +
+      '<rect x="132" y="56" width="64" height="92" fill="#0b1420" stroke="#ff4fd8" stroke-opacity=".5"/>' +
+      '<path d="M132 66 h64" stroke="#ff4fd8" stroke-opacity=".5"/>' +
+      '<path d="M138 76 h40 M138 84 h26 M138 92 h48 M138 100 h30 M138 108 h44 M138 116 h20 M138 124 h36" stroke="#7c81ab" stroke-width="2"/>' +
+      '<text x="150" y="42" fill="#00e5ff" fill-opacity=".45" font-size="36" font-weight="bold" font-family="monospace">#</text>' +
+      '<rect x="10" y="190" width="54" height="64" fill="#0b1420" stroke="#fcee0a" stroke-opacity=".35"/>' +
+      '<path d="M16 204 h36 M16 212 h24 M16 220 h40 M16 228 h18" stroke="#fcee0a" stroke-opacity=".4" stroke-width="2"/>',
+    'Con Hallway':
+      '<path d="M16 0 h28 v84 l-14 -12 l-14 12 z" fill="#5a1f4a"/><path d="M22 20 h16 M22 30 h16 M22 40 h10" stroke="#ff4fd8" stroke-opacity=".6" stroke-width="2"/>' +
+      '<path d="M156 0 h28 v100 l-14 -12 l-14 12 z" fill="#1f4a5a"/><circle cx="170" cy="36" r="9" fill="none" stroke="#00e5ff" stroke-opacity=".6" stroke-width="2"/>' +
+      '<path d="M0 126 h200" stroke="#2b2752" stroke-width="2"/>' +
+      '<g fill="#15132c"><circle cx="20" cy="222" r="11"/><path d="M4 262 q16 -30 32 0 v70 h-32 z"/>' +
+      '<circle cx="182" cy="212" r="12"/><path d="M164 256 q18 -32 36 0 v76 h-36 z"/>' +
+      '<circle cx="48" cy="236" r="9"/><path d="M36 268 q12 -24 24 0 v64 h-24 z"/><circle cx="154" cy="240" r="9"/><path d="M142 272 q12 -24 24 0 v60 h-24 z"/></g>',
+    'Campus Lab':
+      '<g fill="#1a2748" stroke="#34447a"><path d="M8 118 V58 Q25 30 42 58 V118 Z"/><path d="M158 118 V58 Q175 30 192 58 V118 Z"/></g>' +
+      '<path d="M25 40 V118 M8 82 h34 M175 40 V118 M158 82 h34" stroke="#34447a"/>' +
+      '<rect x="56" y="34" width="88" height="46" fill="#10261f" stroke="#2f5a48"/>' +
+      '<path d="M64 48 h40 M64 58 h62 M64 68 h28" stroke="#9fd8bd" stroke-opacity=".5" stroke-width="2"/>' +
+      '<rect x="2" y="244" width="40" height="30" rx="3" fill="#23263a"/><rect x="7" y="249" width="30" height="20" fill="#0c2a1c" stroke="#3dff9a" stroke-opacity=".6"/>' +
+      '<rect x="158" y="244" width="40" height="30" rx="3" fill="#23263a"/><rect x="163" y="249" width="30" height="20" fill="#0c2a1c" stroke="#3dff9a" stroke-opacity=".6"/>' +
+      '<path d="M0 278 h50 M150 278 h50" stroke="#34447a" stroke-width="4"/>',
+    'Datacenter Dock':
+      '<path d="M0 12 h200" stroke="#34447a" stroke-width="4"/><path d="M20 12 v10 M60 12 v10 M140 12 v10 M180 12 v10" stroke="#34447a" stroke-width="2"/>' +
+      '<rect x="0" y="22" width="48" height="310" fill="#121028" stroke="#2b2752"/><rect x="152" y="22" width="48" height="310" fill="#121028" stroke="#2b2752"/>' +
+      [34, 58, 82, 106, 130, 154, 178, 202, 226, 250, 274, 298].map((y, i) =>
+        `<path d="M5 ${y} h38 M157 ${y} h38" stroke="#2b2752" stroke-width="9"/>` +
+        `<rect x="8" y="${y - 2}" width="5" height="4" fill="${i % 3 ? '#3dff9a' : '#fcee0a'}"/><rect x="16" y="${y - 2}" width="5" height="4" fill="#3dff9a"/>` +
+        `<rect x="160" y="${y - 2}" width="5" height="4" fill="#3dff9a"/><rect x="168" y="${y - 2}" width="5" height="4" fill="${i % 4 ? '#3dff9a' : '#ff3b5c'}"/>`).join(''),
+    'Cyber Cafe':
+      '<g fill="none" stroke="#ff4fd8" stroke-width="2.6" stroke-linecap="round"><path d="M148 44 h28 v14 q0 13 -14 13 q-14 0 -14 -13 z"/>' +
+      '<path d="M176 48 q10 0 10 7 q0 7 -10 7 M156 36 q-3 -5 0 -10 M167 36 q-3 -5 0 -10"/></g>' +
+      '<rect x="6" y="24" width="56" height="80" fill="#11172e" stroke="#34447a"/>' +
+      '<path d="M6 36 h56 M6 48 h56 M6 60 h56 M6 72 h56 M6 84 h56" stroke="#34447a"/>' +
+      '<path d="M0 236 h56 M144 236 h56" stroke="#3a2350" stroke-width="6"/>' +
+      '<rect x="8" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
+      '<rect x="158" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
+      '<rect x="0" y="240" width="56" height="92" fill="#15132c"/><rect x="144" y="240" width="56" height="92" fill="#15132c"/>',
+    'Paste Alley':
+      '<g stroke="#2b2752" fill="none">' + [20, 44, 68, 92, 116, 140, 164, 188, 212, 236, 260, 284, 308].map((y, i) =>
+        `<path d="M0 ${y} h54 M146 ${y} h54 M${i % 2 ? 18 : 36} ${y} v24 M${i % 2 ? 164 : 182} ${y} v24"/>`).join('') + '</g>' +
+      '<rect x="6" y="52" width="32" height="42" fill="#3a2350" transform="rotate(-4 22 73)"/>' +
+      '<path d="M12 64 h20 M12 72 h14 M12 80 h18" stroke="#ff4fd8" stroke-opacity=".6" stroke-width="2"/>' +
+      '<rect x="160" y="96" width="30" height="40" fill="#1f4a5a" transform="rotate(5 175 116)"/>' +
+      '<rect x="10" y="150" width="26" height="34" fill="#4a431f" transform="rotate(3 23 167)"/>' +
+      '<path d="M186 332 V34 h-16" fill="none" stroke="#34447a" stroke-width="3"/><path d="M170 34 l-16 46 h32 z" fill="#fcee0a" fill-opacity=".14"/>' +
+      '<circle cx="170" cy="36" r="4" fill="#fcee0a"/>' +
+      '<rect x="2" y="276" width="46" height="56" fill="#16302a" stroke="#234a40"/><path d="M0 276 h50" stroke="#234a40" stroke-width="4"/>',
+  };
+  return scenes[loc] ? `<g opacity=".62">${scenes[loc]}</g>` : '';
+}
+
+// The player. o: {bust} crops to a portrait, {pose} is 'busted', 'down', 'rich' or 'vanished',
+// {plain} ignores the state of the run, {mood} forces an expression.
+function avatarSvg(o) {
+  o = o || {};
+  const pose = o.pose || '', quiet = !!pose || !!o.plain, st = S || {}, id = 'av' + (++avSeq);
+  const part = slot => {
+    const it = career.gear[slot];
+    if (!it) return null;
+    return {kind: Math.max(0, SLOTS[slot][1].findIndex(name => it.name.endsWith(name))), c: RCOL[it.rar], rar: it.rar};
+  };
+  const lvl = level(), rich = pose === 'rich';
+  const hp = quiet || !Number.isInteger(st.hp) ? 100 : st.hp;
+  const opsec = quiet || !Number.isInteger(st.opsec) ? 100 : st.opsec;
+  const heat = quiet ? 0 : st.heat || 0;
+  // One canister on the belt for each kind of gadget carried, then spares.
+  const kinds = [['emp', '#00e5ff'], ['smoke', '#c9d1d5'], ['bomb', '#ff4fd8'], ['fakeid', '#fcee0a']];
+  const belt = kinds.filter(([k]) => st[k] > 0).map(([, c]) => c)
+    .concat(kinds.flatMap(([k, c]) => Array(Math.max(0, (st[k] || 0) - 1)).fill(c)));
+  const F = {look: getLook(), syn: career.syn, level: lvl, weapon: st.weapon || 0, belt, hp,
+    gear: {head: part('head'), body: part('body'), hands: part('hands'), feet: part('feet'), deck: part('deck')},
+    mood: pose === 'busted' ? 'ouch' : rich ? 'grin' : o.mood || (quiet ? '' : st.mood) || '',
+    gold: rich, ko: pose === 'down', cuffs: pose === 'busted'};
+  const grad = (name, c) => `<radialGradient id="${id}${name}"><stop offset="0" stop-color="${c}"/>` +
+    `<stop offset="1" stop-color="${c}" stop-opacity="0"/></radialGradient>`;
+  let defs = '', back = '', front = '', box = '0 0 200 352';
+
+  if (!quiet) back += backdrop(st.loc);
+  // Heat: police lights, then a Fed searchlight, then the NSA's crosshair.
+  if (heat >= 75) {
+    defs += grad('n', '#ff3b5c');
+    back += `<ellipse cx="100" cy="352" rx="150" ry="240" fill="url(#${id}n)" opacity=".5"/>`;
+    front += '<g class="av-reticle" fill="none" stroke="#ff3b5c" stroke-width="1.6"><circle cx="100" cy="40" r="27"/>' +
+      '<path d="M100 5 v17 M100 58 v17 M65 40 h17 M118 40 h17"/><circle cx="100" cy="40" r="2" fill="#ff3b5c"/></g>';
+  } else if (heat >= 40) {
+    defs += grad('c', '#4da3ff');
+    back += `<ellipse cx="100" cy="0" rx="150" ry="150" fill="url(#${id}c)" opacity=".3"/>` +
+      '<path class="av-search" d="M100 -12 L34 352 L138 352 Z" fill="#dfe8ff" opacity=".13"/>';
+  } else if (heat >= 20) {
+    defs += grad('r', '#ff3b5c') + grad('c', '#4da3ff');
+    back += `<g class="av-cops"><ellipse class="a" cx="10" cy="60" rx="120" ry="170" fill="url(#${id}r)"/>` +
+      `<ellipse class="b" cx="190" cy="60" rx="120" ry="170" fill="url(#${id}c)"/></g>`;
+  }
+  // Level aura: Ghost in the Wire (20), Root (25), Legend of the Wire (30). A big score gets a gold one.
+  const aura = pose && !rich ? 0 : rich || lvl >= 30 ? 3 : lvl >= 25 ? 2 : lvl >= 20 ? 1 : 0;
+  if (aura) {
+    defs += grad('a', rich ? '#ffd24a' : '#ff4fd8');
+    back += `<g class="av-aura"><ellipse cx="100" cy="150" rx="${75 + aura * 10}" ry="${150 + aura * 14}" ` +
+      `fill="url(#${id}a)" opacity="${(0.3 + aura * 0.13).toFixed(2)}"/></g>`;
+    if (aura === 3) {
+      back += `<ellipse class="av-ring" cx="100" cy="40" rx="34" ry="34" fill="none" stroke="${rich ? '#ffd24a' : '#00e5ff'}" ` +
+        'stroke-width="1.6" stroke-dasharray="4 7" opacity=".8"/>';
+    }
+  }
+
+  const ghost = career.syn === 'ghost' && pose !== 'vanished'
+    ? ' style="opacity:.78;filter:drop-shadow(0 0 2.5px #00e5ff)"' : '';
+  const shadow = '<ellipse cx="100" cy="337" rx="60" ry="8" fill="rgba(255,79,216,.2)"/>';
+  let fig = figure(F);
+  if (pose === 'down') {
+    // Flat on the ground.
+    box = '0 0 352 200';
+    fig = '<ellipse cx="176" cy="190" rx="165" ry="8" fill="rgba(255,79,216,.2)"/>' +
+      `<g transform="translate(0 232) rotate(-90)"${ghost}>${fig}</g>`;
+  } else if (pose === 'vanished') {
+    // Nothing left but an outline and a file stamp.
+    fig = `<g style="filter:brightness(0) drop-shadow(0 0 2px #ff3b5c);opacity:.9">${fig}</g>`;
+    front += '<g class="av-static"><rect x="0" y="34" width="200" height="4" fill="#ff3b5c"/><rect x="0" y="150" width="200" height="3" fill="#00e5ff"/>' +
+      '<rect x="0" y="250" width="200" height="6" fill="#ff3b5c"/></g>' +
+      '<rect x="78" y="34" width="44" height="11" fill="#000" stroke="#ff3b5c"/>' +
+      '<g transform="rotate(-8 100 150)"><rect x="42" y="138" width="116" height="24" fill="#000" stroke="#ff3b5c" stroke-width="2"/>' +
+      '<text x="100" y="156" text-anchor="middle" fill="#ff3b5c" font-size="18" font-weight="bold" font-family="monospace">REDACTED</text></g>';
+  } else {
+    fig = `<g class="av-fig"${ghost}>${fig}</g>`;
+    if (opsec <= 50) {
+      // Your cover is failing: the picture tears.
+      fig = `<g class="av-shake${opsec <= 25 ? ' bad' : ''}">${fig}</g>`;
+      const bars = opsec <= 25 ? [[34, 5, '#00e5ff'], [70, 3, '#ff2a6d'], [118, 6, '#00e5ff'], [176, 4, '#ff2a6d'], [238, 7, '#00e5ff'], [296, 4, '#ff2a6d']]
+        : [[46, 4, '#00e5ff'], [96, 3, '#ff2a6d'], [210, 5, '#00e5ff']];
+      front += '<g class="av-static">' + bars.map(([y, h, c]) => `<rect x="0" y="${y}" width="200" height="${h}" fill="${c}"/>`).join('') + '</g>';
+    }
+    if (hp <= 35) fig = `<g transform="rotate(3 100 335)">${fig}</g>`;   // slumped
+    fig = shadow + fig;
+  }
+  if (pose === 'busted') {
+    // Mugshot: height chart behind, booking board in front.
+    back = [40, 90, 140, 190, 240, 290].map((y, i) => `<path d="M0 ${y} h200" stroke="#3a3f66" stroke-width="${i % 2 ? 1 : 2}"/>` +
+      `<text x="4" y="${y - 4}" fill="#5a6090" font-size="11" font-family="monospace">${6 - i}'</text>`).join('');
+    front += '<rect x="62" y="116" width="76" height="38" fill="#e9e4d8" stroke="#0b0a19" stroke-width="1.5"/>' +
+      `<text x="100" y="131" text-anchor="middle" fill="#111" font-size="9.5" font-weight="bold" font-family="monospace">${o.label || 'CYBER UNIT'}</text>` +
+      `<text x="100" y="147" text-anchor="middle" fill="#111" font-size="12" font-weight="bold" font-family="monospace">0D-${String(1000 + (career.xp % 9000)).padStart(4, '0')}</text>`;
+  }
+  if (rich) {
+    // It is raining money.
+    for (let i = 0; i < 9; i++) {
+      front += `<g class="av-bill" style="animation-delay:${(-i * 0.37).toFixed(2)}s"><rect x="${8 + (i * 67) % 180}" y="0" width="13" height="7" ` +
+        'fill="#3dff9a" stroke="#0b3a22" stroke-width="1"/>' + `<circle cx="${14.5 + (i * 67) % 180}" cy="3.5" r="1.8" fill="#0b3a22"/></g>`;
+    }
+  }
+  if (o.bust) box = '50 0 100 116';
+  return `<svg class="avatar" viewBox="${box}" role="img" aria-label="Your character">` +
+    `${defs ? `<defs>${defs}</defs>` : ''}${back}${fig}${front}</svg>`;
+}
+
+// Portrait of whoever you are up against, built from the same figure.
+function foeSvg(E) {
+  const none = {head: null, body: null, hands: null, feet: null, deck: null};
+  let F, tint;
+  if (E.kind === 'law') {
+    tint = ['#4da3ff', '#c9d1d5', '#ff3b5c'][E.tier];
+    F = [
+      {look: {skin: 1, hair: 3, col: 2, streak: 4},
+        gear: {...none, head: {kind: 'cap', c: '#4da3ff', rar: 0}, body: {kind: 3, c: '#4da3ff', rar: 0, fill: '#1c2f5e'},
+          feet: {kind: 1, c: '#4da3ff', rar: 0}}},
+      {look: {skin: 3, hair: 0, col: 1, streak: 4},
+        gear: {...none, head: {kind: 'shades', c: '#c9d1d5', rar: 0}, body: {kind: 'suit', c: '#c9d1d5', rar: 0}}},
+      {look: {skin: 0, hair: 4, col: 1, streak: 4},
+        gear: {...none, head: {kind: 'shades', c: '#ff3b5c', rar: 0}, body: {kind: 'suit', c: '#ff3b5c', rar: 0, fill: '#08080c'},
+          hands: {kind: 1, c: '#3a3d4d', rar: 0}}},
+    ][E.tier];
+  } else {
+    const c = tint = SYN_COL[E.gang];
+    const skin = {ghost: 0, ledger: 4, null: 2, red: 1}[E.gang], crop = {ghost: 3, ledger: 0, null: 1, red: 2}[E.gang];
+    F = {look: {skin, hair: crop, col: 1, streak: 4}, syn: E.gang,
+      gear: {...none, head: {kind: E.gang === 'ledger' ? 2 : 1, c, rar: 0}, body: {kind: E.gang === 'ledger' ? 2 : 1, c, rar: 0},
+        hands: {kind: 0, c, rar: 0}, deck: {kind: 1, c, rar: 0}}};
+  }
+  Object.assign(F, {level: 1, weapon: 0, hp: 100, mood: 'mean'});
+  const ghost = F.syn === 'ghost' ? ' style="opacity:.78;filter:drop-shadow(0 0 2.5px #00e5ff)"' : '';
+  return `<svg class="avatar foe" viewBox="50 0 100 116" role="img" aria-label="${esc(E.name)}">` +
+    `<rect x="50" y="0" width="100" height="116" fill="${tint}" opacity=".13"/>` +
+    `<g class="av-fig"${ghost}>${figure(F)}</g></svg>`;
 }
 
 // ---------- travel animation ----------
@@ -700,7 +1171,7 @@ function rollMarket() {
 function newGame() {
   S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
+    contracts: [], xpRun: 0, cleared: false, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   starterGear();
@@ -805,14 +1276,15 @@ function render() {
     ['Drive', `${used()}/${cap()}`, free() <= 0 ? 'amber' : ''],
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
-    ['Weapon', (WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None') + (S.emp ? ` +${S.emp} EMP` : ''), ''],
+    ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
+    ['Gadgets', Object.keys(GADGETS).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
   $('#vitals').innerHTML = vitals();
-  $('#ava').innerHTML = avatarSvg();
+  $('#ava').innerHTML = avatarSvg({bust: true});
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
@@ -841,6 +1313,7 @@ function render() {
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
+  if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
@@ -875,6 +1348,7 @@ const ACTIONS = {
     removeItems(name, qty);
     addHeat(qty * price);
     const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
+    S.mood = profit > 0 ? 'grin' : profit < 0 ? 'ouch' : S.mood;
     log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
       `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${xp}`);
   },
@@ -894,12 +1368,14 @@ const ACTIONS = {
     const quiet = inSyn('ghost');
     if (Math.random() * 100 < chance) {
       S.cash += pay;
+      S.mood = 'grin';
       S.heat = Math.min(100, S.heat + (quiet ? 4 : 8));
       const xp = gainXp(40 + (100 - c.chance));
       log(`<span class="green">Contract done: ${c.client} paid ${money(pay)}.</span>${xp}`);
       await alertDlg('Job done', `<p>Clean work. ${c.client} pays <b>${money(pay)}</b>.</p>`);
     } else {
       S.heat = Math.min(100, S.heat + (quiet ? 8 : 15));
+      S.mood = 'ouch';
       const xp = gainXp(10);
       log(`<span class="red">Contract blown: ${num(c.qty)} ${c.good} burned.</span>${xp}`);
       await alertDlg('Job blown', `<p>It goes sideways. The ${c.good} are burned and ${c.client} stops answering.</p>`, 'danger');
@@ -951,9 +1427,10 @@ const ACTIONS = {
         'is sold at the black market, and stays with you between runs.</p>' +
         `<p class="dim">${RARITY.map((name, i) => `<span class="r${i}">${name}</span>`).join(' &middot; ')}</p>`;
       const buttons = career.bag.map((it, i) => [it.name, i, 'r' + it.rar]);
-      buttons.push(['Close', null, 'primary']);
+      buttons.push(['Change your look', 'look'], ['Close', null, 'primary']);
       const index = await dialog('Gear', html, buttons);
       if (index === null) return;
+      if (index === 'look') { await ACTIONS.look(); continue; }
       const it = career.bag[index], worn = career.gear[it.slot];
       const act = await dialog(it.name, `<div class="syn">${itemHtml(it)}</div>` +
         (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
@@ -973,16 +1450,50 @@ const ACTIONS = {
     }
   },
 
-  // Black market: weapons, EMP grenades, proxy chains, medkits and gear.
+  // Character creator: skin, hair and streak. Saved with the career.
+  async look() {
+    const sizes = {skin: SKINS.length, hair: HAIRSTYLES.length, col: HAIRCOLS.length, streak: STREAKS.length};
+    for (;;) {
+      const L = getLook();
+      const cmd = await dialog('Your look', `<div class="posebox">${avatarSvg({plain: true})}</div>` +
+        '<p class="dim">Tap a button to step through the choices. Your look stays with you between runs, ' +
+        'and you can change it any time from the Gear screen.</p>',
+        [[`Skin: ${SKINS[L.skin][0]}`, 'skin'], [`Hair: ${HAIRSTYLES[L.hair]}`, 'hair'],
+          [`Hair colour: ${HAIRCOLS[L.col][0]}`, 'col'], [`Streak: ${STREAKS[L.streak][0]}`, 'streak'],
+          ['Surprise me', 'any'], ['Done', null, 'primary']]);
+      if (!cmd) break;
+      if (cmd === 'any') for (const key of Object.keys(sizes)) L[key] = rnd(0, sizes[key] - 1);
+      else L[cmd] = (L[cmd] + 1) % sizes[cmd];
+      career.look = L;
+      saveCareer();
+    }
+    career.look = getLook();
+    saveCareer();
+  },
+
+  // Burn a fake identity to cool your Heat.
+  async fakeid() {
+    if (!S.fakeid || S.heat <= 0) return;
+    S.fakeid--;
+    S.heat = Math.max(0, S.heat - 40);
+    log(`You burned a ${GADGETS.fakeid[0]}: Heat down to ${S.heat}%.`);
+  },
+
+  // Black market: weapons, gadgets, proxy chains, medkits and gear.
   async gear() {
     for (;;) {
       const scale = 1 + Math.floor(S.day / 10) * 0.5;
-      const next = WEAPONS[S.weapon + 1];
       const offers = [];
-      if (next) offers.push({key: 'w', name: next[0], price: Math.round(next[1] * scale),
-        text: next[2] > 1 ? `${next[2]} shots a round, ${pct(next[3])}% to hit` : `${pct(next[3])}% to drop one hostile a round`});
-      if (S.emp < MAX_EMP) offers.push({key: 'e', name: 'EMP grenade', price: Math.round(EMP_PRICE * scale),
-        text: `single use, fries 2 to 3 hostiles (you have ${S.emp})`});
+      // The next two weapons up from the one you carry.
+      for (const step of [1, 2]) {
+        const w = WEAPONS[S.weapon + step];
+        if (w) offers.push({key: 'w' + step, name: w[0], price: Math.round(w[1] * scale),
+          text: 'Weapon: ' + (w[2] > 1 ? `${w[2]} shots a round, ${pct(w[3])}% to hit` : `${pct(w[3])}% to drop one hostile a round`)});
+      }
+      for (const [key, [name, price, most, what]] of Object.entries(GADGETS)) {
+        if (S[key] < most) offers.push({key: 'x' + key, gadget: key, name, price: Math.round(price * scale),
+          text: `single use: ${what} (you have ${S[key]})`});
+      }
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and contracts (you have ${S.proxies})`});
       if (S.medkits < MAX_MED) offers.push({key: 'm', name: 'Medkit', price: Math.round(600 * scale),
@@ -1004,8 +1515,8 @@ const ACTIONS = {
       if (!key) return;
       const o = offers.find(x => x.key === key);
       S.cash -= o.price;
-      if (key === 'w') S.weapon++;
-      else if (key === 'e') S.emp++;
+      if (key[0] === 'w') S.weapon += Number(key[1]);
+      else if (o.gadget) S[o.gadget]++;
       else if (key === 'm') S.medkits++;
       else if (key === 'd') S.hp = 100;
       else if (o.item) { S.shop.splice(S.shop.indexOf(o.item), 1); stash(o.item); saveCareer(); }
@@ -1020,7 +1531,9 @@ const ACTIONS = {
     let html = `<p>Level <b>${li.level}</b>: <span class="cyan">${titleFor(li.level)}</span><br>` +
       `${li.into} / ${li.need} XP to the next level (${num(career.xp)} total)</p>` +
       '<p class="dim">XP comes from profitable sales, contracts, escaping or beating the law and rival crews, raids, clearing your debt and ' +
-      'finishing a run. It carries over between runs.</p>';
+      'finishing a run. It carries over between runs.</p>' +
+      '<p class="dim">Cyberware shows on your avatar as you level: ' + WARE.map(([at, what]) =>
+        `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>';
     const buttons = [['Close', null, 'primary']];
     if (career.syn) {
       html += `<div class="syn"><b>${SYNDICATES[career.syn][0]}</b><br>${SYNDICATES[career.syn][1]}</div>`;
@@ -1132,6 +1645,7 @@ function nextDay() {
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   S.raided = false;
+  S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
   rollMarket();
 }
@@ -1174,6 +1688,7 @@ async function randomEvent() {
     if (S.cash > 100) {
       const loss = Math.floor(S.cash * rnd(10, 25) / 100);
       S.cash -= loss;
+      S.mood = 'ouch';
       log(`<span class="red">Phished! Lost ${money(loss)} from your hot wallet.</span>`);
       await alertDlg('Phished', `<p>You clicked a link. YOU. Someone drained <b>${money(loss)}</b> from your hot wallet.</p>` +
         '<p class="dim">Cash in the cold wallet is safe from this.</p>', 'danger');
@@ -1223,9 +1738,11 @@ async function fight(E) {
     const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
     const payoff = Math.max(500, Math.floor(S.cash * 0.2));
     const buttons = [];
-    if (!raid && W) buttons.push([`Fire ${W[0]}`, 'shoot']);
-    if (!raid && S.emp) buttons.push([`EMP grenade (${S.emp})`, 'emp']);
+    if (!raid && W) buttons.push([`Use ${W[0]}`, 'shoot']);
+    if (!raid && S.emp) buttons.push([`${GADGETS.emp[0]} (${S.emp})`, 'emp']);
     if (S.proxies) buttons.push([raid ? 'Hack them' : 'Counter-hack', 'hack']);
+    if (S.bomb) buttons.push([`${GADGETS.bomb[0]} (${S.bomb})`, 'bomb']);
+    if (!raid && S.smoke) buttons.push([`${GADGETS.smoke[0]} (${S.smoke})`, 'smoke']);
     if (zeroDays) buttons.push([`Burn a Zero-Day (${zeroDays})`, 'zero']);
     if (S.medkits && S.hp < 100) buttons.push([`Medkit (${S.medkits})`, 'med']);
     buttons.push([raid ? 'Jack out' : 'Run', 'run']);
@@ -1233,6 +1750,8 @@ async function fight(E) {
     if (E.kind === 'gang' && S.cash >= payoff) buttons.push([`Pay them ${money(payoff)}`, 'pay']);
     buttons[0][2] = 'primary';
     const cmd = await dialog(title,
+      `<div class="versus"><div>${avatarSvg({bust: true})}<small>YOU</small></div><b>VS</b>` +
+      `<div>${foeSvg(E)}<small>&times; ${n}</small></div></div>` +
       `<p>${msg}</p>${vitals()}${meter('Hostiles', n, total, `${n} / ${total}`, 'red')}` +
       `<p class="dim" style="margin-top:10px">${hint}</p>`, buttons, 'danger');
 
@@ -1250,6 +1769,14 @@ async function fight(E) {
       violent = true;
       S.heat = Math.min(100, S.heat + (law ? 6 : 2));
       msg = `The EMP fries ${kills} of them.`;
+    } else if (cmd === 'bomb') {
+      S.bomb--;
+      kills = Math.min(n, rnd(2, 3));
+      msg = `The logic bomb goes off in their systems: ${kills} knocked offline.`;
+    } else if (cmd === 'smoke') {
+      S.smoke--;
+      log(`<span class="green">You vanished in a cloud of ${GADGETS.smoke[0]}.</span>` + gainXp(10));
+      return alertDlg('Escaped', '<p>You pop the smoke and you are gone before it clears.</p>');
     } else if (cmd === 'hack') {
       for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4 + bonus('hack') / 100) kills++;
       kills = Math.min(n, kills);
@@ -1305,6 +1832,7 @@ async function fight(E) {
       }
       loot = Math.round(loot * (1 + bonus('luck') / 100));
       S.cash += loot;
+      S.mood = 'grin';
       const what = law ? `You shook off ${E.name} and sold their tooling`
         : raid ? `You cleaned out a ${E.name} node` : `You beat back ${E.name} and drained their wallets`;
       log(`<span class="green">${what} for ${money(loot)}.</span>${xp}`);
@@ -1315,6 +1843,12 @@ async function fight(E) {
         if (S.medkits < MAX_MED && Math.random() < 0.3) {
           S.medkits++;
           log('You pocket a medkit they left behind.');
+        }
+        const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2]);
+        if (spare.length && Math.random() < 0.25) {
+          const k = pick(spare);
+          S[k]++;
+          log(`You also grab a ${GADGETS[k][0]} off them.`);
         }
         if (Math.random() < (raid ? 0.85 : 0.6)) {
           await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
@@ -1364,9 +1898,10 @@ async function lose(E) {
       if (S.day < DAYS) { nextDay(); clinic = '<p>You wake up a day later in a back-room clinic, stitched up to 50% Health.</p>'; }
     }
     log(`<span class="red">${E.name} cleaned you out: ${money(cash)} and ${num(goods)} goods.</span>`);
+    S.mood = 'ouch';
     render();
     return alertDlg(hurt ? 'Beaten and robbed' : 'Robbed',
-      `<p>${E.name} ${hurt ? 'leave you on the floor' : 'own your rig'}. They take <b>${money(cash)}</b> and ` +
+      (hurt ? `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` : '') + `<p>${E.name} ${hurt ? 'leave you on the floor' : 'own your rig'}. They take <b>${money(cash)}</b> and ` +
       `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${clinic}`, 'danger');
   }
   if (E.tier === 2) {
@@ -1383,8 +1918,10 @@ async function lose(E) {
   S.hp = Math.max(S.hp, 50);
   S.heat = E.tier ? 20 : 10;
   log(`<span class="red">Arrested by ${E.name}: goods seized, ${money(fine)} fine, ${served} day${served === 1 ? '' : 's'} inside.</span>`);
+  S.mood = 'ouch';
   render();
-  await alertDlg('Arrested', `<p>${E.name[0].toUpperCase() + E.name.slice(1)} ` +
+  await alertDlg('Arrested', `<div class="posebox">${avatarSvg({pose: 'busted', label: E.tier ? 'FED TASK FORCE' : 'METRO CYBER'})}</div>` +
+    `<p>${E.name[0].toUpperCase() + E.name.slice(1)} ` +
     `${hurt ? 'drags you out on a stretcher' : 'kicks the door in'}.</p>` +
     `<p>Your goods are seized, you pay <b>${money(fine)}</b> and lose <b>${served} day${served === 1 ? '' : 's'}</b> ` +
     'before a lawyer gets you out. Your debt kept growing.</p>' +
@@ -1396,7 +1933,7 @@ async function finish() {
   store.del('zdh-save');
   render();
   if (S.busted) {
-    await dialog('VANISHED', '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
+    await dialog('VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` + '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
       `<p>Your run ends on day ${S.day}. No score for the disappeared.</p>` +
       `<p>XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New run', true, 'primary']], 'danger');
     return;
@@ -1408,7 +1945,9 @@ async function finish() {
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
   let scores = (!AUTO && store.get('zdh-scores')) || [];
   if (!Array.isArray(scores)) scores = [];
-  const summary = `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
+  // A big score ends the run draped in gold.
+  const summary = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
+    : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` + `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
     `<p>Final score: <b class="green">${money(score)}</b><br>Run rating: <b class="cyan">${rank}</b><br>` +
     `XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
   if (scores.length < 10 || score > Math.min(...scores.map(s => s.score))) {
@@ -1447,13 +1986,15 @@ async function selfTest() {
     for (let game = 0; game < 200; game++) {
       career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red']), gear: {}, bag: []};
       for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
+      if (game % 2) career.look = {skin: rnd(0, 5), hair: rnd(0, 4), col: rnd(0, 6), streak: rnd(0, 4)};
       newGame();
-      S.proxies = rnd(0, 3); S.weapon = rnd(0, 3); S.emp = rnd(0, 2);
+      S.proxies = rnd(0, 3); S.weapon = rnd(0, WEAPONS.length - 1);
+      S.emp = rnd(0, 2); S.smoke = rnd(0, 2); S.bomb = rnd(0, 2); S.fakeid = rnd(0, 2);
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? 'laylow' : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? 'medkit' : 'profile';
+          : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
         if (act === 'raid') raids++;
@@ -1471,7 +2012,7 @@ async function selfTest() {
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
           career.bag.length > BAG_SIZE || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
-          !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || S.emp < 0 || S.emp > MAX_EMP || S.weapon > 3 || S.proxies > MAX_PROXIES ||
+          !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
@@ -1508,6 +2049,7 @@ async function selfTest() {
     career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null,
       gear: record.gear && typeof record.gear === 'object' ? record.gear : {},
       bag: Array.isArray(record.bag) ? record.bag : []};
+    if (record.look && typeof record.look === 'object') career.look = record.look;
   }
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
@@ -1524,7 +2066,7 @@ async function selfTest() {
     }
     delete S.armor;
     S.weapon = S.weapon || 0;
-    S.emp = S.emp || 0;
+    for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
     S.grudge = Object.assign(noGrudges(), S.grudge);
     S.raided = !!S.raided;
     log('Run resumed.');
@@ -1545,6 +2087,8 @@ async function selfTest() {
     '<p>When cornered you can shoot, hack, run or pay. Shootouts cost <span class="green">Health</span>, hack fights cost ' +
     '<span class="green">OpSec</span>; lose either and you go down. Gear and a street doc are at the black market.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
+  if (!career.look) await ACTIONS.look();
+  render();
   busy = false;
   save();
 })();

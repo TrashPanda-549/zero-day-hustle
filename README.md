@@ -34,6 +34,7 @@ Grab the latest build from the [Releases page](../../releases):
 - You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.
 - Laying low for a day cools your Heat and restores some Health and OpSec. Medkits heal you any time, even mid-fight; you start each run with two, and with a basic item in every gear slot.
 - Gear for five slots (head, body, hands, feet, deck) boosts your stats and comes in five rarities: Common, Uncommon, Rare, Epic and Legendary. Rival crews drop it, the black market sells it, and it stays with you between runs.
+- Your avatar shows all of it. Pick a skin tone, hair and streak from the Gear screen. It wears your gear (Epic pulses, Legendary shimmers and sparks), carries your weapon and gadgets, and stands in front of wherever you are. It gets bruised and bandaged as Health drops, glitches as OpSec fails, and is lit by police lights, a Fed searchlight or an NSA crosshair as Heat climbs. Your syndicate leaves its mark, and cyberware appears at levels 8, 9, 20, 25 and 30.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.
 
 ## Terminal version
