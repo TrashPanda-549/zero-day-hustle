@@ -49,6 +49,22 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .row .price{text-align:right;white-space:nowrap}
 .row .btns{display:flex;gap:6px}
 .row .btns button{padding:6px 10px;min-width:52px}
+#career{display:flex;align-items:center;gap:10px;margin:8px 0 2px;padding:7px 9px;background:var(--panel);
+  border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13px}
+#career .lvl{color:var(--cyan);font-weight:bold;white-space:nowrap}
+#career .bar{flex:1;height:8px;background:#000;border:1px solid var(--line);border-radius:4px;overflow:hidden;min-width:40px}
+#career .bar i{display:block;height:100%;background:var(--cyan)}
+#career .xp{color:var(--dim);white-space:nowrap}
+#jobs{margin-top:10px}
+#jobs h3{margin:0 0 6px;font-size:13px;letter-spacing:2px;color:var(--dim);font-weight:normal}
+.job{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 9px;margin-bottom:6px;
+  background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:6px}
+.job .what{font-weight:600}
+.job .sub{font-size:12px;color:var(--dim)}
+.job button{border-color:var(--amber);color:var(--amber)}
+.job button:active:not(:disabled){background:var(--amber);color:#000}
+.syn{margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+.syn b{color:var(--cyan)}
 #actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
 #actions button{min-height:46px}
 #log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
@@ -76,10 +92,12 @@ input[type=range]{width:100%;accent-color:var(--green);height:28px}
 <body>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><button class="small" data-act="restart">New run</button></header>
+  <div id="career" data-act="profile"></div>
   <div id="dayloc"></div>
   <section id="stats"></section>
   <section id="news"></section>
   <section id="market"></section>
+  <section id="jobs"></section>
   <nav id="actions"></nav>
   <section id="log"></section>
 </div>
@@ -126,6 +144,33 @@ const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hall
   'Datacenter Dock', 'Cyber Cafe', 'Paste Alley'];
 const HOME = LOCATIONS[0];
 
+// Crews you can join at level 10. The choice is permanent and applies to every run.
+const SYNDICATES = {
+  ghost: ['Ghost Shell', 'Stealth crew. Deals and contracts raise half the Heat, and traces find you less often.'],
+  ledger: ['Black Ledger', 'Money people. The Fixer charges you 4% a day instead of 8%, and your cold wallet earns 6%.'],
+  null: ['Null Sector', 'Smugglers. +60 drive slots and an extra $3,000 at the start of every run.'],
+  red: ['Red Team Zero', 'Operators. Contracts succeed 10% more often and pay 25% more.'],
+};
+const TITLES = ['Script Kiddie', 'Lurker', 'Packet Monkey', 'Phreak', 'Cracker', 'Gray Hat', 'Exploit Dev',
+  'Netrunner', 'Black Hat', 'Syndicate Operator'];
+const titleFor = l => l >= 30 ? 'Legend of the Wire' : l >= 25 ? 'Root' : l >= 20 ? 'Ghost in the Wire'
+  : l >= 15 ? 'Zero-Day Broker' : TITLES[Math.min(l, 10) - 1];
+
+// Contract jobs for each kind of goods.
+const JOBS = {
+  'Zero-Days': ['Crack the vault firewall of a crooked crypto exchange', 'Get inside a defence contractor\'s test lab'],
+  'Rootkits': ['Dig into a rival crew\'s build server and stay there', 'Keep a quiet foothold in a casino\'s back office'],
+  'Botnet Hours': ['Knock a scam call centre offline for the weekend', 'Bury a ticket-scalper site on launch day'],
+  'Leaked Databases': ['Prove a cover-up for an investigative reporter', 'Unmask the sock puppets behind a smear campaign'],
+  'Phishing Kits': ['Phish the board of a smug startup for a red-team gig', 'Bait a crew of romance scammers with their own trick'],
+  'Rogue APs': ['Blanket a trade-show hall in fake Wi-Fi', 'Shadow the guest network of a lobbyists\' hotel'],
+  'Cracked Accounts': ['Swing the vote in a rigged talent show', 'Flood a price-gouger\'s store with bogus orders'],
+  'USB Droppers': ['Seed a corporate car park with loaded drives', 'Leave "lost" drives all over a bank\'s lobby'],
+  'Burner SIMs': ['Kit out a crew for a one-night job', 'Give a whistleblower clean lines for a month'],
+  'Warez': ['Stock a pirate cinema for an off-grid festival', 'Load up a school lab the district forgot to fund'],
+};
+const CLIENTS = ['n0va', 'Mr. Static', 'the Librarian', 'K-9', 'Sister Hex', 'a nervous intern', 'Old Baud', 'DeadDrop'];
+
 const $ = s => document.querySelector(s);
 const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US');
 const num = n => n.toLocaleString('en-US');
@@ -143,9 +188,62 @@ const store = {
 };
 const save = () => { if (!AUTO) store.set('zdh-save', S); };
 
+// ---------- career: XP, levels and syndicate carry over between runs ----------
+let career = {xp: 0, syn: null}, pendingLevel = 0;
+
+function levelInfo() {
+  let xp = career.xp, level = 1, need = 100;
+  while (xp >= need) { xp -= need; level++; need = 100 * level; }
+  return {level, into: xp, need};
+}
+const level = () => levelInfo().level;
+const inSyn = key => career.syn === key;
+const debtRate = () => inSyn('ledger') ? 0.04 : DEBT_RATE;
+const walletRate = () => inSyn('ledger') ? 0.06 : WALLET_RATE;
+const pct = rate => Math.round(rate * 100);
+
+// Adds XP and returns a snippet to append to a log line.
+function gainXp(n) {
+  n = Math.floor(n);
+  if (n <= 0) return '';
+  const before = level();
+  career.xp += n;
+  S.xpRun = (S.xpRun || 0) + n;
+  if (!AUTO) store.set('zdh-career', career);
+  if (level() > before) pendingLevel = level();
+  return ` <span class="cyan">+${n} XP</span>`;
+}
+
+async function chooseSyndicate() {
+  const html = '<p>You are level 10. Four syndicates want you. The choice is permanent.</p>' +
+    Object.values(SYNDICATES).map(([name, perk]) => `<div class="syn"><b>${name}</b><br>${perk}</div>`).join('');
+  const buttons = Object.entries(SYNDICATES).map(([key, [name]]) => [name, key]);
+  buttons.push(['Decide later', null, 'small']);
+  const key = await dialog('Join a syndicate', html, buttons);
+  if (!key) return;
+  career.syn = key;
+  if (!AUTO) store.set('zdh-career', career);
+  log(`<span class="cyan">You joined ${SYNDICATES[key][0]}.</span>`);
+  await alertDlg(SYNDICATES[key][0], `<p>You're in. ${SYNDICATES[key][1]}</p>`);
+}
+
+async function levelUpCheck() {
+  if (pendingLevel) {
+    const l = pendingLevel;
+    pendingLevel = 0;
+    log(`<span class="cyan">LEVEL UP: level ${l}, ${titleFor(l)}.</span>`);
+    render();
+    await alertDlg('LEVEL UP', `<p>You reached <b>level ${l}</b>: <span class="cyan">${titleFor(l)}</span>.</p>` +
+      '<p class="dim">Each level (up to 10) adds 1% to your contract success chance.</p>');
+    if (l >= 10 && !career.syn) await chooseSyndicate();
+  }
+}
+
 // ---------- state helpers ----------
 const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
-const free = () => S.drive - used();
+const cap = () => S.drive + (inSyn('null') ? 60 : 0);
+const free = () => cap() - used();
+const pick = list => list[rnd(0, list.length - 1)];
 
 function addItems(name, qty, price) {
   const held = S.inv[name] || 0;
@@ -158,9 +256,32 @@ function removeItems(name, qty) {
   if (S.inv[name] <= 0) { delete S.inv[name]; delete S.cost[name]; }
 }
 function addHeat(value) {
-  const gain = Math.min(15, Math.floor(value / 10000));
+  let gain = Math.min(15, Math.floor(value / 10000));
+  if (inSyn('ghost')) gain = Math.ceil(gain / 2);
   if (gain) S.heat = Math.min(100, S.heat + gain);
 }
+
+// ---------- contracts ----------
+function rollContracts() {
+  S.contracts = [];
+  const count = pick([0, 1, 1, 2, 2, 3]);
+  const pool = GOODS.slice().sort(() => Math.random() - 0.5).slice(0, count);
+  for (const [name, low, high] of pool) {
+    const mid = (low + high) / 2;
+    const lot = mid >= 10000 ? 3 : mid >= 2000 ? 8 : mid >= 500 ? 15 : mid >= 100 ? 30 : 50;
+    const qty = Math.min(60, Math.max(1, Math.round(rnd(Math.ceil(lot / 3), lot) * (1 + S.day / 8))));
+    const chance = rnd(50, 85);
+    // Riskier jobs pay more. The unit price is never below today's local price,
+    // so a job that works always beats selling the same goods here.
+    const mult = 1.5 + (85 - chance) / 35 * 1.3 + Math.random() * 0.4;
+    const unit = Math.max(S.prices[name] || 0, Math.round(mid));
+    S.contracts.push({good: name, qty, chance, payout: Math.round(unit * qty * mult / 10) * 10,
+      job: pick(JOBS[name]), client: pick(CLIENTS)});
+  }
+}
+const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1));
+const chanceFor = c => Math.max(10, Math.min(95,
+  c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0)));
 function log(text, cls) {
   logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
   logs.length = Math.min(logs.length, 14);
@@ -177,13 +298,15 @@ function rollMarket() {
       else if (r < 0.12) { price = Math.max(1, Math.floor(price / rnd(3, 5))); S.news.push(flood); S.flags[name] = 'down'; }
       S.prices[name] = price;
     }
-    if (Object.keys(S.prices).length >= 4) return;
+    if (Object.keys(S.prices).length >= 4) break;
   }
+  rollContracts();
 }
 
 function newGame() {
-  S = {day: 1, loc: HOME, cash: START_CASH, debt: START_DEBT, wallet: 0, drive: START_DRIVE, opsec: 100,
-    heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [], over: false, busted: false};
+  S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
+    drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
+    contracts: [], xpRun: 0, cleared: false, over: false, busted: false};
   logs = [];
   rollMarket();
   log('New run. Buy low, sell high, stay off the radar.');
@@ -267,12 +390,23 @@ function askText(title, html) {
 // ---------- rendering ----------
 function render() {
   const last = S.day >= DAYS;
+  const li = levelInfo();
+  $('#career').innerHTML = `<span class="lvl">LVL ${li.level}</span><span>${titleFor(li.level)}</span>` +
+    `<span class="bar"><i style="width:${Math.floor(li.into / li.need * 100)}%"></i></span>` +
+    `<span class="xp">${career.syn ? SYNDICATES[career.syn][0] : `${li.into}/${li.need} XP`}</span>`;
+  $('#jobs').innerHTML = !S.contracts.length ? '' : '<h3>CONTRACTS HERE TODAY</h3>' + S.contracts.map((c, i) => {
+    const held = S.inv[c.good] || 0;
+    return `<div class="job"><div><div class="what">${c.job}</div>
+      <div class="sub">for ${c.client} &middot; uses ${num(c.qty)} ${c.good} (you hold ${num(held)})</div>
+      <div class="sub"><span class="amber">pays ${money(payoutFor(c))}</span> &middot; ${chanceFor(c)}% chance</div></div>
+      <button data-act="contract" data-arg="${i}"${held >= c.qty ? '' : ' disabled'}>Run job</button></div>`;
+  }).join('');
   $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
     (last ? ' <span class="amber">&middot; FINAL DAY: sell what you hold</span>' : '');
   const chips = [
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
     ['Debt', money(S.debt), S.debt ? 'red' : ''],
-    ['Drive', `${used()}/${S.drive}`, free() <= 0 ? 'amber' : ''],
+    ['Drive', `${used()}/${cap()}`, free() <= 0 ? 'amber' : ''],
     ['OpSec', S.opsec + '%', S.opsec <= 35 ? 'red' : ''],
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
@@ -302,7 +436,7 @@ function render() {
   let acts = last
     ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
     : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
-  if (S.loc === HOME) acts += '<button data-act="broker">Syndicate broker</button><button data-act="wallet">Cold wallet</button>';
+  if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
 }
@@ -334,8 +468,55 @@ const ACTIONS = {
     S.cash += qty * price;
     removeItems(name, qty);
     addHeat(qty * price);
+    const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
     log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
-      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).`);
+      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${xp}`);
+  },
+
+  async contract(index) {
+    const c = S.contracts[index];
+    if (!c || (S.inv[c.good] || 0) < c.qty) return;
+    const chance = chanceFor(c), pay = payoutFor(c), price = S.prices[c.good];
+    const compare = price ? `Selling them here instead would bring ${money(price * c.qty)}.` : 'Nobody is buying them here today.';
+    if (!await confirmDlg('Contract', `<p><b>${c.job}</b>, for ${c.client}.</p>` +
+      `<p>Uses up ${num(c.qty)} ${c.good}. Pays <span class="amber">${money(pay)}</span> if it works. ${compare}</p>` +
+      `<p>Chance of success: <b>${chance}%</b></p>` +
+      '<p class="dim">If it fails the goods are burned, your Heat jumps, and you may be traced. ' +
+      'Levels and proxies raise the chance; Heat lowers it.</p>', 'Run the job', 'Walk away')) return;
+    removeItems(c.good, c.qty);
+    S.contracts.splice(index, 1);
+    const quiet = inSyn('ghost');
+    if (Math.random() * 100 < chance) {
+      S.cash += pay;
+      S.heat = Math.min(100, S.heat + (quiet ? 4 : 8));
+      const xp = gainXp(40 + (100 - c.chance));
+      log(`<span class="green">Contract done: ${c.client} paid ${money(pay)}.</span>${xp}`);
+      await alertDlg('Job done', `<p>Clean work. ${c.client} pays <b>${money(pay)}</b>.</p>`);
+    } else {
+      S.heat = Math.min(100, S.heat + (quiet ? 8 : 15));
+      const xp = gainXp(10);
+      log(`<span class="red">Contract blown: ${num(c.qty)} ${c.good} burned.</span>${xp}`);
+      await alertDlg('Job blown', `<p>It goes sideways. The ${c.good} are burned and ${c.client} stops answering.</p>`, 'danger');
+      if (Math.random() < 0.35) await trace();
+    }
+  },
+
+  async profile() {
+    const li = levelInfo();
+    let html = `<p>Level <b>${li.level}</b>: <span class="cyan">${titleFor(li.level)}</span><br>` +
+      `${li.into} / ${li.need} XP to the next level (${num(career.xp)} total)</p>` +
+      '<p class="dim">XP comes from profitable sales, contracts, beating traces, clearing your debt and ' +
+      'finishing a run. It carries over between runs.</p>';
+    const buttons = [['Close', null, 'primary']];
+    if (career.syn) {
+      html += `<div class="syn"><b>${SYNDICATES[career.syn][0]}</b><br>${SYNDICATES[career.syn][1]}</div>`;
+    } else if (li.level >= 10) {
+      html += '<p>You can join a syndicate.</p>';
+      buttons.unshift(['Choose a syndicate', 'join']);
+    } else {
+      html += '<p>Syndicates recruit at <b>level 10</b>.</p>';
+    }
+    if (await dialog('Your record', html, buttons) === 'join') await chooseSyndicate();
   },
 
   async dump(name) {
@@ -378,29 +559,35 @@ const ACTIONS = {
   },
 
   async broker() {
-    const cmd = await dialog('Syndicate broker',
-      `<p>You owe <span class="red">${money(S.debt)}</span>, growing ${DEBT_RATE * 100}% a day.</p>`,
+    const cmd = await dialog('The Fixer',
+      `<p>You owe <span class="red">${money(S.debt)}</span>, growing ${pct(debtRate())}% a day.</p>`,
       [['Pay down', 'p', 'primary'], ['Borrow', 'b'], ['Leave', null, 'small']]);
     if (cmd === 'p') {
       const most = Math.min(S.cash, S.debt);
-      if (most <= 0) return alertDlg('Syndicate broker', '<p>Nothing to pay, or nothing to pay with.</p>');
+      if (most <= 0) return alertDlg('The Fixer', '<p>Nothing to pay, or nothing to pay with.</p>');
       const amt = await askQty('Pay down debt', '<p>How much?</p>', most, {cash: true, ok: 'Pay'});
       if (!amt) return;
       S.cash -= amt; S.debt -= amt;
-      log(S.debt ? `Paid the Syndicate ${money(amt)}.` : '<span class="green">You are clear with the Syndicate!</span>');
+      if (S.debt) {
+        log(`Paid the Fixer ${money(amt)}.`);
+      } else {
+        const xp = S.cleared ? '' : gainXp(50);
+        S.cleared = true;
+        log(`<span class="green">You are clear with the Fixer!</span>${xp}`);
+      }
     } else if (cmd === 'b') {
       const most = DEBT_LIMIT - S.debt;
-      if (most <= 0) return alertDlg('Syndicate broker', '<p>"You\'re at your limit. Pay something back first."</p>');
+      if (most <= 0) return alertDlg('The Fixer', '<p>"You\'re at your limit. Pay something back first."</p>');
       const amt = await askQty('Borrow', '<p>"Don\'t make us come looking for you."</p>', most, {cash: true, ok: 'Borrow'});
       if (!amt) return;
       S.cash += amt; S.debt += amt;
-      log(`Borrowed ${money(amt)} from the Syndicate.`);
+      log(`Borrowed ${money(amt)} from the Fixer.`);
     }
   },
 
   async wallet() {
     const cmd = await dialog('Cold wallet',
-      `<p>Balance: ${money(S.wallet)}. Earns ${WALLET_RATE * 100}% a day and can't be phished.</p>`,
+      `<p>Balance: ${money(S.wallet)}. Earns ${pct(walletRate())}% a day and can't be phished.</p>`,
       [['Deposit', 'd', 'primary'], ['Withdraw', 'w'], ['Leave', null, 'small']]);
     if (cmd === 'd') {
       if (S.cash <= 0) return alertDlg('Cold wallet', '<p>You have no cash to deposit.</p>');
@@ -424,15 +611,15 @@ const ACTIONS = {
 
 function nextDay() {
   S.day += 1;
-  S.debt = Math.ceil(S.debt * (1 + DEBT_RATE));
-  S.wallet = Math.floor(S.wallet * (1 + WALLET_RATE));
+  S.debt = Math.ceil(S.debt * (1 + debtRate()));
+  S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   rollMarket();
 }
 
 // ---------- events ----------
 async function randomEvent() {
-  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300)) return trace();
+  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) return trace();
   const r = Math.random();
   if (r < 0.10) {
     const name = GOODS[rnd(3, GOODS.length - 1)][0];
@@ -447,7 +634,7 @@ async function randomEvent() {
     if (S.cash >= price && await confirmDlg('Drive upgrade',
       `<p>A hardware hacker offers an encrypted drive upgrade: <b>+50 slots</b> for ${money(price)}.</p>`, 'Buy it', 'Pass')) {
       S.cash -= price; S.drive += 50;
-      log(`Drive upgraded to ${S.drive} slots.`);
+      log(`Drive upgraded to ${cap()} slots.`);
     }
   } else if (r < 0.27) {
     const price = rnd(700, 1500) * (1 + S.proxies);
@@ -494,7 +681,7 @@ async function trace() {
       const chance = Math.max(0.25, Math.min(0.85, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1)));
       if (Math.random() < chance) {
         S.heat = Math.max(0, S.heat - 10);
-        log('<span class="green">You hopped three networks and vanished.</span>');
+        log('<span class="green">You hopped three networks and vanished.</span>' + gainXp(20));
         return alertDlg('Escaped', '<p>You hop three networks and vanish.</p>');
       }
       msg = 'They are still on you.';
@@ -512,7 +699,7 @@ async function trace() {
         const loot = total * rnd(400, 1500) * (1 + Math.floor(S.day / 10));
         S.cash += loot;
         S.heat = Math.max(0, S.heat - 25);
-        log(`<span class="green">Trace dead. Sold their tooling for ${money(loot)}.</span>`);
+        log(`<span class="green">Trace dead. Sold their tooling for ${money(loot)}.</span>` + gainXp(30 * total));
         return alertDlg('Trace dead', `<p>Every tracer is knocked offline. You sell their own tooling for <b>${money(loot)}</b>.</p>`);
       }
       msg = `You fire back through your proxies: ${hits} tracer${hits === 1 ? '' : 's'} knocked offline.`;
@@ -543,13 +730,15 @@ async function finish() {
     return;
   }
   const score = S.cash + S.wallet - S.debt;
-  const ranks = [[0, 'Owned by the Syndicate'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
+  gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / 5));
+  const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
   let scores = (!AUTO && store.get('zdh-scores')) || [];
   if (!Array.isArray(scores)) scores = [];
   const summary = `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
-    `<p>Final score: <b class="green">${money(score)}</b><br>Rank: <b class="cyan">${rank}</b></p>`;
+    `<p>Final score: <b class="green">${money(score)}</b><br>Run rating: <b class="cyan">${rank}</b><br>` +
+    `XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
   if (scores.length < 10 || score > Math.min(...scores.map(s => s.score))) {
     const handle = (await askText('New high score!', summary + '<p>Your handle:</p>')) || 'anon';
     scores.push({handle: handle.slice(0, 16), score});
@@ -569,6 +758,7 @@ document.addEventListener('click', async e => {
   try {
     await ACTIONS[b.dataset.act](b.dataset.arg);
     if (S.over) { await finish(); newGame(); }
+    await levelUpCheck();
   } finally {
     busy = false;
   }
@@ -580,18 +770,29 @@ document.addEventListener('click', async e => {
 async function selfTest() {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
-  let finished = 0, busted = 0, best = -Infinity;
+  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0;
   try {
     for (let game = 0; game < 200; game++) {
+      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red'])};
       newGame();
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
-        const act = r < 0.3 ? 'buy' : r < 0.6 ? 'sell' : r < 0.65 ? 'dump' : r < 0.85 ? 'travel'
-          : r < 0.9 ? 'laylow' : r < 0.95 ? 'broker' : 'wallet';
+        const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
+          : r < 0.85 ? 'travel' : r < 0.88 ? 'laylow' : r < 0.92 ? 'broker' : r < 0.96 ? 'wallet' : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
-        await ACTIONS[act](names[rnd(0, names.length - 1)]);
+        if (act === 'contract') {
+          // Stock up for a random contract first so jobs actually get run.
+          const c = S.contracts[0];
+          if (c && free() >= c.qty) addItems(c.good, c.qty, 0);
+          await ACTIONS.contract(0);
+          contractsSeen += c ? 1 : 0;
+        } else {
+          await ACTIONS[act](names[rnd(0, names.length - 1)]);
+        }
+        await levelUpCheck();
         render();
-        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > S.drive ||
+        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > cap() ||
+          !Number.isInteger(career.xp) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
@@ -603,7 +804,7 @@ async function selfTest() {
       }
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best}`;
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
     document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
@@ -617,9 +818,14 @@ async function selfTest() {
   if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+  const record = store.get('zdh-career');
+  if (record && Number.isInteger(record.xp) && record.xp >= 0) {
+    career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null};
+  }
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
     S = saved;
+    S.contracts = S.contracts || [];   // saves from before contracts existed
     log('Run resumed.');
     render();
     return;
@@ -628,9 +834,11 @@ async function selfTest() {
   render();
   busy = true;
   await alertDlg('ZERO DAY HUSTLE',
-    `<p>You have <b>${DAYS} days</b>, ${money(START_CASH)} and a ${money(START_DEBT)} debt to the Syndicate ` +
-    `that grows ${DEBT_RATE * 100}% a day.</p>` +
+    `<p>You have <b>${DAYS} days</b>, ${money(S.cash)} and a ${money(START_DEBT)} debt to the Fixer ` +
+    `that grows ${pct(debtRate())}% a day.</p>` +
     '<p>Buy low, sell high, and tunnel between spots. Every trip takes a day and reshuffles the prices.</p>' +
+    '<p><span class="amber">Contracts</span> use up your goods on a job. If it works it pays more than selling.</p>' +
+    '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>. Heat brings traces. Zero OpSec means busted.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
   busy = false;

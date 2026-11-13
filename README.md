@@ -1,6 +1,6 @@
 # Zero Day Hustle
 
-A trading game set in the hacker underground. You have 30 days, $2,000 and a debt to the Syndicate that grows every day. Buy low, sell high, and stay off the radar.
+A trading game set in the hacker underground. You have 30 days, $2,000 and a debt to the Fixer that grows every day. Buy low, sell high, and stay off the radar.
 
 ![App icon](assets/logo.png)
 
@@ -25,14 +25,16 @@ Grab the latest build from the [Releases page](../../releases):
 
 - Ten goods, from Warez up to Zero-Days, with prices that change every day. News events make some scarce and others dirt cheap.
 - Tunnel between eight locations. Every trip takes a day.
-- The Hackerspace is home: pay down or borrow from the Syndicate broker, and park cash in the cold wallet where it earns interest and can't be phished.
+- The Hackerspace is home: pay down or borrow from the Fixer, and park cash in the cold wallet where it earns interest and can't be phished.
+- Contracts use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
+- You earn XP and levels that carry over between runs. At level 10 you can join one of four syndicates, each with a permanent perk.
 - Big deals raise your Heat, and Heat brings traces. Run, counter-hack through your proxies, or wipe your drive to escape.
 - If your OpSec hits zero you are busted and the run scores nothing. Laying low for a day cools things off.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.
 
 ## Terminal version
 
-There is also a text-only version that needs nothing but Python 3:
+There is also a text-only version that needs nothing but Python 3. It is the original, simpler game, without contracts, levels or syndicates:
 
 ```
 python hustle.py
