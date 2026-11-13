@@ -202,6 +202,17 @@ button.r0,button.r1,button.r2,button.r3,button.r4{background:rgba(255,255,255,.0
 .slottag:active{background:var(--panel2)}
 .slotline[data-pick],.pickable{cursor:pointer}
 
+/* small item pictures in lists and on buttons */
+.ico{display:block;flex:none;width:42px;height:42px;background:linear-gradient(#0b0a1c,#1a1535);border:1px solid var(--line)}
+.ico.wide{width:92px;height:38px}
+.itemrow{display:flex;gap:9px;align-items:center}
+.itemrow > span{min-width:0}
+button .ico{width:30px;height:30px}
+button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5px 9px}
+.slotline{display:flex;gap:7px;align-items:flex-start}
+.slotline .ico{width:30px;height:30px}
+.slotline > span{min-width:0}
+
 /* loading screen */
 #boot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;padding:24px;
   background:
@@ -612,8 +623,8 @@ const scrapValue = it => Math.round(itemValue(it) * 0.25);
 const bonus = key => Math.min(STATS[key][2],
   Object.values(career.gear).reduce((sum, it) => sum + ((it && it.stats[key]) || 0), 0));
 const statLine = (key, v) => `+${v}${STATS[key][3]} ${STATS[key][0]}`;
-const itemHtml = it => `<b class="r${it.rar}">${it.name}</b> <span class="dim">${RARITY[it.rar]} &middot; ` +
-  `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`;
+const itemHtml = it => withIcon(gearIcon(it), `<b class="r${it.rar}">${it.name}</b> <span class="dim">${RARITY[it.rar]} &middot; ` +
+  `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`);
 const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
 
 // Everyone starts with a basic item in every slot.
@@ -880,6 +891,7 @@ function figure(F) {
       '<path d="M47 163 L60 166 M53 159 L52 171" stroke="#c9423a" stroke-width="1"/>';
   }
   if (F.weapon > 0) {
+    const weaponStart = out.length;
     // The weapon in hand: one drawing per WEAPONS entry, in the same order.
     const zap = (d, c) => `<path d="${d}" fill="none" stroke="${c || CYAN}" stroke-width="1.2" class="av-zap"/>`;
     const G = shapes => `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round">${shapes}</g>`;   // shapes with an ink outline
@@ -1164,6 +1176,7 @@ function figure(F) {
       out += '<g stroke="#0b0a19" stroke-width=".8"><circle cx="45.6" cy="232" r="3.4" fill="#fff"/><circle cx="52.8" cy="231" r="4" fill="#fff"/></g>' +
         '<circle cx="46.6" cy="233" r="1.6" fill="#0b0a19"/><circle cx="53.8" cy="232.6" r="1.9" fill="#0b0a19"/>';
     }
+    if (F.only === 'weapon') return out.slice(weaponStart);   // just the weapon, for list pictures
   }
   out += `<g fill="${SKIN}" stroke="${INK}" stroke-width="1">` +
     '<ellipse cx="49" cy="208" rx="6.5" ry="9"/><ellipse cx="151" cy="208" rx="6.5" ry="9"/></g>';
@@ -1665,10 +1678,11 @@ function dialog(title, html, buttons, tone) {
     dlg.className = tone || '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div><div class="dbtns"></div>`;
     const box = dlg.querySelector('.dbtns');
-    for (const [label, value, cls] of buttons) {
+    for (const [label, value, cls, icon] of buttons) {   // icon: optional picture shown on the button
       const el = document.createElement('button');
       el.textContent = label;
       if (cls) el.className = cls;
+      if (icon) { el.insertAdjacentHTML('afterbegin', icon); el.classList.add('hasico'); }
       el.onclick = () => { overlay.hidden = true; resolve(value); };
       box.appendChild(el);
     }
@@ -1739,6 +1753,49 @@ function askText(title, html) {
   });
 }
 
+// ---------- item pictures for lists ----------
+// Small pictures of gear and weapons, cut out of the same drawings the avatar wears and holds.
+const BARE = () => ({look: getLook(), syn: null, level: 1, weapon: 0, belt: [], hp: 100, mood: '',
+  gear: {head: null, body: null, hands: null, feet: null, deck: null}});
+// Which part of the 200 x 352 figure to show for each kind of deck (they sit in different places).
+const DECK_BOX = ['130 174 52 44', '52 148 48 52', '44 8 112 150', '130 166 52 50', '132 172 40 46', '54 132 48 66',
+  '130 156 38 56', '44 24 112 144'];
+function gearIcon(it) {
+  const kind = Math.max(0, SLOTS[it.slot][1].findIndex(name => it.name.endsWith(name)));
+  const F = BARE();
+  F.gear[it.slot] = {kind, c: RCOL[it.rar], rar: it.rar};
+  const box = it.slot === 'head' ? '68 0 64 78'
+    : it.slot === 'body' ? (kind === 2 || kind === 6 ? '36 62 128 222' : '36 62 128 138')
+    : it.slot === 'hands' ? '30 168 40 70'
+    : it.slot === 'feet' ? '50 278 100 62'
+    : DECK_BOX[kind] || '30 16 170 200';
+  return `<svg class="ico" viewBox="${box}" aria-hidden="true">${figure(F)}</svg>`;
+}
+const LONG_WEAPONS = [6, 19, 68];   // carried along the arm, so they need a taller picture
+function weaponIcon(index) {
+  if (!WEAPONS[index]) return '';
+  const F = BARE();
+  F.weapon = index;
+  F.only = 'weapon';
+  // Weapons hang downwards in the hand, so the picture is turned on its side to show them bigger.
+  const long = LONG_WEAPONS.includes(index);
+  return `<svg class="ico wide" viewBox="${long ? '0 0 178 54' : '0 0 104 42'}" aria-hidden="true">` +
+    `<g transform="${long ? 'translate(-122 76)' : 'translate(-196 70)'} rotate(-90)">${figure(F)}</g></svg>`;
+}
+// Gadgets and services have no place on the avatar, so they get simple pictures of their own.
+const MISC_ART = {
+  emp: '<rect x="7" y="4" width="10" height="16" rx="3" fill="#0c4270" stroke="#00e5ff"/><path d="M13 7 l-3 5 h3 l-2 5" fill="none" stroke="#fcee0a" stroke-width="1.6"/>',
+  smoke: '<rect x="8" y="9" width="8" height="12" rx="2" fill="#4a5068" stroke="#c9d1d5"/><circle cx="8" cy="6" r="3.2" fill="#c9d1d5"/><circle cx="13" cy="4.5" r="3.6" fill="#e3edf7"/><circle cx="17" cy="7" r="2.6" fill="#c9d1d5"/>',
+  bomb: '<circle cx="11" cy="14" r="7" fill="#70143f" stroke="#ff4fd8"/><path d="M15 8 l3 -4" stroke="#fcee0a" stroke-width="1.6"/><circle cx="19" cy="3.4" r="1.6" fill="#ff8a1e"/><path d="M8 13 h2 M12 13 h2 M9 16 q2 2 4 0" stroke="#ff4fd8" stroke-width="1.2" fill="none"/>',
+  fakeid: '<rect x="2.5" y="6" width="19" height="12" rx="2" fill="#fcee0a" stroke="#0b0a19"/><circle cx="8" cy="11" r="2.4" fill="#0b0a19"/><path d="M5 16 q3 -4 6 0 M13 10 h6 M13 13 h6" stroke="#0b0a19" stroke-width="1.2" fill="none"/>',
+  medkit: '<rect x="3" y="7" width="18" height="13" rx="2" fill="#e9e9f0" stroke="#0b0a19"/><rect x="9" y="4" width="6" height="4" rx="1" fill="none" stroke="#e9e9f0" stroke-width="1.4"/><path d="M12 10 v7 M8.5 13.5 h7" stroke="#ff3b5c" stroke-width="2.4"/>',
+  proxy: '<g fill="none" stroke="#00e5ff" stroke-width="2"><rect x="2.5" y="9" width="8" height="6" rx="3"/><rect x="13.5" y="9" width="8" height="6" rx="3"/></g><rect x="8" y="10.5" width="8" height="3" rx="1.5" fill="none" stroke="#ff4fd8" stroke-width="2"/>',
+  doc: '<circle cx="12" cy="12" r="9" fill="#0f6644" stroke="#3dff9a"/><path d="M12 6.5 v11 M6.5 12 h11" stroke="#fff" stroke-width="3"/>',
+};
+const miscIcon = key => (MISC_ART[key] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${MISC_ART[key]}</svg>` : '');
+// A picture with text beside it.
+const withIcon = (icon, html) => (icon ? `<span class="itemrow">${icon}<span>${html}</span></span>` : html);
+
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
 // hot: true for the black-market dealer (no background check, and every purchase adds a little Heat).
@@ -1748,7 +1805,8 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
     const mine = WEAPONS[S.weapon], tradeIn = mine ? Math.round(mine[1] * 0.3) : 0;
     const priceOf = w => Math.max(0, Math.round(w[1] * scale * (w[4] === 'heavy' ? 1 : markup)) - tradeIn);
     let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ` +
-      `<b>${mine ? mine[0] : 'nothing'}</b>${mine ? ` (worth ${money(tradeIn)} as a trade-in)` : ''}.</p>`;
+      `<b>${mine ? mine[0] : 'nothing'}</b>${mine ? ` (worth ${money(tradeIn)} as a trade-in)` : ''}.</p>` +
+      (mine ? `<div class="syn">${withIcon(weaponIcon(S.weapon), `<b>${mine[0]}</b><br>${mine[2] > 1 ? `${mine[2]} shots a round, ` : ''}${pct(mine[3])}% to hit`)}</div>` : '');
     for (const kind of kinds) {
       html += `<p class="dim" style="margin:12px 0 4px"><b class="cyan">${WTYPE[kind][0].toUpperCase()}</b><br>${WTYPE[kind][1]}</p>`;
       if (!hot && kind === 'gun' && S.heat >= 40) {   // the legal store checks who it sells guns to
@@ -1758,9 +1816,9 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
       }
       WEAPONS.map((w, i) => [w, i]).filter(([w]) => w && w[4] === kind).sort((a, b) => a[0][1] - b[0][1]).forEach(([w, i]) => {
         const price = priceOf(w), owned = i === S.weapon, ok = !owned && S.cash >= price;
-        html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${i}"` : ''}>` +
+        html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${i}"` : ''}>` + withIcon(weaponIcon(i),
           `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? 'yours' : money(price)}</span> &middot; <b>${w[0]}</b><br>` +
-          `${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit</div>`;
+          `${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit`) + '</div>';
       });
     }
     html += '<p class="dim">Tap a weapon to buy it. You carry one at a time, and your old one is traded in.' +
@@ -1815,7 +1873,7 @@ async function swapSlot(slot) {
       ? '<p class="dim">IN YOUR BAG: tap one to wear it</p>' + options.map(([it, i]) =>
         `<div class="syn pickable" data-pick="${i}">${itemHtml(it)}${change(it)}</div>`).join('')
       : `<p>Nothing in your bag fits the ${label.toLowerCase()} slot. Rival crews drop gear and the black market sells it.</p>`);
-  const buttons = options.map(([it, i]) => [`Wear ${it.name}`, String(i), 'r' + it.rar]);
+  const buttons = options.map(([it, i]) => [`Wear ${it.name}`, String(i), 'r' + it.rar, gearIcon(it)]);
   buttons.push(['Back', null, 'primary']);
   const choice = await dialog(`${label} slot`, html, buttons);
   if (choice === null) return;
@@ -1999,15 +2057,15 @@ const ACTIONS = {
       const html = `<div class="avatarbox"><div class="zoomable" data-pick="zoom">${avatarSvg()}<small>tap to zoom</small></div><div>` +
         Object.entries(SLOTS).map(([slot, [label]]) => {
         const it = career.gear[slot];
-        return `<div class="slotline" data-pick="slot:${slot}"><span class="dim">${label}</span><br>` + (it
+        return `<div class="slotline" data-pick="slot:${slot}">${it ? gearIcon(it) : ''}<span><span class="dim">${label}</span><br>` + (it
           ? `<b class="r${it.rar}">${it.name}</b><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`
-          : '<span class="dim">empty</span>') + '</div>';
+          : '<span class="dim">empty</span>') + '</span></div>';
       }).join('') + '</div></div>' +
         `<p><b>Total bonuses:</b> ${totals.length ? totals.join(', ') : 'none yet'}</p>` +
         `<p class="dim">BAG ${career.bag.length}/${BAG_SIZE}. Tap an item to wear or scrap it. Gear drops from rival crews, ` +
         'is sold at the black market, and stays with you between runs.</p>' +
         `<p class="dim">${RARITY.map((name, i) => `<span class="r${i}">${name}</span>`).join(' &middot; ')}</p>`;
-      const buttons = career.bag.map((it, i) => [it.name, i, 'r' + it.rar]);
+      const buttons = career.bag.map((it, i) => [it.name, i, 'r' + it.rar, gearIcon(it)]);
       buttons.push(['Change your look', 'look'], ['Close', null, 'primary']);
       const index = await dialog('Gear', html, buttons);
       if (index === null) return;
@@ -2107,8 +2165,8 @@ const ACTIONS = {
         `<p class="dim">IN THE LOCKER ${career.locker.length}/${LOCKER_SIZE}</p>${list(career.locker, 'The locker is empty.')}` +
         '<p class="dim">The locker has a hidden compartment: raids never find it.</p>';
       const buttons = [];
-      if (career.locker.length < LOCKER_SIZE) career.bag.forEach((it, i) => buttons.push([`Store ${it.name}`, 'b' + i, 'r' + it.rar]));
-      if (career.bag.length < BAG_SIZE) career.locker.forEach((it, i) => buttons.push([`Take ${it.name}`, 'l' + i, 'r' + it.rar]));
+      if (career.locker.length < LOCKER_SIZE) career.bag.forEach((it, i) => buttons.push([`Store ${it.name}`, 'b' + i, 'r' + it.rar, gearIcon(it)]));
+      if (career.bag.length < BAG_SIZE) career.locker.forEach((it, i) => buttons.push([`Take ${it.name}`, 'l' + i, 'r' + it.rar, gearIcon(it)]));
       buttons.push(['Close', null, 'primary']);
       const choice = await dialog('Gear locker', html, buttons);
       if (!choice) return;
@@ -2148,24 +2206,24 @@ const ACTIONS = {
       const scale = 1 + Math.floor(S.day / 10) * 0.5;
       const offers = [];
       for (const [key, [name, price, most, what]] of Object.entries(GADGETS)) {
-        if (S[key] < most) offers.push({key: 'x' + key, gadget: key, name, price: Math.round(price * scale),
+        if (S[key] < most) offers.push({key: 'x' + key, gadget: key, art: key, name, price: Math.round(price * scale),
           text: `single use: ${what} (you have ${S[key]})`});
       }
-      if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
+      if (S.proxies < MAX_PROXIES) offers.push({key: 'p', art: 'proxy', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and contracts (you have ${S.proxies})`});
-      if (S.medkits < MAX_MED) offers.push({key: 'm', name: 'Medkit', price: Math.round(600 * scale),
+      if (S.medkits < MAX_MED) offers.push({key: 'm', art: 'medkit', name: 'Medkit', price: Math.round(600 * scale),
         text: `restores ${MED_HEAL}% Health any time, even mid-fight (you have ${S.medkits})`});
       S.shop.forEach((it, i) => offers.push({key: 'g' + i, name: it.name, price: Math.round(itemValue(it) * scale),
         item: it, cls: 'r' + it.rar}));
-      if (S.hp < 100) offers.push({key: 'd', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
+      if (S.hp < 100) offers.push({key: 'd', art: 'doc', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
         text: `patches you up from ${S.hp}% to full Health`});
       const html = `<p>Cash: <span class="green">${money(S.cash)}</span>.</p>` +
         (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
-          `${money(o.price)}</span> &middot; ${o.item ? itemHtml(o.item) : `<b>${o.name}</b><br>${o.text}`}</div>`).join('')
+          `${money(o.price)}</span>${o.item ? itemHtml(o.item) : withIcon(miscIcon(o.art), `<b>${o.name}</b><br>${o.text}`)}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
       const buttons = offers.filter(o => S.cash >= o.price)
-        .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls]);
+        .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls, o.item ? gearIcon(o.item) : miscIcon(o.art)]);
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
