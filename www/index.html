@@ -61,6 +61,11 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .meter .track{height:11px;background:#000;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .meter .track i{display:block;height:100%;transition:width .25s}
 .meter b{text-align:right;white-space:nowrap}
+/* gear rarity colours: common, uncommon, rare, epic, legendary */
+.r0,.syn b.r0{color:#c9d1d5}.r1,.syn b.r1{color:#39ff7a}.r2,.syn b.r2{color:#4da3ff}
+.r3,.syn b.r3{color:#c77dff}.r4,.syn b.r4{color:#ff9d2e}
+button.r0{border-color:#c9d1d5}button.r1{border-color:#39ff7a}button.r2{border-color:#4da3ff}
+button.r3{border-color:#c77dff}button.r4{border-color:#ff9d2e}
 #jobs{margin-top:10px}
 #jobs h3{margin:0 0 6px;font-size:13px;letter-spacing:2px;color:var(--dim);font-weight:normal}
 .job{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 9px;margin-bottom:6px;
@@ -206,7 +211,7 @@ const store = {
 const save = () => { if (!AUTO) store.set('zdh-save', S); };
 
 // ---------- career: XP, levels and syndicate carry over between runs ----------
-let career = {xp: 0, syn: null}, pendingLevel = 0;
+let career = {xp: 0, syn: null, gear: {}, bag: []}, pendingLevel = 0;
 
 function levelInfo() {
   let xp = career.xp, level = 1, need = 100;
@@ -256,9 +261,85 @@ async function levelUpCheck() {
   }
 }
 
+// ---------- gear: clothing and equipment in five colour-coded rarities ----------
+// Gear belongs to the career, so it carries over between runs.
+const RARITY = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
+const RARITY_MULT = [1, 1.5, 2.2, 3, 4];
+const RARITY_PREFIX = ['Worn', 'Tuned', 'Custom', 'Prototype', 'Mythic'];
+// slot: [label, item names, stats this slot can roll]
+const SLOTS = {
+  head: ['Head', ['Beanie', 'Hood', 'AR Visor', 'Neural Band'], ['firewall', 'hack', 'stealth', 'charm']],
+  body: ['Body', ['Denim Jacket', 'Kevlar Hoodie', 'Trench Coat', 'Armoured Vest'], ['armor', 'storage', 'stealth', 'regen']],
+  hands: ['Hands', ['Fingerless Gloves', 'Haptic Gloves', 'Shock Knuckles'], ['aim', 'hack', 'luck']],
+  feet: ['Feet', ['Sneakers', 'Combat Boots', 'Courier Runners'], ['speed', 'armor', 'regen']],
+  deck: ['Deck', ['Burner Laptop', 'Cyberdeck', 'Mesh Rig'], ['hack', 'firewall', 'storage', 'charm', 'luck']],
+};
+// stat: [what it does, value on a Common item, cap on your total, unit]
+const STATS = {
+  armor: ['less Health damage', 6, 70, '%'],
+  firewall: ['less OpSec damage', 6, 70, '%'],
+  aim: ['weapon hit chance', 4, 30, '%'],
+  hack: ['hack chance per proxy', 4, 35, '%'],
+  speed: ['escape chance', 5, 35, '%'],
+  stealth: ['less Heat gained', 6, 60, '%'],
+  charm: ['contract success', 3, 20, '%'],
+  storage: ['drive slots', 10, 150, ''],
+  regen: ['Health a day', 1, 15, '%'],
+  luck: ['fight loot', 8, 100, '%'],
+};
+const BAG_SIZE = 12, MAX_MED = 5, MED_HEAL = 40;
+
+function makeItem(rar) {
+  const slot = pick(Object.keys(SLOTS));
+  const [, names, pool] = SLOTS[slot];
+  const count = Math.min(pool.length, [1, pick([1, 2]), 2, 3, pick([3, 4])][rar]);
+  const stats = {};
+  for (const key of pool.slice().sort(() => Math.random() - 0.5).slice(0, count)) {
+    stats[key] = Math.max(1, Math.round(STATS[key][1] * RARITY_MULT[rar] * (0.8 + Math.random() * 0.4)));
+  }
+  return {slot, rar, name: `${RARITY_PREFIX[rar]} ${pick(names)}`, stats};
+}
+// boost shifts the odds toward rarer items
+function rollRarity(boost) {
+  const r = Math.random() * 100 - boost;
+  return r < 1 ? 4 : r < 5 ? 3 : r < 15 ? 2 : r < 40 ? 1 : 0;
+}
+const itemValue = it => 800 * [1, 3, 8, 20, 60][it.rar];
+const scrapValue = it => Math.round(itemValue(it) * 0.25);
+const bonus = key => Math.min(STATS[key][2],
+  Object.values(career.gear).reduce((sum, it) => sum + ((it && it.stats[key]) || 0), 0));
+const statLine = (key, v) => `+${v}${STATS[key][3]} ${STATS[key][0]}`;
+const itemHtml = it => `<b class="r${it.rar}">${it.name}</b> <span class="dim">${RARITY[it.rar]} &middot; ` +
+  `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`;
+const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
+
+// Put an item in the bag, or scrap it for cash if the bag is full.
+function stash(it) {
+  if (career.bag.length < BAG_SIZE) return career.bag.push(it);
+  S.cash += scrapValue(it);
+  log(`Bag full: scrapped ${it.name} for ${money(scrapValue(it))}.`);
+}
+
+async function dropLoot(from, boost) {
+  const it = makeItem(rollRarity(boost));
+  const worn = career.gear[it.slot];
+  log(`Loot from ${from}: <span class="r${it.rar}">${it.name}</span> (${RARITY[it.rar]}).`);
+  const choice = await dialog('Loot!', `<p>${from} left something behind:</p><div class="syn">${itemHtml(it)}</div>` +
+    (worn ? `<p class="dim">You are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
+      : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
+    [['Equip it', 'e', 'primary'], ['Put it in the bag', 'b']]);
+  if (choice === 'e') {
+    if (worn) stash(worn);
+    career.gear[it.slot] = it;
+  } else {
+    stash(it);
+  }
+  saveCareer();
+}
+
 // ---------- state helpers ----------
 const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
-const cap = () => S.drive + (inSyn('null') ? 60 : 0);
+const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage');
 const free = () => cap() - used();
 const pick = list => list[rnd(0, list.length - 1)];
 // A labelled bar: Health, OpSec, or the hostiles left in a fight.
@@ -286,6 +367,7 @@ function removeItems(name, qty) {
 function addHeat(value) {
   let gain = Math.min(10, Math.floor(value / 10000));
   if (inSyn('ghost')) gain = Math.ceil(gain / 2);
+  gain = Math.ceil(gain * (1 - bonus('stealth') / 100));
   if (gain) S.heat = Math.min(100, S.heat + gain);
 }
 
@@ -309,7 +391,7 @@ function rollContracts() {
 }
 const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1));
 const chanceFor = c => Math.max(10, Math.min(95,
-  c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0)));
+  c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0) + bonus('charm')));
 function log(text, cls) {
   logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
   logs.length = Math.min(logs.length, 14);
@@ -329,12 +411,14 @@ function rollMarket() {
     if (Object.keys(S.prices).length >= 4) break;
   }
   rollContracts();
+  // Today's gear on the black market: up to Epic, never Legendary.
+  S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(S.day * 0.3))));
 }
 
 function newGame() {
   S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, hp: 100, armor: false, weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
+    contracts: [], xpRun: 0, cleared: false, hp: 100, medkits: 0, shop: [], weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   rollMarket();
@@ -439,7 +523,8 @@ function render() {
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
     ['Weapon', (WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None') + (S.emp ? ` +${S.emp} EMP` : ''), ''],
-    ['Armour', S.armor ? 'Vest' : 'None', ''],
+    ['Armour', bonus('armor') + '%', ''],
+    ['Medkits', S.medkits, ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
@@ -470,6 +555,8 @@ function render() {
     ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
     : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
+  acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
+  if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
@@ -558,7 +645,49 @@ const ACTIONS = {
       hit: 0.3, lo: 3, hi: 8});
   },
 
-  // Black market: weapons, EMP grenades and proxy chains.
+  async medkit() {
+    if (!S.medkits || S.hp >= 100) return;
+    S.medkits--;
+    S.hp = Math.min(100, S.hp + MED_HEAL);
+    log(`Used a medkit: Health back to ${S.hp}%.`);
+  },
+
+  // Wear, swap and scrap gear.
+  async gearmenu() {
+    for (;;) {
+      const totals = Object.keys(STATS).filter(k => bonus(k)).map(k => statLine(k, bonus(k)));
+      const html = '<p class="dim">WEARING</p>' + Object.entries(SLOTS).map(([slot, [label]]) => {
+        const it = career.gear[slot];
+        return `<div class="syn"><span class="dim">${label}:</span> ${it ? itemHtml(it) : '<span class="dim">empty</span>'}</div>`;
+      }).join('') +
+        `<p><b>Total bonuses:</b> ${totals.length ? totals.join(', ') : 'none yet'}</p>` +
+        `<p class="dim">BAG ${career.bag.length}/${BAG_SIZE}. Tap an item to wear or scrap it. Gear drops from rival crews, ` +
+        'is sold at the black market, and stays with you between runs.</p>' +
+        `<p class="dim">${RARITY.map((name, i) => `<span class="r${i}">${name}</span>`).join(' &middot; ')}</p>`;
+      const buttons = career.bag.map((it, i) => [it.name, i, 'r' + it.rar]);
+      buttons.push(['Close', null, 'primary']);
+      const index = await dialog('Gear', html, buttons);
+      if (index === null) return;
+      const it = career.bag[index], worn = career.gear[it.slot];
+      const act = await dialog(it.name, `<div class="syn">${itemHtml(it)}</div>` +
+        (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
+          : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
+        [['Wear it', 'e', 'primary'], [`Scrap for ${money(scrapValue(it))}`, 's', 'danger'], ['Back', null, 'small']]);
+      if (act === 'e') {
+        career.bag.splice(index, 1);
+        if (worn) career.bag.push(worn);
+        career.gear[it.slot] = it;
+      } else if (act === 's') {
+        career.bag.splice(index, 1);
+        S.cash += scrapValue(it);
+        log(`Scrapped ${it.name} for ${money(scrapValue(it))}.`);
+      }
+      saveCareer();
+      render();
+    }
+  },
+
+  // Black market: weapons, EMP grenades, proxy chains, medkits and gear.
   async gear() {
     for (;;) {
       const scale = 1 + Math.floor(S.day / 10) * 0.5;
@@ -570,17 +699,20 @@ const ACTIONS = {
         text: `single use, fries 2 to 3 hostiles (you have ${S.emp})`});
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and contracts (you have ${S.proxies})`});
-      if (!S.armor) offers.push({key: 'a', name: 'Armoured vest', price: Math.round(3500 * scale),
-        text: 'cuts the damage to your Health by 40%'});
+      if (S.medkits < MAX_MED) offers.push({key: 'm', name: 'Medkit', price: Math.round(600 * scale),
+        text: `restores ${MED_HEAL}% Health any time, even mid-fight (you have ${S.medkits})`});
+      S.shop.forEach((it, i) => offers.push({key: 'g' + i, name: it.name, price: Math.round(itemValue(it) * scale),
+        item: it, cls: 'r' + it.rar}));
       if (S.hp < 100) offers.push({key: 'd', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
         text: `patches you up from ${S.hp}% to full Health`});
       const have = WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'nothing';
       const html = `<p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ${have}.</p>` +
-        (offers.length ? offers.map(o => `<div class="syn"><b>${o.name}</b> &middot; ` +
-          `<span class="${S.cash >= o.price ? 'amber' : 'red'}">${money(o.price)}</span><br>${o.text}</div>`).join('')
+        (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
+          `${money(o.price)}</span> &middot; ${o.item ? itemHtml(o.item) : `<b>${o.name}</b><br>${o.text}`}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
         '<p class="dim">Weapons work on the law and on rival crews. Using them on the law raises your Heat.</p>';
-      const buttons = offers.filter(o => S.cash >= o.price).map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key]);
+      const buttons = offers.filter(o => S.cash >= o.price)
+        .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls]);
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
@@ -588,8 +720,9 @@ const ACTIONS = {
       S.cash -= o.price;
       if (key === 'w') S.weapon++;
       else if (key === 'e') S.emp++;
-      else if (key === 'a') S.armor = true;
+      else if (key === 'm') S.medkits++;
       else if (key === 'd') S.hp = 100;
+      else if (o.item) { S.shop.splice(S.shop.indexOf(o.item), 1); stash(o.item); saveCareer(); }
       else S.proxies++;
       log(key === 'd' ? `The street doc patched you up for ${money(o.price)}.` : `Bought: ${o.name} for ${money(o.price)}.`);
       render();
@@ -712,7 +845,7 @@ function nextDay() {
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   S.raided = false;
-  S.hp = Math.min(100, S.hp + 3);
+  S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
   rollMarket();
 }
 
@@ -807,6 +940,7 @@ async function fight(E) {
     if (!raid && S.emp) buttons.push([`EMP grenade (${S.emp})`, 'emp']);
     if (S.proxies) buttons.push([raid ? 'Hack them' : 'Counter-hack', 'hack']);
     if (zeroDays) buttons.push([`Burn a Zero-Day (${zeroDays})`, 'zero']);
+    if (S.medkits && S.hp < 100) buttons.push([`Medkit (${S.medkits})`, 'med']);
     buttons.push([raid ? 'Jack out' : 'Run', 'run']);
     if (law) buttons.push(['Wipe drive', 'wipe', 'danger']);
     if (E.kind === 'gang' && S.cash >= payoff) buttons.push([`Pay them ${money(payoff)}`, 'pay']);
@@ -816,9 +950,9 @@ async function fight(E) {
       `<p class="dim" style="margin-top:10px">${hint}</p>`, buttons, 'danger');
 
     let kills = 0;
-    physical = !raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run');
+    physical = !raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run' || cmd === 'med');
     if (cmd === 'shoot') {
-      for (let i = 0; i < W[2]; i++) if (Math.random() < W[3]) kills++;
+      for (let i = 0; i < W[2]; i++) if (Math.random() < W[3] + bonus('aim') / 100) kills++;
       kills = Math.min(n, kills);
       violent = true;
       S.heat = Math.min(100, S.heat + (law ? 12 : 3));
@@ -830,15 +964,20 @@ async function fight(E) {
       S.heat = Math.min(100, S.heat + (law ? 6 : 2));
       msg = `The EMP fries ${kills} of them.`;
     } else if (cmd === 'hack') {
-      for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4) kills++;
+      for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4 + bonus('hack') / 100) kills++;
       kills = Math.min(n, kills);
       msg = `You hit back through your proxies: ${kills} knocked offline.`;
+    } else if (cmd === 'med') {
+      S.medkits--;
+      S.hp = Math.min(100, S.hp + MED_HEAL);
+      msg = `You jab a medkit: Health back to ${S.hp}%.`;
     } else if (cmd === 'zero') {
       removeItems('Zero-Days', 1);
       kills = Math.min(n, 2);
       msg = `The Zero-Day tears through their gear: ${kills} knocked offline.`;
     } else if (cmd === 'run') {
-      const chance = raid ? 1 : Math.max(0.25, Math.min(0.85, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1)));
+      const chance = raid ? 1
+        : Math.max(0.25, Math.min(0.9, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1) + bonus('speed') / 100));
       if (Math.random() < chance) {
         if (raid) {
           log(`You jacked out of the ${E.name} node empty-handed.`);
@@ -877,22 +1016,35 @@ async function fight(E) {
         S.grudge[E.gang] += 1;
         xp = gainXp(30 * total);
       }
+      loot = Math.round(loot * (1 + bonus('luck') / 100));
       S.cash += loot;
       const what = law ? `You shook off ${E.name} and sold their tooling`
         : raid ? `You cleaned out a ${E.name} node` : `You beat back ${E.name} and drained their wallets`;
       log(`<span class="green">${what} for ${money(loot)}.</span>${xp}`);
-      return alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
+      await alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
         (law ? '' : `<p class="dim">${E.name} will remember this.</p>`));
+      if (!law) {
+        // Rival crews drop medkits and gear. Raids and higher levels drop better.
+        if (S.medkits < MAX_MED && Math.random() < 0.3) {
+          S.medkits++;
+          log('You pocket a medkit they left behind.');
+        }
+        if (Math.random() < (raid ? 0.85 : 0.6)) {
+          await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
+        }
+      }
+      return;
     }
 
     let dmg = 0;
     for (let i = 0; i < n; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
     if (dmg && physical) {
       // In the open they hurt you, not your rig. Armour soaks up part of it.
-      if (S.armor) dmg = Math.ceil(dmg * 0.6);
+      dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100)));
       S.hp -= dmg;
-      msg += ` <span class="red">${law ? 'They open fire' : 'They jump you'}: Health -${dmg}%${S.armor ? ' (vest took the rest)' : ''}.</span>`;
+      msg += ` <span class="red">${law ? 'They open fire' : 'They jump you'}: Health -${dmg}%.</span>`;
     } else if (dmg) {
+      dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('firewall') / 100)));
       S.opsec -= dmg;
       msg += ` <span class="red">They ${law ? 'unmask part of your trail' : 'tear into your defences'}: OpSec -${dmg}%.</span>`;
     } else {
@@ -1006,14 +1158,15 @@ async function selfTest() {
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0;
   try {
     for (let game = 0; game < 200; game++) {
-      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red'])};
+      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red']), gear: {}, bag: []};
+      for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
       newGame();
       S.proxies = rnd(0, 3); S.weapon = rnd(0, 3); S.emp = rnd(0, 2);
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? 'laylow' : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.94 ? 'raid' : r < 0.98 ? 'gear' : 'profile';
+          : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? 'medkit' : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
         if (act === 'raid') raids++;
@@ -1028,7 +1181,9 @@ async function selfTest() {
         }
         await levelUpCheck();
         render();
-        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > cap() ||
+        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
+          career.bag.length > BAG_SIZE || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
+          Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || S.emp < 0 || S.emp > MAX_EMP || S.weapon > 3 || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
@@ -1058,7 +1213,9 @@ async function selfTest() {
   }
   const record = store.get('zdh-career');
   if (record && Number.isInteger(record.xp) && record.xp >= 0) {
-    career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null};
+    career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null,
+      gear: record.gear && typeof record.gear === 'object' ? record.gear : {},
+      bag: Array.isArray(record.bag) ? record.bag : []};
   }
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
@@ -1066,7 +1223,13 @@ async function selfTest() {
     // Fill in anything a save from an older version lacks.
     S.contracts = S.contracts || [];
     S.hp = Number.isInteger(S.hp) ? S.hp : 100;
-    S.armor = !!S.armor;
+    S.medkits = S.medkits || 0;
+    S.shop = S.shop || [];
+    if (S.armor && !career.gear.body) {
+      // The old vest becomes a gear item.
+      career.gear.body = {slot: 'body', rar: 1, name: 'Tuned Armoured Vest', stats: {armor: 15}};
+    }
+    delete S.armor;
     S.weapon = S.weapon || 0;
     S.emp = S.emp || 0;
     S.grudge = Object.assign(noGrudges(), S.grudge);
