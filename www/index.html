@@ -186,6 +186,22 @@ button.r0{border-color:#c9d1d5}button.r1{border-color:#39ff7a}button.r2{border-c
 button.r3{border-color:#c77dff}button.r4{border-color:#ff9d2e}
 button.r0,button.r1,button.r2,button.r3,button.r4{background:rgba(255,255,255,.04);text-shadow:none}
 
+/* loadout close-up: big avatar with a tappable tag per gear slot */
+.zoomable{cursor:pointer;position:relative}
+.zoomable small{position:absolute;left:0;right:0;bottom:5px;text-align:center;font-size:10px;letter-spacing:1px;
+  color:var(--cyan);text-transform:uppercase;text-shadow:0 0 4px #000,0 0 4px #000}
+.stage{position:relative;margin:0 auto 10px}
+.stage .avatar{display:block;width:60%;margin:0 auto;background:linear-gradient(#0b0a1c,#1a1535);
+  border:1px solid var(--line);border-bottom:2px solid var(--magenta)}
+.slottag{position:absolute;width:38%;padding:4px 6px;background:rgba(11,10,25,.9);border:1px solid var(--line);
+  border-left:2px solid var(--accent);cursor:pointer;font-size:11px;line-height:1.25}
+.slottag small{display:block;color:var(--dim);letter-spacing:1px;text-transform:uppercase;font-size:9px}
+.slottag b{display:block;font-weight:600;overflow-wrap:anywhere}
+.slottag i{display:block;font-style:normal;color:var(--yellow);font-size:10px}
+.slottag.has{border-color:var(--yellow);box-shadow:0 0 8px rgba(252,238,10,.35)}
+.slottag:active{background:var(--panel2)}
+.slotline[data-pick],.pickable{cursor:pointer}
+
 /* loading screen */
 #boot{position:fixed;inset:0;z-index:150;display:flex;align-items:center;justify-content:center;padding:24px;
   background:
@@ -1302,6 +1318,10 @@ function dialog(title, html, buttons, tone) {
       el.onclick = () => { overlay.hidden = true; resolve(value); };
       box.appendChild(el);
     }
+    // Anything in the body marked data-pick="value" also answers the dialog when tapped.
+    dlg.querySelectorAll('.body [data-pick]').forEach(el => {
+      el.onclick = () => { overlay.hidden = true; resolve(el.dataset.pick); };
+    });
     if (AUTO) return resolve(buttons[rnd(0, buttons.length - 1)][1]);
     overlay.hidden = false;
     dlg.scrollTop = 0;
@@ -1360,6 +1380,57 @@ function askText(title, html) {
     overlay.hidden = false;
     $('#tx').focus();
   });
+}
+
+// ---------- loadout close-up ----------
+// A big view of the avatar with a tag on each gear slot. Tapping a tag opens that slot.
+async function inspectGear() {
+  const POS = {head: 'top:2%;right:0', body: 'top:26%;left:0', deck: 'top:45%;right:0', hands: 'top:55%;left:0',
+    feet: 'bottom:2%;right:0'};
+  for (;;) {
+    const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
+      const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
+      return `<div class="slottag${spare ? ' has' : ''}" data-pick="${slot}" style="${POS[slot]}"><small>${label}</small>` +
+        (it ? `<b class="r${it.rar}">${it.name}</b>` : '<b class="dim">empty</b>') +
+        (spare ? `<i>${spare} in bag to swap</i>` : '') + '</div>';
+    }).join('');
+    const slot = await dialog('Loadout', `<div class="stage">${avatarSvg()}${tags}</div>` +
+      '<p class="dim">Tap a slot to see it and change what you are wearing there. Yellow slots have something in your bag.</p>',
+      [['Back', null, 'primary']]);
+    if (!slot) return;
+    await swapSlot(slot);
+  }
+}
+
+// One slot: what is worn there, and everything in the bag that could replace it.
+async function swapSlot(slot) {
+  const label = SLOTS[slot][0], worn = career.gear[slot];
+  const options = career.bag.map((it, i) => [it, i]).filter(([it]) => it.slot === slot);
+  // How a bag item's stats differ from the worn item's.
+  const change = it => {
+    const keys = [...new Set([...Object.keys(it.stats), ...Object.keys(worn ? worn.stats : {})])];
+    const parts = keys.map(k => {
+      const d = (it.stats[k] || 0) - ((worn && worn.stats[k]) || 0);
+      return d ? `<span class="${d > 0 ? 'green' : 'red'}">${d > 0 ? '+' : ''}${d}${STATS[k][3]} ${STATS[k][0]}</span>` : '';
+    }).filter(Boolean);
+    return parts.length ? `<br><span class="dim">If you swap:</span> ${parts.join(', ')}` : '';
+  };
+  const html = `<p class="dim">WEARING</p><div class="syn">${worn ? itemHtml(worn) : 'Nothing'}</div>` +
+    (options.length
+      ? '<p class="dim">IN YOUR BAG: tap one to wear it</p>' + options.map(([it, i]) =>
+        `<div class="syn pickable" data-pick="${i}">${itemHtml(it)}${change(it)}</div>`).join('')
+      : `<p>Nothing in your bag fits the ${label.toLowerCase()} slot. Rival crews drop gear and the black market sells it.</p>`);
+  const buttons = options.map(([it, i]) => [`Wear ${it.name}`, String(i), 'r' + it.rar]);
+  buttons.push(['Back', null, 'primary']);
+  const choice = await dialog(`${label} slot`, html, buttons);
+  if (choice === null) return;
+  const index = Number(choice), it = career.bag[index];
+  career.bag.splice(index, 1);
+  if (worn) career.bag.push(worn);
+  career.gear[slot] = it;
+  log(`Now wearing <span class="r${it.rar}">${it.name}</span>.`);
+  saveCareer();
+  render();
 }
 
 // ---------- rendering ----------
@@ -1524,9 +1595,10 @@ const ACTIONS = {
   async gearmenu() {
     for (;;) {
       const totals = Object.keys(STATS).filter(k => bonus(k)).map(k => statLine(k, bonus(k)));
-      const html = `<div class="avatarbox">${avatarSvg()}<div>` + Object.entries(SLOTS).map(([slot, [label]]) => {
+      const html = `<div class="avatarbox"><div class="zoomable" data-pick="zoom">${avatarSvg()}<small>tap to zoom</small></div><div>` +
+        Object.entries(SLOTS).map(([slot, [label]]) => {
         const it = career.gear[slot];
-        return `<div class="slotline"><span class="dim">${label}</span><br>` + (it
+        return `<div class="slotline" data-pick="slot:${slot}"><span class="dim">${label}</span><br>` + (it
           ? `<b class="r${it.rar}">${it.name}</b><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`
           : '<span class="dim">empty</span>') + '</div>';
       }).join('') + '</div></div>' +
@@ -1539,6 +1611,8 @@ const ACTIONS = {
       const index = await dialog('Gear', html, buttons);
       if (index === null) return;
       if (index === 'look') { await ACTIONS.look(); continue; }
+      if (index === 'zoom') { await inspectGear(); continue; }
+      if (typeof index === 'string' && index.startsWith('slot:')) { await swapSlot(index.slice(5)); continue; }
       const it = career.bag[index], worn = career.gear[it.slot];
       const act = await dialog(it.name, `<div class="syn">${itemHtml(it)}</div>` +
         (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
@@ -2106,6 +2180,11 @@ async function selfTest() {
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
         if (act === 'raid') raids++;
+        if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
+          stash(makeItem(rnd(0, 4)));
+          await swapSlot(pick(Object.keys(SLOTS)));
+          await inspectGear();
+        }
         if (act === 'contract') {
           // Stock up for a random contract first so jobs actually get run.
           const c = S.contracts[0];
