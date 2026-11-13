@@ -1,2 +1,6 @@
 scores.json
 __pycache__/
+node_modules/
+dist/
+# The Android project is generated from www/ by the build workflow
+android/

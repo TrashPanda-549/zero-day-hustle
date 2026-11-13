@@ -1,0 +1,61 @@
+{
+  "name": "zero-day-hustle",
+  "version": "1.0.0",
+  "description": "Hacker-underground trading game",
+  "author": "TrashPanda-549",
+  "private": true,
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
+  },
+  "build": {
+    "appId": "com.trashpanda.zerodayhustle",
+    "productName": "Zero Day Hustle",
+    "artifactName": "ZeroDayHustle-${version}-${os}-${arch}.${ext}",
+    "files": [
+      "desktop/**",
+      "www/**"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "icon": "assets/logo.png",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "portable": {
+      "artifactName": "ZeroDayHustle-${version}-windows.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "identity": "-"
+    },
+    "dmg": {
+      "artifactName": "ZeroDayHustle-${version}-mac.dmg"
+    }
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
+  }
+}
