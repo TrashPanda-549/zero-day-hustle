@@ -1,0 +1,151 @@
+name: Build apps
+
+# Builds the Windows .exe, the Mac .dmg, the Android .apk and an unsigned iPhone .ipa.
+# - Push a tag like v1.1.0 to build everything and publish a release.
+# - Or run it by hand from the Actions tab. By default that builds only the Mac and
+#   iPhone apps; give it an existing release tag to attach the results to that release.
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release to attach the builds to (for example v1.0.0). Leave empty to only build.
+        required: false
+        default: ''
+      only_apple:
+        description: Build only the Mac and iPhone apps
+        type: boolean
+        default: true
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    if: ${{ github.event_name == 'push' || !inputs.only_apple }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  android:
+    if: ${{ github.event_name == 'push' || !inputs.only_apple }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Generate the Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+      - name: App icon and splash screen
+        continue-on-error: true
+        run: npx --yes @capacitor/assets generate --android --iconBackgroundColor '#04070a' --iconBackgroundColorDark '#04070a' --splashBackgroundColor '#04070a' --splashBackgroundColorDark '#04070a'
+      - name: Build the APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+      - name: Name the APK
+        run: |
+          mkdir -p out
+          VERSION=$(node -p "require('./package.json').version")
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/ZeroDayHustle-$VERSION-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: out/*.apk
+          if-no-files-found: error
+
+  # Unsigned: Apple only installs signed apps, so this .ipa has to be signed by whoever
+  # installs it (a sideloading tool with their own Apple ID, or a developer account).
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Generate the iOS project
+        run: |
+          npx cap add ios
+          npx cap sync ios
+      - name: App icon and splash screen
+        continue-on-error: true
+        run: npx --yes @capacitor/assets generate --ios --iconBackgroundColor '#04070a' --iconBackgroundColorDark '#04070a' --splashBackgroundColor '#04070a' --splashBackgroundColorDark '#04070a'
+      - name: Build the unsigned app
+        working-directory: ios/App
+        run: |
+          if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package the IPA
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir -p out/Payload
+          cp -R ios/App/build/Build/Products/Release-iphoneos/App.app out/Payload/
+          cd out
+          zip -qry "ZeroDayHustle-$VERSION-ios-unsigned.ipa" Payload
+          rm -rf Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: out/*.ipa
+          if-no-files-found: error
+
+  release:
+    if: ${{ !cancelled() && !failure() && (startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '') }}
+    needs: [windows, mac, android, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+      - name: Attach the builds to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Zero Day Hustle $TAG" --generate-notes
+          gh release upload "$TAG" files/* --repo "$GITHUB_REPOSITORY" --clobber
