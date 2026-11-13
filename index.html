@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#04070a">
+<title>Zero Day Hustle</title>
+<style>
+:root{--bg:#04070a;--panel:#0a1310;--line:#153326;--fg:#b8f5c8;--green:#39ff7a;--dim:#5f8f70;
+  --amber:#ffc24a;--red:#ff5566;--cyan:#5fe3ff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg)}
+body{color:var(--fg);font:15px/1.35 ui-monospace,Consolas,"Cascadia Mono",Menlo,"Roboto Mono",monospace;
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+#app{max-width:760px;margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+h1{margin:0;font-size:19px;letter-spacing:3px;color:var(--green);text-shadow:0 0 8px rgba(57,255,122,.5)}
+h2{margin:0 0 10px;font-size:17px;color:var(--green);letter-spacing:1px}
+#dayloc{margin:6px 0 10px;font-size:16px}
+.green{color:var(--green)}.amber{color:var(--amber)}.red{color:var(--red)}.cyan{color:var(--cyan)}.dim{color:var(--dim)}
+button{font:inherit;color:var(--green);background:transparent;border:1px solid var(--green);border-radius:6px;
+  padding:8px 12px;min-height:40px;cursor:pointer}
+button:active:not(:disabled){background:var(--green);color:#000}
+button:disabled{opacity:.28;cursor:default}
+button.primary{background:var(--green);color:#00140a;font-weight:bold}
+button.danger{border-color:var(--red);color:var(--red)}
+button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--line);color:var(--dim)}
+#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(98px,1fr));gap:6px}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.chip small{display:block;color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.chip b{font-size:15px;font-weight:600;white-space:nowrap}
+#news{margin:10px 0 0}
+#news div{color:var(--amber);padding:2px 0}
+#news div::before{content:">> "}
+#market{margin-top:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden}
+.row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
+  border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .name{font-weight:600}
+.row .sub{font-size:12px;color:var(--dim)}
+.row .price{text-align:right;white-space:nowrap}
+.row .btns{display:flex;gap:6px}
+.row .btns button{padding:6px 10px;min-width:52px}
+#actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
+#actions button{min-height:46px}
+#log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
+#log div{padding:1px 0}
+#log div:first-child{color:var(--fg)}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;
+  padding:16px;z-index:10}
+#overlay[hidden]{display:none}
+#dialog{width:100%;max-width:440px;max-height:92vh;overflow:auto;background:#07100c;border:1px solid var(--green);
+  border-radius:10px;padding:16px;box-shadow:0 0 24px rgba(57,255,122,.25)}
+#dialog.danger{border-color:var(--red);box-shadow:0 0 24px rgba(255,85,102,.3)}
+#dialog.danger h2{color:var(--red)}
+#dialog p{margin:0 0 10px}
+.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}
+.qty{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+input[type=number],input[type=text]{font:inherit;font-size:18px;color:var(--green);background:#000;
+  border:1px solid var(--green);border-radius:6px;padding:8px 10px;width:100%;-webkit-user-select:text;user-select:text}
+input[type=range]{width:100%;accent-color:var(--green);height:28px}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.total{margin-top:10px;color:var(--amber);min-height:1.35em}
+.hall{width:100%;border-collapse:collapse;margin-top:6px}
+.hall td{padding:2px 4px}.hall td:last-child{text-align:right}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>ZERO DAY HUSTLE</h1><button class="small" data-act="restart">New run</button></header>
+  <div id="dayloc"></div>
+  <section id="stats"></section>
+  <section id="news"></section>
+  <section id="market"></section>
+  <nav id="actions"></nav>
+  <section id="log"></section>
+</div>
+<div id="overlay" hidden><div id="dialog"></div></div>
+<script>
+'use strict';
+const DAYS = 30, START_CASH = 2000, START_DEBT = 5500, DEBT_RATE = 0.08, WALLET_RATE = 0.03,
+  DEBT_LIMIT = 25000, START_DRIVE = 100, HEAT_DECAY = 8, MAX_PROXIES = 8;
+
+// name, low, high, news when scarce, news when flooded
+const GOODS = [
+  ['Zero-Days', 15000, 29000,
+    'Bug bounties are paying triple. Nobody is selling Zero-Days!',
+    'A broker got doxxed and is fire-selling Zero-Days!'],
+  ['Rootkits', 5000, 13000,
+    'New kernel protections broke most Rootkits. Working ones cost a fortune!',
+    'A rootkit crew leaked their own source. Rootkits are dirt cheap!'],
+  ['Botnet Hours', 1500, 4400,
+    'A big takedown wiped out half the bots. Botnet Hours are scarce!',
+    'Millions of cheap smart cameras just came online. Botnet Hours are flooding in!'],
+  ['Leaked Databases', 1000, 3500,
+    'Everyone rotated their passwords. Fresh Leaked Databases are gold!',
+    'A mega-breach dropped overnight. Leaked Databases everywhere!'],
+  ['Phishing Kits', 600, 1300,
+    'Tax season! Phishing Kits are selling out!',
+    'Mail filters got smarter. Nobody wants Phishing Kits!'],
+  ['Rogue APs', 300, 900,
+    'A big conference is in town. Rogue APs are in demand!',
+    'A hardware shop is clearing out Rogue APs!'],
+  ['Cracked Accounts', 200, 700,
+    'Streaming prices went up again. Cracked Accounts are hot!',
+    'A combo list went public. Cracked Accounts are nearly worthless!'],
+  ['USB Droppers', 90, 250,
+    'Customs seized a shipment. USB Droppers are hard to find!',
+    'Somebody found a pallet of USB Droppers behind a warehouse!'],
+  ['Burner SIMs', 30, 120,
+    'New ID laws hit the kiosks. Burner SIMs are scarce!',
+    'A carrier is dumping Burner SIMs by the box!'],
+  ['Warez', 10, 60,
+    'The big tracker went down. Warez prices are up!',
+    'A release group dumped its whole archive. Warez are basically free!'],
+];
+const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley'];
+const HOME = LOCATIONS[0];
+
+const $ = s => document.querySelector(s);
+const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US');
+const num = n => n.toLocaleString('en-US');
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const esc = s => String(s).replace(/[&<>"']/g,
+  ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+
+let S, logs = [], busy = false, AUTO = false;
+
+// ---------- storage ----------
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} },
+  del(key) { try { localStorage.removeItem(key); } catch (e) {} },
+};
+const save = () => { if (!AUTO) store.set('zdh-save', S); };
+
+// ---------- state helpers ----------
+const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
+const free = () => S.drive - used();
+
+function addItems(name, qty, price) {
+  const held = S.inv[name] || 0;
+  const paid = (S.cost[name] || 0) * held + price * qty;
+  S.inv[name] = held + qty;
+  S.cost[name] = Math.floor(paid / (held + qty));
+}
+function removeItems(name, qty) {
+  S.inv[name] -= qty;
+  if (S.inv[name] <= 0) { delete S.inv[name]; delete S.cost[name]; }
+}
+function addHeat(value) {
+  const gain = Math.min(15, Math.floor(value / 10000));
+  if (gain) S.heat = Math.min(100, S.heat + gain);
+}
+function log(text, cls) {
+  logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
+  logs.length = Math.min(logs.length, 14);
+}
+
+function rollMarket() {
+  for (;;) {
+    S.prices = {}; S.flags = {}; S.news = [];
+    for (const [name, low, high, scarce, flood] of GOODS) {
+      if (Math.random() < 0.18) continue;   // nobody is dealing this here today
+      let price = rnd(low, high);
+      const r = Math.random();
+      if (r < 0.06) { price *= rnd(3, 6); S.news.push(scarce); S.flags[name] = 'up'; }
+      else if (r < 0.12) { price = Math.max(1, Math.floor(price / rnd(3, 5))); S.news.push(flood); S.flags[name] = 'down'; }
+      S.prices[name] = price;
+    }
+    if (Object.keys(S.prices).length >= 4) return;
+  }
+}
+
+function newGame() {
+  S = {day: 1, loc: HOME, cash: START_CASH, debt: START_DEBT, wallet: 0, drive: START_DRIVE, opsec: 100,
+    heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [], over: false, busted: false};
+  logs = [];
+  rollMarket();
+  log('New run. Buy low, sell high, stay off the radar.');
+}
+
+// ---------- dialogs ----------
+const overlay = $('#overlay'), dlg = $('#dialog');
+
+function dialog(title, html, buttons, tone) {
+  return new Promise(resolve => {
+    dlg.className = tone || '';
+    dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div><div class="dbtns"></div>`;
+    const box = dlg.querySelector('.dbtns');
+    for (const [label, value, cls] of buttons) {
+      const el = document.createElement('button');
+      el.textContent = label;
+      if (cls) el.className = cls;
+      el.onclick = () => { overlay.hidden = true; resolve(value); };
+      box.appendChild(el);
+    }
+    if (AUTO) return resolve(buttons[rnd(0, buttons.length - 1)][1]);
+    overlay.hidden = false;
+    dlg.scrollTop = 0;
+  });
+}
+const confirmDlg = (title, html, yes, no) =>
+  dialog(title, html, [[yes || 'Yes', true, 'primary'], [no || 'No', false]]);
+const alertDlg = (title, html, tone) => dialog(title, html, [['OK', true, 'primary']], tone);
+
+// Amount picker, 1..max. opts: unit (price each), cash (amount is money), ok (button label).
+function askQty(title, html, max, opts) {
+  opts = opts || {};
+  return new Promise(resolve => {
+    dlg.className = '';
+    dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div>
+      <div class="qty"><input id="qn" type="number" inputmode="numeric" min="1" max="${max}" value="${max}">
+      <input id="qs" type="range" min="1" max="${max}" value="${max}"></div>
+      <div class="quick"><button data-q="1">Min</button><button data-q="h">Half</button><button data-q="m">Max</button></div>
+      <div class="total" id="qt"></div>
+      <div class="dbtns"><button id="qok" class="primary">${opts.ok || 'OK'}</button><button id="qcancel">Cancel</button></div>`;
+    const qn = $('#qn'), qs = $('#qs'), qt = $('#qt');
+    const value = () => Math.max(0, Math.min(max, Math.floor(Number(qn.value) || 0)));
+    const show = () => {
+      const v = value();
+      qt.textContent = !v ? '' : opts.unit ? `${num(v)} x ${money(opts.unit)} = ${money(v * opts.unit)}`
+        : opts.cash ? money(v) : num(v);
+      $('#qok').disabled = !v;
+    };
+    const set = v => { qn.value = v; qs.value = v; show(); };
+    qn.oninput = () => { qs.value = value(); show(); };
+    qs.oninput = () => { qn.value = qs.value; show(); };
+    dlg.querySelector('.quick').onclick = e => {
+      const q = e.target.dataset.q;
+      if (q) set(q === 'm' ? max : q === 'h' ? Math.max(1, Math.floor(max / 2)) : 1);
+    };
+    const done = v => { overlay.hidden = true; resolve(v); };
+    $('#qok').onclick = () => done(value() || null);
+    $('#qcancel').onclick = () => done(null);
+    qn.onkeydown = e => { if (e.key === 'Enter' && value()) done(value()); };
+    show();
+    if (AUTO) return resolve([null, 1, max, rnd(1, max)][rnd(0, 3)]);
+    overlay.hidden = false;
+  });
+}
+
+function askText(title, html) {
+  return new Promise(resolve => {
+    dlg.className = '';
+    dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div>
+      <input id="tx" type="text" maxlength="16" autocomplete="off" placeholder="anon">
+      <div class="dbtns"><button id="tok" class="primary">OK</button></div>`;
+    const done = () => { overlay.hidden = true; resolve($('#tx').value.trim()); };
+    $('#tok').onclick = done;
+    $('#tx').onkeydown = e => { if (e.key === 'Enter') done(); };
+    if (AUTO) return resolve('bot');
+    overlay.hidden = false;
+    $('#tx').focus();
+  });
+}
+
+// ---------- rendering ----------
+function render() {
+  const last = S.day >= DAYS;
+  $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
+    (last ? ' <span class="amber">&middot; FINAL DAY: sell what you hold</span>' : '');
+  const chips = [
+    ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
+    ['Debt', money(S.debt), S.debt ? 'red' : ''],
+    ['Drive', `${used()}/${S.drive}`, free() <= 0 ? 'amber' : ''],
+    ['OpSec', S.opsec + '%', S.opsec <= 35 ? 'red' : ''],
+    ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
+    ['Proxies', S.proxies, ''],
+  ];
+  $('#stats').innerHTML = chips.map(([k, v, cls]) =>
+    `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
+  $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
+  $('#market').innerHTML = GOODS.map(([name]) => {
+    const price = S.prices[name], held = S.inv[name] || 0, flag = S.flags[name];
+    const priceHtml = price
+      ? `<span class="${flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : ''}">` +
+        `${flag === 'up' ? '&#9650; ' : flag === 'down' ? '&#9660; ' : ''}${money(price)}</span>`
+      : '<span class="dim">no market</span>';
+    let sub = '';
+    if (held) {
+      const cls = !price ? '' : price > S.cost[name] ? 'green' : price < S.cost[name] ? 'red' : '';
+      sub = `<div class="sub ${cls}">holding ${num(held)} @ ${money(S.cost[name] || 0)}</div>`;
+    }
+    const canBuy = price && free() > 0 && S.cash >= price;
+    const second = held && !price
+      ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
+      : `<button data-act="sell" data-arg="${name}"${held && price ? '' : ' disabled'}>Sell</button>`;
+    return `<div class="row"><div><div class="name">${name}</div>${sub}</div>
+      <div class="price">${priceHtml}</div>
+      <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
+  }).join('');
+  let acts = last
+    ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
+    : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
+  if (S.loc === HOME) acts += '<button data-act="broker">Syndicate broker</button><button data-act="wallet">Cold wallet</button>';
+  $('#actions').innerHTML = acts;
+  $('#log').innerHTML = logs.join('');
+}
+
+// ---------- actions ----------
+const ACTIONS = {
+  async buy(name) {
+    const price = S.prices[name];
+    if (!price) return;
+    const most = Math.min(Math.floor(S.cash / price), free());
+    if (most <= 0) return;
+    const qty = await askQty(`Buy ${name}`, `<p>${money(price)} each. You can take up to ${num(most)}.</p>`,
+      most, {unit: price, ok: 'Buy'});
+    if (!qty) return;
+    S.cash -= qty * price;
+    addItems(name, qty, price);
+    addHeat(qty * price);
+    log(`Bought ${num(qty)} ${name} for ${money(qty * price)}.`);
+  },
+
+  async sell(name) {
+    const price = S.prices[name], held = S.inv[name] || 0;
+    if (!price || !held) return;
+    const qty = await askQty(`Sell ${name}`,
+      `<p>Buyers pay ${money(price)} each. You hold ${num(held)}, bought at ${money(S.cost[name] || 0)}.</p>`,
+      held, {unit: price, ok: 'Sell'});
+    if (!qty) return;
+    const profit = (price - (S.cost[name] || 0)) * qty;
+    S.cash += qty * price;
+    removeItems(name, qty);
+    addHeat(qty * price);
+    log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
+      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).`);
+  },
+
+  async dump(name) {
+    const held = S.inv[name] || 0;
+    if (!held) return;
+    const qty = await askQty(`Dump ${name}`, '<p>No buyers here. Wipe them to free drive space?</p>',
+      held, {ok: 'Wipe'});
+    if (!qty) return;
+    removeItems(name, qty);
+    log(`Securely wiped ${num(qty)} ${name}.`);
+  },
+
+  async travel() {
+    if (S.day >= DAYS) return ACTIONS.cashout();
+    const others = LOCATIONS.filter(l => l !== S.loc);
+    const buttons = others.map(l => [l === HOME ? l + ' (broker, wallet)' : l, l]);
+    buttons.push(['Stay here', null, 'small']);
+    const dest = await dialog('Tunnel out', '<p>Where to? The trip takes a day.</p>', buttons);
+    if (!dest) return;
+    S.loc = dest;
+    nextDay();
+    log(`Day ${S.day}: you surface at ${dest}.`);
+    render();
+    await randomEvent();
+  },
+
+  async laylow() {
+    if (S.day >= DAYS) return ACTIONS.cashout();
+    if (!await confirmDlg('Lay low', '<p>Go dark for a day? Heat drops by a lot and OpSec recovers a little. ' +
+      'Prices will change and your debt still grows.</p>', 'Go dark', 'Cancel')) return;
+    nextDay();
+    S.heat = Math.max(0, S.heat - 30);
+    S.opsec = Math.min(100, S.opsec + 10);
+    log(`Day ${S.day}: you unplugged everything and read paperbacks.`);
+  },
+
+  async cashout() {
+    const warn = used() ? '<p class="amber">You are still holding goods. They count for nothing at the end.</p>' : '';
+    if (await confirmDlg('Final day', warn + '<p>End the run and cash out?</p>', 'Cash out', 'Not yet')) S.over = true;
+  },
+
+  async broker() {
+    const cmd = await dialog('Syndicate broker',
+      `<p>You owe <span class="red">${money(S.debt)}</span>, growing ${DEBT_RATE * 100}% a day.</p>`,
+      [['Pay down', 'p', 'primary'], ['Borrow', 'b'], ['Leave', null, 'small']]);
+    if (cmd === 'p') {
+      const most = Math.min(S.cash, S.debt);
+      if (most <= 0) return alertDlg('Syndicate broker', '<p>Nothing to pay, or nothing to pay with.</p>');
+      const amt = await askQty('Pay down debt', '<p>How much?</p>', most, {cash: true, ok: 'Pay'});
+      if (!amt) return;
+      S.cash -= amt; S.debt -= amt;
+      log(S.debt ? `Paid the Syndicate ${money(amt)}.` : '<span class="green">You are clear with the Syndicate!</span>');
+    } else if (cmd === 'b') {
+      const most = DEBT_LIMIT - S.debt;
+      if (most <= 0) return alertDlg('Syndicate broker', '<p>"You\'re at your limit. Pay something back first."</p>');
+      const amt = await askQty('Borrow', '<p>"Don\'t make us come looking for you."</p>', most, {cash: true, ok: 'Borrow'});
+      if (!amt) return;
+      S.cash += amt; S.debt += amt;
+      log(`Borrowed ${money(amt)} from the Syndicate.`);
+    }
+  },
+
+  async wallet() {
+    const cmd = await dialog('Cold wallet',
+      `<p>Balance: ${money(S.wallet)}. Earns ${WALLET_RATE * 100}% a day and can't be phished.</p>`,
+      [['Deposit', 'd', 'primary'], ['Withdraw', 'w'], ['Leave', null, 'small']]);
+    if (cmd === 'd') {
+      if (S.cash <= 0) return alertDlg('Cold wallet', '<p>You have no cash to deposit.</p>');
+      const amt = await askQty('Deposit', '<p>How much?</p>', S.cash, {cash: true, ok: 'Deposit'});
+      if (!amt) return;
+      S.cash -= amt; S.wallet += amt;
+      log(`Moved ${money(amt)} into cold storage.`);
+    } else if (cmd === 'w') {
+      if (S.wallet <= 0) return alertDlg('Cold wallet', '<p>The wallet is empty.</p>');
+      const amt = await askQty('Withdraw', '<p>How much?</p>', S.wallet, {cash: true, ok: 'Withdraw'});
+      if (!amt) return;
+      S.wallet -= amt; S.cash += amt;
+      log(`Pulled ${money(amt)} out of cold storage.`);
+    }
+  },
+
+  async restart() {
+    if (await confirmDlg('New run', '<p>Abandon this run and start over?</p>', 'Start over', 'Cancel')) newGame();
+  },
+};
+
+function nextDay() {
+  S.day += 1;
+  S.debt = Math.ceil(S.debt * (1 + DEBT_RATE));
+  S.wallet = Math.floor(S.wallet * (1 + WALLET_RATE));
+  S.heat = Math.max(0, S.heat - HEAT_DECAY);
+  rollMarket();
+}
+
+// ---------- events ----------
+async function randomEvent() {
+  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300)) return trace();
+  const r = Math.random();
+  if (r < 0.10) {
+    const name = GOODS[rnd(3, GOODS.length - 1)][0];
+    const qty = Math.min(rnd(2, 8), free());
+    if (qty > 0) {
+      addItems(name, qty, 0);
+      log(`<span class="cyan">Found an unlocked laptop in a ride share: ${qty} ${name}!</span>`);
+      await alertDlg('Lucky find', `<p>Someone left an unlocked laptop in a ride share. You lift <b>${qty} ${name}</b>.</p>`);
+    }
+  } else if (r < 0.18) {
+    const price = rnd(400, 1200) * (1 + Math.floor(S.day / 8));
+    if (S.cash >= price && await confirmDlg('Drive upgrade',
+      `<p>A hardware hacker offers an encrypted drive upgrade: <b>+50 slots</b> for ${money(price)}.</p>`, 'Buy it', 'Pass')) {
+      S.cash -= price; S.drive += 50;
+      log(`Drive upgraded to ${S.drive} slots.`);
+    }
+  } else if (r < 0.27) {
+    const price = rnd(700, 1500) * (1 + S.proxies);
+    if (S.cash >= price && S.proxies < MAX_PROXIES && await confirmDlg('Proxy chain',
+      `<p>A sysadmin with a grudge will sell you a proxy chain for ${money(price)}.</p>` +
+      '<p class="dim">Proxies help you slip traces and let you counter-hack.</p>', 'Buy it', 'Pass')) {
+      S.cash -= price; S.proxies += 1;
+      log(`Proxy chain added. You now run ${S.proxies}.`);
+    }
+  } else if (r < 0.33) {
+    if (S.cash > 100) {
+      const loss = Math.floor(S.cash * rnd(10, 25) / 100);
+      S.cash -= loss;
+      log(`<span class="red">Phished! Lost ${money(loss)} from your hot wallet.</span>`);
+      await alertDlg('Phished', `<p>You clicked a link. YOU. Someone drained <b>${money(loss)}</b> from your hot wallet.</p>` +
+        '<p class="dim">Cash in the cold wallet is safe from this.</p>', 'danger');
+    }
+  } else if (r < 0.40) {
+    if (S.opsec < 100) {
+      const price = (100 - S.opsec) * rnd(20, 45);
+      if (S.cash >= price && await confirmDlg('OpSec audit',
+        `<p>An old-timer offers a full OpSec audit for ${money(price)}. Restores OpSec to 100%.</p>`, 'Pay', 'Pass')) {
+        S.cash -= price; S.opsec = 100;
+        log('OpSec restored to 100%.');
+      }
+    }
+  }
+}
+
+async function trace() {
+  let n = rnd(1, 2 + Math.floor(S.day / 8));
+  const total = n;
+  let msg = 'Agent Null is on your connection' +
+    (n === 1 ? ', alone.' : `, with ${n - 1} analyst${n > 2 ? 's' : ''}.`);
+  for (;;) {
+    render();
+    const buttons = [['Run', 'r', 'primary']];
+    if (S.proxies) buttons.push(['Counter-hack', 'c']);
+    buttons.push(['Wipe drive', 'w', 'danger']);
+    const cmd = await dialog('!! TRACE DETECTED !!',
+      `<p>${msg}</p><p>Tracers: <b>${n}</b> &middot; OpSec: <b>${S.opsec}%</b> &middot; Proxies: <b>${S.proxies}</b></p>` +
+      '<p class="dim">Wiping the drive loses all your goods but always escapes.</p>', buttons, 'danger');
+    if (cmd === 'r') {
+      const chance = Math.max(0.25, Math.min(0.85, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1)));
+      if (Math.random() < chance) {
+        S.heat = Math.max(0, S.heat - 10);
+        log('<span class="green">You hopped three networks and vanished.</span>');
+        return alertDlg('Escaped', '<p>You hop three networks and vanish.</p>');
+      }
+      msg = 'They are still on you.';
+    } else if (cmd === 'w') {
+      S.inv = {}; S.cost = {};
+      S.heat = Math.floor(S.heat / 2);
+      log('<span class="amber">You nuked the drive. The trace went cold.</span>');
+      return alertDlg('Drive wiped', '<p>You nuke the drive. Nothing left to find. The trace goes cold.</p>');
+    } else {
+      let hits = 0;
+      for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4) hits++;
+      hits = Math.min(n, hits);
+      n -= hits;
+      if (n <= 0) {
+        const loot = total * rnd(400, 1500) * (1 + Math.floor(S.day / 10));
+        S.cash += loot;
+        S.heat = Math.max(0, S.heat - 25);
+        log(`<span class="green">Trace dead. Sold their tooling for ${money(loot)}.</span>`);
+        return alertDlg('Trace dead', `<p>Every tracer is knocked offline. You sell their own tooling for <b>${money(loot)}</b>.</p>`);
+      }
+      msg = `You fire back through your proxies: ${hits} tracer${hits === 1 ? '' : 's'} knocked offline.`;
+    }
+    let dmg = 0;
+    for (let i = 0; i < n; i++) if (Math.random() < 0.35) dmg += rnd(3, 9);
+    if (dmg) {
+      S.opsec -= dmg;
+      msg += ` <span class="red">They unmask part of your trail: OpSec -${dmg}%.</span>`;
+    } else {
+      msg += ' Their probes miss.';
+    }
+    if (S.opsec <= 0) {
+      S.opsec = 0;
+      S.busted = S.over = true;
+      return;
+    }
+  }
+}
+
+// ---------- end of run ----------
+async function finish() {
+  store.del('zdh-save');
+  render();
+  if (S.busted) {
+    await dialog('BUSTED', '<p>A van you never noticed was parked outside all week.</p>' +
+      `<p>Your run ends on day ${S.day}. No score for the logged-and-tagged.</p>`, [['New run', true, 'primary']], 'danger');
+    return;
+  }
+  const score = S.cash + S.wallet - S.debt;
+  const ranks = [[0, 'Owned by the Syndicate'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
+    [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
+  const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
+  let scores = (!AUTO && store.get('zdh-scores')) || [];
+  if (!Array.isArray(scores)) scores = [];
+  const summary = `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
+    `<p>Final score: <b class="green">${money(score)}</b><br>Rank: <b class="cyan">${rank}</b></p>`;
+  if (scores.length < 10 || score > Math.min(...scores.map(s => s.score))) {
+    const handle = (await askText('New high score!', summary + '<p>Your handle:</p>')) || 'anon';
+    scores.push({handle: handle.slice(0, 16), score});
+    scores = scores.sort((a, b) => b.score - a.score).slice(0, 10);
+    if (!AUTO) store.set('zdh-scores', scores);
+  }
+  const hall = scores.map((s, i) =>
+    `<tr><td>${i + 1}.</td><td>${esc(s.handle)}</td><td>${money(s.score)}</td></tr>`).join('');
+  await dialog('Run complete', summary + `<p class="dim">HALL OF FAME</p><table class="hall">${hall}</table>`,
+    [['New run', true, 'primary']]);
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || busy || b.disabled) return;
+  busy = true;
+  try {
+    await ACTIONS[b.dataset.act](b.dataset.arg);
+    if (S.over) { await finish(); newGame(); }
+  } finally {
+    busy = false;
+  }
+  render();
+  save();
+});
+
+// ---------- self test: open index.html#selftest to auto-play random games ----------
+async function selfTest() {
+  AUTO = true;
+  const names = GOODS.map(g => g[0]);
+  let finished = 0, busted = 0, best = -Infinity;
+  try {
+    for (let game = 0; game < 200; game++) {
+      newGame();
+      for (let step = 0; step < 600 && !S.over; step++) {
+        const r = Math.random();
+        const act = r < 0.3 ? 'buy' : r < 0.6 ? 'sell' : r < 0.65 ? 'dump' : r < 0.85 ? 'travel'
+          : r < 0.9 ? 'laylow' : r < 0.95 ? 'broker' : 'wallet';
+        if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
+        await ACTIONS[act](names[rnd(0, names.length - 1)]);
+        render();
+        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > S.drive ||
+          S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
+          Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
+        if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
+      }
+      if (S.over) {
+        finished++;
+        if (S.busted) busted++; else best = Math.max(best, S.cash + S.wallet - S.debt);
+        await finish();
+      }
+    }
+    document.title = 'SELFTEST OK';
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best}`;
+  } catch (err) {
+    document.title = 'SELFTEST FAIL';
+    document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
+  }
+}
+
+// ---------- boot ----------
+(async function boot() {
+  if (location.hash === '#selftest') return selfTest();
+  const saved = store.get('zdh-save');
+  if (saved && saved.prices && !saved.over) {
+    S = saved;
+    log('Run resumed.');
+    render();
+    return;
+  }
+  newGame();
+  render();
+  busy = true;
+  await alertDlg('ZERO DAY HUSTLE',
+    `<p>You have <b>${DAYS} days</b>, ${money(START_CASH)} and a ${money(START_DEBT)} debt to the Syndicate ` +
+    `that grows ${DEBT_RATE * 100}% a day.</p>` +
+    '<p>Buy low, sell high, and tunnel between spots. Every trip takes a day and reshuffles the prices.</p>' +
+    '<p>Big deals raise your <span class="amber">Heat</span>. Heat brings traces. Zero OpSec means busted.</p>' +
+    '<p class="dim">Only cash and your cold wallet count at the end.</p>');
+  busy = false;
+  save();
+})();
+</script>
+</body>
+</html>
