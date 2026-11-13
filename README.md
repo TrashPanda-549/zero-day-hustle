@@ -12,7 +12,7 @@ Grab the latest build from the [Releases page](../../releases):
 | --- | --- | --- |
 | Windows | `ZeroDayHustle-<version>-windows.exe` | Portable, no install. SmartScreen may warn because the app is unsigned: choose More info, then Run anyway. |
 | Android | `ZeroDayHustle-<version>-android.apk` | Android 7 or newer. Allow "install unknown apps" when asked. |
-| Mac | `ZeroDayHustle-<version>-mac.dmg` | Unsigned: right-click the app and choose Open the first time. |
+| Mac | Not available yet | You can build it from source on a Mac, see below. |
 
 ## How to play
 
@@ -49,5 +49,3 @@ npx cap add android
 npx cap sync android
 cd android && ./gradlew assembleDebug
 ```
-
-The workflow in `.github/workflows/build.yml` builds all three and publishes a release whenever a tag like `v1.0.0` is pushed.
