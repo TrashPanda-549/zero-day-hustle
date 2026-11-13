@@ -18,7 +18,8 @@ Grab the latest build from the [Releases page](../../releases):
 | --- | --- | --- |
 | Windows | `ZeroDayHustle-<version>-windows.exe` | Portable, no install. SmartScreen may warn because the app is unsigned: choose More info, then Run anyway. |
 | Android | `ZeroDayHustle-<version>-android.apk` | Android 7 or newer. Allow "install unknown apps" when asked. |
-| Mac | Not available yet | You can build it from source on a Mac, see below. |
+| Mac | `ZeroDayHustle-<version>-mac.dmg` | Unsigned: right-click the app and choose Open the first time. |
+| iPhone | `ZeroDayHustle-<version>-ios-unsigned.ipa` | Unsigned, so it only installs through a sideloading tool that signs it with your own Apple ID. For most people the browser version above is the easier way. |
 
 ## How to play
 
