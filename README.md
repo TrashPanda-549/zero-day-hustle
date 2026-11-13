@@ -32,7 +32,7 @@ Grab the latest build from the [Releases page](../../releases):
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
 - When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
 - You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.
-- Laying low for a day cools your Heat and restores some Health and OpSec. Medkits heal you any time, even mid-fight.
+- Laying low for a day cools your Heat and restores some Health and OpSec. First aid kits heal you any time, even mid-fight; you start each run with two, and with a basic item in every gear slot.
 - Gear for five slots (head, body, hands, feet, deck) boosts your stats and comes in five rarities: Common, Uncommon, Rare, Epic and Legendary. Rival crews drop it, the black market sells it, and it stays with you between runs.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.
 
