@@ -368,7 +368,8 @@ const JOBS = {
 const WEAPONS = [null,
   // The fifth value is the kind: 'blunt', 'blade', 'gun' or 'heavy' (see WTYPE).
   // Saved games store a weapon by its position here and the avatar draws it by position too,
-  // so only add new weapons at the end, with a matching drawing in figure()'s `held` list.
+  // so only add new weapons at the end. The first 21 each have a drawing in figure()'s `held` list;
+  // later ones name one of those to borrow (see weaponArt).
   ['Rubber Duck of Debugging', 400, 1, 0.35, 'blunt'],
   ['Clicky Keyboard', 1200, 1, 0.45, 'blunt'],
   ['USB Killer.exe', 2500, 1, 0.52, 'blunt'],
@@ -390,7 +391,66 @@ const WEAPONS = [null,
   ['Zero-Click Sniper', 55000, 1, 0.95, 'heavy'],
   ['Rail.gun', 80000, 2, 0.85, 'heavy'],
   ['Full-Auto Compiler', 150000, 5, 0.5, 'heavy'],
+  // Everything below has a sixth value: which of the 21 drawings above it borrows in the avatar's hand.
+  // --- more blunt weapons ---
+  ['Ethernet Cable Whip', 300, 1, 0.32, 'blunt', 11],
+  ['Dead Hard Drive', 600, 1, 0.38, 'blunt', 2],
+  ['Stapler of Compliance', 800, 1, 0.4, 'blunt', 3],
+  ['Rolled-Up Terms of Service', 1000, 1, 0.42, 'blunt', 11],
+  ['Brick Phone', 1600, 1, 0.47, 'blunt', 3],
+  ['Tower PC on a Rope', 3600, 1, 0.57, 'blunt', 5],
+  ['CRT Monitor', 4400, 1, 0.6, 'blunt', 10],
+  ['Crowbar.dll', 5200, 1, 0.62, 'blunt', 11],
+  ['Sock Full of RAM', 6500, 1, 0.66, 'blunt', 11],
+  ['Rack Server Sledge', 11000, 1, 0.74, 'blunt', 5],
+  ['Uninterruptible Power Mace', 16000, 1, 0.78, 'blunt', 5],
+  ['Mjolnir.sys', 28000, 1, 0.86, 'blunt', 5],
+  ['404 Brick Not Found', 42000, 2, 0.8, 'blunt', 5],
+  // --- more blades ---
+  ['Sharpened CD-ROM', 600, 1, 0.46, 'blade', 13],
+  ['Scissors (Running With)', 1200, 1, 0.52, 'blade', 12],
+  ['Screwdriver of Voided Warranty', 1600, 1, 0.56, 'blade', 12],
+  ['Paper Cutter Arm', 3200, 1, 0.63, 'blade', 14],
+  ['Pizza Cutter of Crunch Time', 4000, 1, 0.65, 'blade', 13],
+  ['Shuriken.tar.gz', 6000, 2, 0.5, 'blade', 13],
+  ['Butterfly Knife Effect', 7500, 1, 0.72, 'blade', 12],
+  ['Claymore.exe', 12000, 1, 0.8, 'blade', 15],
+  ['Laser Pointer (Sharpened)', 15000, 1, 0.82, 'blade', 12],
+  ['Garbage Collector Garrote', 22000, 1, 0.85, 'blade', 12],
+  ['Chainsaw of Refactoring', 30000, 2, 0.7, 'blade', 14],
+  ['Vibro-Blade Beta', 45000, 1, 0.92, 'blade', 15],
+  ['Excalibur (Read-Only)', 65000, 2, 0.85, 'blade', 15],
+  // --- more firearms ---
+  ['Nerf Gun (Modded)', 2500, 1, 0.5, 'gun', 16],
+  ['Glue Gun', 3500, 1, 0.55, 'gun', 16],
+  ['Staple Gun (Full Auto)', 5500, 2, 0.45, 'gun', 18],
+  ['Pocket Pistol.ps1', 8500, 1, 0.73, 'gun', 16],
+  ['Double-Tap Derringer', 11500, 2, 0.6, 'gun', 17],
+  ['Hand Cannon.jar', 15000, 1, 0.82, 'gun', 17],
+  ['Pump-Action Patch', 19000, 2, 0.62, 'gun', 7],
+  ['Burst Mode Carbine', 26000, 3, 0.55, 'gun', 6],
+  ['Lever-Action Legacy Code', 30000, 1, 0.88, 'gun', 6],
+  ['Drum Mag Tommy', 36000, 4, 0.45, 'gun', 18],
+  ['Sawn-Off Sudo', 42000, 2, 0.75, 'gun', 7],
+  ['Assault Rifle (Agile)', 48000, 3, 0.62, 'gun', 6],
+  ['Hunting Rifle with Wi-Fi', 60000, 1, 0.92, 'gun', 19],
+  // --- more military hardware ---
+  ['Potato Cannon v2', 30000, 1, 0.7, 'heavy', 7],
+  ['Flamethrower (Flame War Edition)', 45000, 3, 0.55, 'heavy', 8],
+  ['Grenade Launcher.gz', 60000, 2, 0.75, 'heavy', 8],
+  ['RPG (Role-Playing Grenade)', 75000, 1, 0.9, 'heavy', 8],
+  ['Laser Shark Mount', 90000, 2, 0.85, 'heavy', 9],
+  ['Microwave Gun', 100000, 2, 0.82, 'heavy', 9],
+  ['Orbital Ping', 120000, 3, 0.7, 'heavy', 9],
+  ['Anti-Materiel Debugger', 130000, 1, 0.97, 'heavy', 19],
+  ['Tesla Coil Carbine', 160000, 3, 0.78, 'heavy', 20],
+  ['Gatling Git', 180000, 6, 0.45, 'heavy', 21],
+  ['Plasma Rifle (40 Watt)', 220000, 3, 0.82, 'heavy', 20],
+  ['Nuke.exe (Tactical)', 350000, 4, 0.8, 'heavy', 10],
+  ['Kill -9 Cannon', 500000, 5, 0.8, 'heavy', 7],
 ];
+// Which drawing the avatar holds for a weapon: its own, or the one it borrows.
+const weaponArt = index => { const w = WEAPONS[index]; return w ? w[5] || index : 0; };
 // kind: [label, what it means in a fight, Heat when used on the law, Heat when used on a rival crew]
 const WTYPE = {
   blunt: ['Blunt weapons', 'Quiet: little Heat. A hit can stun them so they miss their turn.', 5, 0],
@@ -1161,7 +1221,7 @@ function avatarSvg(o) {
   const kinds = [['emp', '#00e5ff'], ['smoke', '#c9d1d5'], ['bomb', '#ff4fd8'], ['fakeid', '#fcee0a']];
   const belt = kinds.filter(([k]) => st[k] > 0).map(([, c]) => c)
     .concat(kinds.flatMap(([k, c]) => Array(Math.max(0, (st[k] || 0) - 1)).fill(c)));
-  const F = {look: getLook(), syn: career.syn, level: lvl, weapon: st.weapon || 0, belt, hp,
+  const F = {look: getLook(), syn: career.syn, level: lvl, weapon: weaponArt(st.weapon || 0), belt, hp,
     gear: {head: part('head'), body: part('body'), hands: part('hands'), feet: part('feet'), deck: part('deck')},
     mood: pose === 'busted' ? 'ouch' : rich ? 'grin' : o.mood || (quiet ? '' : st.mood) || '',
     gold: rich, ko: pose === 'down', cuffs: pose === 'busted'};
