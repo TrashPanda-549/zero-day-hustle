@@ -28,7 +28,8 @@ Grab the latest build from the [Releases page](../../releases):
 - The Hackerspace is home: pay down or borrow from the Fixer, and park cash in the cold wallet where it earns interest and can't be phished.
 - Contracts use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
 - You earn XP and levels that carry over between runs. At level 10 you can join one of four syndicates, each with a permanent perk.
-- Big deals raise your Heat, and Heat decides who hunts you: the police, then the Feds, then the NSA. Police and Feds seize your goods, fine you and cost you days. The NSA ends the run.
+- Big deals raise your Heat, and Heat decides who hunts you: the police, then the FBI, then the NSA. Police and FBI seize your goods, fine you and cost you days. The NSA ends the run.
+- The Bunker is your hideout. Stash goods there to free up your drive, keep spare gear in the locker, and sleep to end the day and heal. Rival crews can't attack you at home, but the police, the FBI and the NSA can raid it whether you are in or out, including while you sleep, and they seize the stash.
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
 - When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
 - You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.

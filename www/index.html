@@ -330,8 +330,11 @@ const GOODS = [
     'A release group dumped its whole archive. Warez are basically free!'],
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
-  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley'];
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'The Bunker'];
 const HOME = LOCATIONS[0];
+// The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
+// Rival crews can't reach you there, but the law can raid it whether you are home or not.
+const BUNKER = 'The Bunker', STASH_CAP = 300, LOCKER_SIZE = 20;
 
 // Crews you can join at level 10. The choice is permanent and applies to every run.
 const SYNDICATES = {
@@ -384,7 +387,7 @@ const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black marke
 // Who comes for you depends on your Heat.
 const LAW = [
   {name: 'the Metro Cyber Unit', short: 'Police', stars: 1, hit: 0.3, lo: 3, hi: 7},
-  {name: 'the Federal Cyber Task Force', short: 'Feds', stars: 2, hit: 0.35, lo: 3, hi: 9},
+  {name: 'the FBI', short: 'FBI', stars: 2, hit: 0.35, lo: 3, hi: 9},
   {name: 'the NSA', short: 'NSA', stars: 3, hit: 0.38, lo: 4, hi: 10},
 ];
 const CLIENTS = ['n0va', 'Mr. Static', 'the Librarian', 'K-9', 'Sister Hex', 'a nervous intern', 'Old Baud', 'DeadDrop'];
@@ -1065,6 +1068,17 @@ function backdrop(loc) {
       '<circle cx="170" cy="36" r="4" fill="#fcee0a"/>' +
       '<rect x="2" y="276" width="46" height="56" fill="#16302a" stroke="#234a40"/><path d="M0 276 h50" stroke="#234a40" stroke-width="4"/>',
   };
+  // The Bunker: concrete walls, a blast door, a bunk and a rack of blinking gear.
+  scenes[BUNKER] =
+    '<path d="M0 60 h200 M0 150 h200 M0 240 h200 M50 0 v60 M130 60 v90 M70 150 v90" stroke="#2b2752" stroke-width="2"/>' +
+    '<rect x="140" y="170" width="52" height="150" fill="#1b1d2e" stroke="#56629e" stroke-width="2"/>' +
+    '<circle cx="166" cy="236" r="14" fill="none" stroke="#56629e" stroke-width="3"/><path d="M152 236 h28 M166 222 v28" stroke="#56629e" stroke-width="2"/>' +
+    '<rect x="4" y="262" width="52" height="8" fill="#3a2350"/><rect x="4" y="296" width="52" height="8" fill="#3a2350"/>' +
+    '<path d="M6 262 v60 M54 262 v60" stroke="#56629e" stroke-width="2"/>' +
+    '<rect x="8" y="84" width="34" height="58" fill="#15132c" stroke="#2b2752"/>' +
+    '<circle cx="15" cy="94" r="2" fill="#3dff9a"/><circle cx="23" cy="94" r="2" fill="#fcee0a"/><circle cx="15" cy="108" r="2" fill="#ff2a6d"/>' +
+    '<circle cx="31" cy="108" r="2" fill="#3dff9a"/><circle cx="15" cy="122" r="2" fill="#00e5ff"/><circle cx="23" cy="122" r="2" fill="#3dff9a"/>' +
+    '<rect x="150" y="20" width="36" height="10" fill="#fcee0a" opacity=".5"/>';
   return scenes[loc] ? `<g opacity=".62">${scenes[loc]}</g>` : '';
 }
 
@@ -1275,6 +1289,10 @@ function log(text, cls) {
 }
 
 function rollMarket() {
+  if (S.loc === BUNKER) {   // nobody trades at your hideout
+    S.prices = {}; S.flags = {}; S.news = []; S.contracts = []; S.shop = [];
+    return;
+  }
   for (;;) {
     S.prices = {}; S.flags = {}; S.news = [];
     for (const [name, low, high, scarce, flood] of GOODS) {
@@ -1295,7 +1313,7 @@ function rollMarket() {
 function newGame() {
   S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
+    contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   starterGear();
@@ -1488,7 +1506,9 @@ function render() {
   }).join('');
   let acts = last
     ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
-    : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
+    : '<button class="primary" data-act="travel">Tunnel out</button>' + (S.loc === BUNKER
+      ? '<button data-act="sleep">Sleep (end the day)</button><button data-act="locker">Gear locker</button>'
+      : '<button data-act="laylow">Lay low</button>');
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
@@ -1497,6 +1517,7 @@ function render() {
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
+  if (S.loc === BUNKER) $('#market').innerHTML = stashHtml();   // at home the market panel becomes your stash
 }
 
 // ---------- actions ----------
@@ -1653,6 +1674,72 @@ const ACTIONS = {
     saveCareer();
   },
 
+  // --- the Bunker: stash goods, lock up gear, sleep ---
+  async store(name) {
+    const held = S.inv[name] || 0, most = Math.min(held, STASH_CAP - stashTotal());
+    if (S.loc !== BUNKER || most <= 0) return;
+    const qty = await askQty(`Stash ${name}`, `<p>Move them off your drive into the Bunker. You carry ${num(held)}.</p>`,
+      most, {ok: 'Store'});
+    if (!qty) return;
+    const had = S.stash[name] || 0;
+    S.stashCost[name] = Math.floor(((S.stashCost[name] || 0) * had + (S.cost[name] || 0) * qty) / (had + qty));
+    S.stash[name] = had + qty;
+    removeItems(name, qty);
+    log(`Stashed ${num(qty)} ${name} in the Bunker.`);
+  },
+
+  async take(name) {
+    const had = S.stash[name] || 0, most = Math.min(had, free());
+    if (S.loc !== BUNKER || most <= 0) return;
+    const qty = await askQty(`Take ${name}`, `<p>Load them back onto your drive. The stash holds ${num(had)}.</p>`,
+      most, {ok: 'Take'});
+    if (!qty) return;
+    addItems(name, qty, S.stashCost[name] || 0);
+    S.stash[name] = had - qty;
+    if (S.stash[name] <= 0) { delete S.stash[name]; delete S.stashCost[name]; }
+    log(`Took ${num(qty)} ${name} out of the stash.`);
+  },
+
+  // Sleeping ends the day. It heals more than laying low, but the law may come in the night.
+  async sleep() {
+    if (S.loc !== BUNKER) return;
+    if (S.day >= DAYS) return ACTIONS.cashout();
+    if (!await confirmDlg('Sleep', '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' +
+      '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
+      'Go to sleep', 'Stay up')) return;
+    nextDay();
+    S.hp = Math.min(100, S.hp + 35);
+    S.opsec = Math.min(100, S.opsec + 15);
+    S.heat = Math.max(0, S.heat - 15);
+    log(`Day ${S.day}: you slept in the Bunker.`);
+    render();
+    if (Math.random() < Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1)) await homeRaid(true);
+  },
+
+  // Gear you are not carrying can wait in the Bunker's locker.
+  async locker() {
+    if (S.loc !== BUNKER) return;
+    career.locker = career.locker || [];
+    for (;;) {
+      const list = (items, empty) => items.length
+        ? items.map(it => `<div class="syn">${itemHtml(it)}</div>`).join('') : `<p class="dim">${empty}</p>`;
+      const html = `<p class="dim">IN YOUR BAG ${career.bag.length}/${BAG_SIZE}</p>${list(career.bag, 'Your bag is empty.')}` +
+        `<p class="dim">IN THE LOCKER ${career.locker.length}/${LOCKER_SIZE}</p>${list(career.locker, 'The locker is empty.')}` +
+        '<p class="dim">The locker has a hidden compartment: raids never find it.</p>';
+      const buttons = [];
+      if (career.locker.length < LOCKER_SIZE) career.bag.forEach((it, i) => buttons.push([`Store ${it.name}`, 'b' + i, 'r' + it.rar]));
+      if (career.bag.length < BAG_SIZE) career.locker.forEach((it, i) => buttons.push([`Take ${it.name}`, 'l' + i, 'r' + it.rar]));
+      buttons.push(['Close', null, 'primary']);
+      const choice = await dialog('Gear locker', html, buttons);
+      if (!choice) return;
+      const index = Number(choice.slice(1));
+      if (choice[0] === 'b') career.locker.push(career.bag.splice(index, 1)[0]);
+      else career.bag.push(career.locker.splice(index, 1)[0]);
+      saveCareer();
+      render();
+    }
+  },
+
   // Burn a fake identity to cool your Heat.
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
@@ -1742,7 +1829,8 @@ const ACTIONS = {
     if (S.day >= DAYS) return ACTIONS.cashout();
     const others = LOCATIONS.filter(l => l !== S.loc);
     const buttons = others.map(l =>
-      [l === HOME ? l + ' (Fixer, wallet)' : GEAR_SPOTS.includes(l) ? l + ' (black market)' : l, l]);
+      [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout)'
+        : GEAR_SPOTS.includes(l) ? l + ' (black market)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', '<p>Where to? The trip takes a day.</p>', buttons);
     if (!dest) return;
@@ -1830,14 +1918,82 @@ function nextDay() {
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
   rollMarket();
+  // While you are out, the law may raid the Bunker and take whatever is stashed there.
+  if (S.loc !== BUNKER && stashTotal() && Math.random() < Math.min(0.25, S.heat / 400) * (inSyn('ghost') ? 0.7 : 1)) {
+    const who = LAW[lawTier()].name, lost = seizeStash(1);
+    log(`<span class="red">${who[0].toUpperCase() + who.slice(1)} raided the Bunker while you were out: ${num(lost)} stashed goods seized.</span>`);
+    notes.push(['Bunker raided', `<p>${who[0].toUpperCase() + who.slice(1)} hit the Bunker while you were out.</p>` +
+      `<p>Everything in the stash is gone: <b>${num(lost)}</b> goods seized. Your gear locker's hidden compartment was not found.</p>` +
+      '<p class="dim">The higher your Heat, the more likely a raid.</p>']);
+  }
+}
+
+// ---------- the Bunker ----------
+let notes = [];   // things that happened off-screen, shown as pop-ups after the current action
+async function flushNotes() {
+  while (notes.length) {
+    const [title, html] = notes.shift();
+    render();
+    await alertDlg(title, html, 'danger');
+  }
+}
+const stashTotal = () => Object.values(S.stash).reduce((a, b) => a + b, 0);
+
+// The law takes a share of the stash (1 = all of it). Returns how many goods went.
+function seizeStash(share) {
+  let lost = 0;
+  for (const name of Object.keys(S.stash)) {
+    const take = Math.ceil(S.stash[name] * share);
+    lost += take;
+    S.stash[name] -= take;
+    if (S.stash[name] <= 0) { delete S.stash[name]; delete S.stashCost[name]; }
+  }
+  return lost;
+}
+
+function stashHtml() {
+  const total = stashTotal();
+  const names = GOODS.map(g => g[0]).filter(n => S.inv[n] || S.stash[n]);
+  return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${STASH_CAP}</div>` +
+    '<div class="sub">Store goods here to free up your drive. Rival crews can\'t touch you at home, but the law can raid ' +
+    'the place whether you are in or out, and they take the stash.</div></div></div>' +
+    (names.length ? names.map(n => `<div class="row"><div><div class="name">${n}</div>` +
+      `<div class="sub">carrying ${num(S.inv[n] || 0)} &middot; stashed ${num(S.stash[n] || 0)}</div></div><div></div>` +
+      `<div class="btns"><button data-act="store" data-arg="${n}"${S.inv[n] && total < STASH_CAP ? '' : ' disabled'}>Store</button>` +
+      `<button data-act="take" data-arg="${n}"${S.stash[n] && free() > 0 ? '' : ' disabled'}>Take</button></div></div>`).join('')
+      : '<div class="row"><div class="sub">Nothing to store yet. Bring goods here to keep them off your drive.</div></div>');
+}
+
+// The law comes to the Bunker while you are in it. Beat them and the stash is safe;
+// slip away and they take half; get arrested and they take all of it.
+async function homeRaid(asleep) {
+  const tier = lawTier(), L = LAW[tier], who = L.name[0].toUpperCase() + L.name.slice(1);
+  const n = [rnd(1, 2 + Math.floor(S.day / 10)), rnd(2, 3 + Math.floor(S.day / 8)),
+    rnd(2, 3 + Math.floor(S.day / 8))][tier];
+  const E = {kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi,
+    intro: asleep ? `You wake to boots on the stairs. ${who} is raiding the Bunker: ${n} agent${n === 1 ? '' : 's'}.`
+      : `${who} has the Bunker surrounded: ${n} agent${n === 1 ? '' : 's'}.`};
+  await fight(E);
+  if (S.busted || !stashTotal()) return;
+  if (E.result === 'won') {
+    log('<span class="green">The Bunker held. Your stash is safe.</span>');
+    return;
+  }
+  const lost = seizeStash(E.result === 'lost' ? 1 : 0.5);
+  log(`<span class="red">${who} searched the Bunker: ${num(lost)} stashed goods seized.</span>`);
+  render();
+  await alertDlg('Bunker searched', `<p>${who} tears the Bunker apart${E.result === 'lost' ? '' : ' after you slip away'}.</p>` +
+    `<p><b>${num(lost)}</b> stashed goods seized${E.result === 'lost' ? '' : ' (half the stash)'}.</p>`, 'danger');
 }
 
 // ---------- events ----------
 async function randomEvent() {
-  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) return lawEncounter();
-  // Rival syndicates come after you more often the more you have crossed them.
+  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) {
+    return S.loc === BUNKER ? homeRaid(false) : lawEncounter();
+  }
+  // Rival syndicates come after you more often the more you have crossed them. Never at the Bunker.
   const crews = rivals(), anger = crews.reduce((sum, k) => sum + S.grudge[k], 0);
-  if (Math.random() < Math.min(0.3, 0.05 + 0.03 * anger)) {
+  if (S.loc !== BUNKER && Math.random() < Math.min(0.3, 0.05 + 0.03 * anger)) {
     let roll = Math.random() * (anger + crews.length);
     const key = crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
     return gangEncounter(key);
@@ -1915,6 +2071,7 @@ async function fight(E) {
     : raid ? 'A remote fight: only hacking tools work and only your OpSec is at risk. Jack out any time to leave empty-handed.'
     : 'Shooting, EMPs and running risk your Health. Hacking back risks your OpSec. Or pay them to go away.';
   let physical = false;
+  if (E.intro) msg = E.intro;
   for (;;) {
     render();
     const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
@@ -1958,6 +2115,7 @@ async function fight(E) {
     } else if (cmd === 'smoke') {
       S.smoke--;
       log(`<span class="green">You vanished in a cloud of ${GADGETS.smoke[0]}.</span>` + gainXp(10));
+      E.result = 'fled';
       return alertDlg('Escaped', '<p>You pop the smoke and you are gone before it clears.</p>');
     } else if (cmd === 'hack') {
       for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4 + bonus('hack') / 100) kills++;
@@ -1981,6 +2139,7 @@ async function fight(E) {
         }
         if (law) S.heat = Math.max(0, S.heat - 10);
         log('<span class="green">You hopped three networks and vanished.</span>' + gainXp(law ? 20 : 10));
+        E.result = 'fled';
         return alertDlg('Escaped', '<p>You hop three networks and vanish.</p>');
       }
       msg = 'They are still on you.';
@@ -1988,6 +2147,7 @@ async function fight(E) {
       S.inv = {}; S.cost = {};
       S.heat = Math.floor(S.heat / 2);
       log('<span class="amber">You nuked the drive. The trail went cold.</span>');
+      E.result = 'fled';
       return alertDlg('Drive wiped', '<p>You nuke the drive. Nothing left to find. The trail goes cold.</p>');
     } else if (cmd === 'pay') {
       S.cash -= payoff;
@@ -2036,6 +2196,7 @@ async function fight(E) {
           await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
         }
       }
+      E.result = 'won';
       return;
     }
 
@@ -2053,7 +2214,7 @@ async function fight(E) {
     } else {
       msg += ' Their attacks miss.';
     }
-    if (S.opsec <= 0 || S.hp <= 0) return lose(E);
+    if (S.opsec <= 0 || S.hp <= 0) { E.result = 'lost'; return lose(E); }
   }
 }
 
@@ -2150,6 +2311,7 @@ document.addEventListener('click', async e => {
   busy = true;
   try {
     await ACTIONS[b.dataset.act](b.dataset.arg);
+    await flushNotes();
     if (S.over) { await finish(); newGame(); }
     await levelUpCheck();
   } finally {
@@ -2166,7 +2328,7 @@ async function selfTest() {
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0;
   try {
     for (let game = 0; game < 200; game++) {
-      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red']), gear: {}, bag: []};
+      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red']), gear: {}, bag: [], locker: []};
       for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
       if (game % 2) career.look = {skin: rnd(0, 5), hair: rnd(0, 4), col: rnd(0, 6), streak: rnd(0, 4)};
       newGame();
@@ -2175,7 +2337,7 @@ async function selfTest() {
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
-          : r < 0.8 ? 'travel' : r < 0.83 ? 'laylow' : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
+          : r < 0.8 ? 'travel' : r < 0.83 ? pick(['laylow', 'sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
           : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
@@ -2194,10 +2356,12 @@ async function selfTest() {
         } else {
           await ACTIONS[act](names[rnd(0, names.length - 1)]);
         }
+        await flushNotes();
         await levelUpCheck();
         render();
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
-          career.bag.length > BAG_SIZE || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
+          career.bag.length > BAG_SIZE || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
+          Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
@@ -2235,7 +2399,8 @@ async function selfTest() {
   if (record && Number.isInteger(record.xp) && record.xp >= 0) {
     career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null,
       gear: record.gear && typeof record.gear === 'object' ? record.gear : {},
-      bag: Array.isArray(record.bag) ? record.bag : []};
+      bag: Array.isArray(record.bag) ? record.bag : [],
+      locker: Array.isArray(record.locker) ? record.locker : []};
     if (record.look && typeof record.look === 'object') career.look = record.look;
   }
   const saved = store.get('zdh-save');
@@ -2245,6 +2410,8 @@ async function selfTest() {
     S.contracts = S.contracts || [];
     S.hp = Number.isInteger(S.hp) ? S.hp : 100;
     S.medkits = S.medkits || 0;
+    S.stash = S.stash || {};
+    S.stashCost = S.stashCost || {};
     starterGear();
     S.shop = S.shop || [];
     if (S.armor && !career.gear.body) {
@@ -2269,10 +2436,12 @@ async function selfTest() {
     '<p>Buy low, sell high, and tunnel between spots. Every trip takes a day and reshuffles the prices.</p>' +
     '<p><span class="amber">Contracts</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate.</p>' +
-    '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the Feds, ' +
+    '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
     '<p>When cornered you can shoot, hack, run or pay. Shootouts cost <span class="green">Health</span>, hack fights cost ' +
     '<span class="green">OpSec</span>; lose either and you go down. Gear and a street doc are at the black market.</p>' +
+    '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
+    'reach you at home, but the law can raid it.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
   if (!career.look) await ACTIONS.look();
   render();
