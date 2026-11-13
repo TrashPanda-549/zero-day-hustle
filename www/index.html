@@ -807,7 +807,7 @@ function render() {
     ['Proxies', S.proxies, ''],
     ['Weapon', (WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None') + (S.emp ? ` +${S.emp} EMP` : ''), ''],
     ['Armour', bonus('armor') + '%', ''],
-    ['First aid', S.medkits, ''],
+    ['Medkits', S.medkits, ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
@@ -840,7 +840,7 @@ function render() {
     : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
-  if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use first aid kit (${S.medkits})</button>`;
+  if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
@@ -933,7 +933,7 @@ const ACTIONS = {
     if (!S.medkits || S.hp >= 100) return;
     S.medkits--;
     S.hp = Math.min(100, S.hp + MED_HEAL);
-    log(`Used a first aid kit: Health back to ${S.hp}%.`);
+    log(`Used a medkit: Health back to ${S.hp}%.`);
   },
 
   // Wear, swap and scrap gear.
@@ -985,7 +985,7 @@ const ACTIONS = {
         text: `single use, fries 2 to 3 hostiles (you have ${S.emp})`});
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and contracts (you have ${S.proxies})`});
-      if (S.medkits < MAX_MED) offers.push({key: 'm', name: 'First aid kit', price: Math.round(600 * scale),
+      if (S.medkits < MAX_MED) offers.push({key: 'm', name: 'Medkit', price: Math.round(600 * scale),
         text: `restores ${MED_HEAL}% Health any time, even mid-fight (you have ${S.medkits})`});
       S.shop.forEach((it, i) => offers.push({key: 'g' + i, name: it.name, price: Math.round(itemValue(it) * scale),
         item: it, cls: 'r' + it.rar}));
@@ -1227,7 +1227,7 @@ async function fight(E) {
     if (!raid && S.emp) buttons.push([`EMP grenade (${S.emp})`, 'emp']);
     if (S.proxies) buttons.push([raid ? 'Hack them' : 'Counter-hack', 'hack']);
     if (zeroDays) buttons.push([`Burn a Zero-Day (${zeroDays})`, 'zero']);
-    if (S.medkits && S.hp < 100) buttons.push([`First aid kit (${S.medkits})`, 'med']);
+    if (S.medkits && S.hp < 100) buttons.push([`Medkit (${S.medkits})`, 'med']);
     buttons.push([raid ? 'Jack out' : 'Run', 'run']);
     if (law) buttons.push(['Wipe drive', 'wipe', 'danger']);
     if (E.kind === 'gang' && S.cash >= payoff) buttons.push([`Pay them ${money(payoff)}`, 'pay']);
@@ -1257,7 +1257,7 @@ async function fight(E) {
     } else if (cmd === 'med') {
       S.medkits--;
       S.hp = Math.min(100, S.hp + MED_HEAL);
-      msg = `You patch yourself up with a first aid kit: Health back to ${S.hp}%.`;
+      msg = `You jab a medkit: Health back to ${S.hp}%.`;
     } else if (cmd === 'zero') {
       removeItems('Zero-Days', 1);
       kills = Math.min(n, 2);
@@ -1314,7 +1314,7 @@ async function fight(E) {
         // Rival crews drop medkits and gear. Raids and higher levels drop better.
         if (S.medkits < MAX_MED && Math.random() < 0.3) {
           S.medkits++;
-          log('You pocket a first aid kit they left behind.');
+          log('You pocket a medkit they left behind.');
         }
         if (Math.random() < (raid ? 0.85 : 0.6)) {
           await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
