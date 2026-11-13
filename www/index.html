@@ -368,8 +368,7 @@ const JOBS = {
 const WEAPONS = [null,
   // The fifth value is the kind: 'blunt', 'blade', 'gun' or 'heavy' (see WTYPE).
   // Saved games store a weapon by its position here and the avatar draws it by position too,
-  // so only add new weapons at the end. The first 21 each have a drawing in figure()'s `held` list;
-  // later ones name one of those to borrow (see weaponArt).
+  // so only add new weapons at the end, with a matching drawing at the end of figure()'s `held` list.
   ['Rubber Duck of Debugging', 400, 1, 0.35, 'blunt'],
   ['Clicky Keyboard', 1200, 1, 0.45, 'blunt'],
   ['USB Killer.exe', 2500, 1, 0.52, 'blunt'],
@@ -391,66 +390,65 @@ const WEAPONS = [null,
   ['Zero-Click Sniper', 55000, 1, 0.95, 'heavy'],
   ['Rail.gun', 80000, 2, 0.85, 'heavy'],
   ['Full-Auto Compiler', 150000, 5, 0.5, 'heavy'],
-  // Everything below has a sixth value: which of the 21 drawings above it borrows in the avatar's hand.
   // --- more blunt weapons ---
-  ['Ethernet Cable Whip', 300, 1, 0.32, 'blunt', 11],
-  ['Dead Hard Drive', 600, 1, 0.38, 'blunt', 2],
-  ['Stapler of Compliance', 800, 1, 0.4, 'blunt', 3],
-  ['Rolled-Up Terms of Service', 1000, 1, 0.42, 'blunt', 11],
-  ['Brick Phone', 1600, 1, 0.47, 'blunt', 3],
-  ['Tower PC on a Rope', 3600, 1, 0.57, 'blunt', 5],
-  ['CRT Monitor', 4400, 1, 0.6, 'blunt', 10],
-  ['Crowbar.dll', 5200, 1, 0.62, 'blunt', 11],
-  ['Sock Full of RAM', 6500, 1, 0.66, 'blunt', 11],
-  ['Rack Server Sledge', 11000, 1, 0.74, 'blunt', 5],
-  ['Uninterruptible Power Mace', 16000, 1, 0.78, 'blunt', 5],
-  ['Mjolnir.sys', 28000, 1, 0.86, 'blunt', 5],
-  ['404 Brick Not Found', 42000, 2, 0.8, 'blunt', 5],
+  ['Ethernet Cable Whip', 300, 1, 0.32, 'blunt'],
+  ['Dead Hard Drive', 600, 1, 0.38, 'blunt'],
+  ['Stapler of Compliance', 800, 1, 0.4, 'blunt'],
+  ['Rolled-Up Terms of Service', 1000, 1, 0.42, 'blunt'],
+  ['Brick Phone', 1600, 1, 0.47, 'blunt'],
+  ['Tower PC on a Rope', 3600, 1, 0.57, 'blunt'],
+  ['CRT Monitor', 4400, 1, 0.6, 'blunt'],
+  ['Crowbar.dll', 5200, 1, 0.62, 'blunt'],
+  ['Sock Full of RAM', 6500, 1, 0.66, 'blunt'],
+  ['Rack Server Sledge', 11000, 1, 0.74, 'blunt'],
+  ['Uninterruptible Power Mace', 16000, 1, 0.78, 'blunt'],
+  ['Mjolnir.sys', 28000, 1, 0.86, 'blunt'],
+  ['404 Brick Not Found', 42000, 2, 0.8, 'blunt'],
   // --- more blades ---
-  ['Sharpened CD-ROM', 600, 1, 0.46, 'blade', 13],
-  ['Scissors (Running With)', 1200, 1, 0.52, 'blade', 12],
-  ['Screwdriver of Voided Warranty', 1600, 1, 0.56, 'blade', 12],
-  ['Paper Cutter Arm', 3200, 1, 0.63, 'blade', 14],
-  ['Pizza Cutter of Crunch Time', 4000, 1, 0.65, 'blade', 13],
-  ['Shuriken.tar.gz', 6000, 2, 0.5, 'blade', 13],
-  ['Butterfly Knife Effect', 7500, 1, 0.72, 'blade', 12],
-  ['Claymore.exe', 12000, 1, 0.8, 'blade', 15],
-  ['Laser Pointer (Sharpened)', 15000, 1, 0.82, 'blade', 12],
-  ['Garbage Collector Garrote', 22000, 1, 0.85, 'blade', 12],
-  ['Chainsaw of Refactoring', 30000, 2, 0.7, 'blade', 14],
-  ['Vibro-Blade Beta', 45000, 1, 0.92, 'blade', 15],
-  ['Excalibur (Read-Only)', 65000, 2, 0.85, 'blade', 15],
+  ['Sharpened CD-ROM', 600, 1, 0.46, 'blade'],
+  ['Scissors (Running With)', 1200, 1, 0.52, 'blade'],
+  ['Screwdriver of Voided Warranty', 1600, 1, 0.56, 'blade'],
+  ['Paper Cutter Arm', 3200, 1, 0.63, 'blade'],
+  ['Pizza Cutter of Crunch Time', 4000, 1, 0.65, 'blade'],
+  ['Shuriken.tar.gz', 6000, 2, 0.5, 'blade'],
+  ['Butterfly Knife Effect', 7500, 1, 0.72, 'blade'],
+  ['Claymore.exe', 12000, 1, 0.8, 'blade'],
+  ['Laser Pointer (Sharpened)', 15000, 1, 0.82, 'blade'],
+  ['Garbage Collector Garrote', 22000, 1, 0.85, 'blade'],
+  ['Chainsaw of Refactoring', 30000, 2, 0.7, 'blade'],
+  ['Vibro-Blade Beta', 45000, 1, 0.92, 'blade'],
+  ['Excalibur (Read-Only)', 65000, 2, 0.85, 'blade'],
   // --- more firearms ---
-  ['Nerf Gun (Modded)', 2500, 1, 0.5, 'gun', 16],
-  ['Glue Gun', 3500, 1, 0.55, 'gun', 16],
-  ['Staple Gun (Full Auto)', 5500, 2, 0.45, 'gun', 18],
-  ['Pocket Pistol.ps1', 8500, 1, 0.73, 'gun', 16],
-  ['Double-Tap Derringer', 11500, 2, 0.6, 'gun', 17],
-  ['Hand Cannon.jar', 15000, 1, 0.82, 'gun', 17],
-  ['Pump-Action Patch', 19000, 2, 0.62, 'gun', 7],
-  ['Burst Mode Carbine', 26000, 3, 0.55, 'gun', 6],
-  ['Lever-Action Legacy Code', 30000, 1, 0.88, 'gun', 6],
-  ['Drum Mag Tommy', 36000, 4, 0.45, 'gun', 18],
-  ['Sawn-Off Sudo', 42000, 2, 0.75, 'gun', 7],
-  ['Assault Rifle (Agile)', 48000, 3, 0.62, 'gun', 6],
-  ['Hunting Rifle with Wi-Fi', 60000, 1, 0.92, 'gun', 19],
+  ['Nerf Gun (Modded)', 2500, 1, 0.5, 'gun'],
+  ['Glue Gun', 3500, 1, 0.55, 'gun'],
+  ['Staple Gun (Full Auto)', 5500, 2, 0.45, 'gun'],
+  ['Pocket Pistol.ps1', 8500, 1, 0.73, 'gun'],
+  ['Double-Tap Derringer', 11500, 2, 0.6, 'gun'],
+  ['Hand Cannon.jar', 15000, 1, 0.82, 'gun'],
+  ['Pump-Action Patch', 19000, 2, 0.62, 'gun'],
+  ['Burst Mode Carbine', 26000, 3, 0.55, 'gun'],
+  ['Lever-Action Legacy Code', 30000, 1, 0.88, 'gun'],
+  ['Drum Mag Tommy', 36000, 4, 0.45, 'gun'],
+  ['Sawn-Off Sudo', 42000, 2, 0.75, 'gun'],
+  ['Assault Rifle (Agile)', 48000, 3, 0.62, 'gun'],
+  ['Hunting Rifle with Wi-Fi', 60000, 1, 0.92, 'gun'],
   // --- more military hardware ---
-  ['Potato Cannon v2', 30000, 1, 0.7, 'heavy', 7],
-  ['Flamethrower (Flame War Edition)', 45000, 3, 0.55, 'heavy', 8],
-  ['Grenade Launcher.gz', 60000, 2, 0.75, 'heavy', 8],
-  ['RPG (Role-Playing Grenade)', 75000, 1, 0.9, 'heavy', 8],
-  ['Laser Shark Mount', 90000, 2, 0.85, 'heavy', 9],
-  ['Microwave Gun', 100000, 2, 0.82, 'heavy', 9],
-  ['Orbital Ping', 120000, 3, 0.7, 'heavy', 9],
-  ['Anti-Materiel Debugger', 130000, 1, 0.97, 'heavy', 19],
-  ['Tesla Coil Carbine', 160000, 3, 0.78, 'heavy', 20],
-  ['Gatling Git', 180000, 6, 0.45, 'heavy', 21],
-  ['Plasma Rifle (40 Watt)', 220000, 3, 0.82, 'heavy', 20],
-  ['Nuke.exe (Tactical)', 350000, 4, 0.8, 'heavy', 10],
-  ['Kill -9 Cannon', 500000, 5, 0.8, 'heavy', 7],
+  ['Potato Cannon v2', 30000, 1, 0.7, 'heavy'],
+  ['Flamethrower (Flame War Edition)', 45000, 3, 0.55, 'heavy'],
+  ['Grenade Launcher.gz', 60000, 2, 0.75, 'heavy'],
+  ['RPG (Role-Playing Grenade)', 75000, 1, 0.9, 'heavy'],
+  ['Laser Shark Mount', 90000, 2, 0.85, 'heavy'],
+  ['Microwave Gun', 100000, 2, 0.82, 'heavy'],
+  ['Orbital Ping', 120000, 3, 0.7, 'heavy'],
+  ['Anti-Materiel Debugger', 130000, 1, 0.97, 'heavy'],
+  ['Tesla Coil Carbine', 160000, 3, 0.78, 'heavy'],
+  ['Gatling Git', 180000, 6, 0.45, 'heavy'],
+  ['Plasma Rifle (40 Watt)', 220000, 3, 0.82, 'heavy'],
+  ['Nuke.exe (Tactical)', 350000, 4, 0.8, 'heavy'],
+  ['Kill -9 Cannon', 500000, 5, 0.8, 'heavy'],
 ];
-// Which drawing the avatar holds for a weapon: its own, or the one it borrows.
-const weaponArt = index => { const w = WEAPONS[index]; return w ? w[5] || index : 0; };
+// Which drawing the avatar holds for a weapon: every weapon has its own, at the same position in figure()'s `held` list.
+const weaponArt = index => (WEAPONS[index] ? index : 0);
 // kind: [label, what it means in a fight, Heat when used on the law, Heat when used on a rival crew]
 const WTYPE = {
   blunt: ['Blunt weapons', 'Quiet: little Heat. A hit can stun them so they miss their turn.', 5, 0],
@@ -882,8 +880,9 @@ function figure(F) {
       '<path d="M47 163 L60 166 M53 159 L52 171" stroke="#c9423a" stroke-width="1"/>';
   }
   if (F.weapon > 0) {
-    // The weapon in hand, in the same order as WEAPONS. Anything past the end of the list shows the last drawing.
+    // The weapon in hand: one drawing per WEAPONS entry, in the same order.
     const zap = (d, c) => `<path d="${d}" fill="none" stroke="${c || CYAN}" stroke-width="1.2" class="av-zap"/>`;
+    const G = shapes => `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round">${shapes}</g>`;   // shapes with an ink outline
     const held = [
       // Rubber Duck of Debugging
       `<g stroke="${INK}" stroke-width="1"><ellipse cx="48" cy="221" rx="8.5" ry="6" fill="#fcee0a"/><circle cx="53.5" cy="212.5" r="5" fill="#fcee0a"/>` +
@@ -956,8 +955,215 @@ function figure(F) {
       '<g stroke="#8a8fa8" stroke-width="1"><rect x="40" y="190" width="18" height="27" rx="3" fill="#39402f"/></g>' +
         '<path d="M43 217 v51 M47 217 v54 M51 217 v54 M55 217 v51" fill="none" stroke="#c9d1d5" stroke-width="2.4" stroke-linecap="round"/>' +
         '<rect x="41" y="241" width="16" height="4" fill="#3a3d4d" stroke="#8a8fa8" stroke-width=".8"/>',
+      // ----- blunt -----
+      // Ethernet Cable Whip
+      '<path d="M49 204 q-8 12 0 22 q8 10 0 22 q-8 10 0 20" fill="none" stroke="#4da3ff" stroke-width="2.6" stroke-linecap="round"/>' +
+        G('<rect x="46" y="266" width="6" height="9" fill="#e3edf7"/><path d="M47.5 275 v3 M50.5 275 v3" fill="none"/>'),
+      // Dead Hard Drive
+      G('<rect x="40" y="206" width="18" height="27" rx="2" fill="#8a8fa8"/><circle cx="49" cy="217" r="6.5" fill="#c9d1d5"/>' +
+        '<circle cx="49" cy="217" r="1.6" fill="#2a2d3f"/><path d="M49 217 l6 9" fill="none"/>'),
+      // Stapler of Compliance
+      G('<path d="M43 205 h12 l2 22 h-16 z" fill="#c0392b"/><rect x="40.5" y="227" width="17" height="4.5" fill="#2a2d3f"/>' +
+        '<path d="M45 211 h8" fill="none" stroke="#fff" stroke-opacity=".5"/>'),
+      // Rolled-Up Terms of Service
+      G('<rect x="45" y="203" width="8" height="54" rx="4" fill="#f1ead6"/>') +
+        '<path d="M46.8 214 h4.4 M46.8 220 h4.4 M46.8 226 h4.4 M46.8 232 h4.4 M46.8 238 h4.4 M46.8 244 h4.4" stroke="#8a8fa8" stroke-width="1"/>',
+      // Brick Phone
+      G('<path d="M53 210 v-10" fill="none" stroke-width="2"/><rect x="43" y="210" width="12" height="32" rx="2" fill="#6b6f85"/>' +
+        '<rect x="45" y="214" width="8" height="7" fill="#3dff9a"/>') +
+        '<path d="M45.5 226 h1.6 M48.2 226 h1.6 M50.9 226 h1.6 M45.5 230 h1.6 M48.2 230 h1.6 M50.9 230 h1.6 M45.5 234 h1.6 M48.2 234 h1.6 M50.9 234 h1.6" stroke="#0b0a19" stroke-width="1.6"/>',
+      // Tower PC on a Rope
+      '<path d="M49 204 v27" stroke="#b98a55" stroke-width="1.8"/>' +
+        G('<rect x="38" y="230" width="22" height="36" rx="2" fill="#d8d0c0"/><rect x="41" y="234" width="16" height="4" fill="#2a2d3f"/>' +
+          '<rect x="41" y="241" width="16" height="3" fill="#b9b2a2"/>') + '<circle cx="55" cy="259" r="1.6" fill="#3dff9a"/>',
+      // CRT Monitor
+      G('<rect x="35" y="208" width="28" height="25" rx="3" fill="#d8d0c0"/><rect x="38" y="211" width="22" height="16" rx="2" fill="#0c2a2e"/>') +
+        '<path d="M41 217 h11 M41 221 h7" stroke="#3dff9a" stroke-width="1.2"/>',
+      // Crowbar.dll
+      G('<path d="M47.5 204 L51 204 L51.5 256 Q52 265 45.5 265 L44.5 261.5 Q48.5 261.5 48 256 Z" fill="#c0392b"/>'),
+      // Sock Full of RAM
+      G('<path d="M45 204 h8 v34 q8 4 6 14 q-10 8 -18 0 q-2 -8 4 -14 z" fill="#e9e9f0"/><path d="M45 209 h8" fill="none" stroke="#c0392b" stroke-width="2"/>') +
+        '<path d="M43 246 l11 7 M45 254 l9 -7" stroke="#2f9e6a" stroke-width="2.2"/>',
+      // Rack Server Sledge
+      G('<rect x="47" y="204" width="5" height="46" fill="#6b4a2e"/><rect x="34" y="250" width="30" height="14" rx="1" fill="#1d1d26"/>' +
+        '<path d="M37 257 h14" fill="none" stroke="#3a3d4d"/>') +
+        '<circle cx="56" cy="254.5" r="1.3" fill="#3dff9a"/><circle cx="60" cy="254.5" r="1.3" fill="#fcee0a"/><circle cx="56" cy="259.5" r="1.3" fill="#3dff9a"/>',
+      // Uninterruptible Power Mace
+      G('<rect x="47" y="204" width="5" height="40" fill="#3a3d4d"/><path d="M40 248 l-6 3 l6 3 M58 248 l6 3 l-6 3 M45 262 l4 7 l4 -7" fill="#c9d1d5"/>' +
+        '<rect x="40" y="244" width="18" height="18" rx="3" fill="#2a2d3f"/>') + zap('M45 250 l3 3 l-2 3 l4 3', '#fcee0a'),
+      // Mjolnir.sys
+      G('<rect x="47" y="204" width="5" height="34" fill="#6b4a2e"/><rect x="35" y="238" width="28" height="21" rx="2" fill="#b9c2d0"/>' +
+        '<path d="M35 243 h28 M35 254 h28" fill="none" stroke="#8a8fa8"/>') + zap('M40 248 l6 -3 l4 6 l8 -4'),
+      // 404 Brick Not Found
+      G('<rect x="36" y="207" width="26" height="15" fill="#b5533c"/><path d="M36 214.5 h26 M45 207 v7.5 M54 207 v7.5 M40.5 214.5 v7.5 M49.5 214.5 v7.5 M58 214.5 v7.5" fill="none" stroke="#7d2f1e"/>') +
+        '<text x="40" y="233" font-size="9" font-weight="bold" fill="#fff" font-family="monospace">404</text>',
+      // ----- blades -----
+      // Sharpened CD-ROM
+      G('<circle cx="49" cy="218" r="12.5" fill="#c9d1d5"/><circle cx="49" cy="218" r="3.2" fill="#0b0a19"/>') +
+        '<path d="M40 212 a11 11 0 0 1 13 -6" fill="none" stroke="#ff4fd8" stroke-width="1.6"/><path d="M58 224 a11 11 0 0 1 -13 6" fill="none" stroke="#00e5ff" stroke-width="1.6"/>',
+      // Scissors (Running With)
+      '<g fill="none" stroke-linecap="round"><circle cx="44.5" cy="207" r="3.6" stroke="#ff3b5c" stroke-width="2"/><circle cx="53.5" cy="207" r="3.6" stroke="#ff3b5c" stroke-width="2"/>' +
+        '<path d="M46 210 L52.5 242 M52 210 L45.5 242" stroke="#c9d1d5" stroke-width="2.4"/></g><circle cx="49" cy="224" r="1.2" fill="#0b0a19"/>',
+      // Screwdriver of Voided Warranty
+      G('<rect x="46" y="203" width="6" height="17" rx="2" fill="#fcee0a"/><path d="M46 208 h6 M46 213 h6" fill="none"/>' +
+        '<rect x="48" y="220" width="2.2" height="27" fill="#c9d1d5"/><path d="M47 247 h4.2 v3.4 h-4.2 z" fill="#c9d1d5"/>'),
+      // Paper Cutter Arm
+      G('<path d="M46 209 L52 209 L56.5 270 L45 270 Z" fill="#c9d1d5"/><circle cx="49" cy="206.5" r="4.2" fill="#1d1d26"/><path d="M46.5 263 h9" fill="none" stroke="#8a8fa8"/>'),
+      // Pizza Cutter of Crunch Time
+      G('<rect x="47" y="203" width="4" height="25" fill="#c0392b"/><circle cx="49" cy="237" r="9.5" fill="#c9d1d5"/><circle cx="49" cy="237" r="1.8" fill="#2a2d3f"/>'),
+      // Shuriken.tar.gz
+      G('<path d="M49 205 l3 7 l7 3 l-7 3 l-3 7 l-3 -7 l-7 -3 l7 -3 z" fill="#8a8fa8"/><path d="M51 231 l2.2 5 l5 2.2 l-5 2.2 l-2.2 5 l-2.2 -5 l-5 -2.2 l5 -2.2 z" fill="#6b6f85"/>') +
+        '<circle cx="49" cy="215" r="1.4" fill="#0b0a19"/><circle cx="51" cy="238.2" r="1.1" fill="#0b0a19"/>',
+      // Butterfly Knife Effect
+      '<path d="M47 204 L43.5 223 M51 204 L54.5 223" stroke="#8a8fa8" stroke-width="3.2" stroke-linecap="round"/>' +
+        G('<path d="M47.3 221 L50.7 221 L49 248 Z" fill="#e3edf7"/>'),
+      // Claymore.exe
+      G('<rect x="47" y="203" width="4" height="12" fill="#3a2a1c"/><rect x="38.5" y="215" width="21" height="3.6" fill="#8a8fa8"/>' +
+        '<path d="M46 218.6 L52 218.6 L52 282 L49 291 L46 282 Z" fill="#c9d1d5"/><path d="M49 221 v58" fill="none" stroke="#8a8fa8" stroke-width=".8"/>'),
+      // Laser Pointer (Sharpened)
+      G('<rect x="46.5" y="204" width="5" height="19" rx="2" fill="#1d1d26"/><circle cx="49" cy="210" r="1.3" fill="#ff3b5c"/>') +
+        '<path d="M49 223 V284" stroke="#ff3b5c" stroke-width="1.6" class="av-eye" style="filter:drop-shadow(0 0 2px #ff3b5c)"/>',
+      // Garbage Collector Garrote
+      G('<rect x="42" y="204" width="5" height="10" fill="#3a2a1c"/><rect x="51" y="204" width="5" height="10" fill="#3a2a1c"/>') +
+        '<path d="M44.5 214 Q37 246 49 252 Q61 246 53.5 214" fill="none" stroke="#c9d1d5" stroke-width="1.3"/>',
+      // Chainsaw of Refactoring
+      G('<rect x="40" y="203" width="18" height="19" rx="3" fill="#ff8a1e"/><rect x="44.5" y="222" width="9" height="49" rx="4.5" fill="#c9d1d5"/>') +
+        '<path d="M44.5 227 v40 M53.5 227 v40" stroke="#2a2d3f" stroke-width="1.8" stroke-dasharray="2 2"/><path d="M43 209 h12" stroke="#0b0a19" stroke-width="1.4"/>',
+      // Vibro-Blade Beta
+      G('<rect x="46.5" y="203" width="5" height="13" fill="#2a2d3f"/><rect x="44" y="215" width="10" height="3" fill="#8a8fa8"/>') +
+        '<path d="M47 218 L51 218 L52 276 L49 285 L46.4 276 Z" fill="#00e5ff" fill-opacity=".85" class="av-eye" style="filter:drop-shadow(0 0 3px #00e5ff)"/>',
+      // Excalibur (Read-Only)
+      G('<rect x="47" y="203" width="4" height="11" fill="#ffd24a"/><rect x="40" y="214" width="18" height="3.6" fill="#ffd24a"/>' +
+        '<path d="M46.5 217.6 L51.5 217.6 L51.5 280 L49 289 L46.5 280 Z" fill="#e3edf7"/><rect x="45.3" y="240" width="7.4" height="6.4" rx="1" fill="#ffd24a"/>') +
+        '<path d="M47 240 v-2.6 a2 2 0 0 1 4 0 v2.6" fill="none" stroke="#ffd24a" stroke-width="1.3"/>',
+      // ----- firearms -----
+      // Nerf Gun (Modded)
+      G('<path d="M43 204 h12 v12 h-4 v24 h-8 z" fill="#ff8a1e"/><rect x="44.5" y="240" width="6.5" height="6" fill="#4da3ff"/>') +
+        '<path d="M44.5 222 h6.5 M44.5 229 h6.5" stroke="#fcee0a" stroke-width="2"/>',
+      // Glue Gun
+      G('<path d="M44 204 h10 v10 h-4 v19 h-6 z" fill="#fcee0a"/><rect x="45.3" y="233" width="4.4" height="5" fill="#8a8fa8"/><rect x="54" y="206" width="6" height="4" fill="#f1ead6"/>') +
+        '<path d="M47.5 238 v7" stroke="#e3edf7" stroke-width="2.2" stroke-linecap="round"/>',
+      // Staple Gun (Full Auto)
+      G('<rect x="42" y="204" width="14" height="31" rx="2" fill="#8a8fa8"/><rect x="45" y="209" width="8" height="12" fill="#c0392b"/>' +
+        '<rect x="43.5" y="235" width="11" height="4.5" fill="#2a2d3f"/>') + '<path d="M46 244 h2.4 M49.6 244 h2.4 M46 248 h2.4" stroke="#c9d1d5" stroke-width="1.2"/>',
+      // Pocket Pistol.ps1
+      '<path d="M45 204 h8 v8 h-3 v15 h-5 z" fill="#2c2f3c" stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"/>' +
+        '<path d="M45.6 218 h3.8" stroke="#4da3ff" stroke-width="2"/>',
+      // Double-Tap Derringer
+      G('<rect x="44" y="204" width="10" height="9.5" rx="2" fill="#6b4a2e"/><rect x="44.8" y="213.5" width="3.8" height="17" fill="#b9c2d0"/>' +
+        '<rect x="49.4" y="213.5" width="3.8" height="17" fill="#b9c2d0"/>'),
+      // Hand Cannon.jar
+      G('<path d="M43 204 h12 v10 h-4 v37 h-7 z" fill="#3a3d4d"/><circle cx="47.6" cy="219" r="6.2" fill="#6b6f85"/><rect x="43.6" y="251" width="8" height="4.4" fill="#1d1d26"/>') +
+        '<circle cx="47.6" cy="219" r="1.5" fill="#0b0a19"/>',
+      // Pump-Action Patch
+      G('<rect x="46" y="203" width="6" height="15" fill="#6b4a2e"/>') +
+        '<rect x="47" y="218" width="4" height="62" fill="#2c2f3c" stroke="#8a8fa8" stroke-width="1"/>' +
+        G('<rect x="45.3" y="240" width="7.4" height="17" rx="2" fill="#6b4a2e"/><path d="M45.3 245 h7.4 M45.3 250 h7.4" fill="none"/>'),
+      // Burst Mode Carbine
+      '<g stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"><rect x="45" y="203" width="8" height="19" fill="#2a2d3f"/>' +
+        '<rect x="47" y="222" width="4" height="50" fill="#2c2f3c"/><path d="M53 209 l6.5 3 l-1 13 l-5.5 -2 z" fill="#3a3d4d"/></g>' +
+        `<path d="M49 229 v2.4 M49 235 v2.4 M49 241 v2.4" stroke="${CYAN}" stroke-width="1.6" class="av-eye"/>`,
+      // Lever-Action Legacy Code
+      G('<rect x="45.5" y="203" width="7" height="23" fill="#6b4a2e"/>') +
+        '<ellipse cx="56.5" cy="220" rx="3.6" ry="5.4" fill="none" stroke="#8a8fa8" stroke-width="1.8"/>' +
+        '<rect x="47" y="226" width="4" height="56" fill="#3a3d4d" stroke="#8a8fa8" stroke-width="1"/>',
+      // Drum Mag Tommy
+      G('<rect x="45" y="203" width="8" height="20" fill="#6b4a2e"/>') +
+        '<g stroke="#8a8fa8" stroke-width="1"><rect x="47" y="223" width="4" height="42" fill="#2c2f3c"/><circle cx="56.5" cy="229" r="7.4" fill="#3a3d4d"/>' +
+        '<circle cx="56.5" cy="229" r="2.2" fill="#8a8fa8"/></g>',
+      // Sawn-Off Sudo
+      G('<rect x="45" y="203" width="8" height="17" fill="#6b4a2e"/>') +
+        '<g stroke="#8a8fa8" stroke-width="1"><rect x="45" y="220" width="3.7" height="23" fill="#2c2f3c"/><rect x="49.3" y="220" width="3.7" height="23" fill="#2c2f3c"/></g>' +
+        '<text x="46" y="216" font-size="8" font-weight="bold" fill="#fcee0a" font-family="monospace">#</text>',
+      // Assault Rifle (Agile)
+      '<g stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"><rect x="45" y="203" width="8" height="21" fill="#39402f"/>' +
+        '<rect x="47" y="224" width="4" height="54" fill="#2c2f3c"/><path d="M53 212 q7.5 4 5.5 15 l-5.5 -1 z" fill="#3a3d4d"/></g>' +
+        G('<rect x="39" y="207" width="6.5" height="6.5" fill="#fcee0a"/>'),
+      // Hunting Rifle with Wi-Fi
+      G('<rect x="45.5" y="203" width="7" height="25" fill="#8a5a2e"/>') +
+        '<g stroke="#8a8fa8" stroke-width="1"><rect x="47.3" y="228" width="3.4" height="60" fill="#2c2f3c"/><rect x="53.6" y="214" width="4.6" height="21" rx="2.3" fill="#2c2f3c"/></g>' +
+        `<path d="M38.5 211 q-4.5 5.5 0 11 M41.5 213.5 q-2.4 3 0 6" fill="none" stroke="${CYAN}" stroke-width="1.3" class="av-eye"/>`,
+      // ----- military hardware -----
+      // Potato Cannon v2
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="43" y="203" width="12" height="57" rx="3" fill="#e9e9f0"/><rect x="41" y="212" width="16" height="6.5" fill="#c9d1d5"/></g>' +
+        G('<ellipse cx="49" cy="263" rx="6.4" ry="4.8" fill="#b98a55"/>') + '<circle cx="47" cy="262" r=".9" fill="#6b4a2e"/><circle cx="51.5" cy="264" r=".9" fill="#6b4a2e"/>',
+      // Flamethrower (Flame War Edition)
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="41" y="203" width="16" height="29" rx="5.5" fill="#c0392b"/><rect x="47" y="232" width="4" height="26" fill="#3a3d4d"/></g>' +
+        '<path d="M49 258 q-7.5 11 0 22 q7.5 -11 0 -22 z" fill="#ff9d2e" class="av-eye"/><path d="M49 264 q-3.2 5 0 11 q3.2 -6 0 -11 z" fill="#fcee0a"/>',
+      // Grenade Launcher.gz
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="45" y="203" width="8" height="15" fill="#39402f"/><rect x="40" y="218" width="18" height="21" rx="4.5" fill="#3a3d4d"/>' +
+        '<rect x="44" y="239" width="10" height="27" rx="2" fill="#39402f"/></g>' +
+        '<circle cx="45" cy="228.5" r="2" fill="#1d1d26"/><circle cx="53" cy="228.5" r="2" fill="#1d1d26"/><circle cx="49" cy="223" r="2" fill="#1d1d26"/><circle cx="49" cy="234" r="2" fill="#1d1d26"/>',
+      // RPG (Role-Playing Grenade)
+      '<g stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"><rect x="46" y="203" width="6" height="53" fill="#39402f"/>' +
+        '<path d="M42 256 h14 l-3 14 l-4 9 l-4 -9 z" fill="#6b7a4a"/></g>' +
+        G('<rect x="53.5" y="213" width="8" height="8" rx="1" fill="#c77dff"/>') + '<text x="54.6" y="219.6" font-size="6" font-weight="bold" fill="#fff" font-family="monospace">20</text>',
+      // Laser Shark Mount
+      G('<path d="M49 204 q9.5 16 6.5 41 q-2 12 -6.5 20 q-4.5 -8 -6.5 -20 q-3 -25 6.5 -41 z" fill="#6b8fa8"/><path d="M55 226 l8.5 4 l-7.5 4.4 z" fill="#6b8fa8"/>' +
+        '<path d="M45 250 q4 3 8 0" fill="none"/>') + '<circle cx="46.4" cy="244" r="1.2" fill="#0b0a19"/><circle cx="51.6" cy="244" r="1.2" fill="#0b0a19"/>' +
+        '<path d="M49 265 V292" stroke="#ff3b5c" stroke-width="1.6" class="av-eye" style="filter:drop-shadow(0 0 2px #ff3b5c)"/>',
+      // Microwave Gun
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="35" y="206" width="28" height="21" rx="2" fill="#c9d1d5"/><rect x="38" y="209" width="16" height="15" fill="#0c2a2e"/></g>' +
+        '<circle cx="58.6" cy="212" r="1.5" fill="#3dff9a"/><circle cx="58.6" cy="218" r="1.5" fill="#8a8fa8"/>' +
+        '<path d="M42 233 q7 5.5 14 0 M44 240 q5 4 10 0 M46 246.5 q3 2.6 6 0" fill="none" stroke="#fcee0a" stroke-width="1.5" class="av-eye"/>',
+      // Orbital Ping
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="44" y="204" width="10" height="21" rx="2" fill="#2a2d3f"/><path d="M49 225 v9" fill="none"/>' +
+        '<path d="M40.5 233 q8.5 11 17 0 z" fill="#c9d1d5"/></g><circle cx="49" cy="211" r="2.6" fill="#ff3b5c" class="av-eye"/>' +
+        `<path d="M44 246 q5 4 10 0 M41.5 252 q7.5 6 15 0" fill="none" stroke="${CYAN}" stroke-width="1.3" class="av-eye"/>`,
+      // Anti-Materiel Debugger, carried along the arm
+      G('<path d="M44 130 L53 130 L53 158 L46 158 Z" fill="#2a2d3f"/>') +
+        '<g stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"><path d="M47 156 L52.5 156 L53 292 L49 292 Z" fill="#3a3d4d"/>' +
+        '<rect x="54" y="150" width="7" height="46" rx="3.5" fill="#1d1d26"/><path d="M47.5 250 l-8 17 M52.5 250 l8 17" fill="none" stroke-width="1.5"/>' +
+        '<rect x="45.5" y="290" width="9" height="6.5" fill="#1d1d26"/></g><circle cx="57.5" cy="154" r="2" fill="#3dff9a" class="av-eye"/>',
+      // Tesla Coil Carbine
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="45" y="203" width="8" height="17" fill="#2a2d3f"/><rect x="48" y="220" width="2" height="34" fill="#3a3d4d"/>' +
+        '<circle cx="49" cy="259" r="6.4" fill="#c9d1d5"/></g><g fill="none" stroke="#b98a55" stroke-width="2"><ellipse cx="49" cy="225" rx="6" ry="2"/>' +
+        '<ellipse cx="49" cy="231" rx="6" ry="2"/><ellipse cx="49" cy="237" rx="6" ry="2"/><ellipse cx="49" cy="243" rx="6" ry="2"/><ellipse cx="49" cy="249" rx="6" ry="2"/></g>' +
+        zap('M55 262 l6 3 l-3 4 l6 4') + zap('M43 262 l-6 4 l4 3 l-5 5'),
+      // Gatling Git
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="38" y="190" width="22" height="27" rx="3" fill="#2a2d3f"/></g>' +
+        '<path d="M40.5 217 v52 M44 217 v55 M47.4 217 v56 M50.8 217 v56 M54.2 217 v55 M57.6 217 v52" fill="none" stroke="#c9d1d5" stroke-width="2.2" stroke-linecap="round"/>' +
+        '<g fill="#3a3d4d" stroke="#8a8fa8" stroke-width=".8"><rect x="39" y="236" width="20" height="4"/><rect x="39" y="256" width="20" height="4"/></g>' +
+        '<path d="M45 197 v14 M45 205 q8 0 8 -7" fill="none" stroke="#ff8a1e" stroke-width="1.7"/><circle cx="45" cy="196" r="2" fill="#ff8a1e"/><circle cx="53" cy="196" r="2" fill="#ff8a1e"/>',
+      // Plasma Rifle (40 Watt)
+      '<path d="M44 203 h10 l2.5 20 l-3.5 46 h-8 l-3.5 -46 z" fill="#3a2350" stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"/>' +
+        '<rect x="47" y="226" width="4" height="35" rx="2" fill="#c77dff" class="av-eye" style="filter:drop-shadow(0 0 3px #c77dff)"/>' +
+        '<path d="M44.5 212 h9" stroke="#c77dff" stroke-width="1.4"/>',
+      // Nuke.exe (Tactical)
+      G('<path d="M41 252 l-5 11 h9 z M57 252 l5 11 h-9 z" fill="#3a3d4d"/><rect x="39" y="206" width="20" height="47" rx="7" fill="#fcee0a"/>' +
+        '<circle cx="49" cy="228" r="7.6" fill="#0b0a19"/>') +
+        '<path d="M49 228 L45.2 221.4 A7.6 7.6 0 0 1 52.8 221.4 Z M49 228 L56.6 228 A7.6 7.6 0 0 1 52.8 234.6 Z M49 228 L45.2 234.6 A7.6 7.6 0 0 1 41.4 228 Z" fill="#fcee0a"/>' +
+        '<circle cx="49" cy="228" r="1.6" fill="#0b0a19"/>',
+      // Kill -9 Cannon
+      '<g stroke="#ff3b5c" stroke-width="1.5"><rect x="36" y="198" width="26" height="75" rx="6" fill="#1d1d26"/><rect x="34" y="267" width="30" height="10" rx="3" fill="#3a3d4d"/></g>' +
+        '<text x="40" y="239" font-size="14" font-weight="bold" fill="#ff3b5c" font-family="monospace" class="av-eye">-9</text>' +
+        '<path d="M40 210 h18 M40 252 h18" stroke="#3a3d4d" stroke-width="2"/>',
     ];
-    out += held[Math.min(F.weapon, held.length) - 1];
+    // Every weapon gets its own loud colour scheme. The plain metal, wood and plastic tones in its
+    // drawing are swapped for neon ones chosen by the weapon's number; then it glows, sparkles,
+    // and every third one grows googly eyes.
+    const wi = Math.min(F.weapon, held.length);
+    const NEON = ['#ff4fd8', '#00e5ff', '#3dff9a', '#fcee0a', '#ff8a1e', '#c77dff', '#ff3b5c', '#4da3ff'];
+    const DEEP = ['#4a1470', '#0c4270', '#70143f', '#0f6644', '#70420f'];
+    const c1 = NEON[wi % NEON.length];
+    const c2 = NEON[(wi * 3 + 2) % NEON.length] === c1 ? NEON[(wi + 1) % NEON.length] : NEON[(wi * 3 + 2) % NEON.length];
+    const c3 = DEEP[wi % DEEP.length];
+    // dull colour -> which of the three scheme colours replaces it (0 main, 1 second, 2 deep)
+    const ROLE = {'#8a8fa8': 0, '#3a3d4d': 0, '#d8d0c0': 0, '#6b8fa8': 0, '#8a5a2e': 0, '#b9b2a2': 0,
+      '#c9d1d5': 1, '#6b4a2e': 1, '#6b6f85': 1, '#b9c2d0': 1, '#e9e9f0': 1, '#e3edf7': 1, '#b98a55': 1, '#6b7a4a': 1,
+      '#2c2f3c': 2, '#2a2d3f': 2, '#39402f': 2, '#1d1d26': 2, '#232a1c': 2, '#3a2a1c': 2};
+    const art = held[wi - 1].replace(/#[0-9a-f]{6}/gi, hex => {
+      const role = ROLE[hex.toLowerCase()];
+      return role === undefined ? hex : [c1, c2, c3][role];
+    });
+    const spark = (x, y, r, c) => `<path class="av-eye" fill="${c}" d="M${x} ${y - r} l${r * 0.3} ${r * 0.7} l${r * 0.7} ${r * 0.3} ` +
+      `l${-r * 0.7} ${r * 0.3} l${-r * 0.3} ${r * 0.7} l${-r * 0.3} ${-r * 0.7} l${-r * 0.7} ${-r * 0.3} l${r * 0.7} ${-r * 0.3} z"/>`;
+    out += `<g style="filter:drop-shadow(0 0 3px ${c1})">${art}</g>` +
+      spark(35, 222 + wi % 5 * 7, 4.5, c2) + spark(63, 238 + wi % 4 * 8, 3.5, c1) + spark(38, 262 - wi % 3 * 6, 2.5, '#fff');
+    if (wi % 3 === 0) {
+      out += '<g stroke="#0b0a19" stroke-width=".8"><circle cx="45.6" cy="232" r="3.4" fill="#fff"/><circle cx="52.8" cy="231" r="4" fill="#fff"/></g>' +
+        '<circle cx="46.6" cy="233" r="1.6" fill="#0b0a19"/><circle cx="53.8" cy="232.6" r="1.9" fill="#0b0a19"/>';
+    }
   }
   out += `<g fill="${SKIN}" stroke="${INK}" stroke-width="1">` +
     '<ellipse cx="49" cy="208" rx="6.5" ry="9"/><ellipse cx="151" cy="208" rx="6.5" ry="9"/></g>';
