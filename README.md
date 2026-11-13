@@ -4,6 +4,12 @@ A trading game set in the hacker underground. You have 30 days, $2,000 and a deb
 
 ![App icon](assets/logo.png)
 
+## Play in the browser (and on iPhone)
+
+**https://trashpanda-549.github.io/zero-day-hustle/**
+
+It runs on any phone or computer. On an iPhone or iPad, open the link in Safari, tap Share, then **Add to Home Screen**: it then opens full screen like an app and keeps working offline.
+
 ## Download
 
 Grab the latest build from the [Releases page](../../releases):
