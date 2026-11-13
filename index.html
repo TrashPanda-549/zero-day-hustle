@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#04070a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="0Day Hustle">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-512.png">
+<link rel="icon" type="image/png" href="icon-512.png">
 <title>Zero Day Hustle</title>
 <style>
 :root{--bg:#04070a;--panel:#0a1310;--line:#153326;--fg:#b8f5c8;--green:#39ff7a;--dim:#5f8f70;
@@ -606,6 +613,10 @@ async function selfTest() {
 // ---------- boot ----------
 (async function boot() {
   if (location.hash === '#selftest') return selfTest();
+  // Web version only: keep a copy for offline play.
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
     S = saved;
