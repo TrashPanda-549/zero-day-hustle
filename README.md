@@ -28,8 +28,10 @@ Grab the latest build from the [Releases page](../../releases):
 - The Hackerspace is home: pay down or borrow from the Fixer, and park cash in the cold wallet where it earns interest and can't be phished.
 - Contracts use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
 - You earn XP and levels that carry over between runs. At level 10 you can join one of four syndicates, each with a permanent perk.
-- Big deals raise your Heat, and Heat brings traces. Run, counter-hack through your proxies, or wipe your drive to escape.
-- If your OpSec hits zero you are busted and the run scores nothing. Laying low for a day cools things off.
+- Big deals raise your Heat, and Heat decides who hunts you: the police, then the Feds, then the NSA. Police and Feds seize your goods, fine you and cost you days. The NSA ends the run.
+- Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
+- When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
+- Laying low for a day cools your Heat and restores some OpSec.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.
 
 ## Terminal version

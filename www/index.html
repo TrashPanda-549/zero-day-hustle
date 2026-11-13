@@ -169,6 +169,16 @@ const JOBS = {
   'Burner SIMs': ['Kit out a crew for a one-night job', 'Give a whistleblower clean lines for a month'],
   'Warez': ['Stock a pirate cinema for an off-grid festival', 'Load up a school lab the district forgot to fund'],
 };
+// name, price, shots per round, chance to hit
+const WEAPONS = [null, ['Stun gun', 1200, 1, 0.45], ['Pistol', 4500, 1, 0.6], ['Shotgun', 12000, 2, 0.6]];
+const EMP_PRICE = 2000, MAX_EMP = 5;
+const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black market trades
+// Who comes for you depends on your Heat.
+const LAW = [
+  {name: 'the Metro Cyber Unit', short: 'Police', stars: 1, hit: 0.3, lo: 3, hi: 7},
+  {name: 'the Federal Cyber Task Force', short: 'Feds', stars: 2, hit: 0.35, lo: 3, hi: 9},
+  {name: 'the NSA', short: 'NSA', stars: 3, hit: 0.38, lo: 4, hi: 10},
+];
 const CLIENTS = ['n0va', 'Mr. Static', 'the Librarian', 'K-9', 'Sister Hex', 'a nervous intern', 'Old Baud', 'DeadDrop'];
 
 const $ = s => document.querySelector(s);
@@ -244,6 +254,9 @@ const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
 const cap = () => S.drive + (inSyn('null') ? 60 : 0);
 const free = () => cap() - used();
 const pick = list => list[rnd(0, list.length - 1)];
+const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
+const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn);
+const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
 
 function addItems(name, qty, price) {
   const held = S.inv[name] || 0;
@@ -256,7 +269,7 @@ function removeItems(name, qty) {
   if (S.inv[name] <= 0) { delete S.inv[name]; delete S.cost[name]; }
 }
 function addHeat(value) {
-  let gain = Math.min(15, Math.floor(value / 10000));
+  let gain = Math.min(10, Math.floor(value / 10000));
   if (inSyn('ghost')) gain = Math.ceil(gain / 2);
   if (gain) S.heat = Math.min(100, S.heat + gain);
 }
@@ -306,7 +319,8 @@ function rollMarket() {
 function newGame() {
   S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
-    contracts: [], xpRun: 0, cleared: false, over: false, busted: false};
+    contracts: [], xpRun: 0, cleared: false, weapon: 0, emp: 0, grudge: noGrudges(), raided: false,
+    over: false, busted: false};
   logs = [];
   rollMarket();
   log('New run. Buy low, sell high, stay off the radar.');
@@ -410,6 +424,9 @@ function render() {
     ['OpSec', S.opsec + '%', S.opsec <= 35 ? 'red' : ''],
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
+    ['Weapon', (WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None') + (S.emp ? ` +${S.emp} EMP` : ''), ''],
+    ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
+      lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
@@ -436,6 +453,8 @@ function render() {
   let acts = last
     ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
     : '<button class="primary" data-act="travel">Tunnel out</button><button data-act="laylow">Lay low</button>';
+  acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
+  if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
@@ -497,7 +516,61 @@ const ACTIONS = {
       const xp = gainXp(10);
       log(`<span class="red">Contract blown: ${num(c.qty)} ${c.good} burned.</span>${xp}`);
       await alertDlg('Job blown', `<p>It goes sideways. The ${c.good} are burned and ${c.client} stops answering.</p>`, 'danger');
-      if (Math.random() < 0.35) await trace();
+      if (Math.random() < 0.35) await lawEncounter();
+    }
+  },
+
+  // Break into a rival syndicate's node for loot. Once a day.
+  async raid() {
+    if (S.raided) return;
+    if (!S.proxies && !S.inv['Zero-Days']) {
+      return alertDlg('Hack a rival', '<p>You need at least one proxy chain or a Zero-Day to breach a rival node.</p>' +
+        `<p class="dim">Proxy chains are sold at the black market (${GEAR_SPOTS.join(', ')}).</p>`);
+    }
+    const mood = g => g >= 3 ? '<span class="red">out for blood</span>' : g >= 1 ? '<span class="amber">watching you</span>' : 'ignoring you';
+    const crews = rivals();
+    const html = '<p>Breach a rival node and drain it. One raid a day. It is a hacking fight: weapons are no use, ' +
+      'and if they win they rob you instead.</p>' +
+      crews.map(k => `<div class="syn"><b>${SYNDICATES[k][0]}</b> &middot; ${mood(S.grudge[k])}</div>`).join('') +
+      '<p class="dim">Every raid makes that crew more likely to come after you.</p>';
+    const buttons = crews.map(k => [SYNDICATES[k][0], k]);
+    buttons.push(['Not today', null, 'small']);
+    const key = await dialog('Hack a rival', html, buttons);
+    if (!key) return;
+    S.raided = true;
+    await fight({kind: 'raid', gang: key, name: SYNDICATES[key][0], n: rnd(2, 3 + Math.floor(S.day / 6)),
+      hit: 0.3, lo: 3, hi: 8});
+  },
+
+  // Black market: weapons, EMP grenades and proxy chains.
+  async gear() {
+    for (;;) {
+      const scale = 1 + Math.floor(S.day / 10) * 0.5;
+      const next = WEAPONS[S.weapon + 1];
+      const offers = [];
+      if (next) offers.push({key: 'w', name: next[0], price: Math.round(next[1] * scale),
+        text: next[2] > 1 ? `${next[2]} shots a round, ${pct(next[3])}% to hit` : `${pct(next[3])}% to drop one hostile a round`});
+      if (S.emp < MAX_EMP) offers.push({key: 'e', name: 'EMP grenade', price: Math.round(EMP_PRICE * scale),
+        text: `single use, fries 2 to 3 hostiles (you have ${S.emp})`});
+      if (S.proxies < MAX_PROXIES) offers.push({key: 'p', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
+        text: `for hacking back, raids and contracts (you have ${S.proxies})`});
+      const have = WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'nothing';
+      const html = `<p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ${have}.</p>` +
+        (offers.length ? offers.map(o => `<div class="syn"><b>${o.name}</b> &middot; ` +
+          `<span class="${S.cash >= o.price ? 'amber' : 'red'}">${money(o.price)}</span><br>${o.text}</div>`).join('')
+          : '<p>You already own everything they sell.</p>') +
+        '<p class="dim">Weapons work on the law and on rival crews. Using them on the law raises your Heat.</p>';
+      const buttons = offers.filter(o => S.cash >= o.price).map(o => [`Buy ${o.name}`, o.key]);
+      buttons.push(['Leave', null, 'small']);
+      const key = await dialog('Black market', html, buttons);
+      if (!key) return;
+      const o = offers.find(x => x.key === key);
+      S.cash -= o.price;
+      if (key === 'w') S.weapon++;
+      else if (key === 'e') S.emp++;
+      else S.proxies++;
+      log(`Bought a ${o.name} for ${money(o.price)}.`);
+      render();
     }
   },
 
@@ -505,7 +578,7 @@ const ACTIONS = {
     const li = levelInfo();
     let html = `<p>Level <b>${li.level}</b>: <span class="cyan">${titleFor(li.level)}</span><br>` +
       `${li.into} / ${li.need} XP to the next level (${num(career.xp)} total)</p>` +
-      '<p class="dim">XP comes from profitable sales, contracts, beating traces, clearing your debt and ' +
+      '<p class="dim">XP comes from profitable sales, contracts, escaping or beating the law and rival crews, raids, clearing your debt and ' +
       'finishing a run. It carries over between runs.</p>';
     const buttons = [['Close', null, 'primary']];
     if (career.syn) {
@@ -532,7 +605,8 @@ const ACTIONS = {
   async travel() {
     if (S.day >= DAYS) return ACTIONS.cashout();
     const others = LOCATIONS.filter(l => l !== S.loc);
-    const buttons = others.map(l => [l === HOME ? l + ' (broker, wallet)' : l, l]);
+    const buttons = others.map(l =>
+      [l === HOME ? l + ' (Fixer, wallet)' : GEAR_SPOTS.includes(l) ? l + ' (black market)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', '<p>Where to? The trip takes a day.</p>', buttons);
     if (!dest) return;
@@ -614,12 +688,20 @@ function nextDay() {
   S.debt = Math.ceil(S.debt * (1 + debtRate()));
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
+  S.raided = false;
   rollMarket();
 }
 
 // ---------- events ----------
 async function randomEvent() {
-  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) return trace();
+  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) return lawEncounter();
+  // Rival syndicates come after you more often the more you have crossed them.
+  const crews = rivals(), anger = crews.reduce((sum, k) => sum + S.grudge[k], 0);
+  if (Math.random() < Math.min(0.3, 0.05 + 0.03 * anger)) {
+    let roll = Math.random() * (anger + crews.length);
+    const key = crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
+    return gangEncounter(key);
+  }
   const r = Math.random();
   if (r < 0.10) {
     const name = GOODS[rnd(3, GOODS.length - 1)][0];
@@ -664,60 +746,168 @@ async function randomEvent() {
   }
 }
 
-async function trace() {
-  let n = rnd(1, 2 + Math.floor(S.day / 8));
-  const total = n;
-  let msg = 'Agent Null is on your connection' +
-    (n === 1 ? ', alone.' : `, with ${n - 1} analyst${n > 2 ? 's' : ''}.`);
+// ---------- confrontations: the law, rival syndicates, and raids on rivals ----------
+function lawEncounter() {
+  const tier = lawTier(), L = LAW[tier];
+  const n = [rnd(1, 2 + Math.floor(S.day / 10)), rnd(2, 3 + Math.floor(S.day / 8)),
+    rnd(2, 3 + Math.floor(S.day / 8))][tier];
+  return fight({kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi});
+}
+
+function gangEncounter(key) {
+  return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(S.day / 8)),
+    hit: 0.3, lo: 3, hi: 8});
+}
+
+// One confrontation. E: {kind: 'law' | 'gang' | 'raid', name, n, hit, lo, hi, tier, gang}
+async function fight(E) {
+  const total = E.n, law = E.kind === 'law', raid = E.kind === 'raid', quiet = inSyn('ghost');
+  const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+  let n = E.n, violent = false;
+  let msg = law ? `${E.name[0].toUpperCase() + E.name.slice(1)} has a lock on you: ${plural(n, 'agent')}.`
+    : raid ? `You breach a ${E.name} node. ${plural(n, 'operator')} are jacked in and they see you.`
+    : `${E.name} crackers are inside your rig: ${plural(n, 'intruder')}.`;
+  const title = law ? `!! ${E.name.replace(/^the /, '').toUpperCase()} !!`
+    : raid ? `RAID: ${E.name}` : `!! ${E.name.toUpperCase()} ATTACK !!`;
+  const hint = law
+    ? 'Weapons work, but firing on the law sends your Heat way up. Hacking keeps it quiet. Wiping the drive loses your goods but always escapes.'
+    : raid ? 'This is a remote fight: only hacking tools work. Jack out any time to leave empty-handed.'
+    : 'Fight them off, hack them back, run, or pay them to go away.';
   for (;;) {
     render();
-    const buttons = [['Run', 'r', 'primary']];
-    if (S.proxies) buttons.push(['Counter-hack', 'c']);
-    buttons.push(['Wipe drive', 'w', 'danger']);
-    const cmd = await dialog('!! TRACE DETECTED !!',
-      `<p>${msg}</p><p>Tracers: <b>${n}</b> &middot; OpSec: <b>${S.opsec}%</b> &middot; Proxies: <b>${S.proxies}</b></p>` +
-      '<p class="dim">Wiping the drive loses all your goods but always escapes.</p>', buttons, 'danger');
-    if (cmd === 'r') {
-      const chance = Math.max(0.25, Math.min(0.85, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1)));
+    const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
+    const payoff = Math.max(500, Math.floor(S.cash * 0.2));
+    const buttons = [];
+    if (!raid && W) buttons.push([`Fire ${W[0]}`, 'shoot']);
+    if (!raid && S.emp) buttons.push([`EMP grenade (${S.emp})`, 'emp']);
+    if (S.proxies) buttons.push([raid ? 'Hack them' : 'Counter-hack', 'hack']);
+    if (zeroDays) buttons.push([`Burn a Zero-Day (${zeroDays})`, 'zero']);
+    buttons.push([raid ? 'Jack out' : 'Run', 'run']);
+    if (law) buttons.push(['Wipe drive', 'wipe', 'danger']);
+    if (E.kind === 'gang' && S.cash >= payoff) buttons.push([`Pay them ${money(payoff)}`, 'pay']);
+    buttons[0][2] = 'primary';
+    const cmd = await dialog(title,
+      `<p>${msg}</p><p>Hostiles: <b>${n}</b> &middot; OpSec: <b>${S.opsec}%</b> &middot; Proxies: <b>${S.proxies}</b></p>` +
+      `<p class="dim">${hint}</p>`, buttons, 'danger');
+
+    let kills = 0;
+    if (cmd === 'shoot') {
+      for (let i = 0; i < W[2]; i++) if (Math.random() < W[3]) kills++;
+      kills = Math.min(n, kills);
+      violent = true;
+      S.heat = Math.min(100, S.heat + (law ? 12 : 3));
+      msg = kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`;
+    } else if (cmd === 'emp') {
+      S.emp--;
+      kills = Math.min(n, rnd(2, 3));
+      violent = true;
+      S.heat = Math.min(100, S.heat + (law ? 6 : 2));
+      msg = `The EMP fries ${kills} of them.`;
+    } else if (cmd === 'hack') {
+      for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4) kills++;
+      kills = Math.min(n, kills);
+      msg = `You hit back through your proxies: ${kills} knocked offline.`;
+    } else if (cmd === 'zero') {
+      removeItems('Zero-Days', 1);
+      kills = Math.min(n, 2);
+      msg = `The Zero-Day tears through their gear: ${kills} knocked offline.`;
+    } else if (cmd === 'run') {
+      const chance = raid ? 1 : Math.max(0.25, Math.min(0.85, 0.55 + 0.05 * S.proxies - 0.07 * (n - 1)));
       if (Math.random() < chance) {
-        S.heat = Math.max(0, S.heat - 10);
-        log('<span class="green">You hopped three networks and vanished.</span>' + gainXp(20));
+        if (raid) {
+          log(`You jacked out of the ${E.name} node empty-handed.`);
+          return;
+        }
+        if (law) S.heat = Math.max(0, S.heat - 10);
+        log('<span class="green">You hopped three networks and vanished.</span>' + gainXp(law ? 20 : 10));
         return alertDlg('Escaped', '<p>You hop three networks and vanish.</p>');
       }
       msg = 'They are still on you.';
-    } else if (cmd === 'w') {
+    } else if (cmd === 'wipe') {
       S.inv = {}; S.cost = {};
       S.heat = Math.floor(S.heat / 2);
-      log('<span class="amber">You nuked the drive. The trace went cold.</span>');
-      return alertDlg('Drive wiped', '<p>You nuke the drive. Nothing left to find. The trace goes cold.</p>');
-    } else {
-      let hits = 0;
-      for (let i = 0; i < S.proxies; i++) if (Math.random() < 0.4) hits++;
-      hits = Math.min(n, hits);
-      n -= hits;
-      if (n <= 0) {
-        const loot = total * rnd(400, 1500) * (1 + Math.floor(S.day / 10));
-        S.cash += loot;
-        S.heat = Math.max(0, S.heat - 25);
-        log(`<span class="green">Trace dead. Sold their tooling for ${money(loot)}.</span>` + gainXp(30 * total));
-        return alertDlg('Trace dead', `<p>Every tracer is knocked offline. You sell their own tooling for <b>${money(loot)}</b>.</p>`);
-      }
-      msg = `You fire back through your proxies: ${hits} tracer${hits === 1 ? '' : 's'} knocked offline.`;
+      log('<span class="amber">You nuked the drive. The trail went cold.</span>');
+      return alertDlg('Drive wiped', '<p>You nuke the drive. Nothing left to find. The trail goes cold.</p>');
+    } else if (cmd === 'pay') {
+      S.cash -= payoff;
+      log(`<span class="amber">Paid ${E.name} ${money(payoff)} to back off.</span>`);
+      return alertDlg('Paid off', `<p>${E.name} take ${money(payoff)} and log out. For now.</p>`);
     }
+
+    n -= kills;
+    if (n <= 0) {
+      let loot, xp;
+      if (law) {
+        loot = total * rnd(400, 1500) * (1 + Math.floor(S.day / 10));
+        if (!violent) S.heat = Math.max(0, S.heat - 25);
+        xp = gainXp(30 * total);
+      } else if (raid) {
+        loot = total * rnd(1500, 4000) * (1 + Math.floor(S.day / 6));
+        S.grudge[E.gang] += 2;
+        S.heat = Math.min(100, S.heat + (quiet ? 5 : 10));
+        xp = gainXp(40 * total);
+      } else {
+        loot = total * rnd(600, 2000) * (1 + Math.floor(S.day / 10));
+        S.grudge[E.gang] += 1;
+        xp = gainXp(30 * total);
+      }
+      S.cash += loot;
+      const what = law ? `You shook off ${E.name} and sold their tooling`
+        : raid ? `You cleaned out a ${E.name} node` : `You beat back ${E.name} and drained their wallets`;
+      log(`<span class="green">${what} for ${money(loot)}.</span>${xp}`);
+      return alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
+        (law ? '' : `<p class="dim">${E.name} will remember this.</p>`));
+    }
+
     let dmg = 0;
-    for (let i = 0; i < n; i++) if (Math.random() < 0.35) dmg += rnd(3, 9);
+    for (let i = 0; i < n; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
     if (dmg) {
       S.opsec -= dmg;
-      msg += ` <span class="red">They unmask part of your trail: OpSec -${dmg}%.</span>`;
+      msg += ` <span class="red">They ${law ? 'unmask part of your trail' : 'tear into your defences'}: OpSec -${dmg}%.</span>`;
     } else {
-      msg += ' Their probes miss.';
+      msg += ' Their attacks miss.';
     }
-    if (S.opsec <= 0) {
-      S.opsec = 0;
-      S.busted = S.over = true;
-      return;
-    }
+    if (S.opsec <= 0) return lose(E);
   }
+}
+
+// OpSec hit zero.
+async function lose(E) {
+  S.opsec = 0;
+  if (E.kind !== 'law') {
+    // Rival crews rob you but don't end the run.
+    const cash = Math.floor(S.cash * 0.35);
+    S.cash -= cash;
+    let goods = 0;
+    for (const name of Object.keys(S.inv)) {
+      const take = Math.ceil(S.inv[name] / 2);
+      goods += take;
+      removeItems(name, take);
+    }
+    S.opsec = 40;
+    log(`<span class="red">${E.name} cleaned you out: ${money(cash)} and ${num(goods)} goods.</span>`);
+    render();
+    return alertDlg('Robbed', `<p>${E.name} own your rig. They take <b>${money(cash)}</b> and <b>${num(goods)}</b> of your goods ` +
+      'before you pull the plug.</p>', 'danger');
+  }
+  if (E.tier === 2) {
+    S.busted = S.over = true;
+    return;
+  }
+  // Police and Feds: goods seized, a fine, and time inside. The run goes on.
+  const fine = Math.floor(S.cash * (E.tier ? 0.5 : 0.25)), days = E.tier ? 4 : 2;
+  S.cash -= fine;
+  S.inv = {}; S.cost = {};
+  let served = 0;
+  while (served < days && S.day < DAYS) { nextDay(); served++; }
+  S.opsec = E.tier ? 50 : 60;
+  S.heat = E.tier ? 20 : 10;
+  log(`<span class="red">Arrested by ${E.name}: goods seized, ${money(fine)} fine, ${served} day${served === 1 ? '' : 's'} inside.</span>`);
+  render();
+  await alertDlg('Arrested', `<p>${E.name[0].toUpperCase() + E.name.slice(1)} kicks the door in.</p>` +
+    `<p>Your goods are seized, you pay <b>${money(fine)}</b> and lose <b>${served} day${served === 1 ? '' : 's'}</b> ` +
+    'before a lawyer gets you out. Your debt kept growing.</p>' +
+    '<p class="dim">The cold wallet was never found.</p>', 'danger');
 }
 
 // ---------- end of run ----------
@@ -725,8 +915,9 @@ async function finish() {
   store.del('zdh-save');
   render();
   if (S.busted) {
-    await dialog('BUSTED', '<p>A van you never noticed was parked outside all week.</p>' +
-      `<p>Your run ends on day ${S.day}. No score for the logged-and-tagged.</p>`, [['New run', true, 'primary']], 'danger');
+    await dialog('VANISHED', '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
+      `<p>Your run ends on day ${S.day}. No score for the disappeared.</p>` +
+      `<p>XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New run', true, 'primary']], 'danger');
     return;
   }
   const score = S.cash + S.wallet - S.debt;
@@ -770,16 +961,20 @@ document.addEventListener('click', async e => {
 async function selfTest() {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
-  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0;
+  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0;
   try {
     for (let game = 0; game < 200; game++) {
       career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red'])};
       newGame();
+      S.proxies = rnd(0, 3); S.weapon = rnd(0, 3); S.emp = rnd(0, 2);
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
-          : r < 0.85 ? 'travel' : r < 0.88 ? 'laylow' : r < 0.92 ? 'broker' : r < 0.96 ? 'wallet' : 'profile';
+          : r < 0.8 ? 'travel' : r < 0.83 ? 'laylow' : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
+          : r < 0.94 ? 'raid' : r < 0.98 ? 'gear' : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
+        if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
+        if (act === 'raid') raids++;
         if (act === 'contract') {
           // Stock up for a random contract first so jobs actually get run.
           const c = S.contracts[0];
@@ -792,7 +987,8 @@ async function selfTest() {
         await levelUpCheck();
         render();
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || used() > cap() ||
-          !Number.isInteger(career.xp) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
+          !Number.isInteger(career.xp) || S.emp < 0 || S.emp > MAX_EMP || S.weapon > 3 || S.proxies > MAX_PROXIES ||
+          Object.values(S.grudge).some(g => !(g >= 0)) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
@@ -804,7 +1000,7 @@ async function selfTest() {
       }
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen}`;
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
     document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
@@ -825,7 +1021,12 @@ async function selfTest() {
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
     S = saved;
-    S.contracts = S.contracts || [];   // saves from before contracts existed
+    // Fill in anything a save from an older version lacks.
+    S.contracts = S.contracts || [];
+    S.weapon = S.weapon || 0;
+    S.emp = S.emp || 0;
+    S.grudge = Object.assign(noGrudges(), S.grudge);
+    S.raided = !!S.raided;
     log('Run resumed.');
     render();
     return;
@@ -839,7 +1040,9 @@ async function selfTest() {
     '<p>Buy low, sell high, and tunnel between spots. Every trip takes a day and reshuffles the prices.</p>' +
     '<p><span class="amber">Contracts</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate.</p>' +
-    '<p>Big deals raise your <span class="amber">Heat</span>. Heat brings traces. Zero OpSec means busted.</p>' +
+    '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the Feds, ' +
+    'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
+    '<p>When cornered you can shoot, hack, run or pay. Gear is sold at the black market.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
   busy = false;
   save();
