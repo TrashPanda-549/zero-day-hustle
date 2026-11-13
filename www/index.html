@@ -330,7 +330,7 @@ const GOODS = [
     'A release group dumped its whole archive. Warez are basically free!'],
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
-  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'The Bunker'];
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'The Bunker'];
 const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
@@ -366,17 +366,39 @@ const JOBS = {
 };
 // name, price, shots per round, chance to hit
 const WEAPONS = [null,
-  ['Rubber Duck of Debugging', 400, 1, 0.35],
-  ['Clicky Keyboard', 1200, 1, 0.45],
-  ['USB Killer.exe', 2500, 1, 0.52],
-  ['Taser.bat', 4500, 1, 0.6],
-  ['Ban Hammer', 8000, 1, 0.7],
-  ['Packet Sniper', 13000, 1, 0.8],
-  ['DDoS Cannon', 22000, 2, 0.6],
-  ['Fork Bomb Launcher', 38000, 3, 0.5],
-  ['Ping of Death Ray', 65000, 2, 0.8],
-  ['Blue Screen of Death', 110000, 3, 0.75],
+  // The fifth value is the kind: 'blunt', 'blade', 'gun' or 'heavy' (see WTYPE).
+  // Saved games store a weapon by its position here and the avatar draws it by position too,
+  // so only add new weapons at the end, with a matching drawing in figure()'s `held` list.
+  ['Rubber Duck of Debugging', 400, 1, 0.35, 'blunt'],
+  ['Clicky Keyboard', 1200, 1, 0.45, 'blunt'],
+  ['USB Killer.exe', 2500, 1, 0.52, 'blunt'],
+  ['Taser.bat', 4500, 1, 0.6, 'gun'],
+  ['Ban Hammer', 8000, 1, 0.7, 'blunt'],
+  ['Packet Sniper', 13000, 1, 0.8, 'gun'],
+  ['DDoS Cannon', 22000, 2, 0.6, 'gun'],
+  ['Fork Bomb Launcher', 38000, 3, 0.5, 'heavy'],
+  ['Ping of Death Ray', 65000, 2, 0.8, 'heavy'],
+  ['Blue Screen of Death', 110000, 3, 0.75, 'heavy'],
+  ['Percussive Maintenance Bat', 3000, 1, 0.55, 'blunt'],
+  ['Letter Opener.exe', 900, 1, 0.5, 'blade'],
+  ['Box Cutter of Unboxing', 2200, 1, 0.6, 'blade'],
+  ['Machete of Merge Conflicts', 5000, 1, 0.68, 'blade'],
+  ['Katana.zip', 9500, 1, 0.78, 'blade'],
+  ['9mm Hotfix', 7000, 1, 0.7, 'gun'],
+  ['Stack Overflow Revolver', 10000, 1, 0.76, 'gun'],
+  ['Spray-and-Pray SMG', 16000, 3, 0.42, 'gun'],
+  ['Zero-Click Sniper', 55000, 1, 0.95, 'heavy'],
+  ['Rail.gun', 80000, 2, 0.85, 'heavy'],
+  ['Full-Auto Compiler', 150000, 5, 0.5, 'heavy'],
 ];
+// kind: [label, what it means in a fight, Heat when used on the law, Heat when used on a rival crew]
+const WTYPE = {
+  blunt: ['Blunt weapons', 'Quiet: little Heat. A hit can stun them so they miss their turn.', 5, 0],
+  blade: ['Bladed weapons', 'Silent: no Heat at all.', 0, 0],
+  gun: ['Firearms', 'Loud: raises your Heat, a lot when used on the law.', 12, 3],
+  heavy: ['Military hardware', 'Very loud: a big Heat spike every time you fire.', 16, 5],
+};
+const GUN_SPOT = 'Strip Mall', GUN_STORE = 'Pew Pew Emporium';
 const MAX_EMP = 5;
 // Single-use gadgets, keyed by the name of their counter in the run state:
 // [name, price, most you can carry, what it does, short label]
@@ -838,6 +860,42 @@ function figure(F) {
       `<rect x="33" y="206" width="30" height="40" rx="2" fill="#0a3fd0" stroke="#c9d1d5" stroke-width="1.5" style="filter:drop-shadow(0 0 3px #4d7dff)"/>` +
         '<text x="38" y="222" fill="#fff" font-size="13" font-weight="bold" font-family="monospace">:(</text>' +
         '<path d="M38 229 h20 M38 234 h14 M38 239 h17" stroke="#fff" stroke-width="1.4"/>',
+      // Percussive Maintenance Bat
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><path d="M46.5 204 L51.5 204 L54.5 260 Q49 268 43.5 260 Z" fill="#b98a55"/>` +
+        '<path d="M46.3 212 h5.6 M46 217 h6" fill="none"/></g>',
+      // Letter Opener.exe
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><rect x="46" y="203" width="6" height="11" rx="1" fill="#6b4a2e"/>` +
+        '<path d="M47 214 L51 214 L49 242 Z" fill="#c9d1d5"/></g>',
+      // Box Cutter of Unboxing
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><rect x="45" y="203" width="8" height="25" rx="2" fill="#fcee0a"/>` +
+        '<path d="M46.5 228 L51.5 228 L51.5 238 Z" fill="#c9d1d5"/><path d="M47 209 h4 M47 214 h4" fill="none"/></g>',
+      // Machete of Merge Conflicts
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><rect x="46" y="203" width="6" height="13" fill="#3a2a1c"/>` +
+        '<path d="M45.5 216 L52.5 216 L55.5 260 Q50 271 46 257 Z" fill="#c9d1d5"/></g>',
+      // Katana.zip
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><rect x="46.5" y="203" width="5" height="14" fill="#1d1d26"/>` +
+        '<rect x="43.5" y="216" width="11" height="3" fill="#ffd24a"/><path d="M47 219 L51 219 L52 290 Q50 297 48.4 290 Z" fill="#e3edf7"/></g>',
+      // 9mm Hotfix, pointing down
+      '<path d="M44 204 h10 v10 h-4 v22 h-6 z" fill="#2c2f3c" stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"/>',
+      // Stack Overflow Revolver
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><path d="M44 204 h10 v9 h-4 v27 h-5 z" fill="#8a8fa8"/>` +
+        '<circle cx="48.5" cy="217" r="4.5" fill="#6b6f85"/></g>',
+      // Spray-and-Pray SMG
+      '<g stroke="#8a8fa8" stroke-width="1" stroke-linejoin="round"><rect x="44" y="203" width="10" height="36" rx="2" fill="#2a2d3f"/>' +
+        '<rect x="54" y="212" width="5" height="19" fill="#3a3d4d"/><rect x="47" y="239" width="4" height="15" fill="#2a2d3f"/></g>',
+      // Zero-Click Sniper, carried along the arm
+      `<g stroke="${INK}" stroke-width="1" stroke-linejoin="round"><path d="M44 126 L52.5 126 L53 156 L46 156 Z" fill="#39402f"/>` +
+        '<path d="M47.5 154 L52.5 154 L53 292 L49.5 292 Z" fill="#232a1c" stroke="#8a8fa8"/>' +
+        '<rect x="54" y="160" width="6" height="38" rx="3" fill="#232a1c" stroke="#8a8fa8"/></g>' +
+        '<circle cx="57" cy="163" r="1.8" fill="#ff3b5c" class="av-eye"/>',
+      // Rail.gun: twin rails with a charge between them
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="42" y="204" width="5" height="64" fill="#2a2d3f"/>' +
+        '<rect x="51" y="204" width="5" height="64" fill="#2a2d3f"/><rect x="40.5" y="198" width="17" height="13" rx="2" fill="#3a3d4d"/></g>' +
+        zap('M49 214 l-1.5 8 l3 7 l-3 8 l3 8 l-3 8 l1.5 8'),
+      // Full-Auto Compiler: a rotary gun
+      '<g stroke="#8a8fa8" stroke-width="1"><rect x="40" y="190" width="18" height="27" rx="3" fill="#39402f"/></g>' +
+        '<path d="M43 217 v51 M47 217 v54 M51 217 v54 M55 217 v51" fill="none" stroke="#c9d1d5" stroke-width="2.4" stroke-linecap="round"/>' +
+        '<rect x="41" y="241" width="16" height="4" fill="#3a3d4d" stroke="#8a8fa8" stroke-width=".8"/>',
     ];
     out += held[Math.min(F.weapon, held.length) - 1];
   }
@@ -1352,7 +1410,10 @@ function dialog(title, html, buttons, tone) {
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
       el.onclick = () => { overlay.hidden = true; resolve(el.dataset.pick); };
     });
-    if (AUTO) return resolve(buttons[rnd(0, buttons.length - 1)][1]);
+    if (AUTO) {   // the self-test picks any button or tappable thing at random
+      const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
+      return resolve(all[rnd(0, all.length - 1)]);
+    }
     overlay.hidden = false;
     dlg.scrollTop = 0;
   });
@@ -1410,6 +1471,44 @@ function askText(title, html) {
     overlay.hidden = false;
     $('#tx').focus();
   });
+}
+
+// ---------- weapon shops ----------
+// kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
+// hot: true for the black-market dealer (no background check, and every purchase adds a little Heat).
+async function weaponShop(title, blurb, kinds, markup, hot) {
+  for (;;) {
+    const scale = 1 + Math.floor(S.day / 10) * 0.5;
+    const mine = WEAPONS[S.weapon], tradeIn = mine ? Math.round(mine[1] * 0.3) : 0;
+    const priceOf = w => Math.max(0, Math.round(w[1] * scale * (w[4] === 'heavy' ? 1 : markup)) - tradeIn);
+    let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ` +
+      `<b>${mine ? mine[0] : 'nothing'}</b>${mine ? ` (worth ${money(tradeIn)} as a trade-in)` : ''}.</p>`;
+    for (const kind of kinds) {
+      html += `<p class="dim" style="margin:12px 0 4px"><b class="cyan">${WTYPE[kind][0].toUpperCase()}</b><br>${WTYPE[kind][1]}</p>`;
+      if (!hot && kind === 'gun' && S.heat >= 40) {   // the legal store checks who it sells guns to
+        html += '<p class="red">"Your background check came back... interesting. No firearms for you today."</p>' +
+          '<p class="dim">Get your Heat under 40%, or try the arms dealer at the black market.</p>';
+        continue;
+      }
+      WEAPONS.map((w, i) => [w, i]).filter(([w]) => w && w[4] === kind).sort((a, b) => a[0][1] - b[0][1]).forEach(([w, i]) => {
+        const price = priceOf(w), owned = i === S.weapon, ok = !owned && S.cash >= price;
+        html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${i}"` : ''}>` +
+          `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? 'yours' : money(price)}</span> &middot; <b>${w[0]}</b><br>` +
+          `${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit</div>`;
+      });
+    }
+    html += '<p class="dim">Tap a weapon to buy it. You carry one at a time, and your old one is traded in.' +
+      (hot ? ' Hardware from the van is hot: each purchase adds 5% Heat.' : '') + '</p>';
+    const choice = await dialog(title, html, [['Leave', null, 'primary']]);
+    if (choice === null) return;
+    const index = Number(choice), w = WEAPONS[index], price = priceOf(w);
+    if (!w || index === S.weapon || S.cash < price) continue;
+    S.cash -= price;
+    S.weapon = index;
+    if (hot) S.heat = Math.min(100, S.heat + 5);
+    log(`Bought: ${w[0]} for ${money(price)}.`);
+    render();
+  }
 }
 
 // ---------- loadout close-up ----------
@@ -1527,7 +1626,8 @@ function render() {
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
-  if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button>';
+  if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
+  if (S.loc === GUN_SPOT) acts += `<button data-act="gunstore">${GUN_STORE} (gun store)</button>`;
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
@@ -1754,6 +1854,20 @@ const ACTIONS = {
     }
   },
 
+  // The legal gun store: blunt weapons, blades and firearms, with a background check on the guns.
+  async gunstore() {
+    if (S.loc !== GUN_SPOT) return;
+    await weaponShop(GUN_STORE, '"Welcome to Pew Pew Emporium! Everything in here is legal. Mostly."',
+      ['blunt', 'blade', 'gun'], 1, false);
+  },
+
+  // The black-market arms dealer: firearms at a markup and military hardware, no questions asked.
+  async dealer() {
+    if (!GEAR_SPOTS.includes(S.loc)) return;
+    await weaponShop('Arms dealer', 'A van with no plates. "No paperwork, no questions. The prices reflect that."',
+      ['gun', 'heavy'], 1.4, true);
+  },
+
   // Burn a fake identity to cool your Heat.
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
@@ -1767,12 +1881,6 @@ const ACTIONS = {
     for (;;) {
       const scale = 1 + Math.floor(S.day / 10) * 0.5;
       const offers = [];
-      // The next two weapons up from the one you carry.
-      for (const step of [1, 2]) {
-        const w = WEAPONS[S.weapon + step];
-        if (w) offers.push({key: 'w' + step, name: w[0], price: Math.round(w[1] * scale),
-          text: 'Weapon: ' + (w[2] > 1 ? `${w[2]} shots a round, ${pct(w[3])}% to hit` : `${pct(w[3])}% to drop one hostile a round`)});
-      }
       for (const [key, [name, price, most, what]] of Object.entries(GADGETS)) {
         if (S[key] < most) offers.push({key: 'x' + key, gadget: key, name, price: Math.round(price * scale),
           text: `single use: ${what} (you have ${S[key]})`});
@@ -1785,12 +1893,11 @@ const ACTIONS = {
         item: it, cls: 'r' + it.rar}));
       if (S.hp < 100) offers.push({key: 'd', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
         text: `patches you up from ${S.hp}% to full Health`});
-      const have = WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'nothing';
-      const html = `<p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ${have}.</p>` +
+      const html = `<p>Cash: <span class="green">${money(S.cash)}</span>.</p>` +
         (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
           `${money(o.price)}</span> &middot; ${o.item ? itemHtml(o.item) : `<b>${o.name}</b><br>${o.text}`}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
-        '<p class="dim">Weapons work on the law and on rival crews. Using them on the law raises your Heat.</p>';
+        `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
       const buttons = offers.filter(o => S.cash >= o.price)
         .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls]);
       buttons.push(['Leave', null, 'small']);
@@ -1798,8 +1905,7 @@ const ACTIONS = {
       if (!key) return;
       const o = offers.find(x => x.key === key);
       S.cash -= o.price;
-      if (key[0] === 'w') S.weapon += Number(key[1]);
-      else if (o.gadget) S[o.gadget]++;
+      if (o.gadget) S[o.gadget]++;
       else if (key === 'm') S.medkits++;
       else if (key === 'd') S.hp = 100;
       else if (o.item) { S.shop.splice(S.shop.indexOf(o.item), 1); stash(o.item); saveCareer(); }
@@ -1849,7 +1955,7 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
       [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? l + ' (black market)' : l, l]);
+        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (gun store)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', tired
       ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
@@ -2117,14 +2223,17 @@ async function fight(E) {
       `<p>${msg}</p>${vitals()}${meter('Hostiles', n, total, `${n} / ${total}`, 'red')}` +
       `<p class="dim" style="margin-top:10px">${hint}</p>`, buttons, 'danger');
 
-    let kills = 0;
+    let kills = 0, stunned = false;
     physical = !raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run' || cmd === 'med');
     if (cmd === 'shoot') {
+      const kind = WTYPE[W[4]] || WTYPE.gun;
       for (let i = 0; i < W[2]; i++) if (Math.random() < W[3] + bonus('aim') / 100) kills++;
       kills = Math.min(n, kills);
       violent = true;
-      S.heat = Math.min(100, S.heat + (law ? 12 : 3));
-      msg = kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`;
+      S.heat = Math.min(100, S.heat + kind[law ? 2 : 3]);   // blades are silent, guns are loud
+      stunned = W[4] === 'blunt' && kills > 0 && Math.random() < 0.4;
+      msg = (kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`) +
+        (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '');
     } else if (cmd === 'emp') {
       S.emp--;
       kills = Math.min(n, rnd(2, 3));
@@ -2224,7 +2333,7 @@ async function fight(E) {
     }
 
     let dmg = 0;
-    for (let i = 0; i < n; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
+    for (let i = 0; i < n && !stunned; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
     if (dmg && physical) {
       // In the open they hurt you, not your rig. Armour soaks up part of it.
       dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100)));
@@ -2361,9 +2470,10 @@ async function selfTest() {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
+          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore']) : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
-        if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
+        if ((act === 'gear' || act === 'dealer') && !GEAR_SPOTS.includes(S.loc)) continue;
+        if (act === 'gunstore' && S.loc !== GUN_SPOT) continue;
         if (act === 'raid') raids++;
         if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
@@ -2468,7 +2578,7 @@ async function selfTest() {
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
     '<p>When cornered you can shoot, hack, run or pay. Shootouts cost <span class="green">Health</span>, hack fights cost ' +
-    '<span class="green">OpSec</span>; lose either and you go down. Gear and a street doc are at the black market.</p>' +
+    '<span class="green">OpSec</span>; lose either and you go down. Gear, a street doc and an arms dealer are at the black market; the gun store is at the ' + GUN_SPOT + '.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>');
