@@ -24,7 +24,7 @@ Grab the latest build from the [Releases page](../../releases):
 ## How to play
 
 - Ten goods, from Warez up to Zero-Days, with prices that change every day. News events make some scarce and others dirt cheap.
-- Tunnel between eight locations. Every trip takes a day.
+- Tunnel between the locations. Travelling does not end the day: you get six trips a day, prices stay put until you sleep, and only sleeping at the Bunker starts a new day. The trip home is always free.
 - The Hackerspace is home: pay down or borrow from the Fixer, and park cash in the cold wallet where it earns interest and can't be phished.
 - Contracts use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
 - You earn XP and levels that carry over between runs. At level 10 you can join one of four syndicates, each with a permanent perk.
@@ -33,7 +33,7 @@ Grab the latest build from the [Releases page](../../releases):
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
 - When cornered you can fire a weapon, throw an EMP, counter-hack through your proxies, burn a Zero-Day, run, wipe your drive or pay them off. Weapons and gear come from the black market at the Tor Bazaar and the Datacenter Dock.
 - You have two bars to protect. Shooting, EMPs and running put your Health at risk; hacking puts your OpSec at risk. Lose either and you go down. An armoured vest cuts Health damage, and a street doc at the black market patches you up.
-- Laying low for a day cools your Heat and restores some Health and OpSec. Medkits heal you any time, even mid-fight; you start each run with two, and with a basic item in every gear slot.
+- Sleeping cools your Heat and restores Health and OpSec. Medkits heal you any time, even mid-fight; you start each run with two, and with a basic item in every gear slot.
 - Gear for five slots (head, body, hands, feet, deck) boosts your stats and comes in five rarities: Common, Uncommon, Rare, Epic and Legendary. Rival crews drop it, the black market sells it, and it stays with you between runs.
 - Your avatar shows all of it. Pick a skin tone, hair and streak from the Gear screen. It wears your gear (Epic pulses, Legendary shimmers and sparks), carries your weapon and gadgets, and stands in front of wherever you are. It gets bruised and bandaged as Health drops, glitches as OpSec fails, and is lit by police lights, a Fed searchlight or an NSA crosshair as Heat climbs. Your syndicate leaves its mark, and cyberware appears at levels 8, 9, 20, 25 and 30.
 - Only cash and your cold wallet count at the end, minus whatever you still owe.

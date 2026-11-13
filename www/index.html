@@ -335,6 +335,9 @@ const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
 const BUNKER = 'The Bunker', STASH_CAP = 300, LOCKER_SIZE = 20;
+// A day only ends when you sleep at the Bunker. Until then you can make this many trips;
+// the trip home to the Bunker is always free.
+const TRIPS_PER_DAY = 6;
 
 // Crews you can join at level 10. The choice is permanent and applies to every run.
 const SYNDICATES = {
@@ -1293,6 +1296,14 @@ function rollMarket() {
     S.prices = {}; S.flags = {}; S.news = []; S.contracts = []; S.shop = [];
     return;
   }
+  // Each place has one market per day: coming back the same day finds the same prices,
+  // with any contracts you ran and gear you bought already gone.
+  const today = S.markets[S.loc];
+  if (today) {
+    S.prices = today.prices; S.flags = today.flags; S.news = today.news;
+    S.contracts = today.contracts; S.shop = today.shop;
+    return;
+  }
   for (;;) {
     S.prices = {}; S.flags = {}; S.news = [];
     for (const [name, low, high, scarce, flood] of GOODS) {
@@ -1308,17 +1319,18 @@ function rollMarket() {
   rollContracts();
   // Today's gear on the black market: up to Epic, never Legendary.
   S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(S.day * 0.3))));
+  S.markets[S.loc] = {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
 }
 
 function newGame() {
-  S = {day: 1, loc: HOME, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
+  S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
   starterGear();
   rollMarket();
-  log('New run. Buy low, sell high, stay off the radar.');
+  log('New run. You wake up in the Bunker. Buy low, sell high, stay off the radar.');
 }
 
 // ---------- dialogs ----------
@@ -1466,6 +1478,7 @@ function render() {
       <button data-act="contract" data-arg="${i}"${held >= c.qty ? '' : ' disabled'}>Run job</button></div>`;
   }).join('');
   $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
+    ` &middot; <span class="${S.trips ? '' : 'red'}">${S.trips} trip${S.trips === 1 ? '' : 's'} left</span>` +
     (last ? ' <span class="amber">&middot; FINAL DAY: sell what you hold</span>' : '');
   const chips = [
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
@@ -1504,11 +1517,12 @@ function render() {
       <div class="price">${priceHtml}</div>
       <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
   }).join('');
-  let acts = last
-    ? '<button class="primary" data-act="cashout">End run &amp; cash out</button>'
-    : '<button class="primary" data-act="travel">Tunnel out</button>' + (S.loc === BUNKER
-      ? '<button data-act="sleep">Sleep (end the day)</button><button data-act="locker">Gear locker</button>'
-      : '<button data-act="laylow">Lay low</button>');
+  let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
+  if (S.loc === BUNKER) {
+    acts += `<button data-act="sleep">${last ? 'Sleep (end the run)' : 'Sleep (end the day)'}</button>` +
+      '<button data-act="locker">Gear locker</button>';
+  }
+  if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
@@ -1700,7 +1714,7 @@ const ACTIONS = {
     log(`Took ${num(qty)} ${name} out of the stash.`);
   },
 
-  // Sleeping ends the day. It heals more than laying low, but the law may come in the night.
+  // Sleeping is the only thing that ends the day. The law may come in the night.
   async sleep() {
     if (S.loc !== BUNKER) return;
     if (S.day >= DAYS) return ACTIONS.cashout();
@@ -1710,8 +1724,8 @@ const ACTIONS = {
     nextDay();
     S.hp = Math.min(100, S.hp + 35);
     S.opsec = Math.min(100, S.opsec + 15);
-    S.heat = Math.max(0, S.heat - 15);
-    log(`Day ${S.day}: you slept in the Bunker.`);
+    S.heat = Math.max(0, S.heat - 20);
+    log(`Day ${S.day}: you slept in the Bunker. New prices everywhere.`);
     render();
     if (Math.random() < Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1)) await homeRaid(true);
   },
@@ -1825,32 +1839,33 @@ const ACTIONS = {
     log(`Securely wiped ${num(qty)} ${name}.`);
   },
 
+  // Travelling does not end the day; only sleeping at the Bunker does. You get a set number of
+  // trips each day, and the trip home is always free.
   async travel() {
-    if (S.day >= DAYS) return ACTIONS.cashout();
-    const others = LOCATIONS.filter(l => l !== S.loc);
+    const tired = S.trips <= 0;
+    if (tired && S.loc === BUNKER) {
+      return alertDlg('Worn out', '<p>You have no trips left today. Sleep to start a new day.</p>');
+    }
+    const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
-      [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout)'
+      [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
         : GEAR_SPOTS.includes(l) ? l + ' (black market)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
-    const dest = await dialog('Tunnel out', '<p>Where to? The trip takes a day.</p>', buttons);
+    const dest = await dialog('Tunnel out', tired
+      ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
+      : `<p>Where to? You have <b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left today. Prices stay put until you ` +
+        'sleep at the Bunker, and the trip home is always free.</p>', buttons);
     if (!dest) return;
     await travelFx(S.loc, dest);
     S.loc = dest;
-    nextDay();
-    log(`Day ${S.day}: you surface at ${dest}.`);
+    if (dest !== BUNKER) {
+      S.trips--;
+      awayRaid(Math.min(0.08, S.heat / 1200));
+    }
+    rollMarket();
+    log(`You surface at ${dest}.`);
     render();
     await randomEvent();
-  },
-
-  async laylow() {
-    if (S.day >= DAYS) return ACTIONS.cashout();
-    if (!await confirmDlg('Lay low', '<p>Go dark for a day? Heat drops by a lot, and you recover 20% Health and 10% OpSec. ' +
-      'Prices will change and your debt still grows.</p>', 'Go dark', 'Cancel')) return;
-    nextDay();
-    S.heat = Math.max(0, S.heat - 30);
-    S.opsec = Math.min(100, S.opsec + 10);
-    S.hp = Math.min(100, S.hp + 20);
-    log(`Day ${S.day}: you unplugged everything, slept and read paperbacks.`);
   },
 
   async cashout() {
@@ -1917,9 +1932,15 @@ function nextDay() {
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
+  S.trips = TRIPS_PER_DAY;
+  S.markets = {};
   rollMarket();
-  // While you are out, the law may raid the Bunker and take whatever is stashed there.
-  if (S.loc !== BUNKER && stashTotal() && Math.random() < Math.min(0.25, S.heat / 400) * (inSyn('ghost') ? 0.7 : 1)) {
+  if (S.loc !== BUNKER) awayRaid(Math.min(0.25, S.heat / 400));   // days spent locked up or in a clinic
+}
+
+// While you are out, the law may raid the Bunker and take whatever is stashed there.
+function awayRaid(chance) {
+  if (stashTotal() && Math.random() < chance * (inSyn('ghost') ? 0.7 : 1)) {
     const who = LAW[lawTier()].name, lost = seizeStash(1);
     log(`<span class="red">${who[0].toUpperCase() + who.slice(1)} raided the Bunker while you were out: ${num(lost)} stashed goods seized.</span>`);
     notes.push(['Bunker raided', `<p>${who[0].toUpperCase() + who.slice(1)} hit the Bunker while you were out.</p>` +
@@ -1988,16 +2009,18 @@ async function homeRaid(asleep) {
 
 // ---------- events ----------
 async function randomEvent() {
-  if (Math.random() < Math.min(0.45, 0.07 + S.heat / 300) * (inSyn('ghost') ? 0.7 : 1)) {
+  // These odds are per trip. There are several trips in a day, so each one is fairly small.
+  if (Math.random() < Math.min(0.25, 0.03 + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1)) {
     return S.loc === BUNKER ? homeRaid(false) : lawEncounter();
   }
   // Rival syndicates come after you more often the more you have crossed them. Never at the Bunker.
   const crews = rivals(), anger = crews.reduce((sum, k) => sum + S.grudge[k], 0);
-  if (S.loc !== BUNKER && Math.random() < Math.min(0.3, 0.05 + 0.03 * anger)) {
+  if (S.loc !== BUNKER && Math.random() < Math.min(0.15, 0.02 + 0.015 * anger)) {
     let roll = Math.random() * (anger + crews.length);
     const key = crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
     return gangEncounter(key);
   }
+  if (Math.random() < 0.5) return;   // most trips are uneventful
   const r = Math.random();
   if (r < 0.10) {
     const name = GOODS[rnd(3, GOODS.length - 1)][0];
@@ -2337,11 +2360,12 @@ async function selfTest() {
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
-          : r < 0.8 ? 'travel' : r < 0.83 ? pick(['laylow', 'sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
+          : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
           : r < 0.93 ? 'raid' : r < 0.96 ? 'gear' : r < 0.98 ? 'gearmenu' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if (act === 'gear' && !GEAR_SPOTS.includes(S.loc)) continue;
         if (act === 'raid') raids++;
+        if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
           stash(makeItem(rnd(0, 4)));
           await swapSlot(pick(Object.keys(SLOTS)));
@@ -2360,7 +2384,7 @@ async function selfTest() {
         await levelUpCheck();
         render();
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
-          career.bag.length > BAG_SIZE || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
+          career.bag.length > BAG_SIZE || !(S.trips >= 0 && S.trips <= TRIPS_PER_DAY) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
           Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
@@ -2411,6 +2435,10 @@ async function selfTest() {
     S.hp = Number.isInteger(S.hp) ? S.hp : 100;
     S.medkits = S.medkits || 0;
     S.stash = S.stash || {};
+    S.markets = S.markets || {};
+    if (!Number.isInteger(S.trips)) S.trips = TRIPS_PER_DAY;
+    if (S.loc !== BUNKER && S.prices) S.markets[S.loc] = S.markets[S.loc] ||
+      {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
     S.stashCost = S.stashCost || {};
     starterGear();
     S.shop = S.shop || [];
@@ -2433,7 +2461,8 @@ async function selfTest() {
   await alertDlg('ZERO DAY HUSTLE',
     `<p>You have <b>${DAYS} days</b>, ${money(S.cash)} and a ${money(START_DEBT)} debt to the Fixer ` +
     `that grows ${pct(debtRate())}% a day.</p>` +
-    '<p>Buy low, sell high, and tunnel between spots. Every trip takes a day and reshuffles the prices.</p>' +
+    '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
+    'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
     '<p><span class="amber">Contracts</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
