@@ -57,7 +57,8 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 /* heads-up panel: avatar, level, health */
 #hud{display:grid;grid-template-columns:66px 1fr;gap:10px;margin-top:10px;align-items:stretch}
 #ava{cursor:pointer;background:linear-gradient(#0b0a1c,#17132f);border:1px solid var(--line);
-  border-bottom:2px solid var(--magenta);display:flex;align-items:flex-end;overflow:hidden}
+  border-bottom:2px solid var(--magenta);position:relative;overflow:hidden;min-height:76px}
+#ava .avatar{position:absolute;left:0;top:0;width:100%;height:100%}
 .avatar{display:block;width:100%;height:auto}
 /* avatar effects: breathing, blinking, rarity glows, glitches, sirens */
 .av-fig{transform-origin:100px 336px;animation:avbreathe 3.6s ease-in-out infinite}
@@ -1539,8 +1540,9 @@ function avatarSvg(o) {
         'fill="#3dff9a" stroke="#0b3a22" stroke-width="1"/>' + `<circle cx="${14.5 + (i * 67) % 180}" cy="3.5" r="1.8" fill="#0b3a22"/></g>`;
     }
   }
-  if (o.bust) box = '50 0 100 116';
-  return `<svg class="avatar" viewBox="${box}" role="img" aria-label="Your character">` +
+  // The portrait fills its box whatever the box's shape: head pinned to the top, the excess cropped.
+  if (o.bust) box = o.fill ? '50 0 100 150' : '50 0 100 116';
+  return `<svg class="avatar" viewBox="${box}"${o.fill ? ' preserveAspectRatio="xMidYMin slice"' : ''} role="img" aria-label="Your character">` +
     `${defs ? `<defs>${defs}</defs>` : ''}${back}${fig}${front}</svg>`;
 }
 
@@ -2032,7 +2034,7 @@ function render() {
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
   $('#vitals').innerHTML = vitals();
-  $('#ava').innerHTML = avatarSvg({bust: true});
+  $('#ava').innerHTML = avatarSvg({bust: true, fill: true});
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
