@@ -758,6 +758,12 @@ const SLOTS = {
     'Steel Toecaps', 'Bunny Slippers'], ['speed', 'armor', 'regen']],
   deck: ['Deck', ['Burner Laptop', 'Cyberdeck', 'Mesh Rig', 'Hacked Toaster', 'Graphing Calculator', 'LoRa Pager',
     'Flip Phone', 'Server Backpack'], ['hack', 'firewall', 'storage', 'charm', 'luck']],
+  face: ['Face', ['Bandana', 'Surgical Mask', 'Eyepatch', 'Fake Moustache', 'Monocle', 'Clown Nose', 'Hockey Mask', 'LED Mask'],
+    ['stealth', 'charm', 'firewall', 'luck']],
+  legs: ['Pants', ['Cargo Pants', 'Ripped Jeans', 'Track Pants', 'Tactical Trousers', 'Pyjama Bottoms', 'Cargo Shorts',
+    'Leather Trousers', 'Kilt'], ['storage', 'speed', 'armor', 'regen']],
+  wrist: ['Wrist', ['Sweatbands', 'Calculator Watch', 'Spiked Cuffs', 'Friendship Bracelets', 'Wrist Keyboard',
+    'Festival Wristbands', 'Slap Bracelets', 'Bootleg Rolex'], ['hack', 'aim', 'luck', 'charm']],
 };
 // stat: [what it does, value on a Common item, cap on your total, unit]
 const STATS = {
@@ -798,8 +804,9 @@ const itemHtml = it => withIcon(gearIcon(it), `<b class="r${it.rar}">${it.name}<
   `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`);
 const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
 
-// Everyone starts with a basic item in every slot.
-const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], feet: [0, 'speed'], deck: [0, 'hack']};
+// Everyone starts with a basic item in every slot except the face, which stays bare until you find something for it.
+const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], feet: [0, 'speed'], deck: [0, 'hack'],
+  legs: [0, 'storage'], wrist: [0, 'luck']};
 function starterGear() {
   for (const [slot, [index, stat]] of Object.entries(STARTER)) {
     if (!career.gear[slot]) {
@@ -860,7 +867,7 @@ function figure(F) {
   const INK = '#0b0a19', EYE = '#1b1426', GOLD = '#ffd24a', CYAN = '#00e5ff';
   const [, SKIN, SHADE] = SKINS[F.look.skin];
   const HAIR = HAIRCOLS[F.look.col][1], STREAK = STREAKS[F.look.streak][1], hair = F.look.hair;
-  const {head, body, hands, feet, deck} = F.gear;
+  const {head, body, hands, feet, deck, face, legs, wrist} = F.gear;
   const hurt = F.hp <= 35 && !F.ko;
   // A shape and its mirror image, for the left and right side of the body.
   const both = d => `<path d="${d}"/><path d="${d}" transform="translate(200 0) scale(-1 1)"/>`;
@@ -903,6 +910,34 @@ function figure(F) {
     '<path d="M100 184 L126 184 L126 200 Q124 250 121 322 L105 322 Q102 250 101 200 Z"/></g>' +
     '<path d="M87 200 Q86 250 86 318 M113 200 Q114 250 114 318" stroke="#1d2540" stroke-width="2" fill="none"/>' +
     `<g fill="#3a3d4d" stroke="${INK}" stroke-width="1">${both('M77 320 L96 320 L97 331 Q88 336 71 334 Q71 325 77 320 Z')}</g>`;
+  if (legs) {
+    // One fill colour and one drawing per name in SLOTS.legs, in the same order. Long coats hang over them.
+    const LEG = 'M74 184 L100 184 L99 200 Q98 250 95 322 L79 322 Q76 250 74 200 Z';
+    const SHORT = 'M74 184 L100 184 L99 200 Q98.5 232 98 262 L75.5 262 Q74.5 232 74 200 Z';
+    const shin = `<g fill="${SKIN}" stroke="${INK}" stroke-width="1">${both('M76 258 L98 258 Q97 290 95 322 L79 322 Q77 290 76 258 Z')}</g>`;
+    out += wear(legs, ['#4a5238', '#3d5f94', '#1d1d26', '#2a2e3f', '#8fb7d9', '#b9a36b', '#15131c', '#a8321f'][legs.kind], [
+      // Cargo Pants: a big pocket on each thigh
+      both(LEG) + both('M74.5 234 h13 v19 h-13 z') + both('M74.5 240 h13'),
+      // Ripped Jeans: knees showing
+      both(LEG) + `<g fill="${SKIN}" stroke-width=".8">${both('M80 248 q7 -4 13 0 q-6 5 -13 0 z')}${both('M82 222 q4 -2 8 0 q-4 3 -8 0 z')}</g>` +
+        both('M78 300 l6 -2 M80 306 l5 -1'),
+      // Track Pants: a stripe down each side
+      both(LEG) + `<g fill="none" stroke-width="2.6">${both('M77.5 190 Q78.5 250 81.5 320')}</g>`,
+      // Tactical Trousers: knee pads and a thigh strap
+      both(LEG) + `<g fill="#151827">${both('M79 250 h17 v15 q-8.5 5 -17 0 z')}</g>` + both('M75 214 h24 M75 219 h24'),
+      // Pyjama Bottoms: baggy, striped
+      both('M72 184 L100 184 L100 200 Q100 250 98 322 L77 322 Q73 250 72 200 Z') +
+        `<g fill="none" stroke="#fff" stroke-opacity=".75" stroke-width="1.2">${both('M79 188 Q80 250 82 320 M86 188 Q87 250 88 320 M93 188 Q93 250 93 320')}</g>`,
+      // Cargo Shorts, bare shins
+      shin + both(SHORT) + both('M75 232 h12 v17 h-12 z') + both('M75 238 h12'),
+      // Leather Trousers: tight, shiny
+      both(LEG) + `<g fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.6">${both('M81 196 Q82 250 84 314')}</g>`,
+      // Kilt, bare shins
+      shin + '<path d="M72 184 L128 184 L135 254 L65 254 Z"/>' +
+        '<path d="M70 206 h60 M67 232 h66 M86 184 L81 254 M100 184 V254 M114 184 L119 254" fill="none"/>' +
+        `<rect x="95" y="196" width="10" height="13" rx="3" fill="#e9e4d8"/>`,
+    ][legs.kind]);
+  }
   if (F.syn === 'null') {   // Null Sector: smuggler's thigh pouches
     out += `<g fill="#39402f" stroke="${SYN_COL.null}" stroke-width="1" stroke-linejoin="round">` +
       both('M75 224 L99 225 L99 228 L75 227 Z') + both('M72 228 h13 v17 h-13 z') + both('M72 233 h13') + '</g>';
@@ -1352,6 +1387,34 @@ function figure(F) {
   }
   out += `<g fill="${SKIN}" stroke="${INK}" stroke-width="1">` +
     '<ellipse cx="49" cy="208" rx="6.5" ry="9"/><ellipse cx="151" cy="208" rx="6.5" ry="9"/></g>';
+  if (wrist) {
+    // One fill colour and one drawing per name in SLOTS.wrist, in the same order. Worn on both wrists, over any sleeve.
+    const BAND = 'M44.5 177 L58.5 179 L58 187 L44 185 Z';
+    const stripes = cols => twin(cols.map((c, i) =>
+      `<path d="M44.6 ${173 + i * 4} l14 2" fill="none" stroke="${c}" stroke-width="3"/>`).join(''));
+    out += wear(wrist, ['#e9e9f0', '#2a2d3f', '#15131c', '#2a2d3f', '#2a2d3f', '#2a2d3f', '#fcee0a', '#ffd24a'][wrist.kind], [
+      // Sweatbands
+      both('M44.5 173 L59 175 L58 188 L43.5 186 Z') + both('M44.2 179 L58.6 181'),
+      // Calculator Watch
+      both(BAND) + twin(`<rect x="46" y="175.5" width="11" height="11" rx="1.5" fill="${wrist.c}" fill-opacity=".85"/>` +
+        '<path d="M48 179 h7 M48.5 182.5 h1 M51 182.5 h1 M53.5 182.5 h1" fill="none" stroke="#0b0a19" stroke-width="1"/>'),
+      // Spiked Cuffs
+      both(BAND) + `<g fill="#c9d1d5" stroke-width=".8">${both('M44.3 178 l-5.5 3 l5.3 3 z M58.4 180 l5.4 3.4 l-5.6 2.4 z M49.5 177.6 l2 -5.5 l2.6 6.1 z')}</g>`,
+      // Friendship Bracelets
+      stripes(['#ff4fd8', '#fcee0a', '#3dff9a']),
+      // Wrist Keyboard: strapped along the forearm
+      both('M45 158 L61 160 L58.5 188 L43.5 186 Z') +
+        both('M47.5 165 l9.5 1.3 M47 170 l9.5 1.3 M46.5 175 l9.5 1.3 M46 180 l9.5 1.3') +
+        twin(`<circle cx="56.5" cy="184" r="1.6" fill="${wrist.c}" stroke="none"/>`),
+      // Festival Wristbands: you never cut them off
+      stripes(['#ff8a1e', '#00e5ff', '#ff4fd8', '#3dff9a']),
+      // Slap Bracelets
+      both(BAND) + `<g fill="none" stroke="#0b0a19" stroke-width="1.2">${both('M45.5 182 l2.6 -2.2 l2.6 3.2 l2.6 -2.6 l2.6 3.2')}</g>`,
+      // Bootleg Rolex
+      both(BAND) + twin(`<circle cx="51.5" cy="182" r="6" fill="#fff6d0"/>` +
+        '<path d="M51.5 182 v-3.6 M51.5 182 l2.8 1.2" fill="none" stroke="#0b0a19" stroke-width="1"/>'),
+    ][wrist.kind]);
+  }
   if (hands) {
     out += wear(hands, ['#23263a', '#1d2135', '#5a6080', '#2f3a66', '#d8d0c0', '#c0392b', '#ff8a1e', '#1b1e30'][hands.kind], [
       // Fingerless Gloves
@@ -1447,6 +1510,36 @@ function figure(F) {
   }
   if (F.hp <= 15) out += '<path d="M101.6 50.6 v3.6" stroke="#c9423a" stroke-width="1.3" stroke-linecap="round"/>';
 
+  // --- face gear, under any headgear ---
+  if (face) {
+    // One fill colour and one drawing per name in SLOTS.face, in the same order.
+    out += wear(face, ['#a8321f', '#bfe3ea', '#15131c', '#4a2c1a', face.c, '#e0483c', '#e9e4d8', '#0d0f1a'][face.kind], [
+      // Bandana over the nose and mouth
+      '<path d="M84.5 46 Q100 41 115.5 46 L113 58 Q100 71 87 58 Z"/>' +
+        '<path d="M88 52 q12 5 24 0 M115.5 46 l5 -2 M115 48 l5 3" fill="none"/>',
+      // Surgical Mask
+      '<path d="M86 46.5 Q100 43 114 46.5 L113 57 Q100 63.5 87 57 Z"/>' +
+        '<path d="M86 47 L83 42 M114 47 L117 42 M88.5 50.5 h23 M89 54.5 h22" fill="none" stroke-width="1"/>',
+      // Eyepatch
+      '<path d="M83 33 L117 37" fill="none" stroke-width="1.2"/><path d="M88 36.5 h10 v4.5 q-5 4.5 -10 0 z"/>',
+      // Fake Moustache
+      '<path d="M100 51.2 q-4.5 -3 -8.5 -.4 q-2.6 1.8 -4.5 -.6 q1.4 5.6 6.8 4.4 q3.6 -.8 6.2 -2.4 q2.6 1.6 6.2 2.4 q5.4 1.2 6.8 -4.4 ' +
+        'q-1.9 2.4 -4.5 .6 q-4 -2.6 -8.5 .4 z" stroke-width="1"/>',
+      // Monocle on a chain
+      '<circle cx="107" cy="40" r="5.4" fill-opacity=".3"/><path d="M111.4 43.4 Q117 54 112.5 66" fill="none" stroke-width="1"/>',
+      // Clown Nose
+      '<circle cx="100" cy="47.5" r="4.3"/><circle cx="98.6" cy="46" r="1.2" fill="#fff" stroke="none"/>',
+      // Hockey Mask
+      '<path d="M85 34 Q100 25 115 34 L114 52 Q100 67 86 52 Z"/>' +
+        '<g fill="#0b0a19" stroke="none"><ellipse cx="93" cy="40" rx="3.6" ry="2.6"/><ellipse cx="107" cy="40" rx="3.6" ry="2.6"/>' +
+        '<circle cx="96" cy="54" r="1"/><circle cx="100" cy="56" r="1"/><circle cx="104" cy="54" r="1"/><circle cx="100" cy="51" r="1"/></g>' +
+        '<path d="M100 29 l-2.5 6 h5 z M89 46 l4 2.5 l-1 2.5 z M111 46 l-4 2.5 l1 2.5 z" fill="#c0392b" stroke="none"/>',
+      // LED Mask: crosses for eyes and a lit grin
+      '<path d="M85 33 Q100 26 115 33 L114 53 Q100 66 86 53 Z"/>' +
+        '<path class="av-eye" d="M90 37.5 l6 5 m0 -5 l-6 5 M104 37.5 l6 5 m0 -5 l-6 5 M92 52 q8 6.5 16 0" fill="none" stroke-width="1.6"/>',
+    ][face.kind]);
+  }
+
   // --- headgear ---
   if (head && head.kind === 'cap') {   // peaked cap (police); agent headgear is not in the SLOTS list
     out += wear(head, '#1c2f5e', '<path d="M82 29 Q82 11 100 10 Q118 11 118 29 Z"/>' +
@@ -1495,7 +1588,8 @@ function figure(F) {
   }
 
   // --- Legendary gear throws off sparks ---
-  const anchor = {head: [100, 22], body: [100, 120], hands: [49, 206], feet: [100, 322], deck: [152, 182]};
+  const anchor = {head: [100, 22], body: [100, 120], hands: [49, 206], feet: [100, 322], deck: [152, 182],
+    face: [100, 46], legs: [100, 250], wrist: [151, 182]};
   for (const [slot, [x, y]] of Object.entries(anchor)) {
     const p = F.gear[slot];
     if (!p || p.rar !== 4) continue;
@@ -1613,7 +1707,7 @@ function avatarSvg(o) {
   const belt = kinds.filter(([k]) => st[k] > 0).map(([, c]) => c)
     .concat(kinds.flatMap(([k, c]) => Array(Math.max(0, (st[k] || 0) - 1)).fill(c)));
   const F = {look: getLook(), syn: career.syn, level: lvl, weapon: weaponArt(st.weapon || 0), belt, hp,
-    gear: {head: part('head'), body: part('body'), hands: part('hands'), feet: part('feet'), deck: part('deck')},
+    gear: Object.fromEntries(Object.keys(SLOTS).map(slot => [slot, part(slot)])),
     mood: pose === 'busted' ? 'ouch' : rich ? 'grin' : o.mood || (quiet ? '' : st.mood) || '',
     gold: rich, ko: pose === 'down', cuffs: pose === 'busted'};
   const grad = (name, c) => `<radialGradient id="${id}${name}"><stop offset="0" stop-color="${c}"/>` +
@@ -1942,6 +2036,9 @@ function gearIcon(it) {
     : it.slot === 'body' ? (kind === 2 || kind === 6 ? '36 62 128 222' : '36 62 128 138')
     : it.slot === 'hands' ? '30 168 40 70'
     : it.slot === 'feet' ? '50 278 100 62'
+    : it.slot === 'face' ? '76 20 48 52'
+    : it.slot === 'legs' ? '50 176 100 152'
+    : it.slot === 'wrist' ? '30 154 40 40'
     : DECK_BOX[kind] || '30 16 170 200';
   return `<svg class="ico" viewBox="${box}" aria-hidden="true">${figure(F)}</svg>`;
 }
@@ -2105,8 +2202,8 @@ async function outfitShop() {
 // ---------- loadout close-up ----------
 // A big view of the avatar with a tag on each gear slot. Tapping a tag opens that slot.
 async function inspectGear() {
-  const POS = {head: 'top:2%;right:0', body: 'top:26%;left:0', deck: 'top:45%;right:0', hands: 'top:55%;left:0',
-    feet: 'bottom:2%;right:0'};
+  const POS = {face: 'top:2%;left:0', body: 'top:22%;left:0', wrist: 'top:42%;left:0', hands: 'top:62%;left:0',
+    head: 'top:2%;right:0', deck: 'top:30%;right:0', legs: 'top:58%;right:0', feet: 'bottom:2%;right:0'};
   for (;;) {
     const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
       const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
@@ -2141,9 +2238,18 @@ async function swapSlot(slot) {
         `<div class="syn pickable" data-pick="${i}">${itemHtml(it)}${change(it)}</div>`).join('')
       : `<p>Nothing in your bag fits the ${label.toLowerCase()} slot. Rival crews drop gear and the black market sells it.</p>`);
   const buttons = options.map(([it, i]) => [`Wear ${it.name}`, String(i), 'r' + it.rar, gearIcon(it)]);
+  if (worn && career.bag.length < BAG_SIZE) buttons.push(['Take it off', 'off']);
   buttons.push(['Back', null, 'primary']);
   const choice = await dialog(`${label} slot`, html, buttons);
   if (choice === null) return;
+  if (choice === 'off') {   // back into the bag, leaving the slot empty
+    career.bag.push(worn);
+    delete career.gear[slot];
+    log(`Took off <span class="r${worn.rar}">${worn.name}</span>.`);
+    saveCareer();
+    render();
+    return;
+  }
   const index = Number(choice), it = career.bag[index];
   career.bag.splice(index, 1);
   if (worn) career.bag.push(worn);
