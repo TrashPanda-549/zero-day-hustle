@@ -3667,9 +3667,11 @@ function figure(F) {
       '',   // Duffel Bag: hangs at the hip, in front
       // Tactical Rucksack: a square lid
       thin('<path d="M81 80 V61 H119 V80 Z"/><path d="M81 68 H119" fill="none"/>'),
-      // Hiking Pack: a lid with a rolled-up sleeping mat strapped across the top
-      thin('<path d="M81 80 V66 H119 V80 Z"/><rect x="78" y="57" width="44" height="11" rx="5.5" fill="#e8c53a"/>' +
-        '<path d="M83 57 h4 v11 h-4 z M113 57 h4 v11 h-4 z" stroke="none"/>'),
+      // Hiking Pack: the big one. A stuffed pack with a domed top, as wide at the shoulder as the shoulders are,
+      // and a compression strap down each side in the rarity colour. Anything laid across it, like the rolled mat
+      // in the bag's own picture, reads as a scarf from the front: what says pack up here is height and a side strap.
+      thin('<path d="M70 81 V72 Q71 59 84 56 H116 Q129 59 130 72 V81 Z"/>') +
+        tint('<rect x="72.5" y="63" width="6" height="18"/><rect x="121.5" y="63" width="6" height="18"/>'),
       // Guitar Case: the neck and headstock stick up over one shoulder and the bottom of the case shows at the
       // other hip. Nobody has ever seen the guitar.
       `<g stroke="${INK}" stroke-width=".6"><path d="M108.8 76.5 L115.2 79.5 L141.2 23.5 L134.8 20.5 Z"/>` +
