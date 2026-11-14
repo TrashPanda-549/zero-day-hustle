@@ -605,10 +605,12 @@ button .ico.room{width:44px;height:26px}
   /* --- the play screen --- */
   #app{position:fixed;inset:0;max-width:none;margin:0;display:grid;gap:0 5px;
     padding:2px calc(3px + env(safe-area-inset-right)) 2px calc(3px + env(safe-area-inset-left));
-    grid-template-columns:minmax(0,1fr) 118px;
-    grid-template-rows:auto auto auto minmax(0,1fr);
+    grid-template-columns:minmax(0,1fr) 140px;
+    grid-template-rows:auto minmax(0,1fr) auto minmax(24px,.4fr);
     grid-template-areas:"head head" "trade me" "trade news" "trade log"}
-  #app>header{grid-area:head;gap:4px;margin-bottom:1px}
+  #app>header{grid-area:head;gap:4px;margin-bottom:2px}
+  h1{font-size:10px;letter-spacing:1px;padding:2px 12px 2px 5px;white-space:nowrap;
+    clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
   .hbtns{gap:3px}
   button{min-height:20px;padding:2px 6px;font-size:10px;text-shadow:none}
   button.small{min-height:16px;padding:1px 4px;font-size:9px}
@@ -616,35 +618,46 @@ button .ico.room{width:44px;height:26px}
 
   #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
   #hud{margin-top:0;gap:4px;grid-template-columns:36px minmax(0,1fr)}
-  #ava{min-height:46px}
+  #ava{min-height:46px;max-height:58px}
   #ava .ico.ride{width:18px;height:11px}
-  #career{gap:4px;padding:2px 4px;font-size:9px;border-left-width:2px}
-  #career .lvl{text-shadow:none}
-  #career .bar{height:5px;min-width:14px}
-  #dayloc{margin:2px 0 0;font-size:9.5px;letter-spacing:0}
-  .meter{grid-template-columns:30px 1fr 34px;gap:4px;font-size:9px;margin:2px 0}
+  #career{gap:3px;padding:2px 4px;font-size:9px;border-left-width:2px;flex-wrap:wrap}
+  #career .lvl{text-shadow:none;white-space:normal}
+  #career .bar{height:5px;min-width:20px}
+  #dayloc{margin:2px 0 0;font-size:9.5px;letter-spacing:0;overflow-wrap:anywhere}
+  .meter{grid-template-columns:28px 1fr 32px;gap:3px;font-size:9px;margin:2px 0}
   .meter span:first-child{font-size:8px;letter-spacing:0}
   .meter .track{height:6px}
   .meter .track i{box-shadow:none}
-  #stats{gap:2px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(54px,1fr))}
-  .chip{padding:2px 3px;border-left-width:2px;clip-path:none}
-  .chip small{font-size:8px;letter-spacing:0}
-  .chip b{font-size:10px}
+  /* the chips become one compact strip: label and figure on the same line, two to a row */
+  #stats{gap:2px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(44px,1fr))}
+  .chip{display:flex;gap:3px;align-items:baseline;justify-content:space-between;
+    padding:1px 3px;border-left-width:2px;clip-path:none}
+  .chip small{display:inline;font-size:8px;letter-spacing:0}
+  .chip b{font-size:9px;white-space:normal;overflow-wrap:anywhere;text-align:right}
   #news{grid-area:news;margin:2px 0 0;min-width:0;max-height:2.6em;overflow-y:auto;font-size:9.5px}
   #news:empty{margin:0}
   #log{grid-area:log;margin:2px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:9px;padding-top:3px}
   #log div{padding:0}
 
-  #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+  #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
   #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0}
   #quest{flex:none}
   #quest .fold,#jobs .fold{margin:0 0 3px;border-top-width:1px}
-  #market{margin-top:0;flex:1 1 auto;min-height:36px;overflow-y:auto;border-top-width:1px}
+  #market{margin-top:0;flex:1 1 auto;min-height:48px;overflow-y:auto;border-top-width:1px}
   #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
+  /* the market-depth note is the same four lines every day: at this size the prices come first */
+  #market .mnote{display:none}
   .fold>summary{gap:4px;padding:3px 5px;font-size:10px;letter-spacing:1px}
   .fold>summary small{font-size:9px}
-  .row{gap:4px;padding:2px 4px}
+  /* a product row is two lines in the narrow pane: the name (and what you hold) down the left, the price
+     over its buttons on the right, so a name like Zero-Days is not squeezed into three letters a line */
+  .row{padding:2px 4px;column-gap:4px;row-gap:1px;
+    grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto}
+  .row>:first-child{grid-area:1/1/3/2}
+  .row .price{grid-area:1/2/2/3}
+  .row .btns{grid-area:2/2/3/3}
   .row .name{overflow-wrap:anywhere}
+  .job .what{overflow-wrap:anywhere}
   .row .sub{font-size:9px}
   .row .btns{gap:3px}
   .row .btns button{padding:1px 4px;min-width:24px;min-height:18px}
@@ -654,8 +667,12 @@ button .ico.room{width:44px;height:26px}
   .job{gap:4px;padding:3px 4px;margin-bottom:3px;border-left-width:2px}
   .job .sub{font-size:9px}
   .job:last-child{margin-bottom:0}
-  #actions{flex:none;gap:3px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(70px,1fr))}
-  #actions button{min-height:20px}
+  /* the products are the point of the screen, so the actions keep a strip at the foot of the pane and
+     scroll inside it; Tab walks them and brings each one into view */
+  #actions{flex:0 1 auto;gap:2px;margin-top:3px;max-height:54px;overflow-y:auto;
+    grid-template-columns:repeat(auto-fit,minmax(62px,1fr));align-content:start}
+  #actions button{min-height:18px;padding:1px 3px;font-size:9px;line-height:1.08;
+    white-space:normal;overflow-wrap:anywhere;text-align:center}
 
   /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
   #overlay{padding:2px}
@@ -689,8 +706,8 @@ button .ico.room{width:44px;height:26px}
   button .ico.room{width:30px;height:18px}
   button.hasico{gap:5px;padding:2px 5px}
   .avatarbox{grid-template-columns:70px 1fr;gap:5px;margin-bottom:5px}
-  .posebox{max-width:84px;margin:0 auto 5px}
-  .posebox.wide{max-width:150px}
+  .posebox{max-width:58px;margin:0 auto 4px}
+  .posebox.wide{max-width:110px}
   .versus{grid-template-columns:48px auto 48px;gap:6px;margin-bottom:5px}
   .versus b{font-size:13px;text-shadow:none}
   .versus small{font-size:8px;letter-spacing:0;margin-top:1px}
@@ -703,8 +720,9 @@ button .ico.room{width:44px;height:26px}
   .zoomable small{bottom:2px;font-size:8px;letter-spacing:0}
 
   /* --- the Bunker's cutaway: kept at its own 1:1 size and panned, rather than shrunk to 4px lettering --- */
-  .basewrap{max-height:112px;overflow:auto}
-  .basemap{width:364px;height:286px;max-width:none;aspect-ratio:auto;margin:0}
+  .basewrap{max-height:96px;overflow:auto}
+  /* the street over the Bunker is scenery: it is scrolled off so the window opens on the rooms */
+  .basemap{width:364px;height:286px;max-width:none;aspect-ratio:auto;margin:-26px 0 0}
   .baseline{padding:2px 5px;font-size:9px}
   .rangebox{width:auto;height:112px;max-width:100%;margin:0 auto 4px}
 
@@ -734,15 +752,15 @@ button .ico.room{width:44px;height:26px}
   .bw{padding:11px 4px 3px;font-size:10px;border-bottom-width:1px;box-shadow:inset 0 0 0 1px #06050d}
   .bw[data-t]::before{left:4px;font-size:8px;line-height:9px;letter-spacing:1px;padding:0 6px 0 4px}
   .bw::after{content:none}
-  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 42px);height:33px;min-height:0;
+  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 42px);height:36px;min-height:0;
     overflow-y:auto;line-height:1.2;padding-top:10px}
   .bspd{z-index:7;right:2px;top:2px;min-height:15px;padding:1px 5px;font-size:9px}
-  .bban{top:auto;bottom:62px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:10px;letter-spacing:0}
-  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:58px;gap:2px;
-    grid-template-columns:82px 90px minmax(0,1fr)}
-  .bfoes{order:0;grid-column:1;overflow-y:auto}
-  .bstat{order:0;grid-column:2;overflow-y:auto}
-  .bcmd{order:0;grid-column:3;overflow-y:auto}
+  .bban{top:auto;bottom:68px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:10px;letter-spacing:0}
+  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:66px;gap:2px;
+    grid-template-columns:80px 88px minmax(0,1fr)}
+  .bfoes{order:0;grid-area:1/1;overflow-y:auto}
+  .bstat{order:0;grid-area:1/2;overflow-y:auto}
+  .bcmd{order:0;grid-area:1/3;overflow-y:auto}
   .bfoes .row{padding:0 2px;border:0;font-size:9px}
   .bstat .who{font-size:9px;letter-spacing:0;margin-bottom:1px}
   .bbar{grid-template-columns:22px 1fr auto;gap:4px;margin:1px 0;font-size:9px}
@@ -752,13 +770,15 @@ button .ico.room{width:44px;height:26px}
   .bturn{gap:3px;margin-top:2px;font-size:8px;letter-spacing:0}
   .bturn b{padding:0 3px}
   .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
-  .bopt{min-height:15px;padding:1px 3px 1px 12px;font-size:9.5px;text-shadow:none}
-  .bopt small{font-size:8px}
+  /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
+     instead of squeezing the label down to one letter a row */
+  .bopt{min-height:15px;padding:1px 3px 1px 12px;font-size:9.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
+  .bopt small{flex:1 1 auto;min-width:0;font-size:8px;white-space:normal;text-align:right;overflow-wrap:anywhere}
   .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
   .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
   .bsub .bopt{min-height:16px}
   .bnote{margin:0 1px 4px;font-size:9px;line-height:1.25}
-  .bres{width:calc(100% - 12px);max-height:100%;font-size:9.5px;box-shadow:0 0 0 2px #04030b}
+  .bres{width:calc(100% - 12px);max-height:100%;font-size:9px;box-shadow:0 0 0 2px #04030b}
   .bres p{margin:0 0 3px;line-height:1.2}
   .bres .line{padding:1px;animation:none}
   .bres .foot{margin:3px 0 2px;font-size:8px}
@@ -786,7 +806,7 @@ button .ico.room{width:44px;height:26px}
 </div>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
-  <div id="colme">
+  <div id="colme" tabindex="0" role="group" aria-label="You">
   <div id="hud">
     <div id="ava" data-act="gearmenu" title="Gear" tabindex="0" role="button" aria-label="Gear"></div>
     <div id="hudr">
@@ -797,18 +817,18 @@ button .ico.room{width:44px;height:26px}
   </div>
   <section id="stats"></section>
   </div>
-  <section id="news"></section>
+  <section id="news" tabindex="0" role="group" aria-label="News"></section>
   <div id="coltrade">
   <div id="colmarket">
   <section id="quest"></section>
-  <section id="market"></section>
+  <section id="market" tabindex="0" role="group" aria-label="Market"></section>
   </div>
-  <section id="jobs"></section>
+  <section id="jobs" tabindex="0" role="group" aria-label="Jobs"></section>
   <nav id="actions"></nav>
   </div>
-  <section id="log"></section>
+  <section id="log" tabindex="0" role="group" aria-label="Log"></section>
 </div>
-<div id="overlay" hidden><div id="dialog"></div></div>
+<div id="overlay" hidden><div id="dialog" tabindex="0"></div></div>
 <div id="travel" hidden></div>
 <div id="battle" hidden></div>
 <script>
