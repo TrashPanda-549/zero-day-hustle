@@ -441,6 +441,28 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 .thex{margin-top:16px;color:var(--dim);font-size:11px;letter-spacing:2px;white-space:nowrap;overflow:hidden;opacity:.7}
 @media (prefers-reduced-motion:reduce){h1,.bootlogo,.tlabel,#travel::before,.boothint{animation:none}}
 
+/* ===== the base: BEGIN =====
+   A cutaway of the Bunker on the main screen (one tappable room per station), station pictures for lists,
+   requirement rows, and the Range's target. */
+.basewrap{background:#06050d;border-bottom:1px solid var(--line)}
+.basemap{display:block;width:100%;height:auto;aspect-ratio:364/286;margin:0 auto}
+.basemap .room{cursor:pointer;outline:none}
+.basemap .room:hover .rbox,.basemap .room:focus-visible .rbox{stroke:#fff;stroke-width:1.6}
+.basemap .room:active .rbox{fill:#17142e}
+.basemap text{font:700 8px ui-monospace,Consolas,Menlo,monospace;letter-spacing:.5px;pointer-events:none}
+.basemap .blink{animation:blink 1s infinite steps(1)}
+.baseline{padding:6px 9px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--line)}
+.ico.room{width:66px;height:38px}
+button .ico.room{width:44px;height:26px}
+.req{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px dashed rgba(124,129,171,.3)}
+.req b{flex:none;text-align:right;font-weight:600}
+.rangebox{display:block;width:100%;height:auto;background:#06050d;border:1px solid var(--line);border-bottom:2px solid var(--red);
+  margin-bottom:8px;touch-action:none;cursor:crosshair}
+@media (prefers-reduced-motion:reduce){.basemap .blink{animation:none}}
+/* big windows (see WIDE SCREENS below): the cutaway and its line run the full width of the middle panel, the stash rows flow under them */
+@media (min-width:900px) and (min-height:500px){#market>.basewrap,#market>.baseline,#market>.baseline+.row{grid-column:1/-1}
+  .basemap{width:min(100%,calc(60vh / var(--z) * 1.2727))}}
+/* ===== the base: END ===== */
 /* ================= WIDE SCREENS =================
    Everything from here to the end of the style sheet only applies to a window at least 900px wide and 500px
    tall (a desktop window, a tablet on its side, a desktop browser). Below that nothing here does anything and
@@ -651,7 +673,7 @@ const BUNKER = 'The Bunker', STASH_CAP = 300, LOCKER_SIZE = 20;
 // the trip home to the Bunker is always free.
 const TRIPS_PER_DAY = 6;
 
-// ---------- ECONOMY BALANCE (v1.28) ----------
+// ---------- ECONOMY BALANCE (v1.29) ----------
 // Every number that decides how fast a run gets rich is in this block (plus START_CASH, START_DEBT, DEBT_RATE,
 // WALLET_RATE and the GOODS price ranges above). The mechanics that read them are next to rollMarket().
 // They were tuned with the harness in D:\dev-tools\zdh-economy (see its README): re-measure after changing any.
@@ -973,7 +995,10 @@ const VEHICLES = {
   black: ['Black Helicopter (It Was Never Here)', 500000, 20, 'heli', 'black helicopter', 'Unmarked, unregistered, nearly silent. Officially it does not exist. Neither does the receipt.', {fuel: 20000, loud: 1}],
 };
 const MAX_HOPS = Math.max(...Object.values(VEHICLES).map(v => v[2]));
-const rideTwist = (id, key) => (VEHICLES[id] && VEHICLES[id][6][key]) || 0;
+const rideTwist = (id, key) => {
+  const v = (VEHICLES[id] && VEHICLES[id][6][key]) || 0;
+  return key === 'fuel' && v ? fuelPrice(v) : v;   // BASE: a better Garage gets fuel cheaper
+};
 // A ride with an engine only adds its hops on a day its tank was filled (S.gas[id]). The rest always do.
 const tanked = id => !rideTwist(id, 'fuel') || !!(S.gas && S.gas[id]);
 // What the ride you are on adds right now: hops today, and room for goods.
@@ -995,7 +1020,7 @@ function retrip(change) {
 }
 // Put a ride in the garage for nothing. False if there is no such ride, you own it already or the garage is full.
 function grantVehicle(id) {
-  if (!VEHICLES[id] || S.rides.includes(id) || S.rides.length >= GARAGE_SIZE) return false;
+  if (!VEHICLES[id] || S.rides.includes(id) || S.rides.length >= garageSize()) return false;
   S.rides.push(id);
   return true;
 }
@@ -1069,6 +1094,525 @@ function tripsHtml() {
   return `<span class="${S.trips ? '' : 'red'}" style="white-space:nowrap"><b>${S.trips}</b>/${tripsMax()} trips left</span>` +
     (!v ? '' : tanked(S.ride) ? ` <span class="green">+${v[2]} ${v[4]}</span>` : ` <span class="red">+0 ${v[4]} (no fuel)</span>`);
 }
+// ===== THE BASE (stations, costs and rules): BEGIN =====
+// The Bunker is a base you build up over many runs. It is made of stations (BASE below), each with levels.
+// A level lists what it needs (cash, things you hand in, your level, a skill, other stations), takes a number
+// of nights to build, and then does something. The base belongs to the save file, like gear and XP:
+//   career.base  = {lv: {station: level}, paid: {station: {requirement number: amount handed in so far}},
+//                   jobs: [{id, left: nights to go}]}
+//   career.marks = {blunt, blade, gun, heavy}: weapon skill points for each kind of weapon (see markInfo()).
+// What you hand in stays handed in, so a level can be paid for a bit at a time, across runs.
+// What belongs to the day or the run is in S.hq ({shots, patch, cook, conv: used today; tips + tipDay: today's
+// rumours; dark: the power is out today}) and S.tune ({w, hit}: the Workshop's work on the weapon you carry).
+//
+// TUNING: every cost, requirement, build time and bonus of the base is in BASE_TUNE, MARKS, MAKE and BASE, and
+// nothing else scales them. The cash prices are a ladder set against the income the economy rebalance (1.28) aims
+// for, for a strong player (cash made per day): about $6,000 on days 3 to 6; $15,000 to $35,000 on days 6 to 10;
+// $50,000 to $75,000 on days 10 to 15; $110,000 to $130,000 on days 15 to 20; about $200,000 after day 20; a
+// sensible trader ends a run around $1.6m and a strong one at $3m to $4m.
+//   level 1: $750 to $7,500      a day of early income: affordable in a first run
+//   level 2: $7,500 to $60,000   a day or two around days 6 to 10
+//   level 3: $90,000 to $500,000 one to four days of income in the second half of a run
+//   level 4: $560,000 to $1.8m   a large part of a whole run, each
+// The whole base is about $18.4m plus the items: many runs. Cash paid in is cash that is not trading or on the
+// final score, which is the real price. If income moves again, scale every rCash() by the same factor.
+// Nothing here makes money except the Server Closet (at most about $950 of goods a night before the running
+// cost, and only while the stash has room) and the cat (a few dollars of junk on one night in four).
+const BASE_TUNE = {
+  upkeep: 40,        // cash per night for each built level that needs power (the whole base: 31 levels, $1,240 a night)
+  drillAim: 8,       // the Range's top level: % added to the chance to hit on your first volley in a fight
+  tuneCost: 0.04,    // tuning a weapon at the Workshop costs this share of its price...
+  tuneMin: 500,      // ...and never less than this
+  docShare: 1,       // (see BASE.med: `doc` is the share of the street doc's fee that the Med Bay charges)
+};
+// Weapon skill. One skill per kind of weapon, 0 to `max`. Each level adds `hit`% to the chance to hit with that
+// kind; with firearms and military hardware each level also gives every round fired a `save`% chance of not
+// being spent. A level takes need[0] + need[1] x level points. A range session gives pts[0] plus up to pts[1]
+// for a perfect score (x `moving` on moving targets); the Range only teaches up to its own cap (BASE.range).
+// Real fights teach too, slowly and all the way to `max`: `fight` points for each hostile a volley drops.
+const MARKS = {max: 10, need: [20, 12], hit: 1, save: 2, pts: [4, 8], moving: 1.25, fight: 1, strings: 5};
+const MARK_KINDS = ['blunt', 'blade', 'gun', 'heavy'];
+// What the Workshop can make. good: [goods used, how many]; picks: lock picks used as well.
+const MAKE = {
+  picks: {good: ['USB Droppers', 2]},
+  bump: {good: ['USB Droppers', 5]},
+  pickgun: {good: ['Rogue APs', 3], picks: 4},
+};
+// Requirements, as written in the table below. The first seven are handed in (and are gone); the rest are checked.
+const rCash = n => ['cash', n], rGood = (name, n) => ['good', name, n], rAmmo = (kind, n) => ['ammo', kind, n],
+  rGad = (key, n) => ['gadget', key, n], rMeds = n => ['medkit', n],
+  rGear = (rar, n) => ['gear', rar, n],            // n pieces of gear of this rarity or better, from the bag or the locker
+  rWpn = (kind, min) => ['weapon', kind, min || 0], // the weapon you carry: 'melee', 'gun' or 'heavy', worth at least `min`
+  rLv = n => ['level', n], rLock = n => ['lock', n], rMark = n => ['marks', n], rSt = (id, n) => ['st', id, n],
+  rAch = n => ['ach', n];
+// id: {name, tag (the label on the map), col, start (the level everybody has: what the Bunker always had),
+//      about, say(L): what level L does, in words, lv: [level 0, level 1, ...]}
+// A level: {n: its name, t: nights to build, req: [...], and the numbers that level gives}.
+// Saved games store stations by id, so never rename one. Each has a drawing under the same id in ROOM_ART.
+const BASE = {
+  power: {name: 'Power', tag: 'POWER', col: '#fcee0a',
+    about: 'Everything with a plug hangs off this. The bigger the base, the more it costs to run each night.',
+    say: (L, i) => `Runs level ${i} of the stations that need power.${L.crews > 1 ? ` Room for ${L.crews} builds at a time.` : ''}`,
+    lv: [{crews: 1},
+      {n: 'Extension Lead from Next Door', t: 1, crews: 1, req: [rCash(2300), rGood('USB Droppers', 5)]},
+      {n: 'Petrol Generator', t: 2, crews: 1, req: [rCash(30000), rLv(5), rGad('crowbar', 1), rGood('Rogue APs', 2)]},
+      {n: 'Grid Tap', t: 3, crews: 2, req: [rCash(240000), rLv(12), rGad('cloner', 1), rGood('Botnet Hours', 4)]},
+      {n: 'Unofficial Substation', t: 4, crews: 2, req: [rCash(1200000), rLv(20), rGood('Rootkits', 2), rGear(3, 1)]}]},
+  stash: {name: 'The Stash', tag: 'STASH', col: '#00e5ff', start: 1,
+    about: 'Where goods wait off your drive. The law takes what is in it when they raid the place.',
+    say: L => `Holds ${L.cap} goods.`,
+    lv: [{cap: 300},
+      {n: 'Pile in the Corner', t: 0, cap: 300, req: []},
+      {n: 'Steel Shelving', t: 1, cap: 450, req: [rCash(12000), rGad('crowbar', 1)]},
+      {n: 'False Wall', t: 2, cap: 600, req: [rCash(120000), rLv(8), rSt('locker', 2), rGood('Rogue APs', 6)]},
+      {n: 'Vault Behind the False Wall', t: 3, cap: 800, req: [rCash(700000), rLv(16), rGood('Zero-Days', 2), rGear(3, 1)]}]},
+  locker: {name: 'Gear Locker', tag: 'LOCKER', col: '#c77dff', start: 1,
+    about: 'Gear you are not carrying. It has a hidden compartment: raids never find it.',
+    say: L => `Holds ${L.size} pieces of gear.`,
+    lv: [{size: 20},
+      {n: 'Dented School Locker', t: 0, size: 20, req: []},
+      {n: 'Two Lockers, Bolted Together', t: 1, size: 28, req: [rCash(9000), rGear(0, 3)]},
+      {n: 'Walk-In Wardrobe', t: 2, size: 36, req: [rCash(100000), rLv(8), rGear(2, 2)]},
+      {n: 'Armoury Cage', t: 3, size: 48, req: [rCash(600000), rLv(15), rGear(3, 2)]}]},
+  bed: {name: 'Bunk', tag: 'BUNK', col: '#ff4fd8', start: 1,
+    about: 'Sleeping is the only thing that ends the day. It heals you and settles your OpSec.',
+    say: L => `A night heals ${L.heal}% Health and ${L.opsec}% OpSec.`,
+    lv: [{heal: 35, opsec: 15},
+      {n: 'Camp Cot', t: 0, heal: 35, opsec: 15, req: []},
+      {n: 'An Actual Mattress', t: 1, heal: 42, opsec: 15, req: [rCash(7500), rGood('Warez', 30)]},
+      {n: 'Memory Foam (It Remembers Everything)', t: 2, heal: 50, opsec: 20, req: [rCash(90000), rLv(7), rMeds(2)]},
+      {n: 'Sensory Deprivation Pod, Ex-Rental', t: 3, heal: 60, opsec: 25, req: [rCash(560000), rLv(14), rSt('power', 2), rGear(3, 1)]}]},
+  garage: {name: 'Garage', tag: 'GARAGE', col: '#3dff9a', start: 1,
+    about: 'A roller door and an oil stain. Every ride you own lives here.',
+    say: L => `Room for ${L.bays} rides.${L.fuel ? ` Fuel costs ${L.fuel}% less.` : ''}`,
+    lv: [{bays: 4, fuel: 0},
+      {n: 'Roller Door and an Oil Stain', t: 0, bays: 4, fuel: 0, req: []},
+      {n: 'Knocked Through to the Boiler Room', t: 2, bays: 5, fuel: 0, req: [rCash(60000), rLv(6), rGad('crowbar', 1)]},
+      {n: 'Own Fuel Tank (Do Not Smoke)', t: 3, bays: 6, fuel: 10, req: [rCash(500000), rLv(13), rGood('Botnet Hours', 4)]},
+      {n: 'Car Lift and a Man Called Gary', t: 4, bays: 7, fuel: 15, req: [rCash(1800000), rLv(20), rSt('power', 3)]}]},
+  locks: {name: 'Lock Board', tag: 'LOCK BOARD', col: '#fcee0a', start: 1,
+    about: 'Real locks screwed to a board, and nobody listening. It teaches lock picking slowly, a few tries a day.',
+    say: L => `${L.tries} tries a day. Teaches up to lock picking level ${L.cap}.` +
+      (L.elec.length ? ` Electronic locks to practise on: ${L.elec.map(k => LOCKS[k][0].toLowerCase()).join(', ')}.` : ''),
+    lv: [{tries: 6, cap: 4, elec: []},
+      {n: 'Job Lot from a Retired Locksmith', t: 0, tries: 6, cap: 4, elec: [], req: []},
+      {n: 'A Second Board', t: 1, tries: 8, cap: 5, elec: [], req: [rCash(11000), rLock(2), rGad('picks', 4)]},
+      {n: 'Badge Reader, Fell Off a Wall', t: 2, tries: 10, cap: 6, elec: ['badge'], req: [rCash(140000), rLock(4), rSt('power', 1), rGad('cloner', 1), rGad('pickgun', 1)]},
+      {n: 'Maglock on a Door to Nowhere', t: 3, tries: 12, cap: 7, elec: ['badge', 'maglock'], req: [rCash(640000), rLock(6), rSt('power', 2), rGad('cloner', 2)]}]},
+  range: {name: 'The Range', tag: 'RANGE', col: '#ff3b5c', wide: true,
+    about: 'Somewhere to practise with the weapon you carry. Practice makes you hit more often, and waste fewer rounds.',
+    say: L => `Practise with ${L.kinds.map(k => WTYPE[k][0].toLowerCase()).join(', ')}: ${L.shots} sessions a day, up to skill level ${L.cap}.` +
+      (L.rounds ? ` A session with a gun burns ${L.rounds} rounds.` : '') + (L.moving ? ' Moving targets teach a quarter more.' : '') +
+      (L.drill ? ` Entry drill: +${L.drill}% to hit on your first volley in any fight.` : ''),
+    lv: [{kinds: [], cap: 0, shots: 0, rounds: 0, drill: 0},
+      {n: 'Punching Dummy and a Dartboard', t: 1, kinds: ['blunt', 'blade'], cap: 3, shots: 2, rounds: 0, drill: 0,
+        req: [rCash(4500), rWpn('melee'), rGood('Warez', 20)]},
+      {n: 'Ten-Metre Lane', t: 2, kinds: ['blunt', 'blade', 'gun'], cap: 5, shots: 3, rounds: 12, drill: 0,
+        req: [rCash(45000), rLv(5), rSt('power', 1), rWpn('gun'), rAmmo('std', 60)]},
+      {n: 'Long Lane with a Proper Backstop', t: 3, kinds: MARK_KINDS, cap: 7, shots: 3, rounds: 9, drill: 0,
+        req: [rCash(360000), rLv(12), rSt('power', 2), rGear(2, 2), rAmmo('hollow', 80)]},
+      {n: 'The Kill House', t: 4, kinds: MARK_KINDS, cap: 10, shots: 4, rounds: 9, drill: BASE_TUNE.drillAim, moving: true,
+        req: [rCash(1600000), rLv(20), rMark(6), rSt('power', 3), rWpn('heavy', 60000), rAmmo('ap', 60), rGad('emp', 2)]}]},
+  med: {name: 'Med Bay', tag: 'MED BAY', col: '#3dff9a',
+    about: 'Patching yourself up at home, for nothing, once a day.',
+    say: L => `Patch up ${L.heal}% Health once a day, free.` + (L.cook ? ` Cook a medkit from ${L.cook} Cracked Accounts, once a day.` : '') +
+      (L.doc === undefined ? '' : L.doc ? ` Get stuck goods out at home for ${Math.round(L.doc * 100)}% of the street doc's fee.` : ' Get stuck goods out at home for nothing.'),
+    lv: [{heal: 0, cook: 0},
+      {n: 'First Aid Shelf', t: 1, heal: 15, cook: 0, req: [rCash(3800), rSt('power', 1), rMeds(2)]},
+      {n: 'Kitchen Table Surgery', t: 2, heal: 25, cook: 6, req: [rCash(38000), rLv(6), rSt('power', 2), rMeds(3), rGad('acid', 1)]},
+      {n: 'Back-Room Clinic', t: 3, heal: 40, cook: 6, doc: 0.5, req: [rCash(300000), rLv(12), rSt('power', 3), rMeds(4), rGood('Leaked Databases', 10)]},
+      {n: 'Private Ward (One Bed, No Visitors)', t: 4, heal: 60, cook: 4, doc: 0, req: [rCash(1300000), rLv(18), rSt('power', 4), rMeds(5), rGear(3, 1)]}]},
+  bench: {name: 'Workshop', tag: 'WORKSHOP', col: '#ff9d2e',
+    about: 'A bench for making things better, or at least different.',
+    say: L => `Press ${L.ratio[0]} rounds into ${L.ratio[1]} of the next grade up, ${L.press} a day.` +
+      (L.make.length ? ` Make: ${L.make.map(k => GADGETS[k][0]).join(', ')}.` : '') +
+      (L.tune ? ` Tune the weapon you carry: +${L.tune}% to hit until you change it.` : ''),
+    lv: [{ratio: [0, 0], press: 0, make: [], tune: 0},
+      {n: 'Vice and a Hand Press', t: 1, ratio: [3, 2], press: 30, make: [], tune: 0, req: [rCash(6000), rSt('power', 1), rAmmo('budget', 40), rGad('crowbar', 1)]},
+      {n: 'Bench Grinder and Key Blanks', t: 2, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 0, req: [rCash(42000), rLv(6), rSt('power', 2), rGad('picks', 3), rGood('USB Droppers', 6)]},
+      {n: "Gunsmith's Corner", t: 3, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 3, req: [rCash(320000), rLv(12), rSt('power', 3), rWpn('gun', 10000), rGad('pickgun', 2)]},
+      {n: 'Machine Shop', t: 4, ratio: [5, 4], press: 120, make: ['picks', 'bump', 'pickgun'], tune: 5, req: [rCash(1400000), rLv(18), rSt('power', 4), rWpn('heavy'), rGear(3, 1)]}]},
+  rig: {name: 'Server Closet', tag: 'SERVERS', col: '#00e5ff',
+    about: 'Machines that work while you sleep. What they turn out goes into the stash, if there is room.',
+    say: L => `Turns out ${L.out[1]} ${L.out[0]} a night, into the stash.`,
+    lv: [{out: null},
+      {n: 'Shoebox Server', t: 1, out: ['Warez', 3], req: [rCash(7500), rSt('power', 1), rGood('USB Droppers', 4), rGood('Warez', 20)]},
+      {n: 'Second-Hand Rack', t: 2, out: ['USB Droppers', 2], req: [rCash(53000), rLv(6), rSt('power', 2), rGood('Rogue APs', 3), rGood('Cracked Accounts', 10)]},
+      {n: 'Rack with Actual Cooling', t: 3, out: ['Rogue APs', 1], req: [rCash(400000), rLv(13), rSt('power', 3), rGood('Botnet Hours', 6), rGood('Rootkits', 1)]},
+      {n: 'Small Illegal Datacentre', t: 4, out: ['Phishing Kits', 1], req: [rCash(1800000), rLv(22), rSt('power', 4), rGood('Zero-Days', 2), rGood('Botnet Hours', 10)]}]},
+  jam: {name: 'Jammer', tag: 'JAMMER', col: '#4da3ff',
+    about: 'Makes the Bunker harder to find. The law still comes. Less often.',
+    say: L => `Raids on the Bunker are ${Math.round((1 - L.raid) * 100)}% less likely.` + (L.cool ? ` Heat cools ${L.cool}% more each night.` : '') +
+      (L.warn ? ' Before you sleep, the scanner tells you the odds of a raid tonight.' : ''),
+    lv: [{raid: 1, cool: 0},
+      {n: 'Tinfoil on the Windows', t: 1, raid: 0.9, cool: 0, req: [rCash(5300), rGood('Burner SIMs', 10), rGad('burner', 1)]},
+      {n: 'Signal Jammer', t: 2, raid: 0.8, cool: 2, req: [rCash(45000), rLv(7), rSt('power', 1), rGad('decoy', 1), rGood('Rogue APs', 2)]},
+      {n: 'Police-Band Scanner', t: 3, raid: 0.7, cool: 3, warn: true, req: [rCash(340000), rLv(13), rSt('power', 2), rGad('vpn', 1), rGad('wiper', 1), rGood('Botnet Hours', 4)]},
+      {n: 'Faraday Lining', t: 4, raid: 0.6, cool: 4, warn: true, req: [rCash(1500000), rLv(20), rSt('power', 3), rGood('Rootkits', 2), rGear(3, 1)]}]},
+  intel: {name: 'Intel Board', tag: 'INTEL', col: '#ff2a6d',
+    about: 'Rumours about today\'s prices. Some of them are even true.',
+    say: L => `${L.tips} rumour${L.tips === 1 ? '' : 's'} a day about prices elsewhere, right about ${Math.round(L.right * 100)}% of the time.` +
+      (L.law ? ' Shows how likely the law is to stop you on a trip today.' : ''),
+    lv: [{tips: 0, right: 0},
+      {n: 'Corkboard and Red String', t: 1, tips: 1, right: 0.7, req: [rCash(3000), rGood('Cracked Accounts', 8)]},
+      {n: 'Scanner on a Shelf', t: 2, tips: 2, right: 0.8, req: [rCash(33000), rLv(5), rSt('power', 1), rGood('Leaked Databases', 4)]},
+      {n: 'Wall of Monitors', t: 3, tips: 3, right: 0.88, law: true, req: [rCash(280000), rLv(11), rSt('power', 2), rGood('Leaked Databases', 8), rGood('Rootkits', 2)]},
+      {n: 'Informant on a Retainer', t: 4, tips: 4, right: 0.95, law: true, req: [rCash(1200000), rLv(18), rSt('power', 3), rGood('Zero-Days', 1), rGad('fakeid', 2)]}]},
+  cat: {name: 'The Cat', tag: 'CAT', col: '#ff9d2e',
+    about: 'Nobody builds a cat. You make the place acceptable, and one moves in.',
+    say: L => `Purring: +${L.hp}% Health a night.` + (L.gift ? ` About one night in ${Math.round(1 / L.gift)} it leaves a present in the stash.` : '') +
+      (L.opsec ? ` Sleeps on the router: +${L.opsec}% OpSec a night.` : ''),
+    lv: [{hp: 0, gift: 0, opsec: 0},
+      {n: 'A Cat Has Moved In', t: 1, hp: 2, gift: 0, opsec: 0, req: [rCash(750), rGood('Warez', 10)]},
+      {n: 'Cat Tree (It Prefers the Box)', t: 1, hp: 2, gift: 0.25, opsec: 0, req: [rCash(18000), rLv(4), rGear(1, 2)]},
+      {n: 'Heated Cat Bed', t: 2, hp: 2, gift: 0.25, opsec: 5, req: [rCash(180000), rLv(10), rSt('power', 1), rGear(2, 1)]}]},
+  trophy: {name: 'Trophy Wall', tag: 'TROPHIES', col: '#fcee0a',
+    about: 'Your achievements, where you can see them. Looking at them makes you try harder.',
+    say: L => `Everything you do earns ${L.xp}% more XP.`,
+    lv: [{xp: 0},
+      {n: 'A Nail in the Wall', t: 1, xp: 2, req: [rCash(1500), rAch(5)]},
+      {n: 'Trophy Shelf', t: 1, xp: 4, req: [rCash(27000), rAch(15), rGear(2, 1)]},
+      {n: 'Wall with Its Own Lighting', t: 2, xp: 6, req: [rCash(220000), rAch(28), rSt('power', 1), rGear(3, 1)]}]},
+};
+const BASE_IDS = Object.keys(BASE);
+const CAT_GIFTS = ['Warez', 'Burner SIMs', 'USB Droppers'];
+const newBase = () => ({lv: {}, paid: {}, jobs: []});
+const newMarks = () => ({blunt: 0, blade: 0, gun: 0, heavy: 0});
+let baseTally = {started: 0, built: 0, refused: 0, given: 0, sessions: 0, dark: 0, rig: 0};   // counted for the self-test
+
+// Fill in whatever a career from before the base lacks: every station at the level everybody starts with.
+function fixBase() {
+  const b = career.base && typeof career.base === 'object' ? career.base : newBase();
+  if (!b.lv || typeof b.lv !== 'object') b.lv = {};
+  if (!b.paid || typeof b.paid !== 'object') b.paid = {};
+  b.jobs = (Array.isArray(b.jobs) ? b.jobs : []).filter(j => j && BASE[j.id] && j.left > 0);
+  for (const id of Object.keys(b.lv)) if (!BASE[id] || !(b.lv[id] > 0)) delete b.lv[id];
+  career.base = b;
+  const m = career.marks && typeof career.marks === 'object' ? career.marks : {};
+  career.marks = newMarks();
+  for (const k of MARK_KINDS) if (Number.isInteger(m[k]) && m[k] > 0) career.marks[k] = m[k];
+}
+const topLv = id => BASE[id].lv.length - 1;
+// The level a station is at (a build in progress does not count until it is finished).
+const lvl = id => clampN((career.base && career.base.lv && career.base.lv[id]) || 0, BASE[id].start || 0, topLv(id));
+// What a station's levels up to L need from Power.
+const powerNeed = (id, L) => BASE[id].lv.slice(1, L + 1).reduce((most, level) =>
+  Math.max(most, ...level.req.filter(r => r[0] === 'st' && r[1] === 'power').map(r => r[2])), 0);
+const HQ = () => (S.hq && typeof S.hq === 'object' ? S.hq : (S.hq = {}));
+const baseDark = () => !!(S && S.hq && S.hq.dark);
+// The level a station works at today: in a power cut, only the levels that never needed power.
+function eff(id) {
+  let l = lvl(id);
+  if (baseDark()) while (l > (BASE[id].start || 0) && powerNeed(id, l) > 0) l--;
+  return l;
+}
+const BV = (id, key) => BASE[id].lv[eff(id)][key];        // a station's number today
+const BVraw = (id, key) => BASE[id].lv[lvl(id)][key];     // ...and with the lights on (room never shrinks in a power cut)
+const stashCap = () => BVraw('stash', 'cap');
+const lockerSize = () => BVraw('locker', 'size');
+const garageSize = () => BVraw('garage', 'bays');
+const drillsMax = () => BVraw('locks', 'tries');
+const practiceCap = () => BVraw('locks', 'cap');
+const buildCrews = () => BVraw('power', 'crews');
+const raidMult = () => BV('jam', 'raid');
+const fuelPrice = full => Math.round(full * (1 - BV('garage', 'fuel') / 100));
+const baseJobs = () => (career.base && career.base.jobs) || [];
+const jobOf = id => baseJobs().find(j => j.id === id);
+// Built levels that need power: what the running cost is charged on.
+const poweredLevels = () => BASE_IDS.reduce((sum, id) => {
+  let n = 0;
+  for (let l = 1; l <= lvl(id); l++) if (id === 'power' || BASE[id].lv[l].req.some(r => r[0] === 'st' && r[1] === 'power')) n++;
+  return sum + n;
+}, 0);
+const baseUpkeep = () => BASE_TUNE.upkeep * poweredLevels();
+
+// ----- requirements -----
+const REQ_ITEM = {cash: 1, good: 1, ammo: 1, gadget: 1, medkit: 1, gear: 1, weapon: 1};   // the kinds that are handed in
+const reqAmt = r => (r[0] === 'weapon' ? 1 : r.length === 2 ? r[1] : r[2]);
+const reqPaid = (id, i) => ((career.base.paid[id] || {})[i]) || 0;
+const weaponFits = r => {
+  const W = WEAPONS[S.weapon];
+  return !!W && W[1] >= r[2] && (r[1] === 'melee' ? W[4] === 'blunt' || W[4] === 'blade' : W[4] === r[1]);
+};
+const spareGear = rar => career.bag.concat(career.locker || []).filter(it => it.rar >= rar).sort((a, b) => a.rar - b.rar);
+// How much of a requirement you could hand in right now.
+function reqHave(r) {
+  const k = r[0];
+  return k === 'cash' ? S.cash : k === 'good' ? (S.inv[r[1]] || 0) + (S.stash[r[1]] || 0) : k === 'ammo' ? S.ammo[r[1]] || 0
+    : k === 'gadget' ? S[r[1]] || 0 : k === 'medkit' ? S.medkits : k === 'gear' ? spareGear(r[1]).length : k === 'weapon' ? (weaponFits(r) ? 1 : 0)
+    : k === 'level' ? level() : k === 'lock' ? lockInfo().level : k === 'marks' ? Math.max(...MARK_KINDS.map(c => markInfo(c).level))
+    : k === 'st' ? lvl(r[1]) : k === 'ach' ? achCount() : 0;
+}
+const reqMet = (id, r, i) => (REQ_ITEM[r[0]] ? reqPaid(id, i) >= reqAmt(r) : reqHave(r) >= reqAmt(r));
+function reqLabel(r) {
+  const k = r[0], n = reqAmt(r);
+  return k === 'cash' ? money(n) : k === 'good' ? `${num(n)} ${r[1]}` : k === 'ammo' ? `${n} ${AMMO[r[1]][0]}`
+    : k === 'gadget' ? `${n} x ${GADGETS[r[1]][0]}` : k === 'medkit' ? `${n} medkit${n === 1 ? '' : 's'}`
+    : k === 'gear' ? `${n} piece${n === 1 ? '' : 's'} of ${RARITY[r[1]]}${r[1] < 4 ? ' or better' : ''} gear`
+    : k === 'weapon' ? `${r[1] === 'melee' ? 'A blunt or bladed weapon' : r[1] === 'gun' ? 'A firearm' : 'A piece of military hardware'}` +
+      `${r[2] ? ` worth ${money(r[2])} or more` : ''}, to stay here`
+    : k === 'level' ? `Level ${n}` : k === 'lock' ? `Lock picking level ${n}` : k === 'marks' ? `Any weapon skill at level ${n}`
+    : k === 'st' ? `${BASE[r[1]].name} at level ${n}` : `${n} achievements`;
+}
+const nextLv = id => (lvl(id) < topLv(id) ? BASE[id].lv[lvl(id) + 1] : null);
+// Hand in what you have towards the next level (everything but cash). dry: only say what would go.
+// Goods come off your drive first, then out of the stash; gear comes from the bag, then the locker, the least
+// rare piece that will do first. Returns what went, in words.
+function baseGive(id, dry) {
+  const L = nextLv(id), gone = [];
+  if (!L || jobOf(id)) return gone;
+  const paid = career.base.paid[id] || (dry ? {} : (career.base.paid[id] = {}));
+  L.req.forEach((r, i) => {
+    const k = r[0], want = reqAmt(r) - (paid[i] || 0);
+    if (!REQ_ITEM[k] || k === 'cash' || want <= 0) return;
+    const q = Math.min(want, reqHave(r));
+    if (q <= 0) return;
+    if (k === 'gear') spareGear(r[1]).slice(0, q).forEach(it => {
+      gone.push(`<span class="r${it.rar}">${it.name}</span>`);
+      if (dry) return;
+      const box = career.bag.includes(it) ? career.bag : career.locker;
+      box.splice(box.indexOf(it), 1);
+    });
+    else gone.push(k === 'weapon' ? `your ${WEAPONS[S.weapon][0]}` : k === 'good' ? `${num(q)} ${r[1]}` : k === 'ammo' ? `${q} ${AMMO[r[1]][0]}`
+      : k === 'gadget' ? `${q} x ${GADGETS[r[1]][0]}` : `${q} medkit${q === 1 ? '' : 's'}`);
+    if (dry) return;
+    if (k === 'good') {
+      const carried = Math.min(q, S.inv[r[1]] || 0), rest = q - carried;
+      if (carried) removeItems(r[1], carried);
+      if (rest) {
+        S.stash[r[1]] -= rest;
+        if (S.stash[r[1]] <= 0) { delete S.stash[r[1]]; delete S.stashCost[r[1]]; }
+        fixTags();
+      }
+    } else if (k === 'ammo') S.ammo[r[1]] -= q;
+    else if (k === 'gadget') S[r[1]] -= q;
+    else if (k === 'medkit') S.medkits -= q;
+    else if (k === 'weapon') { S.weapon = 0; delete S.tune; }
+    paid[i] = (paid[i] || 0) + q;
+  });
+  if (!dry && gone.length) { baseTally.given += gone.length; saveCareer(); }
+  return gone;
+}
+// Pay cash towards the next level. Returns what was paid.
+function basePay(id, amount) {
+  const L = nextLv(id), i = L ? L.req.findIndex(r => r[0] === 'cash') : -1;
+  if (i < 0 || jobOf(id)) return 0;
+  const paid = career.base.paid[id] || (career.base.paid[id] = {});
+  const q = Math.max(0, Math.min(Math.floor(amount) || 0, S.cash, L.req[i][1] - (paid[i] || 0)));
+  if (!q) return 0;
+  S.cash -= q;
+  paid[i] = (paid[i] || 0) + q;
+  saveCareer();
+  return q;
+}
+// Why the next level cannot be started right now ('' when it can): a line of plain words.
+function baseBlock(id) {
+  const L = nextLv(id);
+  if (!L) return 'It is as good as it gets.';
+  if (jobOf(id)) return 'It is being built already.';
+  const missing = L.req.map((r, i) => (reqMet(id, r, i) ? '' : REQ_ITEM[r[0]] ? `${reqLabel(r).replace(/, to stay here$/, '')}${reqPaid(id, i) ? ` (${r[0] === 'cash' ? money(reqPaid(id, i)) : reqPaid(id, i)} handed in)` : ''}` : reqLabel(r))).filter(Boolean);
+  if (missing.length) return 'Still needed: ' + missing.join('; ') + '.';
+  if (baseJobs().length >= buildCrews()) return `Your builder${buildCrews() === 1 ? ' is' : 's are'} busy with the ${BASE[baseJobs()[0].id].name}. ` +
+    (buildCrews() === 1 ? 'A Grid Tap makes room for a second build.' : 'Two builds at a time is the limit.');
+  return '';
+}
+// Start building the next level. Everything handed in is used up. True if it started.
+function baseStart(id) {
+  if (baseBlock(id)) { baseTally.refused++; return false; }
+  delete career.base.paid[id];
+  career.base.jobs.push({id, left: nextLv(id).t});
+  baseTally.started++;
+  saveCareer();
+  return true;
+}
+// A build is done: the station goes up a level.
+function baseDone(id) {
+  career.base.lv[id] = Math.min(topLv(id), lvl(id) + 1);
+  career.base.jobs = baseJobs().filter(j => j.id !== id);
+  baseTally.built++;
+  tally('built');
+  const L = BASE[id].lv[lvl(id)];
+  log(`<span class="cyan">Built: ${BASE[id].name} level ${lvl(id)}, ${L.n}.</span> ${BASE[id].say(L, lvl(id))}`);
+  notes.push([`Built: ${BASE[id].name}`, `<div class="syn">${withIcon(roomIcon(id), `<b>${L.n}</b><br>${BASE[id].name} &middot; level ${lvl(id)} of ${topLv(id)}`)}</div>` +
+    `<p>The dust settles. Nobody signed anything off, because nobody was asked.</p><p class="green">${BASE[id].say(L, lvl(id))}</p>`, '']);
+  SND.play('win', 0.9);
+}
+// Finish every build in progress, now. (Nothing in the game calls this: it is for the debug menu and the self-test.)
+function finishBuilds() {
+  const ids = baseJobs().map(j => j.id);
+  ids.forEach(baseDone);
+  saveCareer();
+  return ids;
+}
+// Put a station at a level, 0 (or the level everybody starts with) to its top, now. (For the debug menu and the self-test.)
+function setStation(id, level) {
+  if (!BASE[id]) return -1;
+  if (!career.base) fixBase();
+  career.base.lv[id] = clampN(Math.floor(level) || 0, BASE[id].start || 0, topLv(id));
+  career.base.jobs = baseJobs().filter(j => j.id !== id);
+  delete career.base.paid[id];
+  saveCareer();
+  return lvl(id);
+}
+// Put what the next level of a station wants within reach: the items in your pockets (goods that do not fit
+// are handed straight in), your level and skills raised to what it asks. Other stations are not touched.
+// direct: the cash is handed straight in too, instead of into your pocket. (For the debug menu and the self-test.)
+function baseStock(id, direct) {
+  const L = nextLv(id);
+  if (!L || jobOf(id)) return;
+  const paid = career.base.paid[id] || (career.base.paid[id] = {});
+  L.req.forEach((r, i) => {
+    const k = r[0], n = reqAmt(r) - (REQ_ITEM[k] ? paid[i] || 0 : 0);
+    if (n <= 0) return;
+    if (k === 'cash') { if (direct) paid[i] = (paid[i] || 0) + n; else S.cash += n; }
+    else if (k === 'good') {
+      const fit = Math.min(n, Math.max(0, free()));
+      if (fit) addItems(r[1], fit, 0);
+      if (n > fit) paid[i] = (paid[i] || 0) + n - fit;
+    } else if (k === 'ammo') S.ammo[r[1]] = Math.max(S.ammo[r[1]], n);
+    else if (k === 'gadget') S[r[1]] = Math.max(S[r[1]], Math.min(GADGETS[r[1]][2], n));
+    else if (k === 'medkit') S.medkits = Math.max(S.medkits, Math.min(MAX_MED, n));
+    else if (k === 'gear') {
+      for (let have = spareGear(r[1]).length; have < n; have++) {
+        if (career.bag.length < BAG_SIZE) career.bag.push(makeItem(r[1]));
+        else if (career.locker.length < lockerSize()) career.locker.push(makeItem(r[1]));
+      }
+    } else if (k === 'weapon') {
+      if (!weaponFits(r)) S.weapon = WEAPONS.findIndex(w => w && w[1] >= r[2] && (r[1] === 'melee' ? w[4] === 'blunt' || w[4] === 'blade' : w[4] === r[1]));
+    } else if (k === 'level') { while (level() < r[1]) career.xp += levelInfo().need - levelInfo().into; }
+    else if (k === 'lock') { if (lockInfo().level < r[1]) setLockSkill(r[1]); }
+    else if (k === 'marks') { if (reqHave(r) < r[1]) setMarks(r[1], 'gun'); }
+  });
+  for (const i of Object.keys(paid)) if (!(paid[i] > 0)) delete paid[i];
+  if (!Object.keys(paid).length) delete career.base.paid[id];
+  saveCareer();
+}
+// One night at the base, called from nextDay(): builds move on, the lights are paid for, and the stations
+// that work overnight do their work. Everything with a daily limit is fresh again.
+function baseNight() {
+  if (!career.base) fixBase();
+  const hq = HQ();
+  for (const j of baseJobs().slice()) if (--j.left <= 0) baseDone(j.id);
+  hq.shots = 0; hq.patch = 0; hq.cook = 0; hq.conv = 0;
+  const cost = baseUpkeep(), was = !!hq.dark;
+  hq.dark = cost > S.cash;
+  if (hq.dark) {
+    baseTally.dark++;
+    log(`<span class="red">No cash for the Bunker's power (${money(cost)}): everything with a plug is off today.</span>`);
+  } else if (cost) {
+    S.cash -= cost;
+    log(`Power for the Bunker: ${money(cost)}.${was ? ' The lights are back on.' : ''}`);
+  }
+  if (BV('jam', 'cool')) S.heat = Math.max(0, S.heat - BV('jam', 'cool'));
+  const C = BASE.cat.lv[eff('cat')];
+  if (C.hp) S.hp = Math.min(100, S.hp + C.hp);
+  if (C.opsec) S.opsec = Math.min(100, S.opsec + C.opsec);
+  const stashIn = (name, q) => {
+    q = Math.min(q, stashCap() - stashTotal());
+    if (q <= 0) return 0;
+    const had = S.stash[name] || 0;
+    S.stashCost[name] = Math.floor((S.stashCost[name] || 0) * had / (had + q));   // it cost you nothing
+    S.stash[name] = had + q;
+    return q;
+  };
+  const out = BV('rig', 'out');
+  if (out) {
+    const q = stashIn(out[0], out[1]);
+    if (q) { baseTally.rig += q; log(`The Server Closet turned out ${q} ${out[0]} overnight. They are in the stash.`); }
+    else log('<span class="amber">The Server Closet had nowhere to put its work: the stash is full.</span>');
+  }
+  if (C.gift && Math.random() < C.gift) {
+    const name = pick(CAT_GIFTS), q = stashIn(name, rnd(1, 2));
+    if (q) log(`The cat left you ${q} ${name}, slightly chewed. ${q === 1 ? 'It is' : 'They are'} in the stash.`);
+  }
+  saveCareer();
+}
+
+// ----- weapon skill -----
+const markNeed = l => MARKS.need[0] + MARKS.need[1] * l;
+function markInfo(kind, points) {
+  let p = points === undefined ? (career.marks && career.marks[kind]) || 0 : points, level = 0;
+  while (level < MARKS.max && p >= markNeed(level)) { p -= markNeed(level); level++; }
+  const top = level >= MARKS.max;
+  return {level, into: top ? 0 : p, need: top ? 0 : markNeed(level)};
+}
+// Set a weapon skill (or, with no kind, all four) to the start of a level, 0 to MARKS.max. (For the debug menu and the self-test.)
+function setMarks(level, kind) {
+  level = clampN(Math.floor(level) || 0, 0, MARKS.max);
+  if (!career.marks) career.marks = newMarks();
+  let p = 0;
+  for (let l = 0; l < level; l++) p += markNeed(l);
+  for (const k of MARK_KINDS) if (!kind || k === kind) career.marks[k] = p;
+  saveCareer();
+  return p;
+}
+// Adds skill points, up to level `cap` (the Range's cap for practice; MARKS.max for real fights). Returns a snippet for the result line.
+function gainMarks(kind, n, cap) {
+  if (!career.marks) career.marks = newMarks();
+  cap = Math.min(MARKS.max, cap === undefined ? MARKS.max : cap);
+  const before = markInfo(kind).level;
+  if (!MARK_KINDS.includes(kind) || before >= cap || !(n > 0)) return '';
+  let most = 0;
+  for (let l = 0; l < cap; l++) most += markNeed(l);
+  const add = Math.min(n, most - career.marks[kind]);
+  career.marks[kind] += add;
+  saveCareer();
+  const now = markInfo(kind).level;
+  return ` <span class="amber">+${add} ${WTYPE[kind][0].toLowerCase()}</span>` + (now > before ? ` <b class="amber">${WTYPE[kind][0]}: skill level ${now}.</b>` : '');
+}
+const markHit = kind => (MARK_KINDS.includes(kind) ? markInfo(kind).level * MARKS.hit : 0);                 // % added to the chance to hit
+const markSave = kind => (kind === 'gun' || kind === 'heavy' ? markInfo(kind).level * MARKS.save : 0);     // % chance a round is not spent
+const tuneHit = () => (S.tune && S.tune.w === S.weapon && S.weapon ? S.tune.hit : 0);
+const drillAim = () => BVraw('range', 'drill');
+let fireTally = {shots: 0, hits: 0, saved: 0};   // counted for the self-test and for measuring
+// What the base adds to the chance to hit with weapon W, as a fraction. E: the fight, so the entry drill counts once.
+function baseAim(W, E) {
+  let add = markHit(W[4]) + tuneHit();
+  if (E && !E.drilled) { E.drilled = true; add += drillAim(); }
+  return add / 100;
+}
+// After a volley: rounds that trigger discipline saved go back in the box, and dropping people teaches. Returns words for the fight line.
+function baseVolley(W, round, shots, kills) {
+  let saved = 0;
+  if (round) for (let i = 0; i < shots; i++) if (Math.random() * 100 < markSave(W[4])) saved++;
+  if (saved) S.ammo[round] = Math.min(AMMO_MAX, S.ammo[round] + saved);
+  fireTally.shots += shots; fireTally.hits += kills; fireTally.saved += saved;
+  gainMarks(W[4], kills * MARKS.fight);
+  return saved ? ` Trigger discipline: ${saved} round${saved === 1 ? '' : 's'} not wasted.` : '';
+}
+// ----- the Range -----
+// Why you cannot practise right now, or '' when you can.
+function rangeBlock() {
+  const R = BASE.range.lv[eff('range')], W = WEAPONS[S.weapon];
+  if (!lvl('range')) return 'There is no range yet.';
+  if (!eff('range')) return 'The power is out, and the range is a dark tunnel with a gun in it.';
+  if (!W) return 'You are not carrying a weapon. The range is for practising with the one you carry.';
+  if (!R.kinds.includes(W[4])) return `This range is not built for ${WTYPE[W[4]][0].toLowerCase()} yet.`;
+  if ((HQ().shots || 0) >= R.shots) return 'You have used today\'s sessions. Your hands need the night off.';
+  if (markInfo(W[4]).level >= R.cap) return `You have learned what this range can teach about ${WTYPE[W[4]][0].toLowerCase()} (level ${R.cap}). ` +
+    (R.cap < MARKS.max ? 'A better range teaches more, and so do real fights.' : '');
+  const have = Object.values(S.ammo).reduce((a, b) => a + b, 0);
+  if (usesAmmo(W) && have < R.rounds) return `A session burns ${R.rounds} rounds, and you have ${have}.`;
+  return '';
+}
+// One session, with this score out of 50: burns the rounds (the cheapest you have first), uses a session, teaches.
+function rangeSession(score) {
+  if (rangeBlock()) return null;
+  const R = BASE.range.lv[eff('range')], W = WEAPONS[S.weapon], used = {};
+  let left = usesAmmo(W) ? R.rounds : 0;
+  for (const k of Object.keys(AMMO)) {
+    const q = Math.min(left, S.ammo[k]);
+    if (q) { S.ammo[k] -= q; used[k] = q; left -= q; }
+  }
+  HQ().shots = (HQ().shots || 0) + 1;
+  baseTally.sessions++;
+  score = clampN(Math.round(score), 0, 10 * MARKS.strings);
+  if (score >= 45) tally('bull');
+  const pts = Math.round((MARKS.pts[0] + score / (10 * MARKS.strings) * MARKS.pts[1]) * (R.moving ? MARKS.moving : 1));
+  return {score, pts, used, kind: W[4], got: gainMarks(W[4], pts, R.cap)};
+}
+// ===== THE BASE (stations, costs and rules): END =====
+
 // Who comes for you depends on your Heat.
 const LAW = [
   {name: 'the Metro Cyber Unit', short: 'Police', stars: 1, hit: 0.3, lo: 3, hi: 7},
@@ -1430,7 +1974,8 @@ const SND = (() => {
 // ---------- career: XP, levels and syndicate carry over between runs ----------
 // stats: running counts of things you have done (see tally()). ach: achievements earned, {id: when}.
 // lockpick: lock picking skill points (see lockInfo()).
-const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0});
+const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0,
+  base: newBase(), marks: newMarks()});   // BASE: the Bunker's stations and the weapon skills
 let career = newCareer(), pendingLevel = 0;
 
 function levelInfo(total) {
@@ -1446,7 +1991,7 @@ const pct = rate => Math.round(rate * 100);
 
 // Adds XP and returns a snippet to append to a log line.
 function gainXp(n) {
-  n = Math.floor(n * (inSyn(HIDDEN_SYN) ? 1.25 : 1));
+  n = Math.floor(n * (inSyn(HIDDEN_SYN) ? 1.25 : 1) * (1 + BV('trophy', 'xp') / 100));   // BASE: the Trophy Wall
   if (n <= 0) return '';
   const before = level();
   career.xp += n;
@@ -1551,7 +2096,7 @@ const ACH = {
   mythic: ['Mythic Drip', 'Own a Legendary piece of gear', 300, () => ownedGear().some(it => it.rar === 4)],
   overkill: ['Overkill', 'Carry a weapon worth $100,000 or more', 200, () => !!WEAPONS[S.weapon] && WEAPONS[S.weapon][1] >= 100000],
   arsenal: ['Arsenal', 'Hold 10 Zero-Days at once', 200, () => (S.inv['Zero-Days'] || 0) >= 10],
-  hoard: ['Hoarder', 'Fill the Bunker stash', 150, () => stashTotal() >= STASH_CAP],
+  hoard: ['Hoarder', 'Fill the Bunker stash', 150, () => stashTotal() >= stashCap()],
   run1: ['Survivor', 'Finish a run', 100, () => stat('runs') >= 1],
   run10: ['Veteran', 'Finish 10 runs', 500, () => stat('runs') >= 10],
   clean: ['Clean Record', 'Finish a run without being arrested', 200, () => stat('cleanrun') >= 1],
@@ -1581,6 +2126,13 @@ const ACH = {
   circus: ['The Whole Circus', 'Keep three unicycles in the garage at once', 300, () => S.rides.filter(id => rideTwist(id, 'uni')).length >= 3],
   nogas: ['Running on Fumes', 'Wake up unable to pay for fuel', 50, () => stat('nogas') >= 1],
   choppa: ['It Was Never Here', `Own the helicopter that adds ${MAX_HOPS} hops a day`, 500, () => S.rides.some(id => VEHICLES[id][2] >= MAX_HOPS)],
+  // --- the base (see BASE) ---
+  built1: ['Home Improvement', 'Finish building something in the Bunker', 100, () => stat('built') >= 1],
+  catin: ['It Lives Here Now', 'Make the Bunker acceptable to a cat', 50, () => lvl('cat') >= 1],
+  bull: ['Tight Grouping', 'Score 45 or better in a session on the Range', 150, () => stat('bull') >= 1],
+  killhouse: ['Kill House Rules', 'Build the Range up to its top level', 400, () => lvl('range') >= topLv('range')],
+  deadeye: ['Dead Centre', `Take a weapon skill to level ${MARKS.max}`, 500, () => MARK_KINDS.some(k => markInfo(k).level >= MARKS.max)],
+  fullbase: ['Planning Permission Was Never Sought', 'Build every station in the Bunker to its top level', 1500, () => BASE_IDS.every(id => lvl(id) >= topLv(id))],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -1710,6 +2262,7 @@ function fixCareer() {
   if (!career.ach || typeof career.ach !== 'object') career.ach = {};
   if (!Array.isArray(career.locker)) career.locker = [];
   if (!(Number.isInteger(career.lockpick) && career.lockpick >= 0)) career.lockpick = 0;   // from before lock picking: the starting skill
+  fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
@@ -2220,7 +2773,7 @@ function lockTry(key, lock, edge, practice) {
     if (broke && !open && key === 'picks' && !practice && Math.random() < B.jam) jam = true;
   }
   let pts = T.loud ? B.learnForce[open ? 0 : 1] : open ? B.learnOpen[0] + B.learnOpen[1] * diff : B.learnMiss[0] + B.learnMiss[1] * diff;
-  if (practice) pts = lockInfo().level >= B.practiceCap ? 0 : Math.ceil(pts * B.practiceShare);
+  if (practice) pts = lockInfo().level >= practiceCap() ? 0 : Math.ceil(pts * B.practiceShare);   // BASE: the Lock Board's level sets the cap
   return {open, broke, jam, noise: open ? 0 : o.noise, pts, got: gainLock(pts)};
 }
 const alertClass = a => (a >= 70 ? 'red' : a >= 40 ? 'amber' : 'green');
@@ -2239,7 +2792,7 @@ async function lockDialog(lock, st, o) {
   const name = LOCKS[lock][0];
   let last = '';
   for (;;) {
-    const drills = o.practice ? BREAKIN.drills - (S.drills || 0) : 1;
+    const drills = o.practice ? drillsMax() - (S.drills || 0) : 1;
     const shown = Object.keys(TOOLS).filter(k => k === 'clip' || S[k]);
     const html = (o.head || '') + (last ? `<p>${last}</p>` : '') + lockCard(lock) +
       (st ? alertMeter(st) : `<p class="dim">Tries left at the board today: <b>${drills}</b></p>`) + `<p>${lockLine()}</p>` +
@@ -2854,7 +3407,7 @@ function reslotCareer() {
     delete career.gear[slot];
     it.slot = to;
     if (!career.gear[to]) career.gear[to] = it;
-    else if (career.bag.length >= BAG_SIZE && career.locker && career.locker.length < LOCKER_SIZE) career.locker.push(it);
+    else if (career.bag.length >= BAG_SIZE && career.locker && career.locker.length < lockerSize()) career.locker.push(it);
     else career.bag.push(it);   // never thrown away, even if that overfills the bag
   }
 }
@@ -4636,6 +5189,7 @@ function newGame() {
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
+  S.hq = {};                     // BASE: what the stations have done today (the base itself belongs to the save)
   logs = [];
   starterGear();
   rollMarket();
@@ -5011,11 +5565,11 @@ async function rideShop(key) {
   const [title, spot, , blurb] = RIDE_SHOPS[key];
   if (S.loc !== spot) return;
   for (;;) {
-    const mine = VEHICLES[S.ride], tradeIn = mine ? rideValue(S.ride) : 0, full = S.rides.length >= GARAGE_SIZE;
+    const mine = VEHICLES[S.ride], tradeIn = mine ? rideValue(S.ride) : 0, full = S.rides.length >= garageSize();
     const priceOf = id => VEHICLES[id][1];   // the table is the price: it does not rise with the day
     const least = id => (mine ? Math.max(0, priceOf(id) - tradeIn) : priceOf(id));   // the cheapest way to leave on it
     let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
-      `Garage ${S.rides.length}/${GARAGE_SIZE}.</p>` +
+      `Garage ${S.rides.length}/${garageSize()}.</p>` +
       (mine ? `<p class="dim">YOU CAME ON</p><div class="syn">${rideCard(S.ride, `<span class="dim">worth ${money(tradeIn)} as a trade-in</span>`)}</div>`
         : '<p class="dim">You walked here.</p>') +
       `<p class="dim" style="margin:12px 0 4px"><b class="cyan">${title.toUpperCase()}</b><br>` +
@@ -5026,7 +5580,7 @@ async function rideShop(key) {
         rideCard(id, `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? (id === S.ride ? 'riding it' : 'in your garage') : money(priceOf(id))}</span>`) + '</div>';
     });
     html += '<p class="dim">Tap a ride to buy it. You leave on it, with a full tank, and its hops count from right now. ' +
-      `The one you came on is traded in for ${pct(RIDE_TRADE)}% of its list price or sent home to your garage, which holds ${GARAGE_SIZE}. ` +
+      `The one you came on is traded in for ${pct(RIDE_TRADE)}% of its list price or sent home to your garage, which holds ${garageSize()}. ` +
       'Swap between them at the Bunker.' + (full && !mine ? ' <span class="amber">Your garage is full: come here on one to trade it in.</span>' : '') + '</p>';
     const buttons = [];
     if (mine) buttons.push([`Sell the ${mine[0]} for ${money(tradeIn)}`, 'sell', 'danger', rideIcon(S.ride)]);
@@ -5055,14 +5609,14 @@ async function rideShop(key) {
       opts.push(['Cancel', null, 'small']);
       const how = await dialog(v[0], `<div class="syn">${rideCard(choice, `<span class="amber">${money(price)}</span>`)}</div>` +
         `<p>You came on the <b>${mine[0]}</b>. It is worth <b>${money(tradeIn)}</b> as a trade-in.</p>` +
-        (full ? `<p class="amber">Your garage is full (${GARAGE_SIZE}), so the only way to take this one is to trade that one in.</p>`
-          : `<p class="dim">Or keep it: somebody rides it back to your garage at the Bunker. Garage ${S.rides.length}/${GARAGE_SIZE}.</p>`), opts);
+        (full ? `<p class="amber">Your garage is full (${garageSize()}), so the only way to take this one is to trade that one in.</p>`
+          : `<p class="dim">Or keep it: somebody rides it back to your garage at the Bunker. Garage ${S.rides.length}/${garageSize()}.</p>`), opts);
       if (!how) continue;
       trade = how === 't';
     }
     const why = trade ? rideTooFull(choice) : '', cost = trade ? Math.max(0, priceOf(choice) - tradeIn) : priceOf(choice);
     if (why) { SND.play('deny'); await alertDlg('Too much to carry', why); continue; }
-    if (S.cash < cost || (!trade && S.rides.length >= GARAGE_SIZE)) continue;
+    if (S.cash < cost || (!trade && S.rides.length >= garageSize())) continue;
     // Riding off on something that carries less is fine when the old one is kept... as long as it all still fits.
     if (!trade && rideTooFull(choice)) { SND.play('deny'); await alertDlg('Too much to carry', rideTooFull(choice)); continue; }
     S.cash -= cost;
@@ -5084,7 +5638,7 @@ async function garage() {
   if (S.loc !== BUNKER) return;
   for (;;) {
     const spots = Object.values(RIDE_SHOPS).map(([name, spot, what]) => `${name} at ${spot} (${what})`).join(', ');
-    let html = `<p>A roller door, an oil stain and room for ${GARAGE_SIZE} rides. You have ${tripsHtml()}.</p>` +
+    let html = `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
       `<div class="syn${S.ride ? ' pickable" data-pick="foot' : ''}"><b>On foot</b>${S.ride ? '' : ' <span class="green">&larr; today</span>'}<br>` +
       `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span></div>`;
     for (const id of S.rides) {
@@ -5099,8 +5653,9 @@ async function garage() {
         'Engines take a tank of fuel each day you ride them, paid when you wake up or when you get on. To sell one, ride it to a shop.</p>'
       : `<p>Empty. You go everywhere on foot, ${TRIPS_PER_DAY} trips a day.</p>`;
     html += `<p class="dim">Rides are sold at ${spots}.</p>`;
-    const choice = await dialog('Garage', html, [['Close', null, 'primary']]);
+    const choice = await dialog('Garage', html, [['Close', null, 'primary'], ...stationBtn('garage')]);
     if (!choice) return;
+    if (choice === 'base') { await stationDlg('garage', true); continue; }   // BASE: the Garage is a station
     const id = choice === 'foot' ? '' : choice, v = VEHICLES[id];
     if (id ? !S.rides.includes(id) || (id === S.ride && tanked(id)) : !S.ride) continue;
     if (id !== S.ride && rideTooFull(id)) { SND.play('deny'); await alertDlg('Too much to carry', rideTooFull(id)); continue; }
@@ -5271,6 +5826,7 @@ function render() {
   if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
   if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
   if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green']);   // devices left behind on break-ins
+  chips.push(...baseChips());   // BASE: builds under way, a power cut
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
     chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
@@ -5321,10 +5877,11 @@ function render() {
   }).join(''));
   let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
   if (S.loc === BUNKER) {
+    // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
+    // this one button lists every station.
+    const up = BASE_IDS.filter(id => stationState(id) === 'ready').length;
     acts += `<button data-act="sleep">${last ? 'Sleep (end the run)' : 'Sleep (end the day)'}</button>` +
-      '<button data-act="locker">Gear locker</button>' +
-      `<button data-act="practice">Practice locks (${Math.max(0, BREAKIN.drills - (S.drills || 0))} left)</button>` +
-      `<button data-act="garage">Garage (${S.rides.length}/${GARAGE_SIZE})</button>`;
+      `<button data-act="base">Base${up ? ` (${up} to build)` : baseJobs().length ? ' (building)' : ''}</button>`;
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
     if (S.loc === spot) acts += `<button data-act="${key}shop">${name} (${what})</button>`;
@@ -5346,7 +5903,7 @@ function render() {
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
-  if (S.loc === BUNKER) $('#market').innerHTML = stashHtml();   // at home the market panel becomes your stash
+  if (S.loc === BUNKER) $('#market').innerHTML = baseHtml() + stashHtml();   // at home the market panel becomes your base and your stash
 }
 
 // ---------- actions ----------
@@ -5592,7 +6149,7 @@ const ACTIONS = {
       } else if (choice === 'ride') {
         await dialog(VEHICLES[S.ride][0], `<div class="syn">${rideCard(S.ride)}</div>` +
           (tanked(S.ride) ? '' : `<p class="red">The tank is empty, so it adds no hops today. Fill it from the Garage at the Bunker.</p>`) +
-          `<p class="dim">You own ${S.rides.length} of the ${GARAGE_SIZE} rides your garage holds. Swap between them at the Bunker; ` +
+          `<p class="dim">You own ${S.rides.length} of the ${garageSize()} rides your garage holds. Swap between them at the Bunker; ` +
           `any ride shop pays ${money(rideValue(S.ride))} for this one.</p>`, [['Back', null, 'primary']]);
       } else if (choice.startsWith('a:')) {
         const [name, , , , short] = AMMO[arg];
@@ -5659,7 +6216,7 @@ const ACTIONS = {
 
   // --- the Bunker: stash goods, lock up gear, sleep ---
   async store(name) {
-    const held = S.inv[name] || 0, most = Math.min(held, STASH_CAP - stashTotal());
+    const held = S.inv[name] || 0, most = Math.min(held, stashCap() - stashTotal());
     if (S.loc !== BUNKER || most <= 0) return;
     const qty = await askQty(`Stash ${name}`, `<p>Move them off your drive into the Bunker. You carry ${num(held)}.</p>`,
       most, {ok: 'Store'});
@@ -5702,7 +6259,10 @@ const ACTIONS = {
     const tank = !fuel ? '' : `<p class="${S.cash >= fuel ? 'dim' : 'amber'}">In the morning the ${VEHICLES[S.ride][0]} takes <b>${money(fuel)}</b> of fuel` +
       `${loud ? ` and adds ${loud}% Heat` : ''}, for +${VEHICLES[S.ride][2]} hops. ` +
       `${S.cash >= fuel ? 'To skip it, get on something else in the Garage first.' : 'You do not have that in cash right now: without it, it adds no hops tomorrow.'}</p>`;
-    if (!await confirmDlg('Sleep', gut + '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' + tank +
+    // BASE: the Bunk sets what a night heals, the Jammer cuts the odds of a raid (and, built up, tells you them).
+    const raidOdds = () => Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult();
+    if (!await confirmDlg('Sleep', gut + `<p>Sleep in the Bunker and end the day? You recover ${BV('bed', 'heal')}% Health and ${BV('bed', 'opsec')}% OpSec, and your Heat cools.</p>` + tank +
+      baseSleepNote(Math.min(0.5, 0.03 + Math.max(0, S.heat - HEAT_DECAY - 20 - BV('jam', 'cool')) / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult()) +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
     if (S.heat < 20) tally('cool');
@@ -5711,14 +6271,14 @@ const ACTIONS = {
     nextDay();
     // Sleeping on stuck goods makes you ill: less rest at first, then none, then dysentery.
     const ill = stuckTotal() ? ++S.sick : (S.sick = 0);
-    S.hp = Math.min(100, S.hp + (ill >= 3 ? 0 : ill ? 15 : 35));
-    S.opsec = Math.min(100, S.opsec + 15);
+    S.hp = Math.min(100, S.hp + (ill >= 3 ? 0 : ill ? 15 : BV('bed', 'heal')));
+    S.opsec = Math.min(100, S.opsec + BV('bed', 'opsec'));
     S.heat = Math.max(0, S.heat - 20);
     log(`Day ${S.day}: you slept in the Bunker. New prices everywhere.`);
     render();
     if (ill) await sickNight(ill);
     if (S.over) return;
-    if (Math.random() < Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1)) await homeRaid(true);
+    if (Math.random() < raidOdds()) await homeRaid(true);
   },
 
   // Gear you are not carrying can wait in the Bunker's locker.
@@ -5729,14 +6289,15 @@ const ACTIONS = {
       const list = (items, empty) => items.length
         ? items.map(it => `<div class="syn">${itemHtml(it)}</div>`).join('') : `<p class="dim">${empty}</p>`;
       const html = `<p class="dim">IN YOUR BAG ${career.bag.length}/${BAG_SIZE}</p>${list(career.bag, 'Your bag is empty.')}` +
-        `<p class="dim">IN THE LOCKER ${career.locker.length}/${LOCKER_SIZE}</p>${list(career.locker, 'The locker is empty.')}` +
+        `<p class="dim">IN THE LOCKER ${career.locker.length}/${lockerSize()}</p>${list(career.locker, 'The locker is empty.')}` +
         '<p class="dim">The locker has a hidden compartment: raids never find it.</p>';
       const buttons = [];
-      if (career.locker.length < LOCKER_SIZE) career.bag.forEach((it, i) => buttons.push([`Store ${it.name}`, 'b' + i, 'r' + it.rar, gearIcon(it)]));
+      if (career.locker.length < lockerSize()) career.bag.forEach((it, i) => buttons.push([`Store ${it.name}`, 'b' + i, 'r' + it.rar, gearIcon(it)]));
       if (career.bag.length < BAG_SIZE) career.locker.forEach((it, i) => buttons.push([`Take ${it.name}`, 'l' + i, 'r' + it.rar, gearIcon(it)]));
-      buttons.push(['Close', null, 'primary']);
+      buttons.push(['Close', null, 'primary'], ...stationBtn('locker'));
       const choice = await dialog('Gear locker', html, buttons);
       if (!choice) return;
+      if (choice === 'base') { await stationDlg('locker', true); continue; }   // BASE: the locker is a station
       const index = Number(choice.slice(1));
       if (choice[0] === 'b') career.locker.push(career.bag.splice(index, 1)[0]);
       else career.bag.push(career.locker.splice(index, 1)[0]);
@@ -5750,17 +6311,19 @@ const ACTIONS = {
   async practice() {
     if (S.loc !== BUNKER) return;
     for (;;) {
-      const left = BREAKIN.drills - (S.drills || 0), capped = lockInfo().level >= BREAKIN.practiceCap;
+      const left = drillsMax() - (S.drills || 0), capped = lockInfo().level >= practiceCap();
       const html = '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
         `<div class="syn">${lockLine()}${lockMeter()}</div>` +
-        `<p>Tries left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${BREAKIN.drills}.</p>` +
-        (capped ? `<p class="amber">You have learned what a workbench can teach (level ${BREAKIN.practiceCap}). The rest is behind real doors.</p>`
-          : `<p class="dim">Practice teaches less than a real door, and only up to level ${BREAKIN.practiceCap}. Harder locks teach more. ` +
+        `<p>Tries left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${drillsMax()}.</p>` +
+        (capped ? `<p class="amber">You have learned what a workbench can teach (level ${practiceCap()}). The rest is behind real doors.</p>`
+          : `<p class="dim">Practice teaches less than a real door, and only up to level ${practiceCap()}. Harder locks teach more. ` +
             'Your picks can still snap, and a paperclip costs nothing.</p>') +
-        '<p class="dim">Electronic locks cannot be practised: nobody sells a badge reader by the job lot.</p>';
-      const buttons = left > 0 ? ['padlock', 'deadbolt', 'cylinder'].map(k => [`${LOCKS[k][0]} (difficulty ${LOCKS[k][1]})`, k]) : [];
-      buttons.push(['Done', null, 'primary']);
+        // BASE: a built-up Lock Board has electronic locks on it too (they want power).
+        (BV('locks', 'elec').length ? '' : '<p class="dim">Electronic locks cannot be practised: nobody sells a badge reader by the job lot.</p>');
+      const buttons = left > 0 ? ['padlock', 'deadbolt', 'cylinder'].concat(BV('locks', 'elec')).map(k => [`${LOCKS[k][0]} (difficulty ${LOCKS[k][1]})`, k]) : [];
+      buttons.push(['Done', null, 'primary'], ...stationBtn('locks'));
       const lock = await dialog('Practice locks', html, buttons);
+      if (lock === 'base') { await stationDlg('locks', true); continue; }
       if (!LOCKS[lock]) return;
       const r = await lockDialog(lock, null, {practice: true});
       if (r.res === 'open' || r.res === 'forced') {
@@ -5934,7 +6497,10 @@ const ACTIONS = {
         `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>' +
       // The lock picking skill: it belongs to the save, like XP.
       `<div class="syn">${lockLine()}${lockMeter()}<span class="dim">It rises with practice: opening a lock teaches more than a miss, and a harder lock ` +
-      `teaches more. It carries over between runs. The practice board in the Bunker teaches up to level ${BREAKIN.practiceCap}; the rest is behind real doors.</span></div>` +
+      `teaches more. It carries over between runs. The practice board in the Bunker teaches up to level ${practiceCap()}; the rest is behind real doors.</span></div>` +
+      // BASE: the weapon skills, which belong to the save too.
+      `<div class="syn"><b>Weapon skill</b>${MARK_KINDS.map(markLine).join('')}<span class="dim">Practice on the Range in the Bunker builds it, up to what that range can teach; real fights build it too, slowly. ` +
+      `Each level adds ${MARKS.hit}% to your chance to hit with that kind of weapon. It carries over between runs.</span></div>` +
       (S.plants && S.plants.length ? `<p class="dim">Devices you left behind: ${S.plants.map(p => `${p.what} at ${p.site} (${money(p.pay)} a night, ${p.left} to go)`).join('; ')}.</p>` : '');
     const buttons = [['Close', null, 'primary']];
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
@@ -6172,6 +6738,609 @@ const ACTIONS = {
   },
 };
 
+// ===== THE BASE (the screen, the stations' dialogs, the Range): BEGIN =====
+// The rules and every number are in the block marked THE BASE near the top (BASE, BASE_TUNE, MARKS).
+// ----- drawings: one room per station, 88 wide (178 for the wide ones) and 50 high, floor at the bottom -----
+const ROOM_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', STEEL = '#8a8fa8', WOOD = '#8a5a2a', DARK = '#2a2f45';
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 1}"${o || ''}/>`;
+  const c = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const sk = col => ` stroke="${col}"`;
+  const crate = (x, y, s) => r(x, y, s, s, '#6b4a2a', sk('#c98f6b')) + p(`M${x} ${y} l${s} ${s} M${x + s} ${y} l${-s} ${s}`, '#c98f6b', 0.7);
+  const locker = x => r(x, 12, 14, 38, '#3a2f5c', sk('#c77dff')) + p(`M${x + 3} 17 h8 M${x + 3} 20 h8 M${x + 3} 23 h8`, '#c77dff', 0.8) + r(x + 10, 30, 2, 5, GREY);
+  const padlock = (x, y) => p(`M${x + 1.5} ${y} v-2.5 a2.5 2.5 0 0 1 5 0 v2.5`, GREY, 1.2) + r(x, y, 8, 6, '#fcee0a', sk(INK));
+  const server = (x, y, h) => r(x, y, 16, h, '#101426', sk('#00e5ff')) +
+    Array.from({length: Math.floor(h / 6)}, (_, i) => p(`M${x + 2} ${y + 4 + i * 6} h7`, '#2b5f7a', 1) + c(x + 12, y + 4 + i * 6, 1, i % 3 ? '#3dff9a' : '#fcee0a')).join('');
+  const cup = x => r(x, 19, 6, 5, '#fcee0a') + r(x + 2.5, 24, 1, 2, '#fcee0a') + r(x + 1, 25.5, 4, 1, '#fcee0a');
+  const frame = (x, y, col) => r(x, y, 10, 12, '#17142e', sk(col || '#fcee0a')) + p(`M${x + 2} ${y + 9} l2.5 -4 2 2.5 1.5 -2 l1.5 3.5`, col || '#fcee0a', 0.8);
+  const target = (x, y) => p(`M${x + 5} 0 v${y}`, STEEL, 0.6) + r(x, y, 10, 16, '#e9e9f0') + c(x + 5, y + 7, 3.4, 'none', sk(INK)) + c(x + 5, y + 7, 1.2, '#ff3b5c');
+  return {
+    power: l => [
+      p('M8 0 q3 30 18 43', '#ff9d2e', 1.6) + r(24, 44, 18, 5, GREY, sk(INK)) + c(29, 46.5, 1, INK) + c(34, 46.5, 1, INK) + c(39, 46.5, 1, '#ff3b5c'),
+      r(48, 33, 28, 17, '#3a3f5c', sk('#fcee0a')) + r(52, 37, 8, 5, INK) + r(72, 24, 3, 9, STEEL) + c(73.5, 21, 2, '#7c81ab', ' opacity=".5"') + r(40, 41, 6, 9, '#ff3b5c', sk(INK)),
+      r(48, 6, 16, 20, DARK, sk('#fcee0a')) + p('M57 9 l-4 7 h4 l-3 7', '#fcee0a', 1.4) + p('M56 0 v6', '#fcee0a', 2),
+      r(66, 4, 18, 22, '#101426', sk('#fcee0a')) + c(71, 12, 3.5, 'none', sk('#ff9d2e')) + c(79, 12, 3.5, 'none', sk('#ff9d2e')) + p('M68 20 h14', '#ff9d2e', 1.5) + c(75, 14, 12, '#fcee0a', ' opacity=".12"'),
+    ].slice(0, l).join(''),
+    stash: l => [
+      crate(8, 38, 12) + crate(22, 41, 9),
+      p('M44 14 v36 M82 14 v36 M44 26 h38 M44 38 h38', STEEL, 1.4) + r(47, 30, 9, 8, '#0c4270', sk('#00e5ff')) + r(59, 32, 7, 6, '#6b4a2a') + r(69, 29, 10, 9, '#4a5068') + crate(47, 41, 9) + r(60, 42, 14, 8, '#0c4270', sk('#00e5ff')),
+      r(47, 18, 12, 8, '#6b4a2a') + r(62, 16, 8, 10, '#0c4270', sk('#00e5ff')) + r(72, 20, 8, 6, '#4a5068') + p('M38 2 v48', '#00e5ff', 1, ' stroke-dasharray="3 2"'),
+      c(63, 28, 15, '#17142e', sk('#00e5ff') + ' stroke-width="2"') + c(63, 28, 5, 'none', sk(GREY)) + p('M63 15 v26 M50 28 h26 M54 19 l18 18 M72 19 l-18 18', GREY, 0.8),
+    ].slice(0, l).join(''),
+    locker: l => [locker(8), locker(24), locker(40) + p('M60 12 h20 M70 12 v4', STEEL, 1) + p('M64 18 q6 -4 12 0 v18 h-12 z', '#c77dff', 1),
+      locker(56) + p('M4 8 h80 M4 8 v42 M84 8 v42 M24 8 v4 M44 8 v4 M64 8 v4', '#c77dff', 0.8, ' opacity=".7"')].slice(0, l).join(''),
+    bed: l => [
+      r(14, 43, 52, 2.5, STEEL) + r(16, 45, 2, 5, STEEL) + r(62, 45, 2, 5, STEEL) + r(15, 39, 10, 4, '#e9e9f0'),
+      r(14, 37, 52, 6, '#4da3ff', sk(INK)) + r(30, 36, 36, 7, '#ff4fd8', ' opacity=".85"') + r(15, 34, 11, 4, '#e9e9f0'),
+      r(10, 24, 3, 26, '#6b4a2a') + p('M76 50 v-22', STEEL, 1.2) + p('M71 28 h10 l-2 -7 h-6 z', '#fcee0a', 1) + c(76, 30, 9, '#fcee0a', ' opacity=".14"'),
+      `<rect x="9" y="27" width="60" height="23" rx="11" fill="#0c2a3a" stroke="#00e5ff" stroke-width="1.5"/>` + p('M20 34 h34', '#00e5ff', 1, ' opacity=".6"') + c(60, 38, 2, '#3dff9a') + c(39, 38, 18, '#00e5ff', ' opacity=".1"'),
+    ].slice(0, l).join(''),
+    garage: l => {
+      const bays = BASE.garage.lv[Math.max(1, l)].bays, step = 126 / bays;
+      let s = r(4, 6, 32, 44, DARK, sk('#3dff9a')) + p('M4 12 h32 M4 18 h32 M4 24 h32 M4 30 h32 M4 36 h32 M4 42 h32', '#3dff9a', 0.6, ' opacity=".6"') +
+        `<ellipse cx="74" cy="48.5" rx="9" ry="1.6" fill="#000" opacity=".7"/>`;
+      for (let i = 0; i <= bays; i++) s += p(`M${44 + i * step} 50 v-14`, '#fcee0a', 1, ' stroke-dasharray="3 2" opacity=".8"');
+      // one small ride parked for each you own
+      (S.rides || []).slice(0, bays).forEach((id, i) => {
+        s += `<svg x="${45 + i * step}" y="${37}" width="${Math.min(22, step - 2)}" height="13" viewBox="0 0 40 24">${RIDE_ART[id] || ''}</svg>`;
+      });
+      if (l >= 2) s += p('M40 4 v20 h6', STEEL, 1, ' stroke-dasharray="2 2"') + r(41, 4, 10, 3, '#6b4a2a');
+      if (l >= 3) s += r(156, 26, 16, 24, '#ff3b5c', sk(INK)) + r(159, 30, 10, 6, INK) + p('M156 34 q-8 4 -6 14', GREY, 1.2);
+      if (l >= 4) s += p('M96 50 v-30 M142 50 v-30', '#fcee0a', 2) + r(94, 24, 50, 3, STEEL);
+      return s;
+    },
+    locks: l => [
+      r(8, 8, 46, 32, '#6b4a2a', sk('#c98f6b')) + padlock(13, 16) + padlock(27, 16) + padlock(41, 16),
+      padlock(19, 30) + padlock(34, 30) + r(60, 10, 22, 30, '#6b4a2a', sk('#c98f6b')),
+      r(66, 15, 10, 14, STEEL, sk(INK)) + c(71, 19, 1.6, '#ff3b5c') + p('M68 24 h6', INK, 1),
+      p('M60 50 v-6 M82 50 v-6', STEEL, 1.5) + r(58, 2, 26, 5, GREY, sk(INK)) + c(80, 4.5, 1.3, '#3dff9a'),
+    ].slice(0, l).join(''),
+    range: l => [
+      r(29, 32, 3, 18, WOOD) + `<ellipse cx="30.5" cy="26" rx="7" ry="9" fill="#c98f6b" stroke="${INK}"/>` + c(30.5, 13, 5, '#c98f6b', sk(INK)) + p('M24 24 h13', INK, 0.8) +
+        c(62, 20, 9, '#e9e9f0', sk(INK)) + c(62, 20, 6, '#ff3b5c') + c(62, 20, 3, '#e9e9f0') + c(62, 20, 1, INK) + p('M56 14 l4 4', '#fcee0a', 1.2),
+      r(84, 38, 5, 12, WOOD) + r(80, 36, 13, 3, '#c98f6b') + p('M94 44 h78 M94 50 h78', '#ff3b5c', 0.8, ' stroke-dasharray="6 4" opacity=".7"') + target(146, 16),
+      target(122, 20) + r(100, 2, 10, 2, '#fcee0a') + r(130, 2, 10, 2, '#fcee0a') + r(160, 2, 10, 2, '#fcee0a') +
+        [[166, 46], [172, 46], [169, 41], [166, 36], [172, 36], [169, 31]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="5" ry="2.8" fill="#8a7a4a" stroke="${INK}" stroke-width=".6"/>`).join(''),
+      p('M98 50 v-36 h12 v36 M112 26 h10', STEEL, 2) + p('M100 8 h62', GREY, 1) + r(134, 6, 6, 4, DARK) +
+        p('M137 10 v6', GREY, 0.8) + `<path d="M132 16 h10 v10 l-2 8 h-6 l-2 -8 z" fill="#ff3b5c" stroke="${INK}"/>` + c(137, 13.5, 2.6, '#ff3b5c', sk(INK)) + p('M146 21 l5 0 -2 -2 M151 21 l-2 2 M128 21 l-5 0 2 -2 M123 21 l2 2', '#fcee0a', 1),
+    ].slice(0, l).join(''),
+    med: l => [
+      r(10, 26, 28, 2, STEEL) + r(15, 14, 14, 12, '#e9e9f0', sk(INK)) + p('M22 17 v6 M19 20 h6', '#ff3b5c', 2.2) + r(32, 20, 4, 6, '#3dff9a'),
+      r(40, 38, 32, 3, GREY) + r(42, 41, 2, 9, STEEL) + r(68, 41, 2, 9, STEEL) + r(44, 35, 10, 3, '#e9e9f0') + p('M60 36 l6 -3', STEEL, 1.2),
+      p('M80 50 v-36 h-6', STEEL, 1.2) + r(71, 14, 6, 9, '#3dff9a', sk(INK) + ' opacity=".9"') + p('M74 23 v8', '#3dff9a', 0.7) + r(8, 30, 14, 20, '#e9e9f0', sk(INK)) + p('M15 30 v20', INK, 0.6),
+      r(44, 10, 22, 15, '#06120c', sk('#3dff9a')) + p('M46 18 h4 l2 -5 3 9 2 -4 h7', '#3dff9a', 1.1) + c(55, 17, 14, '#3dff9a', ' opacity=".08"'),
+    ].slice(0, l).join(''),
+    bench: l => [
+      r(8, 38, 52, 3, WOOD) + r(10, 41, 3, 9, '#6b4a2a') + r(55, 41, 3, 9, '#6b4a2a') + r(13, 31, 9, 7, STEEL, sk(INK)) + r(15.5, 28, 4, 3, GREY) + p('M22 34 h6', GREY, 1.2),
+      r(10, 6, 36, 18, DARK, sk('#ff9d2e')) + p('M15 10 v9 M13 10 h4 M23 10 l5 8 M33 9 v10 M31 19 h4 M40 10 q3 4 0 8', GREY, 1.1) + c(49, 33, 5, STEEL, sk(INK)) + c(49, 33, 1.5, INK),
+      p('M62 12 h22 M62 22 h22', STEEL, 1.2) + p('M63 10.5 h16 l3 -2 M64 20.5 h13 M77 20.5 l4 3', GREY, 1.6),
+      r(62, 28, 22, 22, '#3a3f5c', sk('#ff9d2e')) + r(65, 31, 9, 6, INK) + c(79, 34, 2.5, '#ff9d2e') + p('M58 30 l-3 -3 M57 33 h-4 M59 27 l-1 -4', '#fcee0a', 1),
+    ].slice(0, l).join(''),
+    rig: l => [
+      r(10, 41, 18, 9, WOOD, sk(INK)) + c(14, 45.5, 1.1, '#3dff9a') + c(18, 45.5, 1.1, '#fcee0a') + p('M28 45 q5 -1 6 5', '#ff4fd8', 1),
+      server(36, 20, 30),
+      server(56, 8, 42) + c(64, 44, 3, 'none', sk('#00e5ff')),
+      server(72, 14, 36) + p('M44 20 v-20 M64 8 v-8 M80 14 v-14', '#ff4fd8', 1.2) + c(62, 28, 22, '#00e5ff', ' opacity=".07"'),
+    ].slice(0, l).join(''),
+    jam: l => [
+      r(8, 8, 24, 18, '#0c2a3a', sk(STEEL)) + p('M8 12 l4 3 4 -4 4 4 4 -3 4 3 M8 19 l4 3 4 -4 4 4 4 -3 4 3 M8 25 l5 -3 5 3 5 -3 5 3', GREY, 1),
+      r(40, 38, 18, 12, DARK, sk('#4da3ff')) + c(45, 44, 1.5, '#3dff9a') + p('M54 38 v-22', GREY, 1.2) + p('M49 20 q5 -6 10 0 M46 16 q8 -9 16 0', '#4da3ff', 1),
+      r(63, 36, 20, 9, '#101426', sk('#4da3ff')) + p('M65 41 h3 l1.5 -3 2 5 1.5 -2 h6', '#3dff9a', 0.9) + r(61, 45, 24, 2, STEEL),
+      `<rect x="2.5" y="2.5" width="83" height="45" fill="none" stroke="#4da3ff" stroke-width="1" stroke-dasharray="1.5 2.5" opacity=".9"/>`,
+    ].slice(0, l).join(''),
+    intel: l => [
+      r(6, 6, 42, 28, WOOD, sk('#c98f6b')) + r(10, 10, 8, 7, '#e9e9f0') + r(24, 9, 9, 6, '#fcee0a') + r(36, 14, 8, 8, '#e9e9f0') + r(13, 23, 8, 7, '#fcee0a') + r(28, 22, 10, 8, '#e9e9f0') +
+        p('M14 13 L28 12 L40 18 L33 26 L17 26 Z', '#ff3b5c', 0.9),
+      r(52, 40, 30, 2, WOOD) + r(55, 31, 16, 9, DARK, sk('#ff2a6d')) + p('M68 31 v-10', GREY, 1) + p('M57 35 h8', '#3dff9a', 1),
+      r(52, 6, 14, 10, '#06121c', sk('#00e5ff')) + r(68, 6, 14, 10, '#06121c', sk('#00e5ff')) + r(60, 18, 14, 10, '#06121c', sk('#00e5ff')) + p('M54 12 l3 -3 3 2 4 -3 M70 13 h10 M70 10 h6 M62 24 l4 -3 3 2 3 -3', '#00e5ff', 0.8),
+      r(73, 35, 9, 5, '#ff3b5c', sk(INK)) + p('M73 35 q4.5 -5 9 0', '#ff3b5c', 1.6),
+    ].slice(0, l).join(''),
+    cat: l => [
+      r(48, 38, 16, 12, WOOD, sk(INK)) + p('M48 38 l-4 -4 M64 38 l4 -4', WOOD, 1.4) +
+        r(24, 41, 11, 9, '#ff9d2e') + r(31, 35, 8, 7, '#ff9d2e') + `<path d="M31 35 l1.5 -3.5 2 3.5 M36 35 l1.5 -3.5 1.5 3.5" fill="#ff9d2e"/>` + r(33, 37.5, 1.2, 1.2, INK) + r(36.5, 37.5, 1.2, 1.2, INK) + p('M24 47 q-6 -1 -5 -8', '#ff9d2e', 1.8),
+      r(72, 14, 3, 36, WOOD) + r(66, 14, 16, 3, '#c98f6b') + r(68, 30, 12, 3, '#c98f6b') + r(67, 47, 14, 3, '#c98f6b') + p('M74 17 v8', '#ff4fd8', 0.8) + c(74, 26, 1.6, '#ff4fd8'),
+      `<ellipse cx="29" cy="49" rx="14" ry="2.6" fill="#ff2a6d" opacity=".75"/>` + c(29, 44, 16, '#ff9d2e', ' opacity=".1"') + p('M14 30 q2 -3 0 -6 M20 28 q2 -3 0 -6', '#ff9d2e', 0.8, ' opacity=".7"'),
+    ].slice(0, l).join(''),
+    trophy: l => [
+      c(19, 11, 1, GREY) + frame(14, 13),
+      r(32, 26, 30, 2, WOOD) + cup(35) + cup(44) + cup(53) + frame(28, 32, '#00e5ff'),
+      frame(66, 10, '#ff4fd8') + frame(66, 28, '#3dff9a') + frame(44, 32, '#fcee0a') + `<path d="M20 0 l-8 12 h16 z M50 0 l-10 18 h20 z M72 0 l-7 9 h14 z" fill="#fcee0a" opacity=".13"/>`,
+    ].slice(0, l).join(''),
+    // Not built yet: bare rock and a tape outline on the floor.
+    none: w => `<path d="M10 50 l6 -7 5 3 4 -5 6 9 z M${w - 30} 50 l5 -5 7 2 4 -4 5 7 z" fill="#232044"/>` + p(`M8 8 h${w - 16} v36 h${-(w - 16)} z`, '#2b2752', 1, ' stroke-dasharray="4 4"'),
+  };
+})();
+// Where each station sits in the cutaway, row by row: [station, how many of the four columns it takes].
+const BASE_MAP = [
+  [['garage', 2], ['bench', 1], ['locks', 1]],
+  [['bed', 1], ['cat', 1], ['med', 1], ['trophy', 1]],
+  [['stash', 1], ['locker', 1], ['range', 2]],
+  [['power', 1], ['rig', 1], ['jam', 1], ['intel', 1]],
+];
+const roomWidth = id => (BASE_MAP.flat().find(m => m[0] === id)[1] === 2 ? 178 : 88);
+const roomArt = (id, l) => (l ? ROOM_ART[id](l) : ROOM_ART.none(roomWidth(id)));
+// A station's picture for lists and buttons, as it stands now (or at level l).
+const roomIcon = (id, l) => {
+  l = l === undefined ? lvl(id) : l;   // (a wide room shows its busiest part: the Range's lane once it has one)
+  return `<svg class="ico room" viewBox="${roomWidth(id) !== 178 ? '0 0 88 50' : id === 'range' && l >= 2 ? '78 0 100 50' : '0 0 100 50'}" shape-rendering="crispEdges" aria-hidden="true">` +
+    `${roomArt(id, l)}</svg>`;
+};
+const nightsTxt = n => `${n} night${n === 1 ? '' : 's'}`;
+// Where a station stands: 'max', 'building', 'ready' (everything is in: it can be started), 'open' (something is still needed).
+function stationState(id) {
+  const job = jobOf(id);
+  return !nextLv(id) ? 'max' : job ? 'building' : baseBlock(id) ? 'open' : 'ready';
+}
+// The cutaway: the street on top, then every room. Tapping a room opens its station (see ACTIONS.station).
+function baseMap() {
+  const W = 364, top = 30;
+  let s = `<svg class="basemap" viewBox="0 0 ${W} ${top + 4 * 64}" shape-rendering="crispEdges" role="group" aria-label="The Bunker">` +
+    `<rect width="${W}" height="${top}" fill="#0b0a1c"/><circle cx="318" cy="9" r="4.5" fill="#fcee0a" opacity=".85"/>` +
+    [[6, 14, 22], [30, 8, 16], [48, 17, 26], [96, 11, 18], [226, 15, 24], [252, 6, 14], [338, 13, 22]].map(([x, y, w]) =>
+      `<rect x="${x}" y="${y}" width="${w}" height="${top - 2 - y}" fill="#17142e" stroke="#2b2752"/>` +
+      `<rect x="${x + 3}" y="${y + 3}" width="2" height="2" fill="#fcee0a" opacity=".8"/><rect x="${x + w - 6}" y="${y + 7}" width="2" height="2" fill="#00e5ff" opacity=".8"/>`).join('') +
+    `<rect y="${top - 2}" width="${W}" height="2" fill="#2b2752"/><rect x="168" y="${top - 4}" width="20" height="3" fill="#7c81ab"/>` +
+    `<path d="M172 ${top - 1} v6 M184 ${top - 1} v6 M172 ${top + 1} h12" stroke="#7c81ab" fill="none"/>` +
+    (lvl('power') ? `<path d="M96 14 q40 14 74 13" stroke="#ff9d2e" stroke-width="1.2" fill="none"/>` : '') +
+    (lvl('jam') >= 2 ? `<path d="M296 ${top - 2} v-18" stroke="#c9d1d5" stroke-width="1.2"/><path d="M290 12 q6 -6 12 0 M287 8 q9 -9 18 0" stroke="#4da3ff" fill="none"${baseDark() ? ' opacity=".2"' : ' class="blink"'}/>` : '') +
+    (lvl('cat') ? `<rect x="200" y="${top - 6}" width="5" height="4" fill="#ff9d2e"/><rect x="204" y="${top - 8}" width="3" height="3" fill="#ff9d2e"/><path d="M200 ${top - 5} q-3 -1 -2 -4" stroke="#ff9d2e" fill="none"/>` : '');
+  BASE_MAP.forEach((row, ri) => {
+    let x = 2;
+    const y = top + 2 + ri * 64;
+    for (const [id, span] of row) {
+      const B = BASE[id], w = span * 90 - 2, l = lvl(id), st = stationState(id), job = jobOf(id), off = l > eff(id);
+      s += `<g class="room" data-act="station" data-arg="${id}" tabindex="0" role="button" aria-label="${esc(B.name)}, level ${l} of ${topLv(id)}` +
+        `${st === 'ready' ? ', upgrade ready' : st === 'building' ? `, building, ${nightsTxt(job.left)} to go` : ''}">` +
+        `<rect class="rbox" x="${x}" y="${y}" width="${w}" height="60" fill="#0a0918" stroke="${l ? B.col : '#2b2752'}"${l ? '' : ' stroke-dasharray="3 3"'}/>` +
+        `<svg x="${x}" y="${y}" width="${w}" height="50" viewBox="0 0 ${w} 50" overflow="hidden"${off ? ' opacity=".35"' : ''}>${roomArt(id, l)}</svg>` +
+        `<rect x="${x + 0.5}" y="${y + 49}" width="${w - 1}" height="10.5" fill="#06050d"/>` +
+        `<text x="${x + 3}" y="${y + 57.5}" fill="${l ? B.col : '#7c81ab'}">${B.tag}</text>` +
+        Array.from({length: topLv(id)}, (_, i) => `<rect x="${x + w - 4 - (topLv(id) - i) * 6}" y="${y + 52}" width="4" height="4" ` +
+          `fill="${i < l ? B.col : 'none'}" stroke="${i < l ? B.col : '#7c81ab'}" stroke-width=".7"/>`).join('') +
+        // the corner: an upgrade that can be started, a build under way, or the power being out
+        (st === 'building' ? `<rect x="${x + w - 25}" y="${y + 1}" width="24" height="11" fill="#fcee0a"/><text x="${x + w - 23}" y="${y + 9.5}" fill="#000">${job.left}N</text>` +
+          `<path d="M${x + 1} ${y + 46} h${w - 2}" stroke="#fcee0a" stroke-width="3" stroke-dasharray="5 5"/>`
+          : st === 'ready' ? `<g class="blink"><rect x="${x + w - 13}" y="${y + 1}" width="12" height="11" fill="#3dff9a"/><path d="M${x + w - 10.5} ${y + 9} l3.5 -6 3.5 6 z" fill="#000"/></g>`
+          : !l ? `<text x="${x + w / 2 - 14}" y="${y + 30}" fill="#7c81ab">BUILD</text>` : '') +
+        (off ? `<text x="${x + 3}" y="${y + 10}" fill="#ff3b5c">NO POWER</text>` : '') + '</g>';
+      x += span * 90;
+    }
+  });
+  return s + '</svg>';
+}
+// The Bunker's panel on the main screen: the cutaway, one line about what is going on, then the stash.
+function baseHtml() {
+  const jobs = baseJobs(), ready = BASE_IDS.filter(id => stationState(id) === 'ready');
+  const line = [jobs.length ? `<span class="amber">Building: ${jobs.map(j => `${BASE[j.id].name} L${lvl(j.id) + 1} (${nightsTxt(j.left)})`).join(', ')}</span>` : '',
+    ready.length ? `<span class="green">Ready to build: ${ready.map(id => BASE[id].name).join(', ')}</span>` : '',
+    baseDark() ? `<span class="red">Power is out: no cash for it this morning (${money(baseUpkeep())})</span>` : baseUpkeep() ? `power ${money(baseUpkeep())} a night` : ''].filter(Boolean).join(' &middot; ');
+  return `<div class="basewrap">${baseMap()}</div><div class="baseline">${line || 'Tap a room. Empty ones can be built; the rest can be built up.'}</div>`;
+}
+// Chips for the main screen, wherever you are: builds under way, and a power cut.
+function baseChips() {
+  const jobs = baseJobs(), chips = [];
+  if (jobs.length) chips.push(['Building', `${BASE[jobs[0].id].tag} L${lvl(jobs[0].id) + 1} &middot; ${jobs[0].left}n${jobs.length > 1 ? ` +${jobs.length - 1}` : ''}`, 'amber']);
+  if (baseDark()) chips.push(['Bunker power', 'OUT', 'red']);
+  return chips;
+}
+// A line for the sleep dialog, once the Jammer is good enough to listen in.
+const baseSleepNote = odds => (BV('jam', 'warn') ? `<p class="cyan">Scanner: about a ${Math.round(odds * 100)}% chance they come for the Bunker tonight.</p>` : '');
+// The button other Bunker dialogs carry to get to their station (not while the self-test is steering a dialog).
+const stationBtn = id => (AUTO && autoPick ? [] : [[`${BASE[id].name}: level ${lvl(id)}${{ready: ' ▲ upgrade ready', building: ' ⚒ building', max: ' (top)', open: ' ▸ upgrade'}[stationState(id)]}`, 'base', 'small']]);
+
+// One station: what it is, what it does now, what the next level needs and gives, and the buttons to pay for it.
+// inUse: opened from the station's own dialog, so there is no button to go back into it.
+const STATION_USE = {
+  locker: ['Open the locker', () => ACTIONS.locker()], garage: ['Open the garage', () => garage()], locks: ['Practise on the locks', () => ACTIONS.practice()],
+  range: ['Go to the firing line', () => rangeDlg()], med: ['Open the Med Bay', () => medDlg()], bench: ['Use the bench', () => benchDlg()],
+  intel: ['Read the board', () => intelDlg()], trophy: ['Look at them', () => ACTIONS.achievements()], bed: ['Sleep', () => ACTIONS.sleep()],
+};
+async function stationDlg(id, inUse) {
+  for (;;) {
+    const B = BASE[id], l = lvl(id), L = B.lv[l], N = nextLv(id), job = jobOf(id), off = l > eff(id);
+    let html = `<div class="syn">${withIcon(roomIcon(id), `<b>${B.name}</b> <span class="dim">level ${l} of ${topLv(id)}</span><br>${l ? L.n : 'Not built yet'}`)}</div>` +
+      `<p class="dim">${B.about}</p>` +
+      (l ? `<p><span class="dim">NOW</span><br>${B.say(L, l)}` + (off ? `<br><span class="red">The power is out today, so it is working as level ${eff(id)}.</span>` : '') + '</p>' : '');
+    const give = N && !job ? baseGive(id, true) : [], cashI = N ? N.req.findIndex(r => r[0] === 'cash') : -1;
+    const due = cashI >= 0 && !job ? N.req[cashI][1] - reqPaid(id, cashI) : 0;
+    if (N) {
+      html += (job ? meter('Building', N.t - job.left, N.t, nightsTxt(job.left), 'amber') : '') +
+        `<p><span class="dim">${job ? 'BEING BUILT' : 'NEXT'}: LEVEL ${l + 1}</span><br>${withIcon(roomIcon(id, l + 1), `<b class="cyan">${N.n}</b><br>${B.say(N, l + 1)}`)}</p>`;
+      if (job) html += `<p class="amber">Done in ${nightsTxt(job.left)}. Until then it works the way it does now.</p>`;
+      else {
+        html += N.req.map((r, i) => {
+          const met = reqMet(id, r, i), item = REQ_ITEM[r[0]], paid = reqPaid(id, i), have = reqHave(r), need = reqAmt(r), isCash = r[0] === 'cash';
+          const right = met ? (item ? 'handed in' : 'yes') : item ? `${isCash ? money(paid) : paid}/${isCash ? money(need) : need}` +
+            ` <span class="${have ? 'amber' : 'dim'}">have ${isCash ? money(have) : have}</span>` : `<span class="red">you: ${have}</span>`;
+          return `<div class="req"><span class="${met ? 'green' : ''}">${met ? '&#10003;' : '&#9656;'} ${reqLabel(r)}</span><b class="${met ? 'green' : ''}">${right}</b></div>`;
+        }).join('') + `<p class="dim" style="margin-top:8px">Takes ${nightsTxt(N.t)} to build${N.t ? '' : ' at all'}. What you hand in stays handed in, even into your next run, and does not come back.` +
+          `${baseUpkeep() || N.req.some(r => r[0] === 'st' && r[1] === 'power') || id === 'power' ? ` Power: ${money(BASE_TUNE.upkeep)} a night for each level that needs it.` : ''}</p>`;
+      }
+    } else html += '<p class="green">As good as it gets. Nobody is going to make you stop looking at it.</p>';
+    const buttons = [], use = STATION_USE[id];
+    if (use && l && !inUse) buttons.push([use[0], 'use', N && !job ? '' : 'primary']);
+    if (give.length) buttons.push(['Hand in what you have', 'give']);
+    if (due > 0 && S.cash > 0) buttons.push([`Pay towards it (${money(due)} to go)`, 'pay']);
+    if (N && !job) buttons.push([`Start building (${nightsTxt(N.t)})`, 'build', baseBlock(id) ? '' : 'primary']);
+    buttons.push(['Back', null, buttons.some(b => b[2] === 'primary') ? 'small' : 'primary']);
+    const choice = await dialog(B.name, html, buttons);
+    if (!choice) return;
+    if (choice === 'use') { await use[1](); if (id === 'bed') return; continue; }
+    if (choice === 'give') {
+      if (!await confirmDlg('Hand in', `<p>For the ${B.name}, level ${l + 1}:</p><div class="syn">${give.join('<br>')}</div>` +
+        '<p class="amber">They become part of the Bunker. They are not coming back.</p>', 'Hand them in', 'Keep them')) continue;
+      const gone = baseGive(id);
+      if (gone.length) { SND.play('buy'); log(`Handed in for the ${B.name}: ${gone.join(', ')}.`); render(); }
+    } else if (choice === 'pay') {
+      const most = Math.min(S.cash, due);
+      const amt = most > 0 ? await askQty(`Pay towards the ${B.name}`, `<p>Level ${l + 1} still wants <b>${money(due)}</b> in cash. You have <span class="green">${money(S.cash)}</span>.</p>` +
+        '<p class="dim">Pay any part of it now. It stays paid.</p>', most, {cash: true, ok: 'Pay'}) : 0;
+      const paid = amt ? basePay(id, amt) : 0;
+      if (paid) { SND.play('cash'); log(`Paid ${money(paid)} towards the ${B.name}.`); render(); }
+    } else if (choice === 'build') {
+      const why = baseBlock(id);
+      if (!baseStart(id)) {
+        SND.play('deny');
+        await alertDlg('Not yet', `<p>The ${B.name} cannot go up to level ${l + 1} yet.</p><p class="amber">${why}</p>` +
+          '<p class="dim">Cash and items have to be handed in here first: the buttons for that are under the list.</p>', 'danger');
+        continue;
+      }
+      SND.play('loot');
+      log(`<span class="amber">Building: ${B.name} level ${l + 1}, ${N.n}.</span> ${N.t ? `Done in ${nightsTxt(N.t)}.` : ''}`);
+      render();
+    }
+  }
+}
+// Every station on one list, for the keyboard and for anyone who would rather read than look at a drawing.
+async function baseDlg() {
+  for (;;) {
+    const jobs = baseJobs();
+    const html = `<p>Builders: <b>${jobs.length}</b> of ${buildCrews()} busy` + (jobs.length ? ': ' + jobs.map(j => `<span class="amber">${BASE[j.id].name} L${lvl(j.id) + 1}, ${nightsTxt(j.left)}</span>`).join('; ') : '') + '.</p>' +
+      `<p>Power: ${baseUpkeep() ? `<b>${money(baseUpkeep())}</b> a night for ${poweredLevels()} powered level${poweredLevels() === 1 ? '' : 's'}` : 'nothing here needs any yet'}.` +
+      (baseDark() ? ' <span class="red">It is out today: you could not pay for it this morning.</span>' : '') + '</p>' +
+      '<p class="dim">The base belongs to this save: it is still here on your next run. ▲ can be built now, ⚒ is being built.</p>';
+    const buttons = BASE_IDS.map(id => {
+      const st = stationState(id), job = jobOf(id);
+      return [`${BASE[id].name} L${lvl(id)}${st === 'ready' ? ' ▲' : st === 'building' ? ` ⚒ ${job.left}n` : st === 'max' ? ' top' : ''}`, id, st === 'ready' ? 'r1' : '', roomIcon(id)];
+    });
+    buttons.push(['Close', null, 'primary']);
+    const id = await dialog('The base', html, buttons);
+    if (!BASE[id]) return;
+    await stationDlg(id);
+  }
+}
+
+// ----- the Range -----
+const MARK_SHORT = {blunt: 'Blunt', blade: 'Blades', gun: 'Guns', heavy: 'Heavy'};
+const markLine = kind => {
+  const m = markInfo(kind), save = markSave(kind);
+  return meter(MARK_SHORT[kind], m.need ? m.into : 1, m.need || 1, 'L' + m.level, 'amber') +
+    `<div class="dim" style="font-size:12px;margin:-2px 0 6px 72px">${WTYPE[kind][0]}: +${markHit(kind)}% to hit${save ? `, ${save}% of rounds not wasted` : ''}</div>`;
+};
+// A target with holes in it. shots: [{x, y}] in the 240 x 150 box; cx: where the middle is.
+function targetSvg(shots, cx, extra) {
+  const rings = [60, 48, 36, 24, 12].map((rad, i) => `<circle cx="${cx}" cy="75" r="${rad}" fill="${['#e9e9f0', '#e9e9f0', '#15131c', '#15131c', '#ff3b5c'][i]}" stroke="${i < 2 ? '#15131c' : '#e9e9f0'}" stroke-width="1"/>`).join('');
+  return `<rect width="240" height="150" fill="#0b0a1c"/><path d="M0 138 h240" stroke="#2b2752"/><g id="rgt">${rings}</g>` +
+    `<g id="rgh">${shots.map(h => `<circle cx="${h.x}" cy="${h.y}" r="2.6" fill="#06050d" stroke="#fcee0a" stroke-width=".8"/>`).join('')}</g>${extra || ''}`;
+}
+const ringScore = d => (d <= 12 ? 10 : d <= 24 ? 8 : d <= 36 ? 6 : d <= 48 ? 4 : d <= 60 ? 2 : 0);
+// A session nobody aimed: an average one. (The self-test shoots this way, at once.)
+function rangeQuick() {
+  const shots = [];
+  for (let i = 0; i < MARKS.strings; i++) {
+    const a = Math.random() * Math.PI * 2, d = rnd(8, 40);
+    shots.push({x: 120 + Math.cos(a) * d, y: 75 + Math.sin(a) * d, score: ringScore(d)});
+  }
+  return {shots, cx: 120, total: shots.reduce((sum, h) => sum + h.score, 0)};
+}
+// The firing line: a sight drifts over the target, steadier the better you are; FIRE (or a tap on the target)
+// puts a hole where it is. Five shots. moving: the target slides from side to side as well.
+function rangeGame(kind, moving) {
+  if (AUTO) return Promise.resolve(rangeQuick());
+  return new Promise(resolve => {
+    const skill = markInfo(kind).level, ax = 96 - 5 * skill, ay = 56 - 3 * skill, t0 = performance.now(), shots = [];
+    const verb = kind === 'blunt' ? 'SWING' : kind === 'blade' ? 'THROW' : 'FIRE';
+    let raf = 0, sx = 120, sy = 75, cx = 120, done = false;
+    dlg.className = '';
+    dlg.innerHTML = '<h2>The Range</h2><div class="body">' +
+      `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx" transform="translate(120 75)"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
+      `<p id="rgs"></p><p class="dim">The sight drifts. ${verb === 'FIRE' ? 'Fire' : verb === 'THROW' ? 'Throw' : 'Swing'} when it crosses the middle: tap the target, or use the button. ` +
+      'It drifts less the better you get.</p></div>' +
+      `<div class="dbtns"><button id="rgf" class="primary">${verb}</button><button id="rgk" class="small">Skip the aiming</button></div>`;
+    const sight = $('#rgx'), tgt = $('#rgt'), holes = $('#rgh'), say = $('#rgs');
+    const status = () => { say.innerHTML = `Shot <b>${Math.min(MARKS.strings, shots.length + 1)}</b> of ${MARKS.strings} &middot; score <b class="amber">${shots.reduce((sum, h) => sum + h.score, 0)}</b>`; };
+    const frame = now => {
+      const t = (now - t0) / 1000;
+      sx = 120 + ax * Math.sin(t * 2.3); sy = 75 + ay * Math.sin(t * 3.1 + 1);
+      cx = moving ? 120 + 44 * Math.sin(t * 0.9) : 120;
+      sight.setAttribute('transform', `translate(${sx.toFixed(1)} ${sy.toFixed(1)})`);
+      tgt.setAttribute('transform', `translate(${(cx - 120).toFixed(1)} 0)`);
+      holes.setAttribute('transform', `translate(${(cx - 120).toFixed(1)} 0)`);
+      raf = requestAnimationFrame(frame);
+    };
+    const finish = result => {
+      if (done) return;
+      done = true;
+      cancelAnimationFrame(raf);
+      setTimeout(() => { overlay.hidden = true; resolve(result); }, result.quick ? 0 : 450);
+    };
+    const fire = () => {
+      if (done || shots.length >= MARKS.strings) return;
+      // the hole lands where the sight is, give or take a little; it is scored (and drawn) against the target's middle
+      const hx = sx + (Math.random() - 0.5) * 5, hy = sy + (Math.random() - 0.5) * 5, d = Math.hypot(hx - cx, hy - 75);
+      shots.push({x: hx - cx + 120, y: hy, score: ringScore(d)});
+      holes.insertAdjacentHTML('beforeend', `<circle cx="${(hx - cx + 120).toFixed(1)}" cy="${hy.toFixed(1)}" r="2.6" fill="#06050d" stroke="#fcee0a" stroke-width=".8"/>`);
+      SND.play(kind === 'blunt' ? 'thud' : kind === 'blade' ? 'bslash' : kind === 'heavy' ? 'bbeam' : 'shoot');
+      status();
+      if (shots.length >= MARKS.strings) finish({shots, cx: 120, total: shots.reduce((sum, h) => sum + h.score, 0)});
+    };
+    $('#rg').onpointerdown = e => { e.preventDefault(); fire(); };
+    $('#rgf').onclick = fire;
+    $('#rgk').onclick = () => {   // the shots already taken stand; the rest are average ones
+      const rest = rangeQuick().shots.slice(shots.length), all = shots.concat(rest);
+      finish({shots: all, cx: 120, total: all.reduce((sum, h) => sum + h.score, 0), quick: true});
+    };
+    status();
+    overlay.hidden = false;
+    dlg.scrollTop = 0;
+    $('#rgf').focus();
+    raf = requestAnimationFrame(frame);
+  });
+}
+async function rangeDlg() {
+  if (S.loc !== BUNKER) return;
+  for (;;) {
+    const l = eff('range'), R = BASE.range.lv[l], W = WEAPONS[S.weapon], why = rangeBlock(), left = Math.max(0, R.shots - (HQ().shots || 0));
+    const rounds = W && usesAmmo(W) ? R.rounds : 0;
+    const html = `<svg class="rangebox" viewBox="0 0 178 50" shape-rendering="crispEdges" style="cursor:default">${roomArt('range', l)}</svg>` +
+      `<p><b class="cyan">${l ? R.n : 'Dark'}</b> <span class="dim">level ${lvl('range')} of ${topLv('range')}</span><br>` +
+      `Sessions left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${R.shots}. It teaches up to skill level ${R.cap}.</p>` +
+      MARK_KINDS.map(markLine).join('') +
+      `<div class="syn">${W ? withIcon(weaponIcon(S.weapon), `<b>${W[0]}</b> <span class="dim">${WTYPE[W[4]][0]}</span><br>` +
+        (why ? `<span class="amber">${why}</span>` : rounds ? `A session burns <b>${rounds}</b> rounds, the cheapest you carry first.` : 'A session costs nothing but the session.'))
+        : `<span class="amber">${why}</span>`}</div>` +
+      (drillAim() ? `<p class="green">Entry drill: +${drillAim()}% to hit on your first volley in any fight.</p>` : '') +
+      '<p class="dim">Real fights teach too, slowly, and past what any range can.</p>';
+    const buttons = why ? [] : [[`Practise with the ${W[0]}`, 'go', 'primary'], ['Quick session (no aiming)', 'quick']];
+    buttons.push(...stationBtn('range'), ['Done', null, why ? 'primary' : 'small']);
+    const choice = await dialog('The Range', html, buttons);
+    if (!choice) return;
+    if (choice === 'base') { await stationDlg('range', true); continue; }
+    if (rangeBlock()) continue;
+    const G = choice === 'quick' ? rangeQuick() : await rangeGame(W[4], R.moving), res = rangeSession(G.total);
+    if (!res) continue;
+    const burnt = Object.entries(res.used).map(([k, q]) => `${q} ${AMMO[k][0]}`).join(', ');
+    SND.play(res.score >= 40 ? 'win' : 'bok');
+    log(`Range: ${res.score}/${10 * MARKS.strings} with the ${W[0]}${burnt ? `, ${burnt} burnt` : ''}.${res.got}`);
+    render();
+    await alertDlg('The Range', `<svg class="rangebox" viewBox="0 0 240 150" style="cursor:default">${targetSvg(G.shots, 120)}</svg>` +
+      `<p>Score: <b class="amber">${res.score}</b> of ${10 * MARKS.strings}. ${res.score >= 45 ? 'You could cover that group with a coaster.' : res.score >= 35 ? 'A group. An actual group.'
+        : res.score >= 20 ? 'Most of them hit the paper.' : 'The target is unharmed. The wall behind it has concerns.'}</p>` +
+      `<p>${res.got || '<span class="dim">Nothing more to learn here with this.</span>'}${burnt ? ` <span class="dim">Burnt: ${burnt}.</span>` : ''}</p>`);
+  }
+}
+
+// ----- the Med Bay -----
+// What getting stuck goods out at home costs (the street doc's fee, times the Med Bay's share of it).
+const medFee = () => Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5) * (BV('med', 'doc') || 0));
+// Patch yourself up: once a day. True if it did anything.
+function medPatch() {
+  const heal = BV('med', 'heal'), hq = HQ();
+  if (!heal || hq.patch || S.hp >= 100) return false;
+  S.hp = Math.min(100, S.hp + heal); hq.patch = 1;
+  return true;
+}
+// Make a medkit out of Cracked Accounts you carry: once a day.
+function medCook() {
+  const need = BV('med', 'cook'), hq = HQ();
+  if (!need || hq.cook || S.medkits >= MAX_MED || (S.inv['Cracked Accounts'] || 0) < need) return false;
+  removeItems('Cracked Accounts', need);
+  S.medkits++; hq.cook = 1;
+  return true;
+}
+// Get what is stuck in your prison pocket out, at home. The goods come back tagged, as they do from the street
+// doc, but nobody patches you up. Returns how many came out.
+function medExtract() {
+  const n = stuckTotal(), fee = medFee();
+  if (BV('med', 'doc') === undefined || !n || S.cash < fee) return 0;
+  S.cash -= fee;
+  for (const [name, qty] of Object.entries(S.stuck)) addItems(name, qty, S.stuckCost[name] || 0, qty);
+  S.stuck = {}; S.stuckCost = {}; S.sick = 0;
+  extractTally++;
+  tally('extract');
+  return n;
+}
+async function medDlg() {
+  if (S.loc !== BUNKER) return;
+  for (;;) {
+    const l = eff('med'), M = BASE.med.lv[l], hq = HQ(), held = S.inv['Cracked Accounts'] || 0;
+    const fee = medFee();
+    const html = `<div class="syn">${withIcon(roomIcon('med'), `<b>${l ? M.n : 'Dark'}</b><br>${l ? BASE.med.say(M, l) : 'The power is out. You cannot find the plasters.'}`)}</div>` +
+      meter('Health', S.hp, 100, S.hp + '%') +
+      (l ? `<p>${hq.patch ? '<span class="dim">You have patched yourself up today already.</span>' : S.hp >= 100 ? '<span class="dim">Nothing to patch.</span>' : `Patching up: Health ${S.hp}% &rarr; ${Math.min(100, S.hp + M.heal)}%.`}` +
+        (M.cook ? `<br>${hq.cook ? '<span class="dim">Today\'s medkit is made.</span>' : `A medkit costs ${M.cook} Cracked Accounts (you carry ${held}): six pharmacy logins is one medkit. Do not ask. Medkits: ${S.medkits}/${MAX_MED}.`}` : '') +
+        (M.doc !== undefined && stuckTotal() ? `<br><span class="amber">Stuck in your prison pocket: ${stuckList()}. With a mirror and a steady hand: ${fee ? money(fee) : 'free'}. ` +
+          `They come out tagged, and you do not get the street doc's patch-up.</span>` : '') + '</p>' : '');
+    const buttons = [];
+    if (l && !hq.patch && S.hp < 100) buttons.push([`Patch up (+${Math.min(M.heal, 100 - S.hp)}% Health)`, 'patch', 'primary', miscIcon('medkit')]);
+    if (M.cook && !hq.cook && S.medkits < MAX_MED && held >= M.cook) buttons.push([`Make a medkit (${M.cook} Cracked Accounts)`, 'cook']);
+    if (M.doc !== undefined && stuckTotal() && S.cash >= fee) buttons.push([`Get them out (${fee ? money(fee) : 'free'})`, 'doc', 'danger']);
+    buttons.push(...stationBtn('med'), ['Done', null, buttons.length ? 'small' : 'primary']);
+    const choice = await dialog('Med Bay', html, buttons);
+    if (!choice) return;
+    if (choice === 'base') { await stationDlg('med', true); continue; }
+    if (choice === 'patch') {
+      const was = S.hp;
+      if (!medPatch()) continue;
+      SND.play('heal');
+      log(`Med Bay: patched up from ${was}% to ${S.hp}% Health.`);
+    } else if (choice === 'cook') {
+      if (!medCook()) continue;
+      SND.play('loot');
+      log(`Med Bay: ${M.cook} Cracked Accounts became a medkit. You have ${S.medkits}.`);
+    } else if (choice === 'doc') {
+      const n = medExtract();
+      if (!n) continue;
+      SND.play('heal');
+      log(`<span class="green">Med Bay: you got ${num(n)} goods out yourself${fee ? ` for ${money(fee)} of supplies` : ''}.</span> ${tagHtml}`);
+      render();
+      await alertDlg('Extracted', `<p>Twenty minutes, one mirror, a great deal of swearing. All <b>${num(n)}</b> are out.</p>` +
+        `<p>You rinse them, bag them, and staple the tag on yourself. Standards are standards: ${tagHtml}</p>`);
+    }
+    render();
+  }
+}
+
+// ----- the Workshop -----
+// How many presses of ammo kind number i (in AMMO's order) into the next grade up are possible right now.
+function pressMost(i) {
+  const kinds = Object.keys(AMMO), T = BASE.bench.lv[eff('bench')], [take, give] = T.ratio, left = T.press - (HQ().conv || 0);
+  return i < 0 || i >= kinds.length - 1 || !take ? 0
+    : Math.max(0, Math.min(Math.floor(S.ammo[kinds[i]] / take), Math.floor(left / give), Math.floor((AMMO_MAX - S.ammo[kinds[i + 1]]) / give)));
+}
+// Press n batches. True if it did.
+function benchPress(i, n) {
+  const kinds = Object.keys(AMMO), [take, give] = BASE.bench.lv[eff('bench')].ratio;
+  n = Math.floor(n) || 0;
+  if (n <= 0 || n > pressMost(i)) return false;
+  S.ammo[kinds[i]] -= n * take; S.ammo[kinds[i + 1]] += n * give;
+  HQ().conv = (HQ().conv || 0) + n * give;
+  return true;
+}
+const canMake = k => BV('bench', 'make').includes(k) && S[k] < GADGETS[k][2] && (S.inv[MAKE[k].good[0]] || 0) >= MAKE[k].good[1] &&
+  (k === 'picks' || (S.picks || 0) >= (MAKE[k].picks || 0));
+// Make one entry tool out of goods you carry.
+function benchMake(k) {
+  if (!MAKE[k] || !canMake(k)) return false;
+  removeItems(MAKE[k].good[0], MAKE[k].good[1]);
+  if (MAKE[k].picks) S.picks -= MAKE[k].picks;
+  S[k]++;
+  return true;
+}
+const tunePrice = () => (WEAPONS[S.weapon] ? Math.max(BASE_TUNE.tuneMin, Math.round(WEAPONS[S.weapon][1] * BASE_TUNE.tuneCost)) : 0);
+// Tune the weapon you carry: it hits a little more often until you carry something else.
+function benchTune() {
+  const tune = BV('bench', 'tune');
+  if (!tune || !WEAPONS[S.weapon] || tuneHit() >= tune || S.cash < tunePrice()) return false;
+  S.cash -= tunePrice();
+  S.tune = {w: S.weapon, hit: tune};
+  return true;
+}
+async function benchDlg() {
+  if (S.loc !== BUNKER) return;
+  const kinds = Object.keys(AMMO);
+  for (;;) {
+    const l = eff('bench'), T = BASE.bench.lv[l], hq = HQ(), W = WEAPONS[S.weapon], left = Math.max(0, T.press - (hq.conv || 0));
+    const [take, give] = T.ratio, tuneCost = tunePrice();
+    const batches = pressMost;
+    const html = `<div class="syn">${withIcon(roomIcon('bench'), `<b>${l ? T.n : 'Dark'}</b><br>${l ? BASE.bench.say(T, l) : 'The power is out. The bench is a table.'}`)}</div>` +
+      (l ? `<p>The press: ${take} rounds in, ${give} of the next grade up out. <b class="${left ? 'green' : 'red'}">${left}</b> more rounds today.<br>` +
+        `<span class="dim">You carry: ${kinds.map(k => `${AMMO[k][4]} ${S.ammo[k]}`).join(' &middot; ')}</span></p>` +
+        T.make.map(k => `<p>${withIcon(miscIcon(k), `<b>${GADGETS[k][0]}</b> <span class="dim">you have ${S[k]}/${GADGETS[k][2]}</span><br>` +
+          `needs ${MAKE[k].good[1]} ${MAKE[k].good[0]}${MAKE[k].picks ? ` and ${MAKE[k].picks} lock picks` : ''} <span class="dim">(you carry ${S.inv[MAKE[k].good[0]] || 0})</span>`)}</p>`).join('') +
+        (T.tune ? `<p>${!W ? '<span class="dim">Nothing to tune: you carry no weapon.</span>' : tuneHit() >= T.tune ? `<span class="green">Your ${W[0]} is tuned: +${tuneHit()}% to hit.</span>`
+          : `Tune the ${W[0]}: <span class="green">+${T.tune}% to hit</span> for <span class="amber">${money(tuneCost)}</span>, until you carry something else.`}</p>` : '') : '');
+    const buttons = [];
+    kinds.forEach((k, i) => { if (batches(i) > 0) buttons.push([`Press ${AMMO[k][4]} into ${AMMO[kinds[i + 1]][4]}`, 'p' + i, '', ammoIcon(kinds[i + 1])]); });
+    for (const k of T.make) if (canMake(k)) buttons.push([`Make: ${GADGETS[k][0]}`, 'm' + k, '', miscIcon(k)]);
+    if (T.tune && W && tuneHit() < T.tune && S.cash >= tuneCost) buttons.push([`Tune the ${W[0]} (${money(tuneCost)})`, 'tune']);
+    buttons.push(...stationBtn('bench'), ['Done', null, buttons.length ? 'small' : 'primary']);
+    const choice = await dialog('Workshop', html, buttons);
+    if (!choice) return;
+    if (choice === 'base') { await stationDlg('bench', true); continue; }
+    if (choice[0] === 'p') {
+      const i = Number(choice.slice(1)), most = batches(i);
+      if (!(most > 0)) continue;
+      const n = await askQty(`Press ${AMMO[kinds[i]][0]}`, `<p>Each press turns <b>${take} ${AMMO[kinds[i]][0]}</b> into <b>${give} ${AMMO[kinds[i + 1]][0]}</b>. How many presses?</p>`, most, {ok: 'Press'});
+      if (!n) continue;
+      if (!benchPress(i, n)) continue;
+      SND.play('buy');
+      log(`Workshop: pressed ${n * take} ${AMMO[kinds[i]][0]} into ${n * give} ${AMMO[kinds[i + 1]][0]}.`);
+    } else if (choice[0] === 'm') {
+      const k = choice.slice(1);
+      if (!benchMake(k)) continue;
+      SND.play('loot');
+      log(`Workshop: made a ${GADGETS[k][0]} out of ${MAKE[k].good[1]} ${MAKE[k].good[0]}${MAKE[k].picks ? ` and ${MAKE[k].picks} lock picks` : ''}.`);
+    } else if (choice === 'tune') {
+      if (!benchTune()) continue;
+      SND.play('loot');
+      log(`Workshop: tuned the ${W[0]} for ${money(tuneCost)}. <span class="green">+${T.tune}% to hit.</span>`);
+    }
+    render();
+  }
+}
+
+// ----- the Intel Board -----
+// Today's market at a place, made now if you have not been there yet (it is the one you will find when you go).
+function peekMarket(loc) {
+  if (loc === BUNKER) return null;
+  if (!S.markets[loc]) {
+    const keep = [S.loc, S.prices, S.flags, S.news, S.contracts, S.shop, S.store];
+    S.loc = loc;
+    try { rollMarket(); } finally { [S.loc, S.prices, S.flags, S.news, S.contracts, S.shop, S.store] = keep; }
+  }
+  return S.markets[loc];
+}
+// Today's rumours: for a few places, the price furthest from normal there. Each is true only most of the time:
+// a wrong one names the wrong place.
+function intelTips() {
+  const hq = HQ(), I = BASE.intel.lv[eff('intel')];
+  if (hq.tipDay === S.day && Array.isArray(hq.tips) && hq.tips.length === I.tips) return hq.tips;
+  const places = LOCATIONS.filter(loc => loc !== BUNKER);
+  hq.tips = places.slice().sort(() => Math.random() - 0.5).slice(0, I.tips).map(loc => {
+    const m = peekMarket(loc);
+    let best = null;
+    for (const [name, low, high] of GOODS) {
+      const price = m && m.prices[name], far = price ? Math.abs(Math.log(price / ((low + high) / 2))) : -1;
+      if (price && (!best || far > best.far)) best = {good: name, price, up: price > (low + high) / 2, far};
+    }
+    if (!best) return null;
+    const wrong = Math.random() >= I.right;
+    return {good: best.good, up: best.up, price: Number(best.price.toPrecision(2)), loc: wrong ? pick(places.filter(p => p !== loc)) : loc};
+  }).filter(Boolean);
+  hq.tipDay = S.day;
+  return hq.tips;
+}
+async function intelDlg() {
+  if (S.loc !== BUNKER) return;
+  for (;;) {
+    const l = eff('intel'), I = BASE.intel.lv[l], tips = l ? intelTips() : [];
+    const stop = Math.min(0.25, 0.03 + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1);
+    const html = `<div class="syn">${withIcon(roomIcon('intel'), `<b>${l ? I.n : 'Dark'}</b><br>${l ? BASE.intel.say(I, l) : 'The power is out. The string is still there.'}`)}</div>` +
+      (l ? `<p class="dim">TODAY, DAY ${S.day}</p>` + (tips.length ? tips.map(t => `<div class="syn"><b>${t.good}</b> ${t.up ? '<span class="amber">&#9650; selling high</span>' : '<span class="cyan">&#9660; going cheap</span>'} ` +
+        `at <b>${t.loc}</b><br><span class="dim">about ${money(t.price)} each, they say</span></div>`).join('') : '<p class="dim">Nobody is talking today.</p>') +
+        (I.law ? `<p>${withIcon(miscIcon('decoy'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
+        `<p class="dim">Rumours are right about ${Math.round(I.right * 100)}% of the time. A wrong one sends you to the wrong place, and there is no telling which is which. New ones every morning.</p>` : '');
+    const choice = await dialog('Intel Board', html, [...stationBtn('intel'), ['Done', null, 'primary']]);
+    if (choice === 'base') { await stationDlg('intel', true); continue; }
+    return;
+  }
+}
+
+// Tapping a room: a station with something to do opens on that (so the locker, the garage and the lock board
+// are as close as they ever were); the rest, and anything not built, open on the station itself.
+Object.assign(ACTIONS, {
+  async station(id) {
+    if (S.loc !== BUNKER || !BASE[id]) return;
+    const use = STATION_USE[id];
+    if (use && lvl(id) && id !== 'bed' && id !== 'trophy') return use[1]();
+    return stationDlg(id);
+  },
+  async base() {
+    if (S.loc !== BUNKER) return;
+    return baseDlg();
+  },
+});
+// Rooms are drawings, not buttons, so the keyboard needs telling: Enter or Space on a room is a tap.
+document.addEventListener('keydown', e => {
+  const el = e.target && e.target.closest && e.target.closest('.room[data-act]');
+  if (!el || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+});
+// ===== THE BASE (the screen, the stations' dialogs, the Range): END =====
+
 function nextDay(inside) {
   S.day += 1;
   S.debt = Math.ceil(S.debt * (1 + debtRate()));
@@ -6186,6 +7355,7 @@ function nextDay(inside) {
   S.tricks = 0;
   S.drills = 0;      // the practice board is fresh again
   plantsTick();      // devices left behind on break-ins send their money home
+  baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
@@ -6201,7 +7371,7 @@ function nextDay(inside) {
 
 // While you are out, the law may raid the Bunker and take whatever is stashed there.
 function awayRaid(chance) {
-  if (stashTotal() && Math.random() < chance * (inSyn('ghost') ? 0.7 : 1)) {
+  if (stashTotal() && Math.random() < chance * (inSyn('ghost') ? 0.7 : 1) * raidMult()) {   // BASE: the Jammer
     const who = LAW[lawTier()].name, lost = seizeStash(1);
     log(`<span class="red">${who[0].toUpperCase() + who.slice(1)} raided the Bunker while you were out: ${num(lost)} stashed goods seized.</span>`);
     notes.push(['Bunker raided', `<p>${who[0].toUpperCase() + who.slice(1)} hit the Bunker while you were out.</p>` +
@@ -6214,9 +7384,9 @@ function awayRaid(chance) {
 let notes = [];   // things that happened off-screen, shown as pop-ups after the current action
 async function flushNotes() {
   while (notes.length) {
-    const [title, html] = notes.shift();
+    const [title, html, tone] = notes.shift();   // BASE: a third value sets the tone (good news is not red)
     render();
-    await alertDlg(title, html, 'danger');
+    await alertDlg(title, html, tone === undefined ? 'danger' : tone);
   }
 }
 const stashTotal = () => Object.values(S.stash).reduce((a, b) => a + b, 0);
@@ -6236,7 +7406,7 @@ function seizeStash(share) {
 function stashHtml() {
   const total = stashTotal();
   const names = GOODS.map(g => g[0]).filter(n => S.inv[n] || S.stash[n] || S.stuck[n]);
-  return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${STASH_CAP} &middot; carrying ${driveHtml()}</div>` +
+  return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${stashCap()} &middot; carrying ${driveHtml()}</div>` +
     '<div class="sub">Store goods here to free up your drive. Rival crews can\'t touch you at home, but the law can raid ' +
     'the place whether you are in or out, and they take the stash.</div></div></div>' +
     (names.length ? names.map(n => `<div class="row"><div><div class="name">${n}</div>` +
@@ -6245,7 +7415,7 @@ function stashHtml() {
         S.stashTag[n] ? `${num(S.stashTag[n])} stashed` : ''].filter(Boolean).join(', ')}</div>` : '') +
       (S.stuck[n] ? `<div class="sub red">${num(S.stuck[n])} stuck in your prison pocket: they are not going in the stash</div>` : '') +
       '</div><div></div>' +
-      `<div class="btns"><button data-act="store" data-arg="${n}"${S.inv[n] && total < STASH_CAP ? '' : ' disabled'}>Store</button>` +
+      `<div class="btns"><button data-act="store" data-arg="${n}"${S.inv[n] && total < stashCap() ? '' : ' disabled'}>Store</button>` +
       `<button data-act="take" data-arg="${n}"${S.stash[n] && free() > 0 ? '' : ' disabled'}>Take</button></div></div>`).join('')
       : '<div class="row"><div class="sub">Nothing to store yet. Bring goods here to keep them off your drive.</div></div>');
 }
@@ -8150,17 +9320,19 @@ async function fightRounds(E) {
       const kind = WTYPE[W[4]] || WTYPE.gun;
       const round = usesAmmo(W) ? activeAmmo() : null;                    // which ammo this volley uses
       const shots = round ? Math.min(W[2], S.ammo[round]) : W[2];
-      const hit = W[3] + bonus('aim') / 100 + (round ? AMMO[round][2] / 100 : 0);   // better rounds hit more often
+      const hit = W[3] + bonus('aim') / 100 + (round ? AMMO[round][2] / 100 : 0) +   // better rounds hit more often
+        baseAim(W, E);                                                               // BASE: weapon skill, a tuned weapon, the entry drill
       for (let i = 0; i < shots; i++) if (Math.random() < hit) kills++;
       if (round) S.ammo[round] -= shots;
       fired = shots;
       kills = Math.min(n, kills);
+      const kept = baseVolley(W, round, shots, kills);   // BASE: rounds saved by skill; dropping people teaches
       violent = true;
       heatUp(kind[law ? 2 : 3]);   // blades are silent, guns are loud
       stunned = W[4] === 'blunt' && kills > 0 && Math.random() < 0.4;
       msg = (kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`) +
         (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '') +
-        (round ? ` (${S.ammo[round]} ${AMMO[round][0]} left.)` : '');
+        (round ? ` (${S.ammo[round]} ${AMMO[round][0]} left.)` : '') + kept;
     } else if (cmd === 'emp') {
       S.emp--;
       kills = Math.min(n, rnd(2, 3));
@@ -8416,7 +9588,7 @@ async function finish() {
     : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` + `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
     `<p>Final score: <b class="green">${money(score)}</b><br>Run rating: <b class="cyan">${rank}</b><br>` +
     `XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
-  // Scores from before 1.28 were made in an economy where money came far faster. They are kept, but listed
+  // Scores from before 1.29 were made in an economy where money came far faster. They are kept, but listed
   // apart, and a new score only has to beat the ones made under the same rules (the `eco` stamp, ECON.version).
   const byScore = (a, b) => b.score - a.score;
   let now = scores.filter(s => s && s.eco === ECON.version).sort(byScore);
@@ -8430,7 +9602,7 @@ async function finish() {
   const rows = list => list.map((s, i) =>
     `<tr><td>${i + 1}.</td><td>${esc(s.handle)}</td><td>${money(s.score)}</td></tr>`).join('');
   await dialog('Run complete', summary + `<p class="dim">HALL OF FAME</p><table class="hall">${rows(now)}</table>` +
-    (old.length ? '<p class="dim">BEFORE THE CRASH: scores from the old economy (before 1.28), when money grew on trees</p>' +
+    (old.length ? '<p class="dim">BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees</p>' +
       `<table class="hall dim">${rows(old)}</table>` : ''),
     [['New run', true, 'primary']]);
 }
@@ -8705,6 +9877,16 @@ async function econSelfTest() {
     S.loc = BUNKER; nextDay();
     if (Math.abs(S.glut[here]['Warez'] - eased * ECON.recover) > 0.011) fail('overnight glut ignores the easing', S.glut, eased);
     S.glut = {};
+    // --- a rumour (the Intel Board) peeks at a market: same books, same opening price, nothing clobbered ---
+    if (typeof peekMarket === 'function') {
+      S.loc = BUNKER; S.prices = {}; S.markets = {}; S.glut = {'Cyber Cafe': {'Warez': 1}};
+      const peeked = peekMarket('Cyber Cafe'), gl = JSON.stringify(S.glut);
+      if (S.loc !== BUNKER || Object.keys(S.prices).length || !peeked || !peeked.book) fail('rumour peek clobbered the Bunker or made no book', S.loc, S.prices);
+      if (peeked.prices['Warez'] && (peeked.book['Warez'].base !== peeked.prices['Warez'] || peeked.prices['Warez'] > 30)) fail('rumour does not show the sagged opening price', peeked.prices['Warez'], peeked.book['Warez']);
+      S.loc = 'Cyber Cafe'; rollMarket();
+      if (S.markets['Cyber Cafe'] !== peeked || JSON.stringify(S.glut) !== gl || (S.prices['Warez'] && book('Warez') !== peeked.book['Warez'])) fail('visiting after a rumour re-rolled the market');
+      S.glut = {}; S.loc = BUNKER;
+    }
     // --- the cold wallet: full rate on the first slice, a share of it above ---
     const rate = walletRate(), over = 300000;
     if (walletGain(100000) !== Math.floor(100000 * rate) || walletGain(ECON.walletFull + over) !== Math.floor(ECON.walletFull * rate + over * rate * ECON.walletOver)) fail('wallet tiers wrong');
@@ -8999,7 +10181,7 @@ async function lockSelfTest() {
     // The practice board: six tries a day, slow gains, and a night's sleep brings the tries back.
     fresh(1);
     render();
-    if (!$('#actions').innerHTML.includes('data-act="practice"')) fail('no practice board at the Bunker');
+    if (!$('#market').innerHTML.includes('data-act="station" data-arg="locks"')) fail('no practice board at the Bunker');
     autoPick = all => (all.includes('padlock') ? 'padlock' : all.includes('clip') ? 'clip' : all.includes(true) ? true : null);
     await fixed(0, () => ACTIONS.practice());
     const per = Math.ceil((B.learnOpen[0] + B.learnOpen[1]) * B.practiceShare);
@@ -9150,7 +10332,7 @@ async function rideSelfTest() {
     // A full garage: on foot you cannot buy, and on a ride the only way is to trade it in.
     fresh({loc: bike}); rollMarket();
     for (const id of ['board', 'uni', 'scooter', 'fixie']) if (!grantVehicle(id)) fail('grant', id);
-    if (grantVehicle('penny') || grantVehicle('uni') || grantVehicle('nope') || rideVehicle('penny') || S.rides.length !== GARAGE_SIZE) fail('garage overfilled');
+    if (grantVehicle('penny') || grantVehicle('uni') || grantVehicle('nope') || rideVehicle('penny') || S.rides.length !== garageSize()) fail('garage overfilled');
     autoPick = all => (all.includes('penny') ? fail('sold to a full garage') : null);
     await ACTIONS.bikeshop();
     rideVehicle('fixie');
@@ -9167,7 +10349,7 @@ async function rideSelfTest() {
     fresh();
     for (const id of ['uni', 'black', 'van']) grantVehicle(id);
     render();
-    if (!$('#actions').innerHTML.includes('data-act="garage"')) fail('no garage button');
+    if (!$('#market').innerHTML.includes('data-act="station" data-arg="garage"')) fail('no garage button');
     await tap('garage', 'black');
     if (S.ride !== 'black' || S.trips !== TRIPS_PER_DAY + 20 || S.cash !== RICH - rideTwist('black', 'fuel') || S.heat !== rideTwist('black', 'loud')) fail('getting on', S.trips, S.cash, S.heat);
     for (let i = 0; i < 20; i++) await go(S.loc === A ? B : A);
@@ -9271,12 +10453,299 @@ async function rideSelfTest() {
   }
 }
 
+// ===== THE BASE (self-test): BEGIN =====
+// The base, step by step: the tables are whole; a career from before the base keeps exactly what the Bunker
+// always had; every level of every station is refused without what it needs, starts with it, takes its nights
+// and then does what the table says; the Range teaches, costs and stops as it should; and the base survives a
+// new run, a save and a load.
+async function baseSelfTest() {
+  const run = S, mine = career, keep = slot, get = store.get, random = Math.random;
+  const fail = (what, ...more) => { throw new Error(`Base test: ${what} ` + JSON.stringify(more)); };
+  const night = () => { S.day = 2; nextDay(); notes.length = 0; };   // the day is put back, so the run never ends
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  const armed = kind => WEAPONS.findIndex(w => w && w[4] === kind);
+  const empty = () => {
+    S.cash = 0; S.inv = {}; S.cost = {}; S.stash = {}; S.stashCost = {}; S.tag = {}; S.stashTag = {}; S.weapon = 0; S.medkits = 0; S.ammo = noAmmo();
+    for (const k of Object.keys(GADGETS)) S[k] = 0;
+    career.bag = []; career.locker = [];
+  };
+  try {
+    // The tables.
+    for (const id of BASE_IDS) {
+      const B = BASE[id];
+      if (!ROOM_ART[id] || !B.name || !B.tag || !B.about || !BASE_MAP.flat().some(m => m[0] === id) || B.lv.length < 4 || B.lv.length > 5 || (B.start || 0) > 1) fail('station half defined', id);
+      let price = 0;
+      B.lv.forEach((L, i) => {
+        if (!i) return;
+        if (!L.n || !(L.t >= 0) || !Array.isArray(L.req) || !B.say(L, i) || !roomArt(id, i) || !roomIcon(id, i) || (i > (B.start || 0) && !(L.t >= 1))) fail('level half defined', id, i);
+        for (const r of L.req) {
+          const k = r[0], melee = w => w[4] === 'blunt' || w[4] === 'blade';
+          const ok = k === 'cash' ? r[1] > price : k === 'good' ? GOODS.some(g => g[0] === r[1]) && r[2] > 0
+            : k === 'ammo' ? AMMO[r[1]] && r[2] > 0 && r[2] <= AMMO_MAX : k === 'gadget' ? GADGETS[r[1]] && r[2] > 0 && r[2] <= GADGETS[r[1]][2]
+            : k === 'medkit' ? r[1] > 0 && r[1] <= MAX_MED : k === 'gear' ? RARITY[r[1]] && r[2] > 0 && r[2] <= BAG_SIZE
+            : k === 'weapon' ? WEAPONS.some(w => w && w[1] >= r[2] && (r[1] === 'melee' ? melee(w) : w[4] === r[1]))
+            : k === 'level' ? r[1] > 1 && r[1] <= 30 : k === 'lock' ? r[1] > 1 && r[1] <= LOCK_MAX : k === 'marks' ? r[1] > 0 && r[1] <= MARKS.max
+            : k === 'st' ? BASE[r[1]] && r[1] !== id && r[2] > 0 && r[2] <= topLv(r[1]) : k === 'ach' ? r[1] > 0 && r[1] < Object.keys(ACH).length : false;
+          if (!ok || !reqLabel(r)) fail('requirement', id, i, r);
+          if (k === 'cash') price = r[1];   // every level costs more than the one before
+        }
+        if (i > (B.start || 0) && !L.req.some(r => r[0] === 'cash')) fail('level costs nothing', id, i);
+      });
+    }
+    if (Object.keys(MAKE).some(k => !GADGETS[k] || !TOOLS[k] || !GOODS.some(g => g[0] === MAKE[k].good[0]))) fail('MAKE');
+    // A career from before the base: every station where the Bunker always was, and nothing else.
+    career = {xp: 500, syn: null, gear: {}, bag: [], locker: [], quest: null};
+    fixCareer(); newGame();
+    if (stashCap() !== STASH_CAP || lockerSize() !== LOCKER_SIZE || garageSize() !== GARAGE_SIZE || drillsMax() !== BREAKIN.drills ||
+      practiceCap() !== BREAKIN.practiceCap || BV('bed', 'heal') !== 35 || BV('bed', 'opsec') !== 15 || raidMult() !== 1 || fuelPrice(1000) !== 1000 ||
+      baseUpkeep() !== 0 || buildCrews() !== 1 || BASE_IDS.some(id => lvl(id) !== (BASE[id].start || 0)) || MARK_KINDS.some(k => markHit(k) || markSave(k)) ||
+      !near(baseAim(WEAPONS[1], {}), 0) || drillAim() || BV('trophy', 'xp') || rangeBlock() !== 'There is no range yet.') fail('a career from before the base');
+    // Every level of every station, in whatever order their needs allow.
+    S.drive = 5000;
+    for (let pass = 0; pass < 12 && BASE_IDS.some(id => nextLv(id)); pass++) {
+      for (const id of BASE_IDS) {
+        const N = nextLv(id), was = lvl(id);
+        if (!N || N.req.some(r => r[0] === 'st' && lvl(r[1]) < r[2])) continue;   // wait for the stations it needs
+        empty();
+        const why = baseBlock(id);
+        if (!why.startsWith('Still needed') || baseStart(id) || jobOf(id) || baseGive(id).length || basePay(id, 500)) fail('built from nothing', id, was, why);
+        for (const r of N.req) if (r[0] === 'ach') Object.keys(ACH).slice(0, r[1]).forEach(a => { career.ach[a] = career.ach[a] || 1; });
+        baseStock(id);
+        // One kind of goods waits in the stash instead of on the drive: it is handed in from there.
+        const g = N.req.find(r => r[0] === 'good');
+        if (g) { S.stash[g[1]] = S.inv[g[1]]; delete S.inv[g[1]]; delete S.cost[g[1]]; }
+        const dry = baseGive(id, true), gone = baseGive(id);
+        if (dry.join() !== gone.join() || baseGive(id).length || used() || stashTotal() || career.bag.length) fail('hand-in', id, was, dry, gone);
+        const c = N.req.find(r => r[0] === 'cash');
+        if (baseStart(id)) fail('started without the cash', id, was);
+        const part = basePay(id, Math.floor(c[1] / 3)), rest = basePay(id, 1e12);
+        if (part + rest !== c[1] || S.cash !== 0 || basePay(id, 1)) fail('cash', id, was, part, rest, S.cash);
+        if (baseBlock(id) || stationState(id) !== 'ready') fail('still blocked', id, was, baseBlock(id));
+        if (!baseStart(id) || !jobOf(id) || baseStart(id) || lvl(id) !== was || career.base.paid[id] || stationState(id) !== 'building' || !stationBtn(id).length) fail('start', id, was);
+        S.cash = 1e7;
+        for (let n = 1; n <= N.t; n++) {
+          night();
+          if ((lvl(id) === was + 1) !== (n === N.t)) fail('build time', id, was, n);
+        }
+        if (jobOf(id) || baseJobs().length) fail('job left over', id);
+      }
+    }
+    if (!BASE_IDS.every(id => lvl(id) === topLv(id)) || stationState('range') !== 'max') fail('not everything could be built', BASE_IDS.map(lvl));
+    if (!ACH.fullbase[3]() || !ACH.killhouse[3]() || !ACH.catin[3]() || !ACH.built1[3]()) fail('achievements');
+    // The built base does what the table says, and no more.
+    const top = id => BASE[id].lv[topLv(id)];
+    if (stashCap() !== top('stash').cap || lockerSize() !== top('locker').size || garageSize() !== top('garage').bays || drillsMax() !== top('locks').tries ||
+      practiceCap() !== top('locks').cap || practiceCap() >= LOCK_MAX || raidMult() !== top('jam').raid || raidMult() < 0.5 || fuelPrice(1000) !== 1000 - 10 * top('garage').fuel ||
+      buildCrews() !== 2 || baseUpkeep() !== BASE_TUNE.upkeep * 31 || BV('trophy', 'xp') !== top('trophy').xp || BV('trophy', 'xp') > 10) fail('built base', baseUpkeep());
+    // Two builds at a time once the power allows it, never three. (Nothing is left to build, so knock three back first.)
+    empty();
+    for (const id of ['cat', 'trophy', 'intel']) { setStation(id, topLv(id) - 1); baseStock(id, true); baseGive(id); }
+    if (!baseStart('cat') || !baseStart('trophy') || baseStart('intel') || baseBlock('intel').indexOf('busy') < 0) fail('builders', baseBlock('cat'), baseBlock('trophy'), baseBlock('intel'));
+    if (finishBuilds().length !== 2 || baseJobs().length || !baseStart('intel') || !finishBuilds().length || !BASE_IDS.every(id => lvl(id) === topLv(id))) fail('finishBuilds');
+    empty(); S.cash = 1e7;
+    // A night: the Bunk, the cat and the Jammer.
+    {
+      S.hp = 10; S.opsec = 10; S.heat = 60; S.loc = BUNKER; S.day = 2;
+      const want = [Math.min(100, 10 + 3 + bonus('regen') + top('cat').hp + top('bed').heal), 10 + top('bed').opsec + top('cat').opsec, 60 - HEAT_DECAY - 20 - top('jam').cool];
+      Math.random = () => 0.99;   // nobody comes in the night
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await ACTIONS.sleep(); } finally { Math.random = random; autoPick = null; }
+      notes.length = 0;
+      if (S.hp !== want[0] || S.opsec !== want[1] || S.heat !== want[2]) fail('a night in a built base', [S.hp, S.opsec, S.heat], want);
+      // Raids while you are out: the Jammer's share of them, near enough.
+      let hits = 0;
+      for (let i = 0; i < 3000; i++) { S.stash = {'Warez': 5}; awayRaid(1); if (!stashTotal()) hits++; }
+      notes.length = 0; S.stash = {}; S.stashCost = {};
+      if (Math.abs(hits / 3000 - top('jam').raid) > 0.05) fail('raid odds', hits / 3000);
+      if (!baseSleepNote(0.1)) fail('no warning from the scanner');
+    }
+    // The Server Closet: its goods go into the stash, never past what the stash holds.
+    {
+      const [name, q] = top('rig').out;
+      S.stash = {}; night();
+      if ((S.stash[name] || 0) !== q) fail('server closet', S.stash);
+      S.stash = {'Warez': stashCap() - 1}; night();
+      if (stashTotal() !== stashCap()) fail('server closet overfilled or wasted the last slot', stashTotal());
+      night();
+      if (stashTotal() !== stashCap()) fail('server closet overfilled', stashTotal());
+      S.stash = {}; S.stashCost = {};
+    }
+    // The Garage: more bays, cheaper fuel.
+    {
+      const ids = Object.keys(VEHICLES);
+      S.rides = []; S.ride = ''; S.gas = {};
+      ids.slice(0, garageSize()).forEach(id => { if (!grantVehicle(id)) fail('garage bay refused', id); });
+      if (grantVehicle(ids[garageSize()]) || S.rides.length !== top('garage').bays) fail('garage overfilled');
+      if (rideTwist('moped', 'fuel') !== Math.round(VEHICLES.moped[6].fuel * (1 - top('garage').fuel / 100)) || rideTwist('van', 'cargo') !== 80) fail('fuel price');
+      S.rides = [];
+    }
+    // A power cut: stations fall back to what they did without power; nothing that holds things gets smaller.
+    {
+      S.cash = baseUpkeep() - 1; night();
+      if (!baseDark() || S.cash !== baseUpkeep() - 1 || eff('range') !== 1 || eff('med') !== 0 || eff('rig') !== 0 || eff('jam') !== 1 || eff('garage') !== 3 ||
+        stashCap() !== top('stash').cap || garageSize() !== top('garage').bays || lockerSize() !== top('locker').size || drillsMax() !== top('locks').tries ||
+        BV('locks', 'elec').length || medPatch() || !baseChips().some(ch => ch[1] === 'OUT') || !baseHtml().includes('NO POWER')) fail('power cut', BASE_IDS.map(eff));
+      S.weapon = armed('gun'); S.ammo.std = 100;
+      if (!rangeBlock() || rangeSession(50)) fail('practised with a gun in the dark');
+      S.cash = 1e7; night();
+      if (baseDark() || S.cash !== 1e7 - baseUpkeep() || eff('range') !== 4) fail('power back');
+    }
+    // The Range, level by level: which weapons, how many sessions, what they burn, what they teach, where it stops.
+    for (let rl = 1; rl <= topLv('range'); rl++) {
+      setStation('range', rl); setMarks(0);
+      const R = BASE.range.lv[rl];
+      for (const kind of MARK_KINDS) {
+        S.weapon = armed(kind); HQ().shots = 0; S.ammo = noAmmo(); S.ammo.budget = 5; S.ammo.smart = 500;
+        const gun = usesAmmo(WEAPONS[S.weapon]);
+        if (!R.kinds.includes(kind)) { if (!rangeBlock() || rangeSession(50) || career.marks[kind]) fail('practised a kind this range lacks', rl, kind); continue; }
+        let n = 0;
+        for (; !rangeBlock() && n < 20; n++) {
+          const was = career.marks[kind], res = rangeSession(30);
+          if (!res || res.kind !== kind || res.score !== 30 || career.marks[kind] !== was + res.pts || res.pts < MARKS.pts[0]) fail('session', rl, kind, res);
+        }
+        const burnt = 505 - S.ammo.budget - S.ammo.smart;
+        if (n !== R.shots || burnt !== (gun ? R.rounds * n : 0) || (burnt && S.ammo.budget)) fail('sessions and rounds', rl, kind, n, burnt);
+        night();
+        if (rangeBlock()) fail('no fresh sessions in the morning', rl, kind, rangeBlock());
+        if (gun) { S.ammo = noAmmo(); S.ammo.std = R.rounds - 1; if (!rangeBlock() || rangeSession(50) || S.ammo.std !== R.rounds - 1) fail('practised without the rounds', rl, kind); S.ammo.smart = 500; }
+        for (let d = 0; d < 500 && markInfo(kind).level < R.cap; d++) { HQ().shots = 0; S.ammo.smart = 500; if (!rangeSession(50)) fail('stopped teaching early', rl, kind, markInfo(kind)); }
+        HQ().shots = 0;
+        const at = career.marks[kind];
+        if (markInfo(kind).level !== R.cap || markInfo(kind).into || !rangeBlock() || rangeSession(50) || career.marks[kind] !== at) fail('range cap', rl, kind, markInfo(kind));
+      }
+      S.weapon = 0; HQ().shots = 0;
+      if (!rangeBlock() || rangeSession(50)) fail('practised empty-handed', rl);
+    }
+    // Weapon skill in a fight: a modest, capped edge. Fights teach to the top and no further.
+    {
+      setMarks(0); gainMarks('gun', 1e9); gainMarks('heavy', 3, 1); gainMarks('blade', 1e9);
+      if (markInfo('gun').level !== MARKS.max || markHit('gun') !== MARKS.max * MARKS.hit || markHit('gun') > 10 || markSave('gun') !== MARKS.max * MARKS.save || markSave('gun') > 20 ||
+        markSave('blade') || markInfo('heavy').level !== 0 || career.marks.heavy !== 3 || gainMarks('gun', 5) || setMarks(99, 'blunt') !== career.marks.gun) fail('weapon skill caps', career.marks);
+      const W = WEAPONS[armed('gun')], E = {};
+      S.weapon = armed('gun'); delete S.tune;
+      if (!near(baseAim(W, E), (markHit('gun') + BASE_TUNE.drillAim) / 100) || !near(baseAim(W, E), markHit('gun') / 100) || !near(baseAim(W, null), markHit('gun') / 100)) fail('aim bonus');
+      let saved = 0;
+      for (let i = 0; i < 2000; i++) { S.ammo.std = AMMO_MAX - 2; const was = S.ammo.std; baseVolley(W, 'std', 4, 0); saved += S.ammo.std - was; if (S.ammo.std > AMMO_MAX) fail('rounds past the most you can carry'); }
+      if (!saved) fail('no rounds saved');
+      let kept = 0;
+      for (let i = 0; i < 2000; i++) { S.ammo.std = 100; baseVolley(W, 'std', 4, 0); kept += S.ammo.std - 100; }
+      if (Math.abs(kept / 8000 - markSave('gun') / 100) > 0.03) fail('rounds saved', kept / 8000);
+      S.ammo.std = 100; baseVolley(WEAPONS[armed('blade')], null, 1, 1);
+      if (S.ammo.std !== 100) fail('a blade saved rounds');
+      // The Workshop: tuning is worth what it says, once, for this weapon only.
+      const cash = S.cash, price = tunePrice();
+      if (!benchTune() || tuneHit() !== top('bench').tune || tuneHit() > 5 || S.cash !== cash - price || price < BASE_TUNE.tuneMin || benchTune() ||
+        !near(baseAim(W, null), (markHit('gun') + tuneHit()) / 100)) fail('tune', tuneHit(), price);
+      S.weapon = armed('heavy');
+      if (tuneHit()) fail('the tune followed you to another weapon');
+      // ...the press: a set rate, a set amount a day, never past the best rounds.
+      const [take, give] = top('bench').ratio, kinds = Object.keys(AMMO);
+      S.ammo = noAmmo(); S.ammo.budget = take * 1000; HQ().conv = 0;
+      const most = pressMost(0);
+      if (most !== Math.floor(Math.min(top('bench').press, AMMO_MAX) / give) || benchPress(0, most + 1) || !benchPress(0, most) || S.ammo.budget !== take * (1000 - most) || S.ammo.std !== give * most ||
+        pressMost(1) > Math.floor((top('bench').press - give * most) / give) || pressMost(kinds.length - 1) || benchPress(kinds.length - 1, 1)) fail('press', most, S.ammo);
+      HQ().conv = top('bench').press;
+      if (pressMost(1) || benchPress(1, 1)) fail('pressed past the day\'s limit');
+      // ...and tools made from goods.
+      for (const k of Object.keys(MAKE)) {
+        S[k] = 0; S.inv = {}; S.picks = k === 'picks' ? 0 : 8;
+        if (benchMake(k)) fail('made a tool from nothing', k);
+        addItems(MAKE[k].good[0], MAKE[k].good[1], 0);
+        const picks = S.picks;
+        if (!benchMake(k) || S[k] !== (k === 'picks' ? 1 : 1) || used() || (k !== 'picks' && S.picks !== picks - (MAKE[k].picks || 0)) || benchMake(k)) fail('make', k, S[k], S.picks);
+      }
+    }
+    // The Med Bay: one patch a day, one medkit a day, and stuck goods out at home.
+    {
+      empty(); S.cash = 1e6; S.hp = 20; HQ().patch = 0; HQ().cook = 0;
+      if (!medPatch() || S.hp !== Math.min(100, 20 + top('med').heal) || medPatch()) fail('patch', S.hp);
+      if (medCook()) fail('medkit from nothing');
+      addItems('Cracked Accounts', top('med').cook + 1, 0);
+      if (!medCook() || S.medkits !== 1 || S.inv['Cracked Accounts'] !== 1 || medCook()) fail('medkit', S.medkits);
+      S.stuck = {'Burner SIMs': 3}; S.stuckCost = {'Burner SIMs': 40}; S.sick = 2; S.hp = 50;
+      const cash = S.cash, fee = medFee();
+      if (medExtract() !== 3 || stuckTotal() || S.sick || S.inv['Burner SIMs'] !== 3 || tagged('Burner SIMs') !== 3 || S.cash !== cash - fee || S.hp !== 50 || medExtract()) fail('extraction at home', S.stuck, fee);
+      night();
+      if (HQ().patch || HQ().cook || HQ().shots || HQ().conv) fail('the day\'s limits were not reset', HQ());
+    }
+    // The Intel Board: as many rumours as the level says, about real goods and real places, and looking does not move you.
+    {
+      S.loc = BUNKER; rollMarket();
+      const tips = intelTips();
+      if (tips.length !== top('intel').tips || tips.some(t => !GOODS.some(g => g[0] === t.good) || !LOCATIONS.includes(t.loc) || t.loc === BUNKER || !(t.price > 0)) ||
+        S.loc !== BUNKER || Object.keys(S.prices).length || intelTips() !== tips || Object.keys(S.markets).length < 1) fail('rumours', tips);
+      const loc = Object.keys(S.markets)[0], m = S.markets[loc];
+      S.loc = loc; rollMarket();
+      if (S.prices !== m.prices) fail('the market you were told about is not the one you found');
+      S.loc = BUNKER; rollMarket();
+      S.day = 9; S.markets = {};
+      if (intelTips() === tips || intelTips().length !== tips.length) fail('yesterday\'s rumours');
+    }
+    // The Trophy Wall, and the Lock Board's electronic locks.
+    {
+      career.syn = null; const was = career.xp; gainXp(100);
+      if (career.xp - was !== 100 + top('trophy').xp) fail('trophy XP', career.xp - was);
+      if (BV('locks', 'elec').join() !== 'badge,maglock') fail('lock board');
+      setLockSkill(practiceCap()); S.picks = 5;
+      if (lockTry('picks', 'padlock', 0, true).pts) fail('the lock board taught past its cap');
+      setLockSkill(practiceCap() - 1); career.syn = null;
+      const pts = career.lockpick; Math.random = () => 0;
+      try { lockTry('picks', 'padlock', 0, true); } finally { Math.random = random; }
+      if (career.lockpick <= pts) fail('the lock board did not teach below its cap');
+    }
+    // Every dialog opens and closes, whatever is tapped in it.
+    S.loc = BUNKER; S.day = 2; S.over = false; S.weapon = armed('gun'); S.ammo.std = 200; setMarks(2);
+    for (const id of BASE_IDS) { if (id !== 'bed') await ACTIONS.station(id); render(); }
+    await ACTIONS.base(); await rangeDlg(); await medDlg(); await benchDlg(); await intelDlg();
+    notes.length = 0;
+    // A new run: the base and the skills are still there; the day's counters, the rumours and the tuned weapon are not.
+    {
+      setStation('cat', 2); baseStock('trophy', true);
+      for (const id of BASE_IDS) if (id !== 'cat') setStation(id, topLv(id));
+      setStation('cat', 2); baseStock('cat', true); baseGive('cat'); baseStart('cat');
+      setMarks(4); S.tune = {w: 3, hit: 5}; HQ().shots = 2; HQ().dark = true;
+      const lv = BASE_IDS.map(lvl).join(), marks = JSON.stringify(career.marks), job = JSON.stringify(career.base.jobs);
+      newGame();
+      if (BASE_IDS.map(lvl).join() !== lv || JSON.stringify(career.marks) !== marks || JSON.stringify(career.base.jobs) !== job || S.tune || HQ().shots || baseDark() ||
+        stashTotal() || S.rides.length || stashCap() !== top('stash').cap) fail('new run');
+      // Saved and loaded in the middle of a build.
+      const record = JSON.parse(JSON.stringify(career)), saved = JSON.parse(JSON.stringify(S));
+      saved.hq = {shots: 1, tips: 'x'}; saved.tune = {w: 0, hit: 9};
+      store.get = key => (key === 'zdh-save' ? saved : key === 'zdh-career' ? record : null);
+      try { loadSave(0); } finally { store.get = get; slot = keep; }
+      if (BASE_IDS.map(lvl).join() !== lv || JSON.stringify(career.marks) !== marks || JSON.stringify(career.base.jobs) !== job || HQ().shots !== 1 || HQ().tips || S.tune) fail('save and load');
+      night(); night();
+      if (lvl('cat') !== 3 || baseJobs().length) fail('the build did not finish after loading');
+      // A save from 1.27: no base, no skills, a full Bunker. Nothing it had is lost, and nothing is handed out.
+      const old = JSON.parse(JSON.stringify(record)), oldRun = JSON.parse(JSON.stringify(saved));
+      delete old.base; delete old.marks; delete oldRun.hq; delete oldRun.tune;
+      old.locker = Array.from({length: LOCKER_SIZE}, () => makeItem(1));
+      oldRun.stash = {'Warez': STASH_CAP}; oldRun.rides = Object.keys(VEHICLES).slice(0, GARAGE_SIZE); oldRun.drills = 3;
+      store.get = key => (key === 'zdh-save' ? oldRun : key === 'zdh-career' ? old : null);
+      try { loadSave(0); } finally { store.get = get; slot = keep; }
+      if (stashTotal() !== STASH_CAP || S.rides.length !== GARAGE_SIZE || career.locker.length !== LOCKER_SIZE || S.drills !== 3 || stashCap() !== STASH_CAP ||
+        BASE_IDS.some(id => lvl(id) !== (BASE[id].start || 0)) || MARK_KINDS.some(k => career.marks[k]) || baseJobs().length || baseUpkeep() || typeof S.hq !== 'object') fail('a save from before the base');
+      render();
+      // A damaged record is put right, not trusted.
+      old.base = {lv: {nope: 3, range: 99, stash: -4, cat: 2}, jobs: [{id: 'nope', left: 1}, {id: 'range', left: 0}, null], paid: 5}; old.marks = {gun: -4, blade: 'x', heavy: 20};
+      store.get = key => (key === 'zdh-save' ? oldRun : key === 'zdh-career' ? old : null);
+      try { loadSave(0); } finally { store.get = get; slot = keep; }
+      if (lvl('range') !== topLv('range') || lvl('stash') !== 1 || lvl('cat') !== 2 || baseJobs().length || career.marks.gun || career.marks.blade || career.marks.heavy !== 20 || reqPaid('med', 0)) fail('damaged record', career.base, career.marks);
+    }
+  } finally {
+    Math.random = random; store.get = get; slot = keep; autoPick = null;
+    S = run; career = mine; logs = []; notes.length = 0;
+  }
+}
+// ===== THE BASE (self-test): END =====
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0, coolHot = 0, coolBase = [0, 0, 0];
   let heistBase = {};   // what the step-by-step break-in test counted, so the random games are counted on their own
   let rideBase = [0, 0, 0, 0, 0], rideHopTally = 0;
+  let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -9324,10 +10793,17 @@ async function selfTest(games) {
         await econSelfTest();
         await lockSelfTest();
         await rideSelfTest();
+        await baseSelfTest();   // BASE
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
       if (game === 0) rideBase = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally];
+      if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
+      // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
+      if (game % 3 === 2) {
+        for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
+        for (const k of MARK_KINDS) setMarks(rnd(0, MARKS.max), k);
+      }
       // One run in three starts with a ride already in the garage, and on it.
       if (game % 3 === 1) { grantVehicle(pick(Object.keys(VEHICLES))); rideVehicle(S.rides[0], true); }
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
@@ -9408,8 +10884,8 @@ async function selfTest(games) {
           if (S.loc === BUNKER) {
             const was = career.lockpick, drills = S.drills;
             await ACTIONS.practice();
-            if (S.drills < drills || S.drills > BREAKIN.drills || career.lockpick < was ||
-              (lockInfo(was).level >= BREAKIN.practiceCap && career.lockpick !== was)) throw new Error('practice board went wrong');
+            if (S.drills < drills || S.drills > drillsMax() || career.lockpick < was ||
+              (lockInfo(was).level >= practiceCap() && career.lockpick !== was)) throw new Error('practice board went wrong');
           }
           const id = pick(Object.keys(HEISTS)), H = HEISTS[id], kept = used() <= cap();
           if (H.job === 'plant' && free() >= H.n) addItems(H.dev, H.n, 0);
@@ -9435,6 +10911,19 @@ async function selfTest(games) {
             await ACTIONS[key + 'shop']();
           }
           if (owed() !== before) throw new Error('a change of ride moved the trips wrong: ' + JSON.stringify([before, S.trips, S.tripDebt, S.ride, S.gas]));
+        }
+        // BASE: at home the bot taps a room now and then, often with what its next level wants in its pockets, and
+        // does whatever it likes in there: hands things in, pays, builds, practises, patches up, presses rounds.
+        // Whatever it does, a station only ever goes up, a build takes its nights, and the day's limits hold.
+        if (S.loc === BUNKER && Math.random() < 0.3) {
+          const id = pick(BASE_IDS), lv = BASE_IDS.map(lvl), marks = MARK_KINDS.map(k => career.marks[k]), shots = HQ().shots || 0, day = S.day;
+          if (Math.random() < 0.6) baseStock(id, Math.random() < 0.7);
+          await ACTIONS.station(id);
+          if (Math.random() < 0.25) await ACTIONS.base();
+          baseUses++;
+          if (S.over) break;
+          if (S.day === day && (BASE_IDS.some((b, i) => lvl(b) !== lv[i]) || (HQ().shots || 0) < shots)) throw new Error('a station changed level without a night passing: ' + JSON.stringify([id, lv, BASE_IDS.map(lvl)]));
+          if (MARK_KINDS.some((k, i) => career.marks[k] < marks[i])) throw new Error('weapon skill went down');
         }
         const trip = act === 'travel' ? [S.loc, S.day, S.trips, rideHops()] : null;
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
@@ -9518,10 +11007,10 @@ async function selfTest(games) {
             Object.values(career.gear).reduce((sum, it) => sum + carries(it), 0) + rideTwist(S.ride, 'cargo') ||
           // Rides: at most a garage full, each a real one and only once, you are on one of them or on foot, and
           // you never have more trips left than your legs and the ride under you give in a day.
-          !Array.isArray(S.rides) || S.rides.length > GARAGE_SIZE || new Set(S.rides).size !== S.rides.length || S.rides.some(id => !VEHICLES[id]) ||
+          !Array.isArray(S.rides) || S.rides.length > garageSize() || new Set(S.rides).size !== S.rides.length || S.rides.some(id => !VEHICLES[id]) ||
           (S.ride !== '' && !S.rides.includes(S.ride)) || !(Number.isInteger(S.tripDebt) && S.tripDebt >= 0) || Object.keys(S.gas).some(id => !S.rides.includes(id)) ||
           !Number.isInteger(S.trips) || tripsMax() > TRIPS_PER_DAY + MAX_HOPS ||
-          career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= tripsMax()) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
+          career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= tripsMax()) || career.locker.length > lockerSize() || stashTotal() > stashCap() ||
           Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
@@ -9536,9 +11025,18 @@ async function selfTest(games) {
           // Break-ins: the skill is a whole number of points, the practice board keeps count, planted devices are still paying,
           // and anything in progress is at a real stage with its Alert on the meter.
           !Number.isInteger(career.lockpick) || career.lockpick < 0 || !(lockInfo().level >= 1 && lockInfo().level <= LOCK_MAX) ||
-          !(Number.isInteger(S.drills) && S.drills >= 0 && S.drills <= BREAKIN.drills) ||
+          !(Number.isInteger(S.drills) && S.drills >= 0 && S.drills <= drillsMax()) ||
           !Array.isArray(S.plants) || S.plants.some(p => !(Number.isInteger(p.pay) && p.pay > 0 && p.left > 0 && p.site && p.what)) ||
-          heistList().some(M => { const st = heistPeek(M); return st && !(st.stage >= 0 && st.stage <= 3 && st.alert >= 0 && st.alert <= 100); });
+          heistList().some(M => { const st = heistPeek(M); return st && !(st.stage >= 0 && st.stage <= 3 && st.alert >= 0 && st.alert <= 100); }) ||
+          // BASE: every station at a real level, no more builds than builders, each one for a level that exists and with
+          // nights to go; nothing handed in past what was asked; skills whole and within their cap; the day's limits kept.
+          BASE_IDS.some(id => !(Number.isInteger(lvl(id)) && lvl(id) >= (BASE[id].start || 0) && lvl(id) <= topLv(id) && eff(id) <= lvl(id))) ||
+          baseJobs().length > buildCrews() || new Set(baseJobs().map(j => j.id)).size !== baseJobs().length ||
+          baseJobs().some(j => !(Number.isInteger(j.left) && j.left > 0 && nextLv(j.id) && j.left <= nextLv(j.id).t)) ||
+          Object.entries(career.base.paid).some(([id, p]) => !nextLv(id) || jobOf(id) || Object.entries(p).some(([i, q]) => !(Number.isInteger(q) && q > 0 && q <= reqAmt(nextLv(id).req[i])))) ||
+          MARK_KINDS.some(k => !(Number.isInteger(career.marks[k]) && career.marks[k] >= 0 && markInfo(k).level <= MARKS.max && markHit(k) <= 10 && markSave(k) <= 20)) ||
+          !((HQ().shots || 0) <= BASE.range.lv[topLv('range')].shots && (HQ().conv || 0) <= BASE.bench.lv[topLv('bench')].press && (HQ().patch || 0) <= 1 && (HQ().cook || 0) <= 1) ||
+          (S.tune && !(WEAPONS[S.tune.w] && S.tune.hit > 0 && S.tune.hit <= 5)) || raidMult() < 0.5 || raidMult() > 1 || baseUpkeep() > BASE_TUNE.upkeep * 31;
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
       if (S.over) {
@@ -9574,8 +11072,13 @@ async function selfTest(games) {
     if (games >= 20 && !(rideDid[0] && rideDid[1] && rideDid[2] && rideDid[3] && rideHopTally)) {
       throw new Error('rides not exercised: ' + rideDid.concat(rideHopTally));
     }
+    // BASE: ...and tapped rooms, handed things in, been refused, started builds, slept through them and practised.
+    const bd = {};
+    for (const k of Object.keys(baseTally)) bd[k] = baseTally[k] - (baseWas[k] || 0);
+    if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && bd.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd]));
+    const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots - fireWas.shots} roundssaved=${fireTally.saved - fireWas.saved}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -9597,7 +11100,8 @@ function loadSave(n) {
       locker: Array.isArray(record.locker) ? record.locker : [],
       stats: record.stats, ach: record.ach,
       rep: record.rep && typeof record.rep === 'object' ? record.rep : {},
-      lockpick: record.lockpick};   // fixCareer() starts it at 0 for a save from before lock picking
+      lockpick: record.lockpick,   // fixCareer() starts it at 0 for a save from before lock picking
+      base: record.base, marks: record.marks};   // BASE: fixCareer() fills these in for a save from before the base
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
   }
@@ -9645,11 +11149,16 @@ function loadSave(n) {
   S.glut = S.glut && typeof S.glut === 'object' ? S.glut : {};
   // Break-ins arrived in 1.27: an older run has no devices planted, no practice used and no entry tools.
   S.plants = Array.isArray(S.plants) ? S.plants.filter(p => p && p.pay > 0 && p.left > 0) : [];
-  S.drills = Number.isInteger(S.drills) && S.drills > 0 ? Math.min(S.drills, BREAKIN.drills) : 0;
+  S.drills = Number.isInteger(S.drills) && S.drills > 0 ? Math.min(S.drills, drillsMax()) : 0;
+  // BASE: the base arrived in 1.29: an older run has used nothing today, has no rumours and no tuned weapon.
+  S.hq = S.hq && typeof S.hq === 'object' ? S.hq : {};
+  for (const k of ['shots', 'patch', 'cook', 'conv']) S.hq[k] = Number.isInteger(S.hq[k]) && S.hq[k] > 0 ? S.hq[k] : 0;
+  if (!Array.isArray(S.hq.tips)) { delete S.hq.tips; delete S.hq.tipDay; }
+  if (!(S.tune && S.tune.w > 0 && S.tune.hit > 0)) delete S.tune;
   // The board you are looking at and today's market here are the same list, so a break-in posted on it keeps its place.
   if (S.loc !== BUNKER && S.markets[S.loc]) S.markets[S.loc].contracts = S.contracts;
   // Rides arrived in 1.25: an older run has none and is on foot, with the trips it had.
-  S.rides = [...new Set(Array.isArray(S.rides) ? S.rides : [])].filter(id => VEHICLES[id]).slice(0, GARAGE_SIZE);
+  S.rides = [...new Set(Array.isArray(S.rides) ? S.rides : [])].filter(id => VEHICLES[id]).slice(0, garageSize());
   S.ride = S.rides.includes(S.ride) ? S.ride : '';
   S.gas = S.gas && typeof S.gas === 'object' ? Object.fromEntries(S.rides.filter(id => S.gas[id]).map(id => [id, true])) : {};
   S.tripDebt = Number.isInteger(S.tripDebt) && S.tripDebt > 0 ? S.tripDebt : 0;
