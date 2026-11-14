@@ -764,6 +764,11 @@ const SLOTS = {
     'Leather Trousers', 'Kilt'], ['storage', 'speed', 'armor', 'regen']],
   wrist: ['Wrist', ['Sweatbands', 'Calculator Watch', 'Spiked Cuffs', 'Friendship Bracelets', 'Wrist Keyboard',
     'Festival Wristbands', 'Slap Bracelets', 'Bootleg Rolex'], ['hack', 'aim', 'luck', 'charm']],
+  // Three layers on the torso: a shirt, then the body slot (jackets and armour), then a coat over everything.
+  shirt: ['Shirt', ['Band Tee', 'Flannel Shirt', 'Turtleneck', 'Tank Top', 'Shirt and Tie', 'Striped Longsleeve', 'Tie-Dye Tee',
+    'Christmas Jumper'], ['charm', 'regen', 'stealth', 'luck']],
+  coat: ['Coat', ['Lab Coat', 'Puffer Jacket', 'Duster', 'Rain Poncho', 'Parka', 'Hi-Vis Vest', 'Cape', 'Fur Coat'],
+    ['armor', 'storage', 'stealth', 'firewall']],
 };
 // stat: [what it does, value on a Common item, cap on your total, unit]
 const STATS = {
@@ -804,9 +809,9 @@ const itemHtml = it => withIcon(gearIcon(it), `<b class="r${it.rar}">${it.name}<
   `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`);
 const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
 
-// Everyone starts with a basic item in every slot except the face, which stays bare until you find something for it.
+// Everyone starts with a basic item in every slot except the face and the coat, which stay empty until you find something.
 const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], feet: [0, 'speed'], deck: [0, 'hack'],
-  legs: [0, 'storage'], wrist: [0, 'luck']};
+  legs: [0, 'storage'], wrist: [0, 'luck'], shirt: [0, 'regen']};
 function starterGear() {
   for (const [slot, [index, stat]] of Object.entries(STARTER)) {
     if (!career.gear[slot]) {
@@ -867,7 +872,7 @@ function figure(F) {
   const INK = '#0b0a19', EYE = '#1b1426', GOLD = '#ffd24a', CYAN = '#00e5ff';
   const [, SKIN, SHADE] = SKINS[F.look.skin];
   const HAIR = HAIRCOLS[F.look.col][1], STREAK = STREAKS[F.look.streak][1], hair = F.look.hair;
-  const {head, body, hands, feet, deck, face, legs, wrist} = F.gear;
+  const {head, body, hands, feet, deck, face, legs, wrist, shirt, coat} = F.gear;
   const hurt = F.hp <= 35 && !F.ko;
   // A shape and its mirror image, for the left and right side of the body.
   const both = d => `<path d="${d}"/><path d="${d}" transform="translate(200 0) scale(-1 1)"/>`;
@@ -982,6 +987,45 @@ function figure(F) {
     both('M53 111 Q48 140 47 165 Q45 185 44 200 L55 202 Q58 180 60 165 Q64 140 66 115 Z') + '</g>' +
     `<path d="M74 187 h52" stroke="#151827" stroke-width="4"/><rect x="96" y="184" width="8" height="6" fill="#8a8fa8"/>`;
 
+  // --- shirt, in place of the plain t-shirt ---
+  if (shirt) {
+    const TEE = 'M72 76 Q100 70 128 76 L132 120 Q128 160 126.5 185 L73.5 185 Q72 160 68 120 Z';
+    const SHORT = both('M72 76 Q58 80 54 96 L52 113 L66 117 L70 96 Z');
+    const LONG = both('M72 76 Q58 80 54 96 Q49 140 44 197 L56 199 Q60 160 66 117 L70 96 Z');
+    const zig = y => `M70 ${y}` + ' l5 -5 l5 5'.repeat(6);
+    // One fill colour and one drawing per name in SLOTS.shirt, in the same order.
+    out += wear(shirt, ['#15131c', '#a8321f', '#1d1d26', '#e9e9f0', '#e8e8f0', '#e9e9f0', '#ff4fd8', '#1f7a3f'][shirt.kind], [
+      // Band Tee: black, with a lightning-bolt logo
+      `<path d="${TEE}"/>${SHORT}<path d="M95 102 h12 l-5 11 h6 l-13 18 l3 -12 h-6 z" fill="#fcee0a" stroke-width=".8"/>`,
+      // Flannel Shirt: checked, long sleeves
+      `<path d="${TEE}"/>${LONG}<g fill="none" stroke="#15131c" stroke-opacity=".6" stroke-width="2">` +
+        '<path d="M69 100 h62 M69 125 h62 M71 150 h58 M72 172 h56 M85 74 V185 M100 72 V185 M115 74 V185"/>' +
+        both('M52 112 l14 3 M49 138 l14 3 M46 164 l13 3') + '</g><path d="M90 72 L100 84 L110 72" fill="none"/>',
+      // Turtleneck
+      `<path d="${TEE}"/>${LONG}<path d="M87 70 Q100 79 113 70 L113 77 Q100 86 87 77 Z"/>` +
+        '<path d="M92 76 v5 M100 79 v5 M108 76 v5" fill="none" stroke-width="1"/>',
+      // Tank Top: bare shoulders
+      `<g fill="${SKIN}" stroke="${INK}" stroke-width="1"><path d="${TEE}"/>${SHORT}</g>` +
+        '<path d="M82 74 L90 74 Q100 94 110 74 L118 74 L125 108 L131 122 Q128 160 126.5 185 L73.5 185 Q72 160 69 122 L75 108 Z"/>',
+      // Shirt and Tie
+      `<path d="${TEE}"/>${LONG}<path d="M100 112 V185" fill="none" stroke-width="1"/>` +
+        '<path d="M89 72 L100 84 L111 72 L108 70 L100 78 L92 70 Z"/>' +
+        `<path d="M98 80 h4 l2.5 28 l-4.5 7 l-4.5 -7 Z" fill="${shirt.c}" stroke="${INK}" stroke-width=".8"/>`,
+      // Striped Longsleeve
+      `<path d="${TEE}"/>${LONG}<g fill="none" stroke="#27314f" stroke-width="4">` +
+        '<path d="M70 94 h60 M69 110 h62 M69 126 h62 M70 142 h60 M71 158 h58 M72 174 h56"/>' +
+        both('M52.5 108 l14 3 M50 128 l14 3 M48 148 l13.5 3 M46 168 l13 3 M44.5 188 l12 2') + '</g>',
+      // Tie-Dye Tee
+      `<path d="${TEE}"/>${SHORT}<g fill="none" stroke-width="5"><circle cx="100" cy="128" r="27" stroke="#fcee0a"/>` +
+        '<circle cx="100" cy="128" r="17" stroke="#00e5ff"/><circle cx="100" cy="128" r="7" stroke="#3dff9a"/></g>',
+      // Christmas Jumper: zigzags and a tree
+      `<path d="${TEE}"/>${LONG}<path d="${zig(100)} ${zig(172)}" fill="none" stroke="#e9e9f0" stroke-width="2"/>` +
+        '<path d="M100 112 l-10 15 h20 z M100 124 l-14 19 h28 z" fill="#e9e9f0" stroke="none"/>' +
+        '<rect x="97.5" y="143" width="5" height="7" fill="#8a5a2e" stroke="none"/>' +
+        '<g fill="#e0483c" stroke="none"><circle cx="100" cy="112" r="2.4"/><circle cx="94" cy="134" r="1.8"/><circle cx="106" cy="138" r="1.8"/></g>',
+    ][shirt.kind]);
+  }
+
   // --- body gear ---
   if (body && body.kind === 'suit') {   // only agents wear one, so it is not in the SLOTS list
     out += wear(body, '#16161f', `<path d="${TORSO}"/>${both(SLEEVE)}` +
@@ -1031,6 +1075,38 @@ function figure(F) {
         '<g fill="#fff"><circle cx="116" cy="104" r="3"/><circle cx="84" cy="138" r="3"/><circle cx="114" cy="170" r="3"/></g>' +
         '<g fill="#2f9e6a"><circle cx="88" cy="118" r="2"/><circle cx="112" cy="140" r="2"/><circle cx="92" cy="170" r="2"/></g></g>',
     ][body.kind]);
+  }
+
+  // --- coat: worn open over everything else on the torso ---
+  if (coat) {
+    // One side of an open coat, from the collar down to y = len, with its hem starting at x = hem.
+    const side = (len, hem) => both(`M70 75 Q80 72 90 73 L92 110 L90 ${len} L${hem} ${len} Q60 ${Math.min(200, len - 20)} 61 120 L63 84 Z`);
+    const arms = both(SLEEVE);
+    // One fill colour and one drawing per name in SLOTS.coat, in the same order.
+    out += wear(coat, ['#e9e9f0', '#ff8a1e', '#6b4a2c', '#fcee0a', '#39402f', '#d7ff3a', '#70143f', '#b98a55'][coat.kind], [
+      // Lab Coat: breast pocket full of pens
+      side(264, 55) + arms + both('M90 73 L92 106 L79 88 Z') + '<path d="M66 208 h17 v17 h-17 z M112 122 h13 v12 h-13 z"/>' +
+        '<path d="M115 122 v-6 M119 122 v-7 M122.5 122 v-5" fill="none" stroke-width="1.6"/>',
+      // Puffer Jacket: short and quilted
+      side(194, 66) + arms + '<g fill="none">' + both('M62 100 h29.5 M61 122 h30.5 M62 144 h29 M64 168 h26.5') +
+        both('M52.5 108 l15 3 M49.5 132 l15 3 M47 156 l14 3 M44.5 180 l13 3') + '</g>',
+      // Duster: down to the ankles, with a shoulder cape
+      side(304, 51) + arms + `<g fill="#55381f">${both('M63 82 Q76 72 90 73 L92 102 Q76 108 60 100 Z')}</g>`,
+      // Rain Poncho: see-through, over the arms
+      '<path d="M88 71 Q100 78 112 71 L152 152 L141 216 L59 216 L48 152 Z" fill-opacity=".5"/>' +
+        '<path d="M88 71 Q100 82 112 71 M100 80 V216" fill="none" stroke-width="1"/>',
+      // Parka: fur round the collar, big pockets
+      side(244, 57) + arms + '<path d="M73 72 Q100 63 127 72 L129 83 Q100 73 71 83 Z" fill="#d8c9a8"/>' +
+        both('M63 196 h19 v20 h-19 z') + both('M63 202 h19'),
+      // Hi-Vis Vest: no sleeves, reflective bands
+      side(192, 67) + `<g fill="none" stroke="#c9d1d5" stroke-width="4">${both('M62.5 132 h28.5 M64 162 h26.5')}</g>`,
+      // Cape, fastened at the throat
+      both('M72 74 Q54 78 46 100 Q36 180 33 284 L60 290 Q58 200 62 120 L64 84 Z') +
+        `<path d="M74 78 Q100 92 126 78" fill="none" stroke-width="2"/><circle cx="100" cy="85" r="4" fill="${coat.c}"/>`,
+      // Fur Coat
+      side(272, 54) + arms + `<g fill="#e3d2b0">${both('M90 73 L93 124 L77 94 Z')}</g>` +
+        '<g fill="none" stroke="#8a5a2e" stroke-width="1">' + both('M66 140 l3 4 M74 160 l3 4 M64 186 l3 4 M76 210 l3 4 M62 236 l3 4 M78 250 l3 4 M50 130 l2 4 M48 166 l2 4') + '</g>',
+    ][coat.kind]);
   }
 
   // --- syndicate marks ---
@@ -1589,7 +1665,7 @@ function figure(F) {
 
   // --- Legendary gear throws off sparks ---
   const anchor = {head: [100, 22], body: [100, 120], hands: [49, 206], feet: [100, 322], deck: [152, 182],
-    face: [100, 46], legs: [100, 250], wrist: [151, 182]};
+    face: [100, 46], legs: [100, 250], wrist: [151, 182], shirt: [100, 150], coat: [72, 232]};
   for (const [slot, [x, y]] of Object.entries(anchor)) {
     const p = F.gear[slot];
     if (!p || p.rar !== 4) continue;
@@ -2039,6 +2115,8 @@ function gearIcon(it) {
     : it.slot === 'face' ? '76 20 48 52'
     : it.slot === 'legs' ? '50 176 100 152'
     : it.slot === 'wrist' ? '30 154 40 40'
+    : it.slot === 'shirt' ? '36 62 128 138'
+    : it.slot === 'coat' ? (kind === 1 || kind === 5 ? '36 62 128 138' : '26 62 148 250')
     : DECK_BOX[kind] || '30 16 170 200';
   return `<svg class="ico" viewBox="${box}" aria-hidden="true">${figure(F)}</svg>`;
 }
@@ -2202,8 +2280,8 @@ async function outfitShop() {
 // ---------- loadout close-up ----------
 // A big view of the avatar with a tag on each gear slot. Tapping a tag opens that slot.
 async function inspectGear() {
-  const POS = {face: 'top:2%;left:0', body: 'top:22%;left:0', wrist: 'top:42%;left:0', hands: 'top:62%;left:0',
-    head: 'top:2%;right:0', deck: 'top:30%;right:0', legs: 'top:58%;right:0', feet: 'bottom:2%;right:0'};
+  const POS = {face: 'top:1%;left:0', shirt: 'top:19%;left:0', body: 'top:37%;left:0', wrist: 'top:55%;left:0', hands: 'top:73%;left:0',
+    head: 'top:1%;right:0', coat: 'top:19%;right:0', deck: 'top:37%;right:0', legs: 'top:58%;right:0', feet: 'bottom:1%;right:0'};
   for (;;) {
     const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
       const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
