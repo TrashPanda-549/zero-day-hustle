@@ -1478,8 +1478,8 @@ function makeGig(name) {
     worth = avg * G.t * 1.5;
   } else if (kind === 'breakin') {
     // A break-in, in stages (see HEISTS). good: which one. lock: easy ones early in a run, harder later,
-    // always mechanical so a few picks will do. Pays about twice a plain gig.
-    G.good = hid; G.place = elsewhere(); days = 4; hard = 2.2;
+    // always mechanical so a few picks will do. Pays more than a plain gig, mostly in XP (BREAKIN.gigHard).
+    G.good = hid; G.place = elsewhere(); days = 4; hard = BREAKIN.gigHard[0];
     G.lock = S.day <= 8 ? 'padlock' : S.day <= 18 ? 'deadbolt' : 'cylinder';
   } else if (kind === 'courier') { G.place = elsewhere(); days = 2; hard = 0.7; }
   else if (kind === 'jobs') { G.t = rnd(1, 2); hard = G.t; }
@@ -1490,7 +1490,7 @@ function makeGig(name) {
   else { G.t = rnd(1, 2); days = G.t + 2; hard = 0.6 * G.t; }   // 'cool'
   G.due = Math.min(DAYS, S.day + days);
   G.cash = Math.round(((1200 + S.day * 350) * hard + worth) * (1 + trust(name) / 10) / 10) * 10;
-  G.xp = Math.round((60 + 12 * level()) * Math.max(0.7, hard));
+  G.xp = Math.round((60 + 12 * level()) * Math.max(0.7, kind === 'breakin' ? BREAKIN.gigHard[1] : hard));
   G.rar = Math.random() < 0.25 ? Math.max(1, Math.min(3, rollRarity(S.day * 0.3 + 10))) : -1;
   return G;
 }
@@ -1606,8 +1606,8 @@ const BREAKIN = {
   // --- pay ---
   pay: [[800, 3000, 1], [1100, 5000, -1], [1600, 9000, 2], [2600, 20000, 3], [3200, 26000, 3]],   // syndicate break-ins by tier: [XP, cash, gear rarity or -1]
   orderPay: 1.5,             // a break-in as a standing order pays this much more than other standing orders
-  gigHard: 2.2,              // a break-in gig pays this many times a plain gig (cash and XP)
-  bbs: [1000, 250, 0.35, 2], // BBS break-ins: ([0] + [1] * day) * (1 + [2] * difficulty) + [3] * what the devices are worth
+  gigHard: [1.5, 2.5],       // a break-in gig pays this many times a plain gig: [cash, XP]
+  bbs: [700, 200, 0.35, 2],  // BBS break-ins: ([0] + [1] * day) * (1 + [2] * difficulty) + [3] * what the devices are worth
   bbsXp: [60, 30],           // XP for a BBS break-in: [0] + [1] * difficulty
   ghost: 1.25, messy: 0.8,   // pay for a quiet entry and a clean exit; pay after a forced door (gigs and BBS jobs)
   ghostXp: 0.2,              // the same bonus for a syndicate break-in, in XP: this share of the mission's XP
@@ -1730,6 +1730,11 @@ const lockLine = () => {
   const li = lockInfo();
   return `Lock picking <b class="amber">level ${li.level}</b>` + (li.need ? ` <span class="dim">(${li.into}/${li.need} to the next)</span>` : ' <span class="dim">(as good as it gets)</span>');
 };
+// The entry tools you carry, in a few characters: "6 picks +3", "2 tools", or the paperclip everybody has.
+const toolChip = () => {
+  const other = Object.keys(TOOLS).reduce((sum, k) => sum + (k !== 'picks' && S[k] ? S[k] : 0), 0);
+  return S.picks ? `${S.picks} pick${S.picks === 1 ? '' : 's'}${other ? ` +${other}` : ''}` : other ? `${other} tool${other === 1 ? '' : 's'}` : 'Paperclip';
+};
 const lockMeter = () => {
   const li = lockInfo();
   return meter('Picking', li.need ? li.into : 1, li.need || 1, 'L' + li.level, 'amber');
@@ -1754,9 +1759,11 @@ function lockOdds(key, lock, edge) {
   return {open: clampN(Math.round(raw + (edge || 0)), B.min, B.max), brk: Math.round(T.brk * ease * 100),
     wear: Math.round(T.wear * 100), noise: Math.max(1, Math.round(T.noise * ease))};
 }
-const oddsLine = (key, o) => `<span class="green">opens ${o.open}%</span>` +
-  (TOOLS[key].loud ? ` <span class="red">&middot; forces the door: +${BREAKIN.forced} Alert and Heat</span>` : '') +
-  ` &middot; a miss: +${o.noise} Alert` + (o.brk ? `, ${o.brk}% it ${key === 'picks' ? 'snaps' : 'breaks'}` : '') +
+// quiet: at the practice board, where there is no Alert to add to.
+const oddsLine = (key, o, quiet) => `<span class="green">opens ${o.open}%</span>` +
+  (TOOLS[key].loud && !quiet ? ` <span class="red">&middot; forces the door: +${BREAKIN.forced} Alert and Heat</span>` : '') +
+  (quiet ? (o.brk ? ` &middot; a miss: ${o.brk}% it ${key === 'picks' ? 'snaps' : 'breaks'}` : '')
+    : ` &middot; a miss: +${o.noise} Alert` + (o.brk ? `, ${o.brk}% it ${key === 'picks' ? 'snaps' : 'breaks'}` : '')) +
   (o.wear ? ` &middot; ${o.wear}% it wears out, hit or miss` : '') + (key === 'clip' ? ' &middot; you never run out of paperclips' : '');
 // One try. Successes teach more than misses, and harder locks teach more; forcing a door teaches next to nothing.
 // practice: the board at the Bunker, which teaches less and only up to a point. Returns what happened.
@@ -1777,7 +1784,7 @@ const alertMeter = st => meter('Alert', st.alert, 100, st.alert + '%', alertClas
 const diffPips = lock => `<span class="amber">${'&#9679;'.repeat(LOCKS[lock][1])}</span><span class="dim">${'&#9675;'.repeat(5 - LOCKS[lock][1])}</span>`;
 const lockCard = lock => `<div class="syn"><b>${LOCKS[lock][0]}</b> ${diffPips(lock)} <span class="dim">${LOCKS[lock][2] === 'elec' ? 'electronic' : 'mechanical'}</span>` +
   `<br><span class="dim">${LOCKS[lock][3]}</span></div>`;
-// The tools you could use on this lock, best chance first.
+// The tools you could use on this lock right now.
 const toolsFor = (lock, st) => Object.keys(TOOLS).filter(k => !toolBlock(k, lock, st));
 
 // The lock, tool by tool: pick one, see the chance, try, read what happened, try again or back off.
@@ -1792,14 +1799,14 @@ async function lockDialog(lock, st, o) {
     const shown = Object.keys(TOOLS).filter(k => k === 'clip' || S[k]);
     const html = (o.head || '') + (last ? `<p>${last}</p>` : '') + lockCard(lock) +
       (st ? alertMeter(st) : `<p class="dim">Tries left at the board today: <b>${drills}</b></p>`) + `<p>${lockLine()}</p>` +
-      shown.map(k => {
-        const why = toolBlock(k, lock, st);
-        return '<div class="syn">' + withIcon(miscIcon(k), `<b class="r${TOOLS[k].rar}">${toolName(k)}</b>` +
-          (k === 'clip' ? '' : ` <span class="dim">x${S[k]}</span>`) + '<br>' +
-          (why ? `<span class="dim">No use here: ${why}.</span>` : oddsLine(k, lockOdds(k, lock, o.edge)))) + '</div>';
-      }).join('') +
-      (st ? '<p class="dim">Every miss adds to the Alert. At 100% the alarm goes. Backing off costs nothing, and the Alert settles overnight.</p>'
-        : '<p class="dim">Nobody is listening down here, so a miss only costs you the try, and now and then a pick.</p>');
+      // Tapping a tool tries it (the buttons underneath do the same, for the keyboard).
+      shown.filter(k => !toolBlock(k, lock, st) && drills > 0).map(k => `<div class="syn pickable" data-pick="${k}">` + withIcon(miscIcon(k), `<b class="r${TOOLS[k].rar}">${toolName(k)}</b>` +
+        (k === 'clip' ? '' : ` <span class="dim">x${S[k]}</span>`) + '<br>' + oddsLine(k, lockOdds(k, lock, o.edge), !st)) + '</div>').join('') +
+      // What you carry that is no use on this lock, in one line, with why.
+      (shown.some(k => toolBlock(k, lock, st)) ? '<p class="dim">No use here: ' +
+        shown.filter(k => toolBlock(k, lock, st)).map(k => `${toolName(k)} (${toolBlock(k, lock, st)})`).join(', ') + '.</p>' : '') +
+      (st ? '<p class="dim">Tap a tool to try it. Every miss adds to the Alert, and at 100% the alarm goes. Backing off costs nothing, and the Alert settles overnight.</p>'
+        : '<p class="dim">Tap a tool to try it. Nobody is listening down here, so a miss only costs you the try, and now and then a pick.</p>');
     const usable = drills > 0 ? toolsFor(lock, st) : [];
     const buttons = usable.map(k => [`${toolName(k)} (${lockOdds(k, lock, o.edge).open}%)`, k, TOOLS[k].loud ? 'danger' : '', miscIcon(k)]);
     buttons.push([o.practice ? 'Step away' : 'Back off', null, usable.length ? 'small' : 'primary']);
@@ -1907,6 +1914,13 @@ function jobOddsIn(M, st) {
 }
 const cleanOdds = st => clampN(Math.round(100 - st.alert + bonus('stealth') / 2 + (st.cased ? BREAKIN.casedEdge / 2 : 0)), BREAKIN.cleanMin, BREAKIN.cleanMax);
 const fastHeat = st => BREAKIN.heat.fast[0] + Math.round(st.alert / BREAKIN.heat.fast[1]);
+// What heistHeat(n) would add right now, for telling the player before they choose.
+function heatShown(n) {
+  if (inSyn('ghost')) n = Math.ceil(n / 2);
+  n = Math.ceil(n * (1 - bonus('stealth') / 100));
+  if (n > 0 && fx().vpn > 0) n = Math.ceil(n / 2);
+  return Math.max(0, Math.min(100 - S.heat, n));
+}
 // Put goods on the drive, as many as there is room for. Returns how many went on.
 function heistGoods(name, qty) {
   const n = Math.max(0, Math.min(qty, free()));
@@ -2016,7 +2030,7 @@ async function heistPlay(M) {
     const html = stageHead(0, M) + `<p>${cap1(H.site)}, from across the street. You are here to ${H.prize}.</p>` + lockCard(H.lock) +
       (short ? `<p class="red">You need ${H.n} ${H.dev} to leave behind, and you carry ${num(S.inv[H.dev] || 0)}. There is nothing to do in there without them.</p>` : '') +
       (!tools.length ? `<p class="red">Nothing you carry opens this. ${type === 'elec' ? 'An electronic lock needs an RFID Cloner, or a Crowbar and a tolerance for noise.' : 'Find a pick, a paperclip, anything.'}</p>` : '') +
-      (st.cased ? '<p class="green">You cased this place already: you know when the guard goes for his tea.</p>'
+      (short || !tools.length ? '' : st.cased ? '<p class="green">You cased this place already: you know when the guard goes for his tea.</p>'
         : `<p><b>Case it</b>: an hour across the street with a coffee. Uses a trip. +${B.casedEdge}% at the lock and inside, an easier way out, and no Alert to start with. ` +
           `About one time in ${Math.round(1 / B.caseSeen[0])} somebody wonders what you are looking at.<br>` +
           `<b>Go in blind</b>: no trip, no waiting, and you start with ${B.blind}% Alert because you do not know where the cameras are.</p>`) +
@@ -2176,9 +2190,9 @@ async function heistPlay(M) {
     const odds = cleanOdds(st), hot = fastHeat(st);
     const how = await dialog('The way out', stageHead(3, M) + (note ? `<p>${note}</p>` : '') + alertMeter(st) +
       (st.done ? '' : '<p class="amber">The job is not done. You can still leave in one piece and come back another day.</p>') +
-      `<p><b>Slip out clean</b>: the way you came, at a walk, closing things behind you. <b>${odds}%</b>, and no Heat if it works. If it does not, somebody sees you: Heat +${B.heat.spotted} and a fight.<br>` +
-      `<b>Leg it</b>: always works. Heat +${hot}, because running is what guilty people do.</p>`,
-      [[`Slip out clean (${odds}%)`, 'clean', 'primary'], [`Leg it (Heat +${hot})`, 'fast']], st.alert >= 70 ? 'danger' : '');
+      `<p><b>Slip out clean</b>: the way you came, at a walk, closing things behind you. <b>${odds}%</b>, and no Heat if it works. If it does not, somebody sees you: Heat +${heatShown(B.heat.spotted)}% and whoever that was.<br>` +
+      `<b>Leg it</b>: always works. Heat +${heatShown(hot)}%, because running is what guilty people do.</p>`,
+      [[`Slip out clean (${odds}%)`, 'clean', 'primary'], [`Leg it (Heat +${heatShown(hot)}%)`, 'fast']], st.alert >= 70 ? 'danger' : '');
     let clean = false;
     if (how === 'clean') {
       if (Math.random() * 100 < odds) { clean = true; heistTally.clean++; }
@@ -4405,7 +4419,8 @@ function render() {
       usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
     ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
     // Entry tools carried, and the lock picking skill with how far along its level is.
-    ['Tools', Object.keys(TOOLS).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'Paperclip', ''],
+    // (Short, so it fits a phone: the picks, and how many other tools. The inventory says which.)
+    ['Tools', toolChip(), ''],
     ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber'],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
@@ -6616,6 +6631,21 @@ async function lockSelfTest() {
     if (career.lockpick !== B.drills * per) fail('practised past the daily limit');
     nextDay();
     if (S.drills !== 0) fail('practice not reset by the night');
+    // Whoever answers the alarm (the fight itself is stood in for here): beat them and the door is open, a forced
+    // entry, and the job goes on; lose, or run for it, and the job is blown for the day.
+    const realFight = fight;
+    try {
+      for (const result of ['won', 'lost', 'fled']) {
+        fresh(1);
+        const count = Object.assign({}, heistTally);
+        fight = async E => { if (result !== 'fled') E.result = result; };
+        steer(['blind'].concat(Array(tries).fill('clip')));   // misses until the alarm; after that, the first thing on offer
+        await fixed(0.4, () => startHeist('gig_sparks', 0));   // 0.4: every paperclip try misses, and security does turn up
+        if (S.fh || heistTally[result] <= count[result] || heistTally.done !== count.done + (result === 'won' ? 1 : 0) ||
+          heistTally.blown !== count.blown + (result === 'won' ? 0 : 1) || heistTally.forced !== count.forced + (result === 'won' ? 1 : 0) ||
+          S.heat < B.heat.alarm) fail('alarm fight', result, S.heat);
+      }
+    } finally { fight = realFight; }
     // The black market sells every tool, and the BBS break-in asks for its devices before it starts.
     fresh(1, {loc: GEAR_SPOTS[0], cash: 1000000});
     for (const k of Object.keys(TOOLS)) if (k !== 'clip') S[k] = 0;
