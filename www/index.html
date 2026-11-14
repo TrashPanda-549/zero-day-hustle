@@ -619,6 +619,24 @@ function activeAmmo() {
 }
 const hitChange = k => (AMMO[k][2] ? `${AMMO[k][2] > 0 ? '+' : ''}${AMMO[k][2]}% to hit` : 'normal chance to hit');
 const MAX_EMP = 5;
+// Things that get your Heat down (they are gadgets too: see GADGETS below). None of them work in a fight.
+// drop: Heat taken off at once, by who wants you: [police, FBI, NSA].
+// quick: a fast fix. After the first fast fix of the day, the rest work at half strength (QUICK_NOTE).
+// hp: Health it costs. backfire: chance it goes wrong and adds `burn` Heat instead.
+// home + trips: only at the Bunker, with that many trips left, and it uses up the rest of the day.
+// nights + cool: extra Heat cooled each night, for that many nights. days: how long Heat gains are halved.
+const COOL = {
+  burner: {quick: true, drop: [10, 10, 10]},
+  acid: {quick: true, drop: [25, 25, 25], hp: 15},
+  wiper: {quick: true, drop: [30, 20, 10], backfire: 0.2, burn: 8},
+  lielow: {drop: [20, 20, 20], home: true, trips: 3},
+  decoy: {nights: 3, cool: 10},
+  vpn: {days: 3},
+};
+// The black market charges more for them the hotter you are: police, FBI, NSA.
+const HOT_MARKUP = [1, 1.25, 1.5];
+const QUICK_NOTE = 'Burner phones, print removers and log wipers are fast fixes: after the first one you use in a day, ' +
+  'the rest that day work at half strength. A Fake ID always works in full.';
 // Single-use gadgets, keyed by the name of their counter in the run state:
 // [name, price, most you can carry, what it does, short label]
 const GADGETS = {
@@ -626,6 +644,15 @@ const GADGETS = {
   smoke: ['Smoke.bat', 1500, 3, 'a sure escape from any fight in the open', 'SMK'],
   bomb: ['Logic Bomb.zip', 3000, 3, 'a hack that knocks 2 to 3 hostiles offline, even in raids', 'LGB'],
   fakeid: ['Fake ID.jpg', 5000, 2, 'use any time to drop your Heat by 40%', 'ID'],
+  // --- Heat items (see COOL) ---
+  burner: ['Burner Phone.apk', 900, 4, `drops your Heat by ${COOL.burner.drop[0]}%`, 'BRN'],
+  acid: ['Fingerprint Remover.exe', 1800, 3, `burns your prints off: Heat down ${COOL.acid.drop[0]}%, Health down ${COOL.acid.hp}%`, 'FPR'],
+  wiper: ['Log Wiper.sh', 3500, 2, `wipes ${COOL.wiper.drop[0]}% Heat off police logs, ${COOL.wiper.drop[1]}% off the FBI's, ` +
+    `${COOL.wiper.drop[2]}% off the NSA's. 1 time in ${Math.round(1 / COOL.wiper.backfire)} it trips an alarm and adds ${COOL.wiper.burn}% instead`, 'WIP'],
+  lielow: ['Lie Low Kit.zip', 700, 2, `use at the Bunker with ${COOL.lielow.trips} or more trips left: you stay in for the rest of the day ` +
+    `and your Heat drops ${COOL.lielow.drop[0]}%`, 'LLK'],
+  decoy: ['Decoy Traffic.pcap', 2200, 2, `for the next ${COOL.decoy.nights} nights your Heat cools an extra ${COOL.decoy.cool}% a night`, 'DCY'],
+  vpn: ['No-Logs VPN.ovpn', 2800, 2, `for ${COOL.vpn.days} days, today included, everything that raises your Heat raises it half as much`, 'VPN'],
 };
 const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black market trades
 // Who comes for you depends on your Heat.
@@ -1069,6 +1096,8 @@ const ACH = {
   pocket: ['Nothing to Declare', 'Hide goods from the law in your prison pocket', 50, () => stat('pocket') >= 1],
   reasons: ['Because Reasons', 'Sell goods that a street doc had to remove', 100, () => stat('reasons') >= 1],
   dysentery: ['You Have Died of Dysentery', 'Leave them in. All the way to the end.', 50, () => stat('dysentery') >= 1],
+  cooled: ['Plausible Deniability', 'Use 10 things that lower your Heat', 150, () => stat('cooled') >= 10],
+  honeypot: ['Thank You for Your Submission', 'Have a Log Wiper trip the alarm', 50, () => stat('honeypot') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -2976,7 +3005,113 @@ function addHeat(value) {
   let gain = Math.min(10, Math.floor(value / 10000));
   if (inSyn('ghost')) gain = Math.ceil(gain / 2);
   gain = Math.ceil(gain * (1 - bonus('stealth') / 100));
-  if (gain) S.heat = Math.min(100, S.heat + gain);
+  if (gain) heatUp(gain);
+}
+// What the Heat items leave running: {vpn: days of halved Heat gains left, decoy: nights of extra cooling left}.
+const fx = () => (S.fx && typeof S.fx === 'object' ? S.fx : (S.fx = {vpn: 0, decoy: 0}));
+// Everything that raises Heat comes through here, so a running VPN can halve it.
+function heatUp(n) {
+  if (n > 0 && fx().vpn > 0) n = Math.ceil(n / 2);
+  S.heat = Math.min(100, S.heat + n);
+}
+// How much Heat a Heat item would take off if used right now (0 for the ones that work over time).
+function coolDrop(key) {
+  const c = COOL[key];
+  if (!c.drop) return 0;
+  const full = c.drop[lawTier()];
+  return Math.min(S.heat, c.quick && S.tricks > 0 ? Math.ceil(full / 2) : full);
+}
+// Why a Heat item cannot be used right now, or '' when it can.
+function coolBlock(key) {
+  const c = COOL[key];
+  if (c.drop && S.heat <= 0) return 'You have no Heat to drop.';
+  if (c.hp && S.hp <= c.hp) return `It costs ${c.hp}% Health, and you only have ${S.hp}%.`;
+  if (c.home && S.loc !== BUNKER) return 'It only works at the Bunker.';
+  if (c.home && S.trips < c.trips) return `Too late in the day: you need ${c.trips} or more trips left to lie low.`;
+  if (c.nights && fx().decoy >= c.nights) return 'One is already running, with all its nights left.';
+  if (c.days && fx().vpn >= c.days) return 'One is already running, with all its days left.';
+  return '';
+}
+// What is running, in words, for the status chips and the dialogs.
+const coverText = () => [fx().vpn > 0 ? `VPN ${fx().vpn}d` : '', fx().decoy > 0 ? `Decoy ${fx().decoy}n` : ''].filter(Boolean).join(' &middot; ');
+// Today's Heat items at this black market: four of the six kinds, one or two of each. Gone when sold.
+function coolStock() {
+  const m = S.markets && S.markets[S.loc];
+  if (!m) return {};
+  if (!m.cool || typeof m.cool !== 'object') {
+    m.cool = {};
+    for (const k of Object.keys(COOL).sort(() => Math.random() - 0.5).slice(0, 4)) m.cool[k] = rnd(1, 2);
+  }
+  return m.cool;
+}
+// What a Heat item would do if used right now, or why it cannot be. inline: for a line inside a list row.
+function coolHint(key, inline) {
+  const c = COOL[key], why = coolBlock(key);
+  let text;
+  if (why) text = `<span class="dim">${why}</span>`;
+  else if (c.drop) {
+    text = `<span class="green">Now: Heat ${S.heat}% &rarr; ${S.heat - coolDrop(key)}%</span>` +
+      (c.quick && S.tricks > 0 ? ' <span class="amber">(half strength: not your first fast fix today)</span>' : '') +
+      (c.backfire ? ` <span class="amber">or ${Math.min(100, S.heat + c.burn)}% if it trips the alarm</span>` : '') +
+      (c.hp ? ` <span class="amber">&middot; Health ${S.hp}% &rarr; ${S.hp - c.hp}%</span>` : '') +
+      (c.home ? ` <span class="amber">&middot; uses up your ${S.trips} trips</span>` : '');
+  } else {
+    const left = c.nights ? fx().decoy : fx().vpn, unit = c.nights ? 'night' : 'day';
+    text = left > 0 ? `<span class="amber">One is running with ${left} ${unit}${left === 1 ? '' : 's'} left. Using another only tops it back up to ${c.nights || c.days}.</span>`
+      : '<span class="green">Not running.</span>';
+  }
+  return inline ? '<br>' + text : `<p>${text}</p>`;
+}
+const heatClass = h => (h >= 60 ? 'red' : h >= 30 ? 'amber' : 'green');
+const coolCount = () => Object.keys(COOL).reduce((sum, k) => sum + (S[k] || 0), 0);
+let coolUses = 0, coolBuys = 0, coolFires = 0;   // counted for the self-test
+const COOL_SAY = {
+  burner: 'You move your whole life onto a phone that cost less than lunch. The old one goes in a river.',
+  acid: 'It stings exactly as much as the label says it will not. Your fingertips are now smooth, legally speaking.',
+  wiper: 'The script runs, the logs rotate, and for a moment several agencies are not sure who you are.',
+  lielow: 'Curtains shut, phone off, noodles on. You finish a thousand-piece jigsaw of a lighthouse. Nobody sees you all day.',
+  decoy: 'Somewhere a server starts pretending to be you, badly, in four countries at once.',
+  vpn: 'The provider promises it keeps no logs. It says so in the logs.',
+};
+// Use a Heat item: the same thing whether it is tapped in the inventory or picked from "Lower Heat".
+async function useCooler(key) {
+  const g = GADGETS[key], c = COOL[key];
+  if (!c || !S[key] || coolBlock(key)) return;
+  const was = S.heat, tierWas = lawTier(), half = c.quick && S.tricks > 0;
+  let fired = false, extra = '';
+  S[key]--;
+  coolUses++;
+  tally('cooled');
+  if (c.drop) {
+    if (c.backfire && Math.random() < c.backfire) {
+      fired = true;
+      coolFires++;
+      tally('honeypot');
+      S.heat = Math.min(100, S.heat + c.burn);
+    } else S.heat -= coolDrop(key);
+    if (c.quick) S.tricks = (S.tricks || 0) + 1;
+    if (c.hp) { S.hp -= c.hp; extra = ` Health down to ${S.hp}%.`; }
+    if (c.home) { S.trips = 0; extra = ' No trips left today.'; }
+    if (half && !fired) extra += ' (Half strength: not your first fast fix today.)';
+  } else if (c.nights) {
+    fx().decoy = c.nights;
+    extra = ` Your Heat cools an extra ${c.cool}% a night for ${c.nights} nights.`;
+  } else {
+    fx().vpn = c.days;
+    extra = ` Heat gains are halved for ${c.days} days, today included.`;
+  }
+  S.mood = fired ? 'ouch' : S.mood;
+  SND.play(fired ? 'alarm' : c.home ? 'sleep' : c.drop ? 'heal' : 'hack');
+  const change = S.heat === was ? `Heat stays at ${was}%.` : `Heat ${S.heat > was ? 'up' : 'down'} from ${was}% to ${S.heat}%.`;
+  log(fired ? `<span class="red">Your ${g[0]} tripped an alarm: ${change}</span>${extra}` : `You used a ${g[0]}: ${change}${extra}`);
+  render();
+  const bar = (label, h) => meter(label, h, 100, h + '%', heatClass(h));
+  const tier = lawTier() === tierWas ? `Still wanted by: <b>${LAW[tierWas].short}</b>.`
+    : `Wanted by: ${LAW[tierWas].short} &rarr; <b class="${lawTier() < tierWas ? 'green' : 'red'}">${LAW[lawTier()].short}</b>.`;
+  await alertDlg(g[0], `<div class="syn">${withIcon(miscIcon(key), `<b>${g[0]}</b><br>${g[3]}`)}</div>` +
+    `<p>${fired ? 'The log server was a honeypot. It thanks you for your submission.' : COOL_SAY[key]}</p>` +
+    (c.drop ? bar('Before', was) + bar('After', S.heat) : bar('Heat', S.heat)) +
+    `<p>${fired ? `<span class="red">${change}</span>` : change}${extra} ${tier}</p>`, fired ? 'danger' : '');
 }
 
 // ---------- contracts ----------
@@ -3043,7 +3178,9 @@ function newGame() {
     kit: 1,   // marks a run started with backpacks: its drive is the new, smaller base
     stuck: {}, stuckCost: {}, sick: 0, tag: {}, stashTag: {},   // the prison pocket and what it leaves behind
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
+    fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
     over: false, busted: false};
+  for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   logs = [];
   starterGear();
   rollMarket();
@@ -3052,6 +3189,7 @@ function newGame() {
 
 // ---------- dialogs ----------
 const overlay = $('#overlay'), dlg = $('#dialog');
+let autoPick = null;   // self-test only: (values on offer, dialog title) => the one to pick
 
 function dialog(title, html, buttons, tone) {
   return new Promise(resolve => {
@@ -3072,7 +3210,9 @@ function dialog(title, html, buttons, tone) {
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
       const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
-      return resolve(all[rnd(0, all.length - 1)]);
+      // ...unless it is steering: autoPick answers from what is on offer, or returns undefined to leave it to chance.
+      const want = autoPick ? autoPick(all, title) : undefined;
+      return resolve(want !== undefined ? want : all[rnd(0, all.length - 1)]);
     }
     overlay.hidden = false;
     dlg.scrollTop = 0;
@@ -3177,6 +3317,13 @@ const MISC_ART = {
   medkit: '<rect x="3" y="7" width="18" height="13" rx="2" fill="#e9e9f0" stroke="#0b0a19"/><rect x="9" y="4" width="6" height="4" rx="1" fill="none" stroke="#e9e9f0" stroke-width="1.4"/><path d="M12 10 v7 M8.5 13.5 h7" stroke="#ff3b5c" stroke-width="2.4"/>',
   proxy: '<g fill="none" stroke="#00e5ff" stroke-width="2"><rect x="2.5" y="9" width="8" height="6" rx="3"/><rect x="13.5" y="9" width="8" height="6" rx="3"/></g><rect x="8" y="10.5" width="8" height="3" rx="1.5" fill="none" stroke="#ff4fd8" stroke-width="2"/>',
   doc: '<circle cx="12" cy="12" r="9" fill="#0f6644" stroke="#3dff9a"/><path d="M12 6.5 v11 M6.5 12 h11" stroke="#fff" stroke-width="3"/>',
+  // --- Heat items ---
+  burner: '<rect x="7" y="2.5" width="10" height="19" rx="2" fill="#2a2f45" stroke="#3dff9a"/><rect x="9" y="5" width="6" height="6.5" fill="#3dff9a" opacity=".85"/><path d="M9.5 14 h1 M11.5 14 h1 M13.5 14 h1 M9.5 16.2 h1 M11.5 16.2 h1 M13.5 16.2 h1 M9.5 18.4 h1 M11.5 18.4 h1 M13.5 18.4 h1" stroke="#c9d1d5" stroke-width="1.1"/>',
+  acid: '<path d="M10 2.5 h4 v4 l3 4 v9.5 a1.5 1.5 0 0 1 -1.5 1.5 h-7 a1.5 1.5 0 0 1 -1.5 -1.5 v-9.5 l3 -4 z" fill="#14351f" stroke="#3dff9a"/><path d="M7.6 13 h8.8 v6.6 a1 1 0 0 1 -1 1 h-6.8 a1 1 0 0 1 -1 -1 z" fill="#3dff9a" opacity=".8"/><path d="M9.5 16 q2.5 -2.6 5 0 M10.4 18 q1.6 -1.7 3.2 0 M11.4 19.6 q.6 -.6 1.2 0" stroke="#0b0a19" stroke-width="1" fill="none"/>',
+  wiper: '<path d="M5 2.5 h10 l4 4 v15 h-14 z" fill="#e9e9f0" stroke="#0b0a19"/><path d="M7.5 9 h9 M7.5 12 h9 M7.5 15 h9 M7.5 18 h5" stroke="#8a8fa8" stroke-width="1.3"/><path d="M3.5 19.5 L20.5 7.5" stroke="#ff3b5c" stroke-width="2.6"/>',
+  lielow: '<path d="M5 10 h14 l-2 11.5 h-10 z" fill="#ff8a1e" stroke="#0b0a19"/><rect x="4" y="8" width="16" height="3" rx="1" fill="#e9e9f0" stroke="#0b0a19"/><path d="M8 6 q1.4 -1.8 0 -3.6 M12 6 q1.4 -1.8 0 -3.6 M16 6 q1.4 -1.8 0 -3.6" stroke="#c9d1d5" stroke-width="1.2" fill="none"/><path d="M8.5 15 q3.5 3 7 0" stroke="#fcee0a" stroke-width="1.5" fill="none"/>',
+  decoy: '<circle cx="12" cy="12" r="9" fill="#0c2a3a" stroke="#00e5ff"/><circle cx="12" cy="12" r="5" fill="none" stroke="#00e5ff" opacity=".5"/><path d="M12 12 L18.5 6" stroke="#00e5ff" stroke-width="1.2"/><circle cx="8" cy="9" r="1.6" fill="#ff4fd8"/><circle cx="15.5" cy="16" r="1.6" fill="#ff4fd8"/><circle cx="8.5" cy="16" r="1.6" fill="#ff4fd8"/><circle cx="15" cy="9.5" r="1.6" fill="#fcee0a"/>',
+  vpn: '<rect x="5" y="10.5" width="14" height="10" rx="2" fill="#0c4270" stroke="#00e5ff"/><path d="M8 10.5 v-3 a4 4 0 0 1 8 0 v3" fill="none" stroke="#00e5ff" stroke-width="1.8"/><circle cx="12" cy="14.6" r="1.8" fill="#fcee0a"/><path d="M12 15.5 v2.5" stroke="#fcee0a" stroke-width="1.6"/>',
 };
 const miscIcon = key => (MISC_ART[key] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${MISC_ART[key]}</svg>` : '');
 // A picture with text beside it.
@@ -3239,7 +3386,7 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
       S.ammo.std = Math.min(AMMO_MAX, S.ammo.std + 10);
       if (!S.ammo[S.loaded]) S.loaded = 'std';
     }
-    if (hot) S.heat = Math.min(100, S.heat + 5);
+    if (hot) heatUp(5);
     log(`Bought: ${w[0]} for ${money(price)}.`);
     render();
   }
@@ -3452,12 +3599,15 @@ function render() {
     ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
     ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
       usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
-    ['Gadgets', Object.keys(GADGETS).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
+    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
+  // Heat items carried, and any that are still running.
+  if (coolCount()) chips.push(['Heat kit', Object.keys(COOL).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' '), '']);
+  if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
     chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
@@ -3504,6 +3654,7 @@ function render() {
   acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
+  if (coolCount()) acts += `<button data-act="cooloff">Lower Heat (${coolCount()})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
   if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
   if (S.loc === GUN_SPOT) {
@@ -3584,7 +3735,7 @@ const ACTIONS = {
     if (Math.random() * 100 < chance) {
       S.cash += pay;
       S.mood = 'grin';
-      S.heat = Math.min(100, S.heat + (quiet ? 4 : 8));
+      heatUp(quiet ? 4 : 8);
       const xp = gainXp(40 + (100 - c.chance));
       tally('jobs');
       if (heatWas < 30) tally('quietjob');
@@ -3592,7 +3743,7 @@ const ACTIONS = {
       log(`<span class="green">Freelance job done: ${c.client} paid ${money(pay)}.</span>${xp}`);
       await alertDlg('Job done', `<p>Clean work. ${c.client} pays <b>${money(pay)}</b>.</p>`);
     } else {
-      S.heat = Math.min(100, S.heat + (quiet ? 8 : 15));
+      heatUp(quiet ? 8 : 15);
       S.mood = 'ouch';
       const xp = gainXp(10);
       SND.play('hack'); SND.play('lose', 0.45);
@@ -3759,12 +3910,12 @@ const ACTIONS = {
         const [name, text, have, most, usable] = arg === 'medkit'
           ? ['Medkit', `heals ${MED_HEAL}% Health, even in the middle of a fight`, S.medkits, MAX_MED, S.hp < 100]
           : arg === 'proxy' ? ['Proxy chain', 'powers your counter-hacks; more proxies, better odds', S.proxies, MAX_PROXIES, false]
-            : [GADGETS[arg][0], GADGETS[arg][3], S[arg], GADGETS[arg][2], arg === 'fakeid' && S.heat > 0];
-        const fightOnly = arg !== 'medkit' && arg !== 'fakeid';
+            : [GADGETS[arg][0], GADGETS[arg][3], S[arg], GADGETS[arg][2], COOL[arg] ? !coolBlock(arg) : arg === 'fakeid' && S.heat > 0];
+        const fightOnly = arg !== 'medkit' && arg !== 'fakeid' && !COOL[arg];
         const act = await dialog(name, `<div class="syn">${withIcon(miscIcon(arg), `<b>${name}</b><br>${text}`)}</div>` +
-          `<p>You carry <b>${have}</b> of ${most}.</p>` +
+          `<p>You carry <b>${have}</b> of ${most}.</p>` + (COOL[arg] ? coolHint(arg) : '') +
           (fightOnly ? none('Used from the fight screen.')
-            : usable ? '' : none(arg === 'medkit' ? 'Your Health is already full.' : 'You have no Heat to drop.')),
+            : usable || COOL[arg] ? '' : none(arg === 'medkit' ? 'Your Health is already full.' : 'You have no Heat to drop.')),
           usable ? [['Use it', 'use', 'primary'], ['Back', null]] : [['Back', null, 'primary']]);
         if (act === 'use') await ACTIONS[arg]();
       } else if (choice.startsWith('g:')) {
@@ -3948,10 +4099,44 @@ const ACTIONS = {
   // Burn a fake identity to cool your Heat.
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
+    const was = S.heat;
     S.fakeid--;
     tally('fakeid');
+    tally('cooled');
     S.heat = Math.max(0, S.heat - 40);
-    log(`You burned a ${GADGETS.fakeid[0]}: Heat down to ${S.heat}%.`);
+    SND.play('heal');
+    log(`You burned a ${GADGETS.fakeid[0]}: Heat down from ${was}% to ${S.heat}%.`);
+  },
+
+  // The other things that get Heat down (see COOL). One action each, so the inventory can use them by name.
+  burner: () => useCooler('burner'),
+  acid: () => useCooler('acid'),
+  wiper: () => useCooler('wiper'),
+  lielow: () => useCooler('lielow'),
+  decoy: () => useCooler('decoy'),
+  vpn: () => useCooler('vpn'),
+
+  // Everything you carry that lowers Heat, in one list, with what each would do right now.
+  async cooloff() {
+    for (;;) {
+      const keys = Object.keys(COOL).filter(k => S[k]);
+      if (S.fakeid) keys.unshift('fakeid');
+      if (!keys.length) return;
+      const html = meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
+        `<p>Wanted by: <b>${LAW[lawTier()].short}</b>.${coverText() ? ` Running: <span class="cyan">${coverText()}</span>.` : ''}</p>` +
+        keys.map(k => {
+          const ok = k === 'fakeid' ? S.heat > 0 : !coolBlock(k);
+          return `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${k}"` : ''}>` + withIcon(miscIcon(k),
+            `<b>${GADGETS[k][0]}</b> <span class="dim">x${S[k]}</span><br>${GADGETS[k][3]}` +
+            (k === 'fakeid' ? (ok ? `<br><span class="green">Now: Heat ${S.heat}% &rarr; ${Math.max(0, S.heat - 40)}%</span>` : '<br><span class="dim">You have no Heat to drop.</span>')
+              : coolHint(k, true))) + '</div>';
+        }).join('') +
+        `<p class="dim">Tap one to use it. None of them work in a fight. ${QUICK_NOTE}</p>`;
+      const key = await dialog('Lower Heat', html, [['Close', null, 'primary']]);
+      if (!key) return;
+      await ACTIONS[key]();
+      render();
+    }
   },
 
   // Black market: weapons, gadgets, proxy chains, medkits and gear.
@@ -3959,9 +4144,12 @@ const ACTIONS = {
     for (;;) {
       const scale = 1 + Math.floor(S.day / 10) * 0.5;
       const offers = [];
+      // Heat items are in short supply (see coolStock) and cost more the hotter you are.
+      const stock = coolStock(), hot = HOT_MARKUP[lawTier()];
       for (const [key, [name, price, most, what]] of Object.entries(GADGETS)) {
-        if (S[key] < most) offers.push({key: 'x' + key, gadget: key, art: key, name, price: Math.round(price * scale),
-          text: `single use: ${what} (you have ${S[key]})`});
+        if (COOL[key] && !stock[key]) continue;
+        if (S[key] < most) offers.push({key: 'x' + key, gadget: key, art: key, name, price: Math.round(price * scale * (COOL[key] ? hot : 1)),
+          text: `single use: ${what} (you have ${S[key]}${COOL[key] ? `; ${stock[key]} left here today` : ''})`});
       }
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', art: 'proxy', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and freelance jobs (you have ${S.proxies})`});
@@ -3975,6 +4163,9 @@ const ACTIONS = {
         (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
           `${money(o.price)}</span>${o.item ? itemHtml(o.item) : withIcon(miscIcon(o.art), `<b>${o.name}</b><br>${o.text}`)}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
+        (Object.keys(stock).some(k => stock[k]) ? (hot > 1 ? `<p class="amber">"${LAW[lawTier()].short} are asking about you. ` +
+          `So anything that makes them stop asking costs ${Math.round((hot - 1) * 100)}% more today."</p>` : '') +
+          `<p class="dim">Whatever lowers Heat is in short supply: each market gets a few a day. ${QUICK_NOTE}</p>` : '') +
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
       const buttons = offers.filter(o => S.cash >= o.price)
         .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls, o.item ? gearIcon(o.item) : miscIcon(o.art)]);
@@ -3985,8 +4176,10 @@ const ACTIONS = {
       if (key === 'clinic') { await ACTIONS.clinic(); continue; }
       const o = offers.find(x => x.key === key);
       S.cash -= o.price;
-      if (o.gadget) S[o.gadget]++;
-      else if (key === 'm') S.medkits++;
+      if (o.gadget) {
+        S[o.gadget]++;
+        if (COOL[o.gadget]) { stock[o.gadget]--; coolBuys++; }
+      } else if (key === 'm') S.medkits++;
       else if (key === 'd') S.hp = 100;
       else if (o.item) { S.shop.splice(S.shop.indexOf(o.item), 1); stash(o.item); saveCareer(); }
       else S.proxies++;
@@ -4228,6 +4421,10 @@ function nextDay() {
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
   if (S.wallet > banked) tally('interest', S.wallet - banked);
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
+  // Heat items: decoy traffic cools a little more each night, a VPN runs down, and fast fixes are fresh again.
+  if (fx().decoy > 0) { S.heat = Math.max(0, S.heat - COOL.decoy.cool); S.fx.decoy--; }
+  if (S.fx.vpn > 0) S.fx.vpn--;
+  S.tricks = 0;
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
@@ -4381,7 +4578,7 @@ const JUNKIE_ODDS = 0.12, JUNKIE_RATE = [25, 45];   // chance per trip, and thei
 // [name, what they say, what they carry (see junkOffer), skin, hair colour, hat, coat]
 const JUNKIES = [
   ['Twitch', 'A twitchy kid with a backpack full of blinking boards. "Tools, man. Good tools. I just need bus fare."',
-    ['gadget', 'gadget', 'proxy', 'gadget', 'drive'], 0, 4, 0, 1],
+    ['gadget', 'gadget', 'proxy', 'gadget', 'drive', 'cool'], 0, 4, 0, 1],
   ['Needles', 'A hollow-eyed ex-medic opens a coat lined with stolen hospital stock. "All sterile. Mostly."',
     ['medkit', 'medkit', 'gadget', 'gear', 'medkit'], 2, 1, 4, 6],
   ['Brass', 'His jacket rattles when he walks: loose rounds in every pocket. "Fell off a truck. A police truck."',
@@ -4389,9 +4586,9 @@ const JUNKIES = [
   ['Ragpicker', 'She pushes a shopping trolley of clothes with the store tags still on. "Your size. Everything is your size."',
     ['gear', 'gear', 'gear', 'medkit', 'gear'], 4, 5, 0, 7],
   ['Dumpster Dave', 'A man climbs out of the skip behind a datacenter with an armful of drives. "They throw out the good stuff."',
-    ['goods', 'goods', 'drive', 'proxy', 'goods'], 1, 3, 4, 2],
+    ['goods', 'goods', 'drive', 'proxy', 'goods', 'cool'], 1, 3, 4, 2],
   ['Glitch', 'Someone in a tinfoil hat is selling things off a blanket. No two of them belong together.',
-    ['weapon', 'gadget', 'gear', 'ammo', 'goods', 'proxy'], 5, 6, 4, 0],
+    ['weapon', 'gadget', 'gear', 'ammo', 'goods', 'proxy', 'cool'], 5, 6, 4, 0],
 ];
 
 function junkieSvg(J) {
@@ -4406,8 +4603,8 @@ function junkieSvg(J) {
 // {name, text, list (the shop price), icon, cls, take()}
 function junkOffer(kind) {
   const scale = 1 + Math.floor(S.day / 10) * 0.5;
-  if (kind === 'gadget') {
-    const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2]);
+  if (kind === 'gadget' || kind === 'cool') {   // 'cool': one of the Heat items; 'gadget': any of the others
+    const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2] && !COOL[k] === (kind === 'gadget'));
     if (!spare.length) return null;
     const k = pick(spare), [name, price, , what] = GADGETS[k];
     return {name, text: `single use: ${what} (you have ${S[k]})`, list: price * scale, icon: miscIcon(k), take() { S[k]++; }};
@@ -4924,7 +5121,7 @@ async function fightRounds(E) {
       // No rounds left: all you can do is swing the thing.
       if (Math.random() < 0.3 + bonus('aim') / 100) kills = 1;
       violent = true;
-      S.heat = Math.min(100, S.heat + (law ? 5 : 0));
+      heatUp(law ? 5 : 0);
       msg = kills ? `Click. Empty. You club one of them with the ${W[0]}.` : `Click. Empty. You swing the ${W[0]} and miss.`;
     } else if (cmd === 'shoot') {
       const kind = WTYPE[W[4]] || WTYPE.gun;
@@ -4935,7 +5132,7 @@ async function fightRounds(E) {
       if (round) S.ammo[round] -= shots;
       kills = Math.min(n, kills);
       violent = true;
-      S.heat = Math.min(100, S.heat + kind[law ? 2 : 3]);   // blades are silent, guns are loud
+      heatUp(kind[law ? 2 : 3]);   // blades are silent, guns are loud
       stunned = W[4] === 'blunt' && kills > 0 && Math.random() < 0.4;
       msg = (kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`) +
         (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '') +
@@ -4944,7 +5141,7 @@ async function fightRounds(E) {
       S.emp--;
       kills = Math.min(n, rnd(2, 3));
       violent = true;
-      S.heat = Math.min(100, S.heat + (law ? 6 : 2));
+      heatUp(law ? 6 : 2);
       msg = `The EMP fries ${kills} of them.`;
     } else if (cmd === 'bomb') {
       S.bomb--;
@@ -5025,7 +5222,7 @@ async function fightRounds(E) {
       } else if (raid) {
         loot = total * rnd(1500, 4000) * (1 + Math.floor(S.day / 6));
         S.grudge[E.gang] += 2;
-        S.heat = Math.min(100, S.heat + (quiet ? 5 : 10));
+        heatUp(quiet ? 5 : 10);
         xp = gainXp(40 * total);
       } else if (thug) {
         loot = total * rnd(300, 1200) * (1 + Math.floor(S.day / 10));   // street muscle carries less than a crew does
@@ -5062,11 +5259,18 @@ async function fightRounds(E) {
           S.medkits++;
           log('You pocket a medkit they left behind.');
         }
-        const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2]);
+        const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2] && !COOL[k]);
         if (spare.length && Math.random() < 0.25) {
           const k = pick(spare);
           S[k]++;
           log(`You also grab a ${GADGETS[k][0]} off them.`);
+        }
+        // Crews have their own Heat to manage, so now and then one of them was carrying something for it.
+        const cover = Object.keys(COOL).filter(k => S[k] < GADGETS[k][2]);
+        if (cover.length && Math.random() < 0.15) {
+          const k = pick(cover);
+          S[k]++;
+          log(`One of them had a ${GADGETS[k][0]}. Had.`);
         }
         if (Math.random() < 0.4) {
           const k = pick(['budget', 'std', 'std', 'hollow', 'hollow', 'ap', 'smart']), found = rnd(5, 15);
@@ -5209,10 +5413,149 @@ document.addEventListener('click', async e => {
 });
 
 // ---------- self test: open index.html#selftest to auto-play random games ----------
+// The Heat items, step by step: each one does what its description says at low, middle and high Heat, every
+// limit holds, the black market sells them from a short stock at the right price, and saves keep them.
+async function coolSelfTest() {
+  const run = S, random = Math.random, keys = Object.keys(COOL), TEXT = k => GADGETS[k][3];
+  const fail = (what, ...more) => { throw new Error(`Heat item test: ${what} ` + JSON.stringify(more)); };
+  // A new run at the Bunker, carrying the most of every Heat item.
+  const fresh = (heat, o) => { newGame(); S.heat = heat; for (const k of keys) S[k] = GADGETS[k][2]; Object.assign(S, o || {}); };
+  try {
+    for (const k of keys) {
+      if (!GADGETS[k] || !MISC_ART[k] || !miscIcon(k) || typeof ACTIONS[k] !== 'function' || !COOL_SAY[k]) fail('half defined', k);
+    }
+    // Run one action with the dice fixed: 0.99 never trips the Log Wiper's alarm, 0 always does.
+    const roll = async (value, fn) => { Math.random = () => value; try { await fn(); } finally { Math.random = random; } };
+    for (const heat of [6, 30, 39, 40, 55, 74, 75, 90, 100]) {
+      for (const k of keys.filter(key => COOL[key].drop)) {
+        fresh(heat);
+        const c = COOL[k], full = c.drop[lawTier()], most = GADGETS[k][2];
+        if (!TEXT(k).includes(full + '%')) fail('description does not give the drop', k, full);
+        await roll(0.99, ACTIONS[k]);
+        if (S.heat !== Math.max(0, heat - full) || S[k] !== most - 1 || S.hp !== 100 - (c.hp || 0) ||
+          S.trips !== (c.home ? 0 : TRIPS_PER_DAY) || S.tricks !== (c.quick ? 1 : 0)) fail('wrong effect', k, heat, S.heat, S.hp, S.trips, S.tricks);
+        if (c.hp && !TEXT(k).includes(`Health down ${c.hp}%`)) fail('description does not give the Health cost', k);
+        if (!logs[0].includes(`from ${heat}% to ${S.heat}%`)) fail('log does not show before and after', k, logs[0]);
+        // A second fast fix the same day works at half strength; with no Heat left it is not used up at all.
+        const was = S.heat, n = S.burner, half = Math.ceil(COOL.burner.drop[lawTier()] / 2);
+        await ACTIONS.burner();
+        if (!was ? S.burner !== n || S.heat !== 0
+          : S.burner !== n - 1 || S.heat !== Math.max(0, was - (c.quick ? half : half * 2))) fail('second fix', k, was, S.heat);
+        // A night's sleep makes the next one a first fix again.
+        nextDay();
+        if (S.tricks !== 0) fail('fast fixes not reset by the night');
+      }
+    }
+    // Limits: the Lie Low Kit needs the Bunker and trips in hand, the print remover needs Health to spare.
+    fresh(50, {loc: HOME}); await ACTIONS.lielow();
+    if (S.lielow !== GADGETS.lielow[2] || S.heat !== 50) fail('lay low away from the Bunker');
+    fresh(50, {trips: COOL.lielow.trips - 1}); await ACTIONS.lielow();
+    if (S.lielow !== GADGETS.lielow[2] || S.heat !== 50) fail('lay low with too few trips');
+    fresh(50, {trips: COOL.lielow.trips}); await ACTIONS.lielow();
+    if (S.heat !== 30 || S.trips !== 0) fail('lying low', S.heat, S.trips);
+    fresh(50, {hp: COOL.acid.hp}); await ACTIONS.acid();
+    if (S.acid !== GADGETS.acid[2] || S.hp !== COOL.acid.hp || S.heat !== 50) fail('print remover with no Health to spare');
+    fresh(50, {hp: COOL.acid.hp + 1}); await ACTIONS.acid();
+    if (S.hp !== 1 || S.heat !== 25) fail('print remover', S.hp, S.heat);
+    // The Log Wiper's alarm: Heat goes up instead, it still counts as a fast fix, and it is still used up.
+    const fires = coolFires, pots = stat('honeypot');
+    for (const heat of [50, 97]) {
+      fresh(heat); await roll(0, ACTIONS.wiper);
+      if (S.heat !== Math.min(100, heat + COOL.wiper.burn) || S.wiper !== GADGETS.wiper[2] - 1 || S.tricks !== 1) fail('alarm', heat, S.heat);
+    }
+    if (coolFires !== fires + 2 || stat('honeypot') !== pots + 2 || !TEXT('wiper').includes(`adds ${COOL.wiper.burn}%`)) fail('alarm not counted');
+    // The VPN: nothing at once, Heat gains halved for three days counting today, and no stacking.
+    fresh(20); await ACTIONS.vpn();
+    if (S.heat !== 20 || S.fx.vpn !== COOL.vpn.days || S.vpn !== GADGETS.vpn[2] - 1) fail('VPN start', S.fx);
+    await ACTIONS.vpn();
+    if (S.vpn !== GADGETS.vpn[2] - 1) fail('a second VPN was used while the first was full');
+    for (let day = 0; day < COOL.vpn.days; day++) {
+      S.heat = 20; heatUp(9); heatUp(8); heatUp(1);
+      if (S.heat !== 20 + 5 + 4 + 1) fail('VPN did not halve', day, S.heat);
+      S.heat = 20; S.fx.vpn = 0; addHeat(100000);
+      const plain = S.heat - 20;
+      S.heat = 20; S.fx.vpn = COOL.vpn.days - day; addHeat(100000);
+      if (S.heat - 20 !== Math.ceil(plain / 2)) fail('VPN did not halve a deal', plain, S.heat);
+      nextDay();
+    }
+    S.heat = 20; heatUp(9);
+    if (S.fx.vpn !== 0 || S.heat !== 29) fail('VPN did not run out', S.fx, S.heat);
+    if (!TEXT('vpn').includes(`${COOL.vpn.days} days`)) fail('VPN description');
+    // Decoy traffic: nothing at once, then an extra drop each night for three nights.
+    fresh(90); await ACTIONS.decoy();
+    if (S.heat !== 90 || S.fx.decoy !== COOL.decoy.nights) fail('decoy start', S.fx);
+    await ACTIONS.decoy();
+    if (S.decoy !== GADGETS.decoy[2] - 1) fail('a second decoy was used while the first was full');
+    for (let night = 1; night <= COOL.decoy.nights + 1; night++) {
+      S.heat = 90; nextDay();
+      const extra = night <= COOL.decoy.nights ? COOL.decoy.cool : 0;
+      if (S.heat !== 90 - HEAT_DECAY - extra) fail('decoy night', night, S.heat);
+    }
+    S.fx.decoy = 1; await ACTIONS.decoy();
+    if (S.fx.decoy !== COOL.decoy.nights || S.decoy !== GADGETS.decoy[2] - 2) fail('decoy top-up');
+    if (!TEXT('decoy').includes(`${COOL.decoy.nights} nights`) || !TEXT('decoy').includes(`${COOL.decoy.cool}%`)) fail('decoy description');
+    // The black market: four kinds a day, one or two of each, dearer the hotter you are, and gone when sold.
+    for (const heat of [0, 50, 90]) {
+      fresh(heat, {loc: GEAR_SPOTS[0], cash: 10000000, day: 1 + heat / 5});
+      for (const k of keys) S[k] = 0;
+      rollMarket();
+      const stock = Object.assign({}, coolStock()), kinds = Object.keys(stock);
+      if (kinds.length !== 4 || kinds.some(k => !COOL[k] || stock[k] < 1 || stock[k] > 2)) fail('stock', stock);
+      const scale = 1 + Math.floor(S.day / 10) * 0.5, seen = new Set();
+      let cost = 0;
+      autoPick = all => {
+        all.forEach(v => seen.add(v));
+        const k = keys.find(key => all.includes('x' + key));
+        if (k) cost += Math.round(GADGETS[k][1] * scale * HOT_MARKUP[lawTier()]);
+        return k ? 'x' + k : null;
+      };
+      await ACTIONS.gear();
+      autoPick = null;
+      if (keys.some(k => S[k] !== (stock[k] || 0)) || S.cash !== 10000000 - cost || !cost || keys.some(k => !stock[k] && seen.has('x' + k)) ||
+        Object.values(coolStock()).some(q => q !== 0)) fail('buying', heat, stock, keys.map(k => S[k]), cost);
+      if (used() !== 0) fail('Heat items took drive space');
+      // Coming back the same day finds the shelf still empty.
+      S.loc = BUNKER; rollMarket(); S.loc = GEAR_SPOTS[0]; rollMarket();
+      if (Object.values(coolStock()).some(q => q !== 0)) fail('stock came back the same day');
+    }
+    // The same UI as the medkit: tap it in the inventory, then "Use it".
+    fresh(50); S.burner = 1;
+    autoPick = all => (all.includes('s:burner') ? 's:burner' : all.includes('use') ? 'use' : all.includes(true) ? true : null);
+    await ACTIONS.inventory();
+    if (S.burner !== 0 || S.heat !== 40) fail('using from the inventory', S.burner, S.heat);
+    // ...and the "Lower Heat" list, which has the Fake ID in it too.
+    fresh(90); S.fakeid = 1;
+    autoPick = all => (all.includes('fakeid') ? 'fakeid' : all.includes('lielow') ? 'lielow' : all.includes(true) ? true : null);
+    await ACTIONS.cooloff();
+    autoPick = null;
+    if (S.fakeid !== 0 || S.lielow !== GADGETS.lielow[2] - 1 || S.heat !== 90 - 40 - COOL.lielow.drop[1]) fail('the Lower Heat list', S.heat);
+    render();
+    if (!$('#actions').innerHTML.includes('data-act="cooloff"') || !$('#stats').textContent.includes('Heat kit')) fail('not on the main screen');
+    // A save keeps them, and a save from before they existed loads with none.
+    fresh(60); S.fx = {vpn: 2, decoy: 1}; S.tricks = 1; S.burner = 3; S.loc = GEAR_SPOTS[1]; rollMarket(); coolStock();
+    const now = JSON.parse(JSON.stringify(S)), old = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+    for (const k of keys.concat('fx', 'tricks')) delete old[k];
+    for (const m of Object.values(old.markets)) delete m.cool;
+    const get = store.get, keep = slot, mine = career;
+    try {
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (S.fx.vpn !== 2 || S.fx.decoy !== 1 || S.tricks !== 1 || S.burner !== 3 || S.wiper !== GADGETS.wiper[2] || !S.markets[S.loc].cool) fail('save lost them', S.fx);
+      store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (keys.some(k => S[k] !== 0) || S.fx.vpn !== 0 || S.fx.decoy !== 0 || S.tricks !== 0 || S.heat !== 60) fail('old save loaded wrong', S.fx);
+      render();
+      if (Object.keys(coolStock()).length !== 4) fail('old save has no stock');
+    } finally { store.get = get; slot = keep; career = mine; }
+  } finally {
+    Math.random = random; autoPick = null; S = run; logs = [];
+  }
+}
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
-  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0;
+  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0, coolHot = 0, coolBase = [0, 0, 0];
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -5256,7 +5599,9 @@ async function selfTest(games) {
         try { loadSave(0); } finally { store.get = get; slot = keep; }
         if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
         S = run; career = mine; logs = [];
+        await coolSelfTest();
       }
+      if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
       else if (game % 2) career.gear.back = makeItem(rnd(0, 4), 'back');           // some start with a better one
       if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`<b class="${bagClass()}"`)) {
@@ -5264,13 +5609,14 @@ async function selfTest(games) {
       }
       S.proxies = rnd(0, 3); S.weapon = rnd(0, WEAPONS.length - 1);
       S.emp = rnd(0, 2); S.smoke = rnd(0, 2); S.bomb = rnd(0, 2); S.fakeid = rnd(0, 2);
+      for (const k of Object.keys(COOL)) S[k] = pick([0, 0, rnd(0, GADGETS[k][2])]);
       for (const k of Object.keys(AMMO)) S.ammo[k] = pick([0, 0, rnd(1, 40)]);
       let wasFit = true, wasSyn = career.syn;
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore', 'outfitter', 'ammo']) : r < 0.97 ? pick(['gearmenu', 'inventory']) : r < 0.98 ? pick(['syndicate', 'syndicate', 'achievements']) : r < 0.99 ? pick(['medkit', 'fakeid']) : pick(['profile', 'gig', 'gig']);
+          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore', 'outfitter', 'ammo']) : r < 0.97 ? pick(['gearmenu', 'inventory']) : r < 0.98 ? pick(['syndicate', 'syndicate', 'achievements']) : r < 0.99 ? pick(['medkit', 'fakeid', 'cooloff']) : pick(['profile', 'gig', 'gig']);
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if ((act === 'gear' || act === 'dealer') && !GEAR_SPOTS.includes(S.loc)) continue;
         if ((act === 'gunstore' || act === 'outfitter') && S.loc !== GUN_SPOT) continue;
@@ -5297,6 +5643,28 @@ async function selfTest(games) {
             const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5));
             if (S.hp !== 100 || S.sick || used() !== before || now !== tags + n || cash - S.cash + S.debt - debt !== fee) throw new Error('extraction went wrong');
           } else if (stuckTotal() !== n) throw new Error('extraction took only some');
+        }
+        // Heat items: every so often the bot buys whatever the black market has, and uses one it is carrying.
+        // What it does to Heat, Health and the day must be exactly what the item said it would do.
+        if (Math.random() < 0.04) {
+          if (GEAR_SPOTS.includes(S.loc)) {
+            const had = coolCount(), cash = S.cash;
+            autoPick = all => all.find(v => typeof v === 'string' && v[0] === 'x' && COOL[v.slice(1)]) || null;
+            try { await ACTIONS.gear(); } finally { autoPick = null; }
+            if (coolCount() < had || (coolCount() > had) !== (S.cash < cash)) throw new Error('black market sold Heat items wrong');
+          }
+          const ready = Object.keys(COOL).filter(k => S[k] && !coolBlock(k));
+          if (ready.length) {
+            const k = pick(ready), c = COOL[k], was = S.heat, hp = S.hp, n = S[k], drop = coolDrop(k), tricks = S.tricks, fires = coolFires;
+            await ACTIONS[k]();
+            const fired = coolFires > fires;
+            if (S[k] !== n - 1 || S.heat !== (fired ? Math.min(100, was + c.burn) : was - drop) || S.hp !== hp - (c.hp || 0) ||
+              S.tricks !== tricks + (c.quick ? 1 : 0) || (c.home && S.trips !== 0) || (fired && !c.backfire) ||
+              (c.drop && !fired && was > 0 && drop < 1) || (c.nights && S.fx.decoy !== c.nights) || (c.days && S.fx.vpn !== c.days)) {
+              throw new Error(`Heat item ${k} did the wrong thing: ` + JSON.stringify([was, S.heat, drop, hp, S.hp, tricks, S.tricks, S.fx]));
+            }
+            if (was >= 40) coolHot++;
+          }
         }
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
         const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
@@ -5367,7 +5735,10 @@ async function selfTest(games) {
           Object.values(S.grudge).some(g => !(g >= 0)) || !!career.syn !== !!quest() || (career.quest && !(career.quest.p >= 0)) || !Number.isInteger(S.drive) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           (S.gig && !(CONTACTS[S.gig.who] && S.gig.t > 0 && S.gig.p >= 0 && S.gig.cash > 0 && S.gig.xp > 0 && S.gig.due <= DAYS)) ||
           Object.values(career.rep || {}).some(n => !(n >= 0 && n <= TRUST_MAX)) ||
-          S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS ||
+          S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS || !Number.isInteger(S.heat) ||
+          !(Number.isInteger(S.tricks) && S.tricks >= 0) || !(Number.isInteger(S.fx.vpn) && S.fx.vpn >= 0 && S.fx.vpn <= COOL.vpn.days) ||
+          !(Number.isInteger(S.fx.decoy) && S.fx.decoy >= 0 && S.fx.decoy <= COOL.decoy.nights) ||
+          Object.values(S.markets).some(m => m.cool && Object.values(m.cool).some(q => !(q >= 0 && q <= 2))) ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
@@ -5382,8 +5753,12 @@ async function selfTest(games) {
     if (games >= 20 && !(pocketTally && stuckTally && extractTally && tagSales && sickTally && deadTally)) {
       throw new Error('prison pocket not exercised: ' + [pocketTally, stuckTally, extractTally, tagSales, sickTally, deadTally]);
     }
+    // ...and the bot must have bought Heat items, used them, and used some while the FBI or the NSA wanted it.
+    if (games >= 20 && !(coolBuys > coolBase[0] && coolUses > coolBase[1] && coolHot)) {
+      throw new Error('Heat items not exercised: ' + [coolBuys - coolBase[0], coolUses - coolBase[1], coolHot]);
+    }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -5443,7 +5818,10 @@ function loadSave(n) {
   }
   delete S.armor;
   S.weapon = S.weapon || 0;
-  for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
+  for (const k of Object.keys(GADGETS)) S[k] = Number.isInteger(S[k]) && S[k] > 0 ? Math.min(S[k], GADGETS[k][2]) : 0;
+  // Heat items arrived in 1.24: an older run has none running and no fast fixes used.
+  S.fx = {vpn: Math.max(0, Math.min(COOL.vpn.days, Math.floor(fx().vpn) || 0)), decoy: Math.max(0, Math.min(COOL.decoy.nights, Math.floor(fx().decoy) || 0))};
+  S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? S.tricks : 0;
   S.ammo = Object.assign(noAmmo(), S.ammo);
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
@@ -5479,6 +5857,8 @@ function introText() {
     'Street contacts turn up the same way with <span class="amber">gigs</span>: side jobs with a deadline that pay cash and XP, and more as they come to trust you.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
+    '<p>Sleeping cools Heat. So do the things the black market sells for it: burner phones, log wipers, decoy traffic, a VPN, ' +
+    'a week of noodles. Each says what it does and what it costs you. They are in short supply, and none of them work once the fight has started.</p>' +
     '<p>Not everyone waiting where you surface is selling. Sometimes street muscle <span class="red">jumps you</span>: they are there in person, ' +
     'so their hits always land on your Health, and they may get the first swing in. Speed gear makes an ambush less likely to land.</p>' +
     '<p>When cornered you can shoot, hack, run or pay.Shootouts cost <span class="green">Health</span>, hack fights cost ' +
