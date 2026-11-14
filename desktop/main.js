@@ -1,20 +1,96 @@
 // Desktop shell: opens the game page (www/index.html) in a window.
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, screen } = require('electron');
+const fs = require('fs');
 const path = require('path');
 
+// The window opens maximized the first time. After that it comes back the way it was left: its size and
+// place, and whether it was maximized or full screen. That is kept in window-state.json in the user-data folder.
+const MIN_W = 360, MIN_H = 560;          // small enough for the phone layout, which the page still has
+const DEF_W = 1280, DEF_H = 800;         // the size it takes when un-maximized for the first time
+const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
+
+function loadState() {
+  try {
+    const s = JSON.parse(fs.readFileSync(stateFile(), 'utf8'));
+    if (s && [s.x, s.y, s.width, s.height].every(Number.isFinite)) return s;
+  } catch (e) {}
+  return null;
+}
+
+// Where the window goes when it is not maximized. A saved place is only used if enough of it is still on a
+// screen to grab (a monitor may have been unplugged since); otherwise it is centred on the main screen.
+function normalBounds(saved) {
+  const fit = (want, room) => Math.min(want, room);
+  if (saved) {
+    const b = { x: Math.round(saved.x), y: Math.round(saved.y),
+      width: Math.max(MIN_W, Math.round(saved.width)), height: Math.max(MIN_H, Math.round(saved.height)) };
+    const area = screen.getDisplayMatching(b).workArea;
+    const seenW = Math.min(b.x + b.width, area.x + area.width) - Math.max(b.x, area.x);
+    const seenH = Math.min(b.y + b.height, area.y + area.height) - Math.max(b.y, area.y);
+    const titleBarOn = b.y >= area.y - 8 && b.y <= area.y + area.height - 40;
+    if (seenW >= 120 && seenH >= 80 && titleBarOn) {
+      b.width = fit(b.width, area.width);
+      b.height = fit(b.height, area.height);
+      return b;
+    }
+  }
+  const area = screen.getPrimaryDisplay().workArea;
+  const width = fit(saved ? Math.max(MIN_W, saved.width) : DEF_W, area.width);
+  const height = fit(saved ? Math.max(MIN_H, saved.height) : DEF_H, area.height);
+  return { width, height, x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2) };
+}
+
 function createWindow() {
+  const saved = loadState();
   const win = new BrowserWindow({
-    width: 820,
-    height: 960,
-    minWidth: 360,
-    minHeight: 560,
+    ...normalBounds(saved),
+    minWidth: MIN_W,
+    minHeight: MIN_H,
+    show: false,
     backgroundColor: '#04070a',
     title: 'Zero Day Hustle',
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
+
+  // Remembering: the un-maximized size and place are tracked separately, so leaving maximized or full screen
+  // on a later launch goes back to them.
+  let maximized = saved ? !!saved.maximized : true;
+  const fullScreen = saved ? !!saved.fullScreen : false;
+  let timer = null;
+  const save = () => {
+    clearTimeout(timer);
+    timer = null;
+    if (win.isDestroyed()) return;
+    const full = win.isFullScreen();
+    if (!full && !win.isMinimized()) maximized = win.isMaximized();
+    try {
+      fs.mkdirSync(path.dirname(stateFile()), { recursive: true });
+      fs.writeFileSync(stateFile(), JSON.stringify({ ...win.getNormalBounds(), maximized, fullScreen: full }));
+    } catch (e) {}
+  };
+  const saveSoon = () => { if (!timer) timer = setTimeout(save, 400); };
+  for (const ev of ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'restore']) win.on(ev, saveSoon);
+  win.on('close', save);
+
+  // Full screen: F11 or Alt+Enter (on a Mac the View menu and the green button do it, with the usual
+  // Ctrl+Cmd+F). Escape is left alone: it belongs to the game.
+  if (process.platform !== 'darwin') {
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown' || input.isAutoRepeat) return;
+      const f11 = input.key === 'F11' && !input.alt && !input.control && !input.meta;
+      const altEnter = input.key === 'Enter' && input.alt && !input.control && !input.meta && !input.shift;
+      if (!f11 && !altEnter) return;
+      event.preventDefault();
+      win.setFullScreen(!win.isFullScreen());
+    });
+  }
+
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(__dirname, '..', 'www', 'index.html'));
+  if (maximized) win.maximize();
+  if (fullScreen) win.setFullScreen(true);
+  win.show();
 }
 
 app.whenReady().then(() => {
