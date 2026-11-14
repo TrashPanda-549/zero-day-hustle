@@ -621,7 +621,7 @@ const hitChange = k => (AMMO[k][2] ? `${AMMO[k][2] > 0 ? '+' : ''}${AMMO[k][2]}%
 const MAX_EMP = 5;
 // Things that get your Heat down (they are gadgets too: see GADGETS below). None of them work in a fight.
 // drop: Heat taken off at once, by who wants you: [police, FBI, NSA].
-// quick: a fast fix. After the first fast fix of the day, the rest work at half strength (QUICK_NOTE).
+// quick: a fast fix. You get QUICK_MAX of those a day: the first works in full, the second at half strength (QUICK_NOTE).
 // hp: Health it costs. backfire: chance it goes wrong and adds `burn` Heat instead.
 // home + trips: only at the Bunker, with that many trips left, and it uses up the rest of the day.
 // nights + cool: extra Heat cooled each night, for that many nights. days: how long Heat gains are halved.
@@ -631,12 +631,13 @@ const COOL = {
   wiper: {quick: true, drop: [30, 20, 10], backfire: 0.2, burn: 8},
   lielow: {drop: [20, 20, 20], home: true, trips: 3},
   decoy: {nights: 3, cool: 10},
-  vpn: {days: 3},
+  vpn: {days: 2},
 };
 // The black market charges more for them the hotter you are: police, FBI, NSA.
 const HOT_MARKUP = [1, 1.25, 1.5];
-const QUICK_NOTE = 'Burner phones, print removers and log wipers are fast fixes: after the first one you use in a day, ' +
-  'the rest that day work at half strength. A Fake ID always works in full.';
+const QUICK_MAX = 2;
+const QUICK_NOTE = 'Burner phones, print removers and log wipers are fast fixes, and you get two of those a day: ' +
+  'the first works in full, the second at half strength. A Fake ID always works, in full.';
 // Single-use gadgets, keyed by the name of their counter in the run state:
 // [name, price, most you can carry, what it does, short label]
 const GADGETS = {
@@ -3025,6 +3026,7 @@ function coolDrop(key) {
 function coolBlock(key) {
   const c = COOL[key];
   if (c.drop && S.heat <= 0) return 'You have no Heat to drop.';
+  if (c.quick && S.tricks >= QUICK_MAX) return 'You have used both of today\'s fast fixes. Sleep on it.';
   if (c.hp && S.hp <= c.hp) return `It costs ${c.hp}% Health, and you only have ${S.hp}%.`;
   if (c.home && S.loc !== BUNKER) return 'It only works at the Bunker.';
   if (c.home && S.trips < c.trips) return `Too late in the day: you need ${c.trips} or more trips left to lie low.`;
@@ -3034,13 +3036,14 @@ function coolBlock(key) {
 }
 // What is running, in words, for the status chips and the dialogs.
 const coverText = () => [fx().vpn > 0 ? `VPN ${fx().vpn}d` : '', fx().decoy > 0 ? `Decoy ${fx().decoy}n` : ''].filter(Boolean).join(' &middot; ');
-// Today's Heat items at this black market: four of the six kinds, one or two of each. Gone when sold.
+// Today's Heat items at this black market: COOL_KINDS of the six kinds, COOL_EACH of each. Gone when sold.
+const COOL_KINDS = 3, COOL_EACH = 1;
 function coolStock() {
   const m = S.markets && S.markets[S.loc];
   if (!m) return {};
   if (!m.cool || typeof m.cool !== 'object') {
     m.cool = {};
-    for (const k of Object.keys(COOL).sort(() => Math.random() - 0.5).slice(0, 4)) m.cool[k] = rnd(1, 2);
+    for (const k of Object.keys(COOL).sort(() => Math.random() - 0.5).slice(0, COOL_KINDS)) m.cool[k] = COOL_EACH;
   }
   return m.cool;
 }
@@ -3051,7 +3054,7 @@ function coolHint(key, inline) {
   if (why) text = `<span class="dim">${why}</span>`;
   else if (c.drop) {
     text = `<span class="green">Now: Heat ${S.heat}% &rarr; ${S.heat - coolDrop(key)}%</span>` +
-      (c.quick && S.tricks > 0 ? ' <span class="amber">(half strength: not your first fast fix today)</span>' : '') +
+      (c.quick && S.tricks > 0 ? ' <span class="amber">(half strength: your second fast fix today)</span>' : '') +
       (c.backfire ? ` <span class="amber">or ${Math.min(100, S.heat + c.burn)}% if it trips the alarm</span>` : '') +
       (c.hp ? ` <span class="amber">&middot; Health ${S.hp}% &rarr; ${S.hp - c.hp}%</span>` : '') +
       (c.home ? ` <span class="amber">&middot; uses up your ${S.trips} trips</span>` : '');
@@ -3092,7 +3095,7 @@ async function useCooler(key) {
     if (c.quick) S.tricks = (S.tricks || 0) + 1;
     if (c.hp) { S.hp -= c.hp; extra = ` Health down to ${S.hp}%.`; }
     if (c.home) { S.trips = 0; extra = ' No trips left today.'; }
-    if (half && !fired) extra += ' (Half strength: not your first fast fix today.)';
+    if (half && !fired) extra += ' (Half strength: your second fast fix today.)';
   } else if (c.nights) {
     fx().decoy = c.nights;
     extra = ` Your Heat cools an extra ${c.cool}% a night for ${c.nights} nights.`;
@@ -3605,8 +3608,8 @@ function render() {
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
-  // Heat items carried, and any that are still running.
-  if (coolCount()) chips.push(['Heat kit', Object.keys(COOL).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' '), '']);
+  // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
+  if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
   if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
@@ -4163,7 +4166,7 @@ const ACTIONS = {
         (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
           `${money(o.price)}</span>${o.item ? itemHtml(o.item) : withIcon(miscIcon(o.art), `<b>${o.name}</b><br>${o.text}`)}</div>`).join('')
           : '<p>You already own everything they sell.</p>') +
-        (Object.keys(stock).some(k => stock[k]) ? (hot > 1 ? `<p class="amber">"${LAW[lawTier()].short} are asking about you. ` +
+        (Object.keys(stock).some(k => stock[k]) ? (hot > 1 ? `<p class="amber">"${LAW[lawTier()].name[0].toUpperCase() + LAW[lawTier()].name.slice(1)} is asking about you. ` +
           `So anything that makes them stop asking costs ${Math.round((hot - 1) * 100)}% more today."</p>` : '') +
           `<p class="dim">Whatever lowers Heat is in short supply: each market gets a few a day. ${QUICK_NOTE}</p>` : '') +
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
@@ -5441,6 +5444,10 @@ async function coolSelfTest() {
         await ACTIONS.burner();
         if (!was ? S.burner !== n || S.heat !== 0
           : S.burner !== n - 1 || S.heat !== Math.max(0, was - (c.quick ? half : half * 2))) fail('second fix', k, was, S.heat);
+        // Two fast fixes a day is the limit: after that they stay in your pocket. The Lie Low Kit is not one of them.
+        S.heat = 90; S.tricks = QUICK_MAX;
+        for (const q of keys.filter(key => COOL[key].quick)) { const had = S[q]; await roll(0.99, ACTIONS[q]); if (S[q] !== had || S.heat !== 90) fail('a third fast fix worked', q); }
+        if (S.lielow && S.trips >= COOL.lielow.trips) { await ACTIONS.lielow(); if (S.heat !== 90 - COOL.lielow.drop[2]) fail('lying low was blocked by fast fixes'); }
         // A night's sleep makes the next one a first fix again.
         nextDay();
         if (S.tricks !== 0) fail('fast fixes not reset by the night');
@@ -5494,13 +5501,13 @@ async function coolSelfTest() {
     S.fx.decoy = 1; await ACTIONS.decoy();
     if (S.fx.decoy !== COOL.decoy.nights || S.decoy !== GADGETS.decoy[2] - 2) fail('decoy top-up');
     if (!TEXT('decoy').includes(`${COOL.decoy.nights} nights`) || !TEXT('decoy').includes(`${COOL.decoy.cool}%`)) fail('decoy description');
-    // The black market: four kinds a day, one or two of each, dearer the hotter you are, and gone when sold.
+    // The black market: a few kinds a day, one of each, dearer the hotter you are, and gone when sold.
     for (const heat of [0, 50, 90]) {
       fresh(heat, {loc: GEAR_SPOTS[0], cash: 10000000, day: 1 + heat / 5});
       for (const k of keys) S[k] = 0;
       rollMarket();
       const stock = Object.assign({}, coolStock()), kinds = Object.keys(stock);
-      if (kinds.length !== 4 || kinds.some(k => !COOL[k] || stock[k] < 1 || stock[k] > 2)) fail('stock', stock);
+      if (kinds.length !== COOL_KINDS || kinds.some(k => !COOL[k] || stock[k] !== COOL_EACH)) fail('stock', stock);
       const scale = 1 + Math.floor(S.day / 10) * 0.5, seen = new Set();
       let cost = 0;
       autoPick = all => {
@@ -5545,7 +5552,7 @@ async function coolSelfTest() {
       loadSave(0);
       if (keys.some(k => S[k] !== 0) || S.fx.vpn !== 0 || S.fx.decoy !== 0 || S.tricks !== 0 || S.heat !== 60) fail('old save loaded wrong', S.fx);
       render();
-      if (Object.keys(coolStock()).length !== 4) fail('old save has no stock');
+      if (Object.keys(coolStock()).length !== COOL_KINDS) fail('old save has no stock');
     } finally { store.get = get; slot = keep; career = mine; }
   } finally {
     Math.random = random; autoPick = null; S = run; logs = [];
@@ -5736,9 +5743,9 @@ async function selfTest(games) {
           (S.gig && !(CONTACTS[S.gig.who] && S.gig.t > 0 && S.gig.p >= 0 && S.gig.cash > 0 && S.gig.xp > 0 && S.gig.due <= DAYS)) ||
           Object.values(career.rep || {}).some(n => !(n >= 0 && n <= TRUST_MAX)) ||
           S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS || !Number.isInteger(S.heat) ||
-          !(Number.isInteger(S.tricks) && S.tricks >= 0) || !(Number.isInteger(S.fx.vpn) && S.fx.vpn >= 0 && S.fx.vpn <= COOL.vpn.days) ||
+          !(Number.isInteger(S.tricks) && S.tricks >= 0 && S.tricks <= QUICK_MAX) || !(Number.isInteger(S.fx.vpn) && S.fx.vpn >= 0 && S.fx.vpn <= COOL.vpn.days) ||
           !(Number.isInteger(S.fx.decoy) && S.fx.decoy >= 0 && S.fx.decoy <= COOL.decoy.nights) ||
-          Object.values(S.markets).some(m => m.cool && Object.values(m.cool).some(q => !(q >= 0 && q <= 2))) ||
+          Object.values(S.markets).some(m => m.cool && Object.values(m.cool).some(q => !(q >= 0 && q <= COOL_EACH))) ||
           Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
@@ -5821,7 +5828,7 @@ function loadSave(n) {
   for (const k of Object.keys(GADGETS)) S[k] = Number.isInteger(S[k]) && S[k] > 0 ? Math.min(S[k], GADGETS[k][2]) : 0;
   // Heat items arrived in 1.24: an older run has none running and no fast fixes used.
   S.fx = {vpn: Math.max(0, Math.min(COOL.vpn.days, Math.floor(fx().vpn) || 0)), decoy: Math.max(0, Math.min(COOL.decoy.nights, Math.floor(fx().decoy) || 0))};
-  S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? S.tricks : 0;
+  S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? Math.min(S.tricks, QUICK_MAX) : 0;
   S.ammo = Object.assign(noAmmo(), S.ammo);
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
