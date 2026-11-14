@@ -748,22 +748,24 @@ const GEAR_NAMES = [
 const SLOTS = {
   // The avatar draws each item type by its position in these lists (see figure()), so only ever
   // add new names at the end, and add the matching drawing in the same change.
-  head: ['Head', ['Beanie', 'Hood', 'AR Visor', 'Neural Band', 'Tinfoil Hat', 'Gas Mask', 'Gamer Headset', 'Mirrorshades'],
+  // Moving a name to another slot also needs an entry in MOVED, so gear people already own follows it.
+  head: ['Head', ['Beanie', 'Hood', 'AR Visor', 'Neural Band', 'Tinfoil Hat', 'Gamer Headset', 'Mirrorshades'],
     ['firewall', 'hack', 'stealth', 'charm']],
   body: ['Body', ['Denim Jacket', 'Kevlar Hoodie', 'Trench Coat', 'Armoured Vest', 'Biker Jacket', 'Tactical Harness',
     'Bathrobe', 'Hawaiian Shirt'], ['armor', 'storage', 'stealth', 'regen']],
-  hands: ['Hands', ['Fingerless Gloves', 'Haptic Gloves', 'Shock Knuckles', 'Data Gauntlets', 'Carpal Tunnel Braces',
-    'Oven Mitts', 'Cheese Dust Fingers', 'Smart Watches'], ['aim', 'hack', 'luck']],
+  hands: ['Hands', ['Fingerless Gloves', 'Haptic Gloves', 'Shock Knuckles', 'Data Gauntlets',
+    'Oven Mitts', 'Cheese Dust Fingers'], ['aim', 'hack', 'luck']],
   feet: ['Feet', ['Sneakers', 'Combat Boots', 'Courier Runners', 'Foam Clogs', 'Socks and Sandals', 'Rocket Skates',
     'Steel Toecaps', 'Bunny Slippers'], ['speed', 'armor', 'regen']],
   deck: ['Deck', ['Burner Laptop', 'Cyberdeck', 'Mesh Rig', 'Hacked Toaster', 'Graphing Calculator', 'LoRa Pager',
     'Flip Phone', 'Server Backpack'], ['hack', 'firewall', 'storage', 'charm', 'luck']],
-  face: ['Face', ['Bandana', 'Surgical Mask', 'Eyepatch', 'Fake Moustache', 'Monocle', 'Clown Nose', 'Hockey Mask', 'LED Mask'],
+  face: ['Face', ['Bandana', 'Surgical Mask', 'Eyepatch', 'Fake Moustache', 'Monocle', 'Clown Nose', 'Hockey Mask', 'LED Mask',
+    'Gas Mask'],
     ['stealth', 'charm', 'firewall', 'luck']],
   legs: ['Pants', ['Cargo Pants', 'Ripped Jeans', 'Track Pants', 'Tactical Trousers', 'Pyjama Bottoms', 'Cargo Shorts',
     'Leather Trousers', 'Kilt'], ['storage', 'speed', 'armor', 'regen']],
   wrist: ['Wrist', ['Sweatbands', 'Calculator Watch', 'Spiked Cuffs', 'Friendship Bracelets', 'Wrist Keyboard',
-    'Festival Wristbands', 'Slap Bracelets', 'Bootleg Rolex'], ['hack', 'aim', 'luck', 'charm']],
+    'Festival Wristbands', 'Slap Bracelets', 'Bootleg Rolex', 'Smart Watches', 'Carpal Tunnel Braces'], ['hack', 'aim', 'luck', 'charm']],
   // Three layers on the torso: a shirt, then the body slot (jackets and armour), then a coat over everything.
   shirt: ['Shirt', ['Band Tee', 'Flannel Shirt', 'Turtleneck', 'Tank Top', 'Shirt and Tie', 'Striped Longsleeve', 'Tie-Dye Tee',
     'Christmas Jumper'], ['charm', 'regen', 'stealth', 'luck']],
@@ -808,6 +810,27 @@ const statLine = (key, v) => `+${v}${STATS[key][3]} ${STATS[key][0]}`;
 const itemHtml = it => withIcon(gearIcon(it), `<b class="r${it.rar}">${it.name}</b> <span class="dim">${RARITY[it.rar]} &middot; ` +
   `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`);
 const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
+
+// Item types that used to belong to another slot: [name, old slot, new slot].
+const MOVED = [['Gas Mask', 'head', 'face'], ['Smart Watches', 'hands', 'wrist'], ['Carpal Tunnel Braces', 'hands', 'wrist']];
+const movedTo = it => (MOVED.find(([name, from]) => it && it.slot === from && String(it.name).endsWith(name)) || [])[2];
+// Re-slot moved items in a list (the bag, the locker, a shop's stock).
+function reslot(list) {
+  for (const it of Array.isArray(list) ? list : []) if (movedTo(it)) it.slot = movedTo(it);
+}
+// The same for the career: anything worn in its old slot moves to the new one, or into the bag if that is taken.
+function reslotCareer() {
+  reslot(career.bag); reslot(career.locker);
+  for (const [slot, it] of Object.entries(career.gear)) {
+    const to = movedTo(it);
+    if (!to) continue;
+    delete career.gear[slot];
+    it.slot = to;
+    if (!career.gear[to]) career.gear[to] = it;
+    else if (career.bag.length >= BAG_SIZE && career.locker && career.locker.length < LOCKER_SIZE) career.locker.push(it);
+    else career.bag.push(it);   // never thrown away, even if that overfills the bag
+  }
+}
 
 // Everyone starts with a basic item in every slot except the face and the coat, which stay empty until you find something.
 const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], feet: [0, 'speed'], deck: [0, 'hack'],
@@ -1468,7 +1491,7 @@ function figure(F) {
     const BAND = 'M44.5 177 L58.5 179 L58 187 L44 185 Z';
     const stripes = cols => twin(cols.map((c, i) =>
       `<path d="M44.6 ${173 + i * 4} l14 2" fill="none" stroke="${c}" stroke-width="3"/>`).join(''));
-    out += wear(wrist, ['#e9e9f0', '#2a2d3f', '#15131c', '#2a2d3f', '#2a2d3f', '#2a2d3f', '#fcee0a', '#ffd24a'][wrist.kind], [
+    out += wear(wrist, ['#e9e9f0', '#2a2d3f', '#15131c', '#2a2d3f', '#2a2d3f', '#2a2d3f', '#fcee0a', '#ffd24a', '#1b1e30', '#d8d0c0'][wrist.kind], [
       // Sweatbands
       both('M44.5 173 L59 175 L58 188 L43.5 186 Z') + both('M44.2 179 L58.6 181'),
       // Calculator Watch
@@ -1489,10 +1512,15 @@ function figure(F) {
       // Bootleg Rolex
       both(BAND) + twin(`<circle cx="51.5" cy="182" r="6" fill="#fff6d0"/>` +
         '<path d="M51.5 182 v-3.6 M51.5 182 l2.8 1.2" fill="none" stroke="#0b0a19" stroke-width="1"/>'),
+      // Smart Watches, one on each wrist
+      twin('<rect x="42" y="191" width="14" height="6" rx="2"/>' +
+        `<rect x="45" y="189" width="8" height="10" rx="2" fill="${wrist.c}" fill-opacity=".85"/>`),
+      // Carpal Tunnel Braces
+      both('M43 188 L58 190 L56 211 L42 209 Z') + both('M43 194 L57 196 M43 202 L57 204'),
     ][wrist.kind]);
   }
   if (hands) {
-    out += wear(hands, ['#23263a', '#1d2135', '#5a6080', '#2f3a66', '#d8d0c0', '#c0392b', '#ff8a1e', '#1b1e30'][hands.kind], [
+    out += wear(hands, ['#23263a', '#1d2135', '#5a6080', '#2f3a66', '#c0392b', '#ff8a1e'][hands.kind], [
       // Fingerless Gloves
       '<rect x="42" y="197" width="14" height="13" rx="3"/><rect x="144" y="197" width="14" height="13" rx="3"/>',
       // Haptic Gloves
@@ -1506,8 +1534,6 @@ function figure(F) {
       // Data Gauntlets: forearm armour with a screen
       both('M42 174 L59 177 L57 212 Q49 219 41 212 Z') +
         twin(`<rect x="45.5" y="183" width="9" height="13" rx="1.5" fill="${hands.c}" fill-opacity=".75"/>`),
-      // Carpal Tunnel Braces
-      both('M43 188 L58 190 L56 211 L42 209 Z') + both('M43 194 L57 196 M43 202 L57 204'),
       // Oven Mitts
       twin('<path d="M41 195 h16 v10 q0 13 -8 13 q-8 0 -8 -13 z"/><path d="M41 204 q-6 -2 -6 4 q1 5 6 3 z"/>' +
         '<path d="M43 201 l12 11 M55 201 l-12 11" fill="none"/>'),
@@ -1515,9 +1541,6 @@ function figure(F) {
       twin('<path d="M43 208 q6 -5 12 0 v6 q-6 6 -12 0 z"/>' +
         '<g stroke="none"><circle cx="40" cy="220" r="1.4"/><circle cx="47" cy="223" r="1.2"/><circle cx="55" cy="221" r="1.4"/>' +
         '<circle cx="51" cy="226" r="1"/></g>'),
-      // Smart Watches, one on each wrist
-      twin('<rect x="42" y="191" width="14" height="6" rx="2"/>' +
-        `<rect x="45" y="189" width="8" height="10" rx="2" fill="${hands.c}" fill-opacity=".85"/>`),
     ][hands.kind]);
   }
   if (F.cuffs) {   // handcuffs
@@ -1589,7 +1612,7 @@ function figure(F) {
   // --- face gear, under any headgear ---
   if (face) {
     // One fill colour and one drawing per name in SLOTS.face, in the same order.
-    out += wear(face, ['#a8321f', '#bfe3ea', '#15131c', '#4a2c1a', face.c, '#e0483c', '#e9e4d8', '#0d0f1a'][face.kind], [
+    out += wear(face, ['#a8321f', '#bfe3ea', '#15131c', '#4a2c1a', face.c, '#e0483c', '#e9e4d8', '#0d0f1a', '#2a2e3f'][face.kind], [
       // Bandana over the nose and mouth
       '<path d="M84.5 46 Q100 41 115.5 46 L113 58 Q100 71 87 58 Z"/>' +
         '<path d="M88 52 q12 5 24 0 M115.5 46 l5 -2 M115 48 l5 3" fill="none"/>',
@@ -1613,6 +1636,10 @@ function figure(F) {
       // LED Mask: crosses for eyes and a lit grin
       '<path d="M85 33 Q100 26 115 33 L114 53 Q100 66 86 53 Z"/>' +
         '<path class="av-eye" d="M90 37.5 l6 5 m0 -5 l-6 5 M104 37.5 l6 5 m0 -5 l-6 5 M92 52 q8 6.5 16 0" fill="none" stroke-width="1.6"/>',
+      // Gas Mask
+      '<path d="M85 37 Q100 33 115 37 L113 56 Q100 67 87 56 Z"/><path d="M85 40 L81 35 M115 40 L119 35" fill="none"/>' +
+        `<circle cx="93" cy="43" r="4.5" fill="${face.c}" fill-opacity=".6"/><circle cx="107" cy="43" r="4.5" fill="${face.c}" fill-opacity=".6"/>` +
+        '<circle cx="100" cy="57" r="6"/><path d="M96 57 h8 M100 53 v8" fill="none" stroke-width="1"/>',
     ][face.kind]);
   }
 
@@ -1625,7 +1652,7 @@ function figure(F) {
       '<path d="M98 38.5 h4 M118.5 43 q3.5 7 0 15" fill="none" stroke-width="1"/>');
   } else if (head) {
     // One fill colour and one drawing per name in SLOTS.head, in the same order.
-    out += wear(head, ['#3b3f5e', '#2b2f48', head.c, '#1b1e30', '#c9d1d5', '#2a2e3f', '#1d1d26', head.c][head.kind], [
+    out += wear(head, ['#3b3f5e', '#2b2f48', head.c, '#1b1e30', '#c9d1d5', '#1d1d26', head.c][head.kind], [
       // Beanie
       '<path d="M82 33 Q81 12 100 12 Q119 12 118 33 Z"/><path d="M81 30 Q100 26 119 30 L119 38 Q100 34 81 38 Z"/>',
       // Hood, open at the face
@@ -1640,10 +1667,6 @@ function figure(F) {
       // Tinfoil Hat: a crumpled foil cone
       '<path d="M80 31 L91 9 L99 15 L106 2 L112 17 L120 31 Q100 24 80 31 Z"/>' +
         '<path d="M91 9 L95 27 M106 2 L104 26 M112 17 L113 28 M99 15 L99 26" fill="none" stroke-width="1"/>',
-      // Gas Mask
-      '<path d="M85 37 Q100 33 115 37 L113 56 Q100 67 87 56 Z"/><path d="M85 40 L81 35 M115 40 L119 35" fill="none"/>' +
-        `<circle cx="93" cy="43" r="4.5" fill="${head.c}" fill-opacity=".6"/><circle cx="107" cy="43" r="4.5" fill="${head.c}" fill-opacity=".6"/>` +
-        '<circle cx="100" cy="57" r="6"/><path d="M96 57 h8 M100 53 v8" fill="none" stroke-width="1"/>',
       // Gamer Headset with a boom mic
       '<path d="M81 38 Q79 7 100 7 Q121 7 119 38" fill="none" stroke-width="4"/>' +
         '<rect x="76" y="33" width="9" height="16" rx="3.5"/><rect x="115" y="33" width="9" height="16" rx="3.5"/>' +
@@ -2114,7 +2137,7 @@ function gearIcon(it) {
     : it.slot === 'feet' ? '50 278 100 62'
     : it.slot === 'face' ? '76 20 48 52'
     : it.slot === 'legs' ? '50 176 100 152'
-    : it.slot === 'wrist' ? '30 154 40 40'
+    : it.slot === 'wrist' ? (kind >= 8 ? '30 176 40 40' : '30 154 40 40')   // watches and braces sit lower
     : it.slot === 'shirt' ? '36 62 128 138'
     : it.slot === 'coat' ? (kind === 1 || kind === 5 ? '36 62 128 138' : '26 62 148 250')
     : DECK_BOX[kind] || '30 16 170 200';
@@ -3530,6 +3553,8 @@ async function selfTest() {
       locker: Array.isArray(record.locker) ? record.locker : []};
     if (record.look && typeof record.look === 'object') career.look = record.look;
     fixQuest();   // members from before the questlines start at mission 1
+    reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
+    saveCareer();
   }
   const saved = store.get('zdh-save');
   if (saved && saved.prices && !saved.over) {
@@ -3546,6 +3571,7 @@ async function selfTest() {
     S.stashCost = S.stashCost || {};
     starterGear();
     S.shop = S.shop || [];
+    for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
     if (S.armor && !career.gear.body) {
       // The old vest becomes a gear item.
       career.gear.body = {slot: 'body', rar: 1, name: 'Tuned Armoured Vest', stats: {armor: 15}};
