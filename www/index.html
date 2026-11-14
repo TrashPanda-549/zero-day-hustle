@@ -552,6 +552,7 @@ function touchSave(name) {
 }
 const save = () => { if (!AUTO && slot) { store.set('zdh-save', S); touchSave(); } };
 // A game from before there were save files becomes save 1.
+// The old copy is left where it was, so a build from before save files still finds its game.
 function adoptOldSave() {
   try {
     if (localStorage.getItem('zdh-slots')) return;
@@ -561,8 +562,6 @@ function adoptOldSave() {
     if (r) localStorage.setItem('zdh-save-1', r);
     localStorage.setItem('zdh-slots', JSON.stringify({1: {name: 'anon', t: Date.now()}}));
     localStorage.setItem('zdh-last', '1');
-    localStorage.removeItem('zdh-career');
-    localStorage.removeItem('zdh-save');
   } catch (e) {}
 }
 
