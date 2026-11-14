@@ -329,6 +329,11 @@ button.r0,button.r1,button.r2,button.r3,button.r4{background:rgba(255,255,255,.0
 /* small item pictures in lists and on buttons */
 .ico{display:block;flex:none;width:42px;height:42px;background:linear-gradient(#0b0a1c,#1a1535);border:1px solid var(--line)}
 .ico.wide{width:92px;height:38px}
+.ico.ride{width:64px;height:38px}
+button .ico.ride{width:50px;height:30px}
+.tile .ico.ride{width:100%;height:40px;border:0;background:none}
+/* the ride you are on, parked in the corner of the avatar panel */
+#ava .ico.ride{position:absolute;left:1px;bottom:1px;width:30px;height:18px;border:0;background:rgba(6,5,13,.72)}
 .itemrow{display:flex;gap:9px;align-items:center}
 .itemrow > span{min-width:0}
 button .ico{width:30px;height:30px}
@@ -388,6 +393,11 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 .ttrack b{position:absolute;top:-4px;left:0;width:26px;height:12px;background:var(--yellow);
   box-shadow:0 0 16px var(--yellow),-30px 0 24px rgba(252,238,10,.4);animation:packet 1s cubic-bezier(.5,0,.3,1) forwards}
 @keyframes packet{to{left:calc(100% - 26px)}}
+/* your ride goes down the tunnel above the packet */
+.ttrack .ico.ride{position:absolute;bottom:9px;left:0;width:60px;height:36px;border:0;background:none;
+  filter:drop-shadow(0 0 6px rgba(0,229,255,.6));animation:tride 1s cubic-bezier(.5,0,.3,1) forwards}
+@keyframes tride{to{left:calc(100% - 60px)}}
+.tride{margin-top:10px;color:var(--amber);font-size:12px;letter-spacing:1px}
 .thex{margin-top:16px;color:var(--dim);font-size:11px;letter-spacing:2px;white-space:nowrap;overflow:hidden;opacity:.7}
 @media (prefers-reduced-motion:reduce){h1,.bootlogo,.tlabel,#travel::before,.boothint{animation:none}}
 </style>
@@ -656,6 +666,166 @@ const GADGETS = {
   vpn: ['No-Logs VPN.ovpn', 2800, 2, `for ${COOL.vpn.days} days, today included, everything that raises your Heat raises it half as much`, 'VPN'],
 };
 const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black market trades
+
+// ---------- rides ----------
+// A ride adds hops to the TRIPS_PER_DAY you get on foot. You own up to GARAGE_SIZE of them at once (S.rides)
+// and ride one at a time (S.ride, '' on foot). They are bought, sold and traded in at three shops, and
+// swapped at the Bunker's garage. They belong to the run, like weapons: a new run starts on foot.
+// shop: [name, where it is, what the travel list calls it, what the owner says]
+const RIDE_SHOPS = {
+  bike: ['404: Brakes Not Found', 'Campus Lab', 'bike shop',
+    'A shed behind the bike racks, run by a student who has not been to a lecture since the second week. ' +
+    '"Welcome to 404: Brakes Not Found. Everything in here is powered by you, which is why it is cheap."'],
+  auto: ['Grand Theft Otto\'s', 'Paste Alley', 'auto shop',
+    'A lot at the end of the alley, under a sign with two letters out. "Grand Theft Otto\'s. I am Otto. The name is a ' +
+    'coincidence. Every one of these has papers. Some of them have the right papers."'],
+  heli: ['Get to the Choppa!', 'Con Hallway', 'helicopters',
+    'The roof of the convention centre: a windsock, a fuel bowser, a man in a headset shouting over nothing. ' +
+    '"GET TO THE CHOPPA! Everything here flies. Most of it lands. Fuel includes the helipad fee."'],
+};
+const GARAGE_SIZE = 4, RIDE_TRADE = 0.4;   // rides you can own at once; what a shop pays for one, as a share of its price
+const rideSpot = loc => Object.values(RIDE_SHOPS).find(shop => shop[1] === loc);   // the ride shop at a place, if it has one
+// id: [name, price, extra hops a day, shop, short name for the trips line, what there is to say about it, twists]
+// twists: fuel = cash for each day you ride it (an empty tank adds no hops), cargo = goods it carries for you,
+//         loud = Heat added each day you fuel it, uni = it is a unicycle (there are achievements for those).
+// Saved games store rides by id, so never rename one. Each has a picture under the same id in RIDE_ART.
+// TUNING: every price, hop bonus and upkeep number for rides is in this table (plus GARAGE_SIZE and RIDE_TRADE above),
+// and nothing else scales them: unlike other shops, ride prices do NOT rise with the day. They were set so a ride
+// never pays for itself quickly. Assumed income on foot (6 trips) for a strong player at the point each is bought:
+// +1 $3k a day, +5 $18k, +10 $60k, +13 $110k, +16 $175k, +20 $300k. A ride with h hops is worth about income x h/6
+// extra a day; the price is 4 to 5 days of that (2 to 3 for the +1s, so a new player can afford one), and fuel takes
+// 10% of it at +6 rising to 20% at +20. If the economy is slowed, scale prices and fuel by the same factor as income.
+const VEHICLES = {
+  // --- 404: Brakes Not Found: you are the engine, so there is nothing to pay after the price ---
+  board: ['Thrift Store Skateboard (Three Wheels)', 1200, 1, 'bike', 'skateboard', 'The fourth wheel is a paid upgrade.', {}],
+  uni: ['Unicycle of Shame', 1500, 1, 'bike', 'unicycle', 'One wheel, no dignity. People will film you.', {uni: true}],
+  scooter: ['Razor Scooter of Shin Destruction', 6000, 2, 'bike', 'scooter', 'Folds flat. Finds your ankle in the dark.', {}],
+  trolley: ['Borrowed Shopping Trolley', 7500, 2, 'bike', 'trolley', 'One wheel has its own opinions. You stand on the back and commit.', {cargo: 15}],
+  fixie: ['Fixie.tar (No Brakes, No Gears)', 16000, 3, 'bike', 'fixie', 'Stopping is a legacy feature.', {}],
+  penny: ['Penny-Farthing of Legacy Code', 18000, 3, 'bike', 'penny-farthing', 'Nobody alive remembers how to get off it.', {}],
+  cargo: ['Cargo Bike (Works on My Machine)', 34000, 4, 'bike', 'cargo bike', 'A crate on wheels with a bicycle attached as an afterthought.', {cargo: 25}],
+  euni: ['Electric Unicycle, Firmware Unknown', 38000, 4, 'bike', 'e-unicycle', 'It balances itself. It also updates itself, usually at speed.', {uni: true}],
+  recumbent: ['Recumbent of Smugness', 65000, 5, 'bike', 'recumbent', 'You lie down, you go fast, and you tell everyone about it.', {}],
+  giraffe: ['Giraffe Unicycle (Enterprise Edition)', 75000, 5, 'bike', 'giraffe unicycle', 'Two metres tall. Scales vertically. Support contract not included.', {uni: true}],
+  // --- Grand Theft Otto's: engines, so they want fuel ---
+  moped: ['Moped.bat', 120000, 6, 'auto', 'moped', '49cc of batch-file fury. Sounds like a wasp in a tin.', {fuel: 2500}],
+  granny: ['Mobility Scooter (Overclocked)', 135000, 6, 'auto', 'mobility scooter', 'Has a basket. Does seventy. Nobody suspects it.', {fuel: 2000, cargo: 10}],
+  mower: ['Ride-On Lawnmower (Road Legal-ish)', 190000, 7, 'auto', 'lawnmower', 'Cuts grass, corners and several bylaws.', {fuel: 4000}],
+  dirt: ['Dirt Bike of Dirty Reads', 270000, 8, 'auto', 'dirt bike', 'Fast, filthy, and never quite where you left it.', {fuel: 6000, loud: 1}],
+  golf: ['Golf Cart with Racing Stripes', 300000, 8, 'auto', 'golf cart', 'The stripes add five horsepower, which doubles it.', {fuel: 5000, cargo: 20}],
+  hatch: ['Hatchback, Check Engine Light Included', 380000, 9, 'auto', 'hatchback', 'The light is not a warning. It is a feature flag.', {fuel: 8000, cargo: 30}],
+  van: ['White Van (FREE_CANDY_5G)', 500000, 10, 'auto', 'white van', 'Broadcasts its own network. Nobody connects. Holds a lot.', {fuel: 12000, cargo: 80}],
+  icecream: ['Ice Cream Truck, Jingle Stuck On', 660000, 11, 'auto', 'ice cream truck', 'Plays the jingle. Always. Everyone knows where you are, and they bring change.', {fuel: 16000, cargo: 50, loud: 2}],
+  muscle: ['Muscle Car.dll (Dependency Missing)', 850000, 12, 'auto', 'muscle car', 'Eight cylinders, most of them installed.', {fuel: 22000, loud: 2}],
+  sedan: ['Self-Driving Sedan (Beta, Do Not Sleep)', 1050000, 13, 'auto', 'robo-sedan', 'It drives itself. It also has opinions about where.', {fuel: 30000, cargo: 20}],
+  monster: ['Monster Truck of Technical Debt', 1150000, 13, 'auto', 'monster truck', 'Drives over the problem. The problem is still there. So is the interest.', {fuel: 36000, cargo: 60, loud: 3}],
+  // --- Get to the Choppa!: aircraft. The last one is the most hops anything gives ---
+  chair: ['Lawn Chair with Weather Balloons', 1400000, 14, 'heli', 'lawn chair', 'Legally an aircraft. You steer by popping balloons. Helium is not cheap.', {fuel: 40000}],
+  gyro: ['Kit Gyrocopter (Some Screws Left Over)', 1800000, 15, 'heli', 'gyrocopter', 'Built in a weekend from a kit. The spare screws come in a little bag.', {fuel: 60000, loud: 2}],
+  jetpack: ['Jetpack, Beta Build', 2400000, 16, 'heli', 'jetpack', 'Twelve minutes of fuel. The brochure said thirty.', {fuel: 90000, loud: 4}],
+  blimp: ['Blimp of Plausible Deniability', 2200000, 16, 'heli', 'blimp', 'Slow, enormous, and somehow nobody ever looks up.', {fuel: 70000, cargo: 100}],
+  news: ['News Chopper (Traffic Reports Optional)', 2900000, 17, 'heli', 'news chopper', 'Hover over anything you like. People assume it is a slow news day.', {fuel: 110000, loud: 3}],
+  cop: ['Ex-Police Helicopter, Decals Mostly Removed', 3500000, 18, 'heli', 'ex-police chopper', 'One side still says OLICE. The searchlight works. Do not use the searchlight.', {fuel: 140000, loud: 4}],
+  chinook: ['Twin-Rotor Chonk of Chunky Commits', 4200000, 19, 'heli', 'twin-rotor', 'Two rotors, one enormous hold, no subtlety at all.', {fuel: 170000, cargo: 150, loud: 5}],
+  black: ['Black Helicopter (It Was Never Here)', 5000000, 20, 'heli', 'black helicopter', 'Unmarked, unregistered, nearly silent. Officially it does not exist. Neither does the receipt.', {fuel: 200000, loud: 1}],
+};
+const MAX_HOPS = Math.max(...Object.values(VEHICLES).map(v => v[2]));
+const rideTwist = (id, key) => (VEHICLES[id] && VEHICLES[id][6][key]) || 0;
+// A ride with an engine only adds its hops on a day its tank was filled (S.gas[id]). The rest always do.
+const tanked = id => !rideTwist(id, 'fuel') || !!(S.gas && S.gas[id]);
+// What the ride you are on adds right now: hops today, and room for goods.
+const rideHops = () => (VEHICLES[S.ride] && tanked(S.ride) ? VEHICLES[S.ride][2] : 0);
+const rideCargo = () => rideTwist(S.ride, 'cargo');
+const tripsMax = () => TRIPS_PER_DAY + rideHops();
+const rideValue = id => Math.round(VEHICLES[id][1] * RIDE_TRADE);
+let rideBuys = 0, rideSwaps = 0, rideSales = 0, fuelTally = 0, dryTally = 0;   // counted for the self-test
+
+// Anything that changes the hops your ride gives goes through here, so the trips you have left today move by
+// exactly the difference. S.tripDebt remembers hops already used that the ride you are now on does not have
+// (or a day spent lying low), so swapping back and forth never hands a used hop back.
+function retrip(change) {
+  const was = rideHops();
+  change();
+  const left = S.trips + rideHops() - was - (S.tripDebt || 0);
+  S.trips = Math.max(0, left);
+  S.tripDebt = Math.max(0, -left);
+}
+// Put a ride in the garage for nothing. False if there is no such ride, you own it already or the garage is full.
+function grantVehicle(id) {
+  if (!VEHICLES[id] || S.rides.includes(id) || S.rides.length >= GARAGE_SIZE) return false;
+  S.rides.push(id);
+  return true;
+}
+// Get on a ride you own; '' or nothing gets you off and on foot. fullTank: its tank is full for today, for free
+// (a shop hands them over that way). Without it an engine adds no hops until fuelUp() has been paid for today.
+function rideVehicle(id, fullTank) {
+  id = id || '';
+  if (id && !S.rides.includes(id)) return false;
+  retrip(() => { S.ride = id; if (id && fullTank) S.gas[id] = true; });
+  return true;
+}
+// The ride leaves the garage for good (sold, traded in).
+function dropVehicle(id) {
+  retrip(() => {
+    S.rides = S.rides.filter(r => r !== id);
+    if (S.ride === id) S.ride = '';
+    delete S.gas[id];
+  });
+}
+// Pay for today's tank. True if it is full afterwards (or never needed filling). Loud engines add their Heat here.
+function fuelUp(id) {
+  const fuel = rideTwist(id, 'fuel');
+  if (!fuel || tanked(id)) return true;
+  if (S.cash < fuel) return false;
+  S.cash -= fuel;
+  retrip(() => { S.gas[id] = true; });
+  if (rideTwist(id, 'loud')) heatUp(rideTwist(id, 'loud'));
+  fuelTally++;
+  return true;
+}
+// A new day: the ride you are on wants its tank filled. If you cannot pay, it adds nothing today.
+function wakeRide() {
+  const id = S.ride, v = VEHICLES[id], fuel = rideTwist(id, 'fuel'), loud = rideTwist(id, 'loud');
+  if (!v || !fuel || tanked(id)) return;
+  if (fuelUp(id)) {
+    log(`Fuel for the ${v[0]}: ${money(fuel)}.${loud ? ` It is loud: Heat +${loud}%.` : ''}`);
+    return;
+  }
+  dryTally++;
+  tally('nogas');
+  log(`<span class="red">No cash for fuel (${money(fuel)}): the ${v[0]} adds no hops today.</span>`);
+  notes.push(['Out of fuel', `<div class="syn">${rideCard(id)}</div>` +
+    `<p>A tank for the ${v[0]} is <b>${money(fuel)}</b> and you have <span class="green">${money(S.cash)}</span> in cash. ` +
+    `The pump does not take promises.</p><p>It adds <b>no hops</b> today: you have the ${TRIPS_PER_DAY} trips your legs give you.` +
+    `${rideCargo() ? ' You can still push it, so it carries what it carries.' : ''}</p>` +
+    '<p class="dim">Find the cash and fill it from the Garage at the Bunker, or get on something that runs on you.</p>']);
+}
+// Why you cannot get on `id` ('' for going on foot) right now: you hold more than you could carry without the
+// ride you are on. Returns '' when it is fine.
+function rideTooFull(id) {
+  const room = cap() - rideCargo() + rideTwist(id, 'cargo'), over = used() - room;
+  if (over <= 0) return '';
+  return `<p>You are carrying <b>${num(used())}</b> goods, and ${rideCargo()} of that room is the ${VEHICLES[S.ride][0]}. ` +
+    `${id ? `On the ${VEHICLES[id][0]}` : 'On foot'} you could only carry <b>${num(room)}</b>.</p>` +
+    `<p class="dim">Sell, stash or dump ${num(over)} first.</p>`;
+}
+// What a ride does, in one line: hops, upkeep, cargo, noise.
+function rideFacts(id) {
+  const [, , hops, , , , t] = VEHICLES[id];
+  return [`<span class="green">+${hops} hop${hops === 1 ? '' : 's'} a day</span>`,
+    t.fuel ? `<span class="amber">fuel ${money(t.fuel)} a day</span>` : '<span class="dim">no upkeep</span>',
+    t.cargo ? `<span class="cyan">carries ${t.cargo}</span>` : '',
+    t.loud ? `<span class="red">loud: +${t.loud}% Heat a day</span>` : ''].filter(Boolean).join(' &middot; ');
+}
+// Picture, name, facts and the line about it. lead: something to put in front of the name (a price, "riding").
+const rideCard = (id, lead) => withIcon(rideIcon(id), `${lead ? lead + ' &middot; ' : ''}<b>${VEHICLES[id][0]}</b><br>` +
+  `${rideFacts(id)}<br><span class="dim">${VEHICLES[id][5]}</span>`);
+// The trips line on the main screen: what is left of today's total, and what the ride adds to it.
+function tripsHtml() {
+  const v = VEHICLES[S.ride];
+  return `<span class="${S.trips ? '' : 'red'}" style="white-space:nowrap"><b>${S.trips}</b>/${tripsMax()} trips left</span>` +
+    (!v ? '' : tanked(S.ride) ? ` <span class="green">+${v[2]} ${v[4]}</span>` : ` <span class="red">+0 ${v[4]} (no fuel)</span>`);
+}
 // Who comes for you depends on your Heat.
 const LAW = [
   {name: 'the Metro Cyber Unit', short: 'Police', stars: 1, hit: 0.3, lo: 3, hi: 7},
@@ -1099,6 +1269,11 @@ const ACH = {
   dysentery: ['You Have Died of Dysentery', 'Leave them in. All the way to the end.', 50, () => stat('dysentery') >= 1],
   cooled: ['Plausible Deniability', 'Use 10 things that lower your Heat', 150, () => stat('cooled') >= 10],
   honeypot: ['Thank You for Your Submission', 'Have a Log Wiper trip the alarm', 50, () => stat('honeypot') >= 1],
+  wheels: ['Training Wheels', 'Own a ride. Any ride. Even that one.', 50, () => S.rides.length > 0],
+  unicycle: ['Clown College Dropout', 'Own a unicycle', 100, () => S.rides.some(id => rideTwist(id, 'uni'))],
+  circus: ['The Whole Circus', 'Keep three unicycles in the garage at once', 300, () => S.rides.filter(id => rideTwist(id, 'uni')).length >= 3],
+  nogas: ['Running on Fumes', 'Wake up unable to pay for fuel', 50, () => stat('nogas') >= 1],
+  choppa: ['It Was Never Here', `Own the helicopter that adds ${MAX_HOPS} hops a day`, 500, () => S.rides.some(id => VEHICLES[id][2] >= MAX_HOPS)],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -2903,9 +3078,12 @@ function travelFx(from, to) {
   const el = $('#travel');
   let hex = '';
   for (let i = 0; i < 28; i++) hex += rnd(0, 255).toString(16).padStart(2, '0').toUpperCase() + ' ';
+  const v = VEHICLES[S.ride];   // the ride you are on goes down the tunnel with you
   el.innerHTML = `<div class="tbox"><div class="tlabel">TUNNELING</div>` +
-    `<div class="troute"><span>${from}</span><span class="to">${to}</span></div>` +
-    `<div class="ttrack"><b></b></div><div class="thex">${hex}</div></div>`;
+    `<div class="troute"${v ? ' style="margin-bottom:48px"' : ''}><span>${from}</span><span class="to">${to}</span></div>` +
+    `<div class="ttrack">${v ? rideIcon(S.ride) : ''}<b></b></div>` +
+    (v ? `<div class="tride">${tanked(S.ride) ? `by ${v[0]}` : `pushing the ${v[0]}: no fuel`}</div>` : '') +
+    `<div class="thex">${hex}</div></div>`;
   el.hidden = false;
   return new Promise(resolve => setTimeout(() => { el.hidden = true; el.innerHTML = ''; resolve(); }, 1150));
 }
@@ -2943,7 +3121,7 @@ const docSpots = () => GEAR_SPOTS.join(' or ');
 
 const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0) + stuckTotal();
 // What you can carry: the drive in your pocket, plus what your backpack and your clothes hold.
-const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') + bagHolds() + pocketsHold();
+const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') + bagHolds() + pocketsHold() + rideCargo();
 // What you could carry with `it` worn in `slot` instead of what is there now (null: with nothing there).
 function capWith(slot, it) {
   const worn = career.gear[slot];
@@ -2968,7 +3146,8 @@ const driveHtml = () => `<b class="${bagClass()}">${num(used())}/${num(cap())}</
 // Where the carrying space comes from, piece by piece.
 function capLines() {
   const parts = [['your own drive', S.drive], ['backpack', bagHolds(), bagClass()], ['pockets', pocketsHold()],
-    ['gear bonuses', bonus('storage')], ['Null Sector', inSyn('null') ? 60 : 0]].filter(([, n]) => n);
+    ['gear bonuses', bonus('storage')], ['Null Sector', inSyn('null') ? 60 : 0],
+    [VEHICLES[S.ride] ? `on the ${VEHICLES[S.ride][4]}` : 'ride', rideCargo(), 'cyan']].filter(([, n]) => n);
   return `<b>Carrying space:</b> <b class="${bagClass()}">${num(cap())}</b> = ` +
     parts.map(([what, n, cls]) => `<span class="${cls || ''}">${num(n)} ${what}</span>`).join(' + ') +
     (career.gear.back ? '' : ' <span class="dim">(no backpack)</span>');
@@ -3094,7 +3273,7 @@ async function useCooler(key) {
     } else S.heat -= coolDrop(key);
     if (c.quick) S.tricks = (S.tricks || 0) + 1;
     if (c.hp) { S.hp -= c.hp; extra = ` Health down to ${S.hp}%.`; }
-    if (c.home) { S.trips = 0; extra = ' No trips left today.'; }
+    if (c.home) { S.trips = 0; S.tripDebt = 999; extra = ' No trips left today.'; }   // the debt keeps a change of ride from handing any back
     if (half && !fired) extra += ' (Half strength: your second fast fix today.)';
   } else if (c.nights) {
     fx().decoy = c.nights;
@@ -3182,6 +3361,7 @@ function newGame() {
     stuck: {}, stuckCost: {}, sick: 0, tag: {}, stashTag: {},   // the prison pocket and what it leaves behind
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
+    rides: [], ride: '', gas: {}, tripDebt: 0,   // rides owned, the one you are on, tanks filled today (see VEHICLES)
     over: false, busted: false};
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   logs = [];
@@ -3331,6 +3511,77 @@ const MISC_ART = {
 const miscIcon = key => (MISC_ART[key] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${MISC_ART[key]}</svg>` : '');
 // A picture with text beside it.
 const withIcon = (icon, html) => (icon ? `<span class="itemrow">${icon}<span>${html}</span></span>` : html);
+// Rides, side-on in a 40 x 24 box, facing right. One drawing for every id in VEHICLES.
+const RIDE_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', DARK = '#0b1c2a';
+  const wheel = (x, y, r, c) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${INK}" stroke="${c || GREY}" stroke-width="${r < 3 ? 1.2 : 1.6}"/>` +
+    (r >= 3 ? `<circle cx="${x}" cy="${y}" r="1" fill="${c || GREY}"/>` : '');
+  const line = (d, c, w) => `<path d="${d}" fill="none" stroke="${c || GREY}" stroke-width="${w || 1.4}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const shape = (d, fill, c) => `<path d="${d}" fill="${fill}" stroke="${c || INK}" stroke-width=".9" stroke-linejoin="round"/>`;
+  const dot = (x, y, r, c) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="${INK}" stroke-width=".6"/>`;
+  // One helicopter, painted three ways.
+  const heli = (body, trim, glass, extra) => line('M5 4 h29', GREY, 1.6) + line('M19.5 4 v4', GREY, 1.8) +
+    line('M10 11 H3 v-3', trim, 1.6) + `<circle cx="3" cy="6.5" r="2.4" fill="none" stroke="${GREY}" stroke-width="1"/>` +
+    shape('M9 12 q0 -4 5 -4 h10 q7 0 9 7 q0 3 -3 3 h-16 q-5 0 -5 -6 z', body, trim) + shape('M24 9.5 q5 .5 6.5 5 h-6.5 z', glass, trim) +
+    line('M11 21.5 h19 M15 18 v3.5 M25 18 v3.5', GREY, 1.2) + (extra || '');
+  return {
+    board: line('M4 14 q1.5 3 4 3 h22 q3 0 5 -3', '#ff4fd8', 2.2) + wheel(11, 20, 2) + wheel(28, 20, 2) + wheel(36.5, 21.6, 1.2, '#8a8fa8'),
+    uni: wheel(20, 16, 6.5, '#00e5ff') + line('M20 16 V6', GREY, 1.6) + line('M15.5 5 h9', '#ff4fd8', 2.6) + line('M17 16 h6 M17 16 v1.6 M23 16 v-1.6', '#fcee0a', 1.2),
+    scooter: line('M9 19.5 h20', '#3dff9a', 2) + line('M30 19 L27 4.5 M24 4.5 h6', GREY, 1.6) + wheel(8, 20, 2.2) + wheel(31.5, 20, 2.2),
+    trolley: shape('M7 6 h23 l-3 10 h-17 z', '#23304f', GREY) + line('M12 6 l1 10 M17.5 6 v10 M23 6 l-1 10 M8.5 11 h20', GREY, 0.8) +
+      line('M30 6 h5', '#ff3b5c', 2) + line('M11 16 v2.5 M26 16 v2.5', GREY, 1.2) + wheel(11, 20.5, 1.8) + wheel(26, 20.5, 1.8),
+    fixie: wheel(9, 16, 5.5) + wheel(31, 16, 5.5) + line('M9 16 L16 8 H27 L31 16 M16 8 L20.5 16 L27 8 M9 16 H20.5', '#00e5ff', 1.5) +
+      line('M12.5 6.5 h6', '#ff4fd8', 2.2) + line('M27 8 l.8 -3.5 h3.2', GREY, 1.4),
+    penny: wheel(15, 13.5, 9, '#ffd24a') + wheel(34, 20, 2.6, '#ffd24a') + line('M15 13.5 V3.5 M15 4.5 q13 1 19 15.5', GREY, 1.5) +
+      line('M10.5 2.5 h7', '#ff4fd8', 2.2) + line('M15.5 3.5 l4.5 1.5', GREY, 1.4),
+    cargo: wheel(6.5, 17, 4.5) + wheel(34, 17, 4.5) + line('M6.5 17 L8 8 M6.5 17 H14 M27 15 L34 17 M30.5 5.5 L34 17 M28 5.5 h4.5', '#3dff9a', 1.5) +
+      line('M5 7.5 h5.5', '#ff4fd8', 2.2) + shape('M13 7 h14 v10 h-14 z', '#7a4a1f', '#ffd24a') + line('M13 12 h14', '#ffd24a', 0.8),
+    euni: wheel(20, 15.5, 6.5, '#3dff9a') + shape('M15 4 h10 a2 2 0 0 1 2 2 v9 h-14 v-9 a2 2 0 0 1 2 -2 z', '#2a2f45', '#3dff9a') +
+      dot(20, 7.5, 1.3, '#fcee0a') + line('M17 11 h6', '#3dff9a', 1) + line('M9.5 17.5 h4 M26.5 17.5 h4', GREY, 1.8),
+    recumbent: wheel(8, 17, 4.5) + wheel(33, 18, 3.5) + line('M8 17 L19 15 L33 18 M19 15 L31 9', '#ff8a1e', 1.5) + line('M13 15 L9 6', '#ff4fd8', 2.6) +
+      `<circle cx="31.5" cy="9" r="1.8" fill="none" stroke="${GREY}" stroke-width="1.1"/>`,
+    giraffe: wheel(20, 18.5, 4.5, '#ff4fd8') + line('M20 18.5 V3.5', GREY, 1.6) + line('M16 2.5 h8', '#fcee0a', 2.4) + line('M21.8 8 V18', '#8a8fa8', 0.8) +
+      line('M17.5 8 h5', '#00e5ff', 1.4),
+    moped: shape('M8 17 q1 -7 8 -7 h8 l3 7 z', '#ff4fd8') + line('M11 9.5 h9', '#8a8fa8', 2.4) + line('M26 5 L31 18.5 M24 5 h4', GREY, 1.5) +
+      dot(30, 8, 1.5, '#fcee0a') + wheel(9, 18.5, 3.5) + wheel(31, 18.5, 3.5),
+    granny: shape('M7 15 h26 v3 h-26 z', '#4da3ff') + shape('M8 15 v-9 h3.5 v6 h6 v3 z', '#8a8fa8') + line('M29 15 L27 6 h3', GREY, 1.5) +
+      shape('M31 8 h5.5 l-1 5 h-4.5 z', 'none', GREY) + wheel(10, 19.5, 2.8) + wheel(30, 19.5, 2.8),
+    mower: shape('M5 15 H27 V10 H19 L17 7 H10 V11 H5 z', '#1f8a3a') + shape('M7 7 v-3.5 h2 v3.5 h4 v1.5 h-6 z', '#8a8fa8') +
+      line('M21 9.5 l2.5 -3.5 M22 6 h3', GREY, 1.3) + shape('M15 19 h10 v2.5 h-10 z', '#ff3b5c') + wheel(10, 18, 4, '#fcee0a') + wheel(30, 19.5, 2.8, '#fcee0a'),
+    dirt: line('M8 17 L15 11 M27 6 L32 17', GREY, 1.5) + shape('M11 12.5 L18 8 h8.5 L22 14.5 z', '#ff8a1e') + line('M12 9 l8 -1.5', '#8a8fa8', 2.2) +
+      line('M26.5 8.5 l7 -1.5', '#ff8a1e', 1.6) + line('M15 15 H6', '#8a8fa8', 1.6) + line('M25 5.5 h4', GREY, 1.4) + wheel(8, 17, 5) + wheel(32, 17, 5),
+    golf: line('M6 4.5 h25', '#e9e9f0', 2) + line('M8.5 4.5 V13 M29 4.5 L31.5 13', GREY, 1.2) + shape('M4 13 h31 v5 h-31 z', '#e9e9f0') +
+      line('M4.5 15.5 h30', '#ff3b5c', 1.2) + shape('M11 9.5 h6 v3.5 h-6 z', '#8a8fa8') + wheel(10, 19.5, 2.8) + wheel(30, 19.5, 2.8),
+    hatch: shape('M3 18.5 v-5 l5 -1 l5 -6 h12 l6 6 l6 1 v5 z', '#2a6a7a', '#00e5ff') + shape('M14 8 h5 v4.5 h-8.5 z M20.5 8 h4 l3.8 4.5 h-7.8 z', DARK, '#00e5ff') +
+      dot(34.5, 15, 1.4, '#ff8a1e') + wheel(11, 19.5, 3) + wheel(29, 19.5, 3),
+    van: shape('M3 19 V5 h22 l8 7 h4 v7 z', '#e9e9f0') + shape('M26 7 l5 5 h-5 z', DARK) + line('M7 9.5 h13 M7 12.5 h9', '#ff4fd8', 1.3) +
+      wheel(11, 19.5, 3) + wheel(30, 19.5, 3),
+    icecream: shape('M3 19 V5 h24 v5 h6 l4 4 v5 z', '#ffd6ec') + shape('M7 8 h10 v5.5 h-10 z', '#00e5ff') + line('M3.5 16 h33', '#ff4fd8', 1.4) +
+      shape('M29 11 h3.2 l2.8 3 h-6 z', DARK) + shape('M20 2.2 h4 l-2 3 z', '#d9a05a') + dot(22, 1.8, 1.5, '#ff4fd8') + wheel(11, 19.5, 3) + wheel(30, 19.5, 3),
+    muscle: shape('M2 18 v-4 l8 -1 l4 -4.5 h10 l5 4.5 l9 1 v4 z', '#ff3b5c') + shape('M15 9.5 h8.5 l3.5 3.2 h-14.5 z', DARK) +
+      shape('M29.5 10 h4 v3 h-4 z', '#8a8fa8') + line('M2.5 15.5 h35', '#fcee0a', 0.9) + wheel(10, 18.5, 3.5) + wheel(31, 18.5, 3.5),
+    sedan: shape('M3 18.5 v-4 l6 -1 l5 -5 h11 l6 5 l6 1 v4 z', '#c9d1d5') + shape('M15 9.5 h4.5 v3.5 h-8 z M21 9.5 h3.5 l4 3.5 h-7.5 z', DARK) +
+      shape('M17.5 5 h5 v3.5 h-5 z', '#2a2f45', '#00e5ff') + line('M24.5 5 q2.5 1.7 0 3.5 M27 3.5 q4 3.2 0 6.5', '#00e5ff', 0.9) + wheel(11, 19.5, 3) + wheel(29, 19.5, 3),
+    monster: shape('M5 10 h7 l3 -5.5 h10 l3 5.5 h8 v4 h-31 z', '#c77dff') + shape('M16 6 h8 l2 3.5 h-12 z', DARK) + line('M10 14 v2 M30 14 v2', GREY, 1.4) +
+      wheel(10, 17.5, 6) + wheel(30, 17.5, 6),
+    chair: line('M19 14 L9 7 M19 14 L17 6 M19 14 L26 7 M19 14 L31 9', GREY, 0.7) + dot(9, 5, 4, '#ff3b5c') + dot(32, 7.5, 3.4, '#ff4fd8') +
+      dot(17, 4.2, 4, '#fcee0a') + dot(25.5, 5, 4, '#00e5ff') + line('M15 13.5 l-1.5 -4 M15 13.5 v8.5 M15 17.5 h8 v4.5', '#3dff9a', 1.8),
+    gyro: line('M3 4 h33', GREY, 1.6) + line('M19 4 v5', GREY, 1.6) + line('M9 8.5 v11', GREY, 1.2) + shape('M11 14 l-8 -4.5 v7.5 z', '#ff8a1e') +
+      shape('M10 13 q0 -4 9 -4 q8 0 10 6 v2.5 h-19 z', '#ff8a1e') + shape('M20 10 q6 .5 7.5 5 h-7.5 z', DARK) + wheel(14, 21, 1.6) + wheel(25, 21, 1.6),
+    jetpack: line('M12 9 h-4 v4 M28 9 h4 v4', GREY, 1.2) + shape('M13 16 h5 l-2.5 7.5 z', '#ff8a1e', '#fcee0a') + shape('M22 16 h5 l-2.5 7.5 z', '#ff8a1e', '#fcee0a') +
+      shape('M12 5.5 a3.5 3.5 0 0 1 7 0 v10.5 h-7 z', '#8a8fa8', GREY) + shape('M21 5.5 a3.5 3.5 0 0 1 7 0 v10.5 h-7 z', '#8a8fa8', GREY) +
+      line('M19 8 h2 M19 13 h2', '#ff3b5c', 1.6),
+    blimp: shape('M5 10 l-4 -5.5 h7 z M5 10 l-4 5.5 h7 z', '#ff4fd8') + `<ellipse cx="21" cy="10" rx="17" ry="7.5" fill="#4a5068" stroke="${GREY}" stroke-width=".9"/>` +
+      line('M6 10 h30', '#00e5ff', 0.9) + shape('M16 17.5 h10 l-1.5 4 h-7 z', '#2a2f45', GREY) + line('M18.5 19.3 h5', '#fcee0a', 0.9),
+    news: heli('#e9e9f0', '#4da3ff', DARK, line('M12 14.5 h10', '#ff3b5c', 1.6) + line('M13.5 8 l-2 -2.5', GREY, 1) + shape('M9.5 4.5 q2 2.6 4.6 .4 z', GREY)),
+    cop: heli('#1c2f5e', '#4da3ff', DARK, line('M11 15 h12', '#e9e9f0', 1.3) + dot(14, 7.6, 1.2, '#ff3b5c') + dot(16.6, 7.6, 1.2, '#4da3ff')),
+    chinook: line('M1 4 h17 M22 4 h17', GREY, 1.6) + line('M9.5 4 v3.5 M30.5 4 v2.5', GREY, 1.8) +
+      shape('M4 12 q0 -5 5 -5 h3 l2 2 h13 l2 -3 h4 q5 0 5 6 v3 q0 3 -3 3 h-28 q-3 0 -3 -6 z', '#5a6b3a', '#9fd8bd') + shape('M32 8.5 h3 q2 1.2 2 4.5 h-5 z', DARK) +
+      line('M10 12.5 h1.5 M15 12.5 h1.5 M20 12.5 h1.5 M25 12.5 h1.5', DARK, 2) + wheel(10, 21, 1.6) + wheel(29, 21, 1.6),
+    black: heli('#08080c', '#56629e', '#3a0d16', dot(31, 16, 1, '#ff3b5c')),
+  };
+})();
+const rideIcon = id => (RIDE_ART[id] ? `<svg class="ico ride" viewBox="0 0 40 24" aria-hidden="true">${RIDE_ART[id]}</svg>` : '');
 
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
@@ -3464,6 +3715,117 @@ async function outfitShop() {
   }
 }
 
+// ---------- ride shops and the garage ----------
+// One of the three shops in RIDE_SHOPS. You ride away on what you buy, with a full tank. The ride you came on
+// is either traded in or sent home to the garage. Any shop buys the ride you are on.
+async function rideShop(key) {
+  const [title, spot, , blurb] = RIDE_SHOPS[key];
+  if (S.loc !== spot) return;
+  for (;;) {
+    const mine = VEHICLES[S.ride], tradeIn = mine ? rideValue(S.ride) : 0, full = S.rides.length >= GARAGE_SIZE;
+    const priceOf = id => VEHICLES[id][1];   // the table is the price: it does not rise with the day
+    const least = id => (mine ? Math.max(0, priceOf(id) - tradeIn) : priceOf(id));   // the cheapest way to leave on it
+    let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
+      `Garage ${S.rides.length}/${GARAGE_SIZE}.</p>` +
+      (mine ? `<p class="dim">YOU CAME ON</p><div class="syn">${rideCard(S.ride, `<span class="dim">worth ${money(tradeIn)} as a trade-in</span>`)}</div>`
+        : '<p class="dim">You walked here.</p>') +
+      `<p class="dim" style="margin:12px 0 4px"><b class="cyan">${title.toUpperCase()}</b><br>` +
+      `On foot you get ${TRIPS_PER_DAY} trips a day. A ride adds its hops to that, every day, for as long as you are on it.</p>`;
+    Object.keys(VEHICLES).filter(id => VEHICLES[id][3] === key).sort((a, b) => VEHICLES[a][1] - VEHICLES[b][1]).forEach(id => {
+      const owned = S.rides.includes(id), ok = !owned && S.cash >= least(id) && (mine || !full);
+      html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${id}"` : ''}>` +
+        rideCard(id, `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? (id === S.ride ? 'riding it' : 'in your garage') : money(priceOf(id))}</span>`) + '</div>';
+    });
+    html += '<p class="dim">Tap a ride to buy it. You leave on it, with a full tank, and its hops count from right now. ' +
+      `The one you came on is traded in for ${pct(RIDE_TRADE)}% of its list price or sent home to your garage, which holds ${GARAGE_SIZE}. ` +
+      'Swap between them at the Bunker.' + (full && !mine ? ' <span class="amber">Your garage is full: come here on one to trade it in.</span>' : '') + '</p>';
+    const buttons = [];
+    if (mine) buttons.push([`Sell the ${mine[0]} for ${money(tradeIn)}`, 'sell', 'danger', rideIcon(S.ride)]);
+    buttons.push(['Leave', null, 'primary']);
+    const choice = await dialog(title, html, buttons);
+    if (choice === null) return;
+    if (choice === 'sell') {
+      if (!mine) continue;
+      if (rideTooFull('')) { SND.play('deny'); await alertDlg('Too much to carry', rideTooFull('')); continue; }
+      const was = S.trips;
+      S.cash += tradeIn;
+      dropVehicle(S.ride);
+      rideSales++;
+      SND.play('cash');
+      log(`Sold the ${mine[0]} for ${money(tradeIn)}. You are on foot${S.trips !== was ? `: ${S.trips} trip${S.trips === 1 ? '' : 's'} left today` : ''}.`);
+      render();
+      continue;
+    }
+    const v = VEHICLES[choice];
+    if (!v || v[3] !== key || S.rides.includes(choice) || S.cash < least(choice) || (!mine && full)) continue;
+    let trade = false;
+    if (mine) {
+      const price = priceOf(choice), swap = Math.max(0, price - tradeIn), opts = [];
+      if (S.cash >= swap) opts.push([`Trade in the ${mine[0]}: pay ${money(swap)}`, 't', 'primary', rideIcon(S.ride)]);
+      if (!full && S.cash >= price) opts.push([`Keep it, send it home: pay ${money(price)}`, 'k']);
+      opts.push(['Cancel', null, 'small']);
+      const how = await dialog(v[0], `<div class="syn">${rideCard(choice, `<span class="amber">${money(price)}</span>`)}</div>` +
+        `<p>You came on the <b>${mine[0]}</b>. It is worth <b>${money(tradeIn)}</b> as a trade-in.</p>` +
+        (full ? `<p class="amber">Your garage is full (${GARAGE_SIZE}), so the only way to take this one is to trade that one in.</p>`
+          : `<p class="dim">Or keep it: somebody rides it back to your garage at the Bunker. Garage ${S.rides.length}/${GARAGE_SIZE}.</p>`), opts);
+      if (!how) continue;
+      trade = how === 't';
+    }
+    const why = trade ? rideTooFull(choice) : '', cost = trade ? Math.max(0, priceOf(choice) - tradeIn) : priceOf(choice);
+    if (why) { SND.play('deny'); await alertDlg('Too much to carry', why); continue; }
+    if (S.cash < cost || (!trade && S.rides.length >= GARAGE_SIZE)) continue;
+    // Riding off on something that carries less is fine when the old one is kept... as long as it all still fits.
+    if (!trade && rideTooFull(choice)) { SND.play('deny'); await alertDlg('Too much to carry', rideTooFull(choice)); continue; }
+    S.cash -= cost;
+    if (trade) dropVehicle(S.ride);
+    grantVehicle(choice);
+    rideVehicle(choice, true);
+    rideBuys++;
+    tally('rides');
+    SND.play('loot');
+    log(`Bought: <span class="cyan">${v[0]}</span> for ${money(cost)}${trade ? ` (the ${mine[0]} went in part exchange)` : ''}. ` +
+      `<span class="green">+${v[2]} hop${v[2] === 1 ? '' : 's'} a day</span>: ${S.trips} trip${S.trips === 1 ? '' : 's'} left today.`);
+    render();
+  }
+}
+
+// The garage at the Bunker: every ride you own, and which one you are on. Changing costs nothing but the
+// tank, if the one you get on has an engine and has not been filled today.
+async function garage() {
+  if (S.loc !== BUNKER) return;
+  for (;;) {
+    const spots = Object.values(RIDE_SHOPS).map(([name, spot, what]) => `${name} at ${spot} (${what})`).join(', ');
+    let html = `<p>A roller door, an oil stain and room for ${GARAGE_SIZE} rides. You have ${tripsHtml()}.</p>` +
+      `<div class="syn${S.ride ? ' pickable" data-pick="foot' : ''}"><b>On foot</b>${S.ride ? '' : ' <span class="green">&larr; today</span>'}<br>` +
+      `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span></div>`;
+    for (const id of S.rides) {
+      const on = id === S.ride, fuel = rideTwist(id, 'fuel'), dry = !tanked(id), ok = !on || dry;
+      html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${id}"` : ''}>` +
+        rideCard(id, on ? '<span class="green">riding it</span>' : '<span class="dim">parked</span>') +
+        (dry ? `<br><span class="${S.cash >= fuel ? 'amber' : 'red'}">${on ? 'Tank empty: tap to fill it' : 'Not filled today: getting on it costs a tank'}, ${money(fuel)}` +
+          `${S.cash >= fuel ? '' : '. You cannot pay that, so it would add no hops today'}</span>` : '') + '</div>';
+    }
+    html += S.rides.length
+      ? '<p class="dim">Tap a ride to get on it. Today\'s trips move by the difference in hops, and hops you have already used stay used. ' +
+        'Engines take a tank of fuel each day you ride them, paid when you wake up or when you get on. To sell one, ride it to a shop.</p>'
+      : `<p>Empty. You go everywhere on foot, ${TRIPS_PER_DAY} trips a day.</p>`;
+    html += `<p class="dim">Rides are sold at ${spots}.</p>`;
+    const choice = await dialog('Garage', html, [['Close', null, 'primary']]);
+    if (!choice) return;
+    const id = choice === 'foot' ? '' : choice, v = VEHICLES[id];
+    if (id ? !S.rides.includes(id) || (id === S.ride && tanked(id)) : !S.ride) continue;
+    if (id !== S.ride && rideTooFull(id)) { SND.play('deny'); await alertDlg('Too much to carry', rideTooFull(id)); continue; }
+    const swapped = id !== S.ride, fuel = rideTwist(id, 'fuel'), dry = id && !tanked(id);
+    if (swapped) { rideVehicle(id); rideSwaps++; }
+    const filled = dry && fuelUp(id), loud = rideTwist(id, 'loud');
+    SND.play(dry && !filled ? 'deny' : swapped ? 'travel' : 'buy');
+    log((!id ? 'You leave the wheels at home and walk.' : swapped ? `You get on the <span class="cyan">${v[0]}</span>.` : `You fill up the ${v[0]}.`) +
+      (filled ? ` Fuel: ${money(fuel)}.${loud ? ` It is loud: Heat +${loud}%.` : ''}` : dry ? ` <span class="red">No cash for fuel (${money(fuel)}): it adds no hops.</span>` : '') +
+      ` ${S.trips} trip${S.trips === 1 ? '' : 's'} left today.`);
+    render();
+  }
+}
+
 // ---------- loadout close-up ----------
 // A big view of the avatar with a tag on each gear slot. Tapping a tag opens that slot.
 async function inspectGear() {
@@ -3590,7 +3952,7 @@ function render() {
       <button data-act="contract" data-arg="${i}"${held >= c.qty ? '' : ' disabled'}>Run job</button></div>`;
   }).join('') || '<div class="none">Nobody is hiring here today. Boards change every day and from place to place.</div>'));
   $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
-    ` &middot; <span class="${S.trips ? '' : 'red'}">${S.trips} trip${S.trips === 1 ? '' : 's'} left</span>` +
+    ` &middot; ${tripsHtml()}` +
     (last ? ' <span class="amber">&middot; FINAL DAY: sell what you hold</span>' : '');
   const chips = [
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
@@ -3602,6 +3964,7 @@ function render() {
     ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
     ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
       usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
+    ['Ride', !VEHICLES[S.ride] ? 'On foot' : tanked(S.ride) ? `+${rideHops()} a day` : 'No fuel', !VEHICLES[S.ride] ? '' : tanked(S.ride) ? 'green' : 'red'],
     ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
@@ -3617,7 +3980,7 @@ function render() {
       S.sick >= 3 ? 'red' : 'amber']);
   }
   $('#vitals').innerHTML = vitals();
-  $('#ava').innerHTML = avatarSvg({fill: true});   // the whole figure, so everything worn shows
+  $('#ava').innerHTML = avatarSvg({fill: true}) + rideIcon(S.ride);   // the whole figure, so everything worn shows, and your ride
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
@@ -3649,7 +4012,11 @@ function render() {
   let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
   if (S.loc === BUNKER) {
     acts += `<button data-act="sleep">${last ? 'Sleep (end the run)' : 'Sleep (end the day)'}</button>` +
-      '<button data-act="locker">Gear locker</button>';
+      '<button data-act="locker">Gear locker</button>' +
+      `<button data-act="garage">Garage (${S.rides.length}/${GARAGE_SIZE})</button>`;
+  }
+  for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
+    if (S.loc === spot) acts += `<button data-act="${key}shop">${name} (${what})</button>`;
   }
   if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
@@ -3876,6 +4243,8 @@ const ACTIONS = {
           `<p class="red">Stuck. They cannot be sold, used or moved until a street doc at the black market (${docSpots()}) takes them out. ` +
           `${sickLeft() <= 1 ? 'Sleep on them again and you die of dysentery.' : `You can sleep on them ${nights(sickLeft() - 1)}.`}</p>` : '') +
         head('Weapon &amp; ammo', w ? (WTYPE[w[4]] || [''])[0] : 'unarmed') + `<div class="tiles">${weaponHtml}</div>` +
+        head('Ride', tripsHtml()) + '<div class="tiles">' + (VEHICLES[S.ride] ? tile('ride', rideIcon(S.ride), VEHICLES[S.ride][4], `+${rideHops()}`, 'wide')
+          : tile('', '<b class="glyph dim">&mdash;</b>', 'On foot', '', 'wide empty')) + '</div>' +
         head('Supplies', '') + (supplies ? `<div class="tiles">${supplies}</div>` : none('No medkits, proxies or gadgets.')) +
         head('Gear bag', `${career.bag.length}/${BAG_SIZE}`) + `<div class="tiles">${bagHtml}</div>` +
         none('Tap anything to see it, use it, wear it or scrap it. &#9650; marks gear rarer than what you are wearing.');
@@ -3901,6 +4270,11 @@ const ACTIONS = {
             : active ? `<p>Loaded with <b>${AMMO[active][0]}</b>: ${hitChange(active)}, ${S.ammo[active]} rounds left.</p>`
               : '<p class="red">No ammunition. It will not fire until you buy some.</p>'),
           [['Back', null, 'primary']]);
+      } else if (choice === 'ride') {
+        await dialog(VEHICLES[S.ride][0], `<div class="syn">${rideCard(S.ride)}</div>` +
+          (tanked(S.ride) ? '' : `<p class="red">The tank is empty, so it adds no hops today. Fill it from the Garage at the Bunker.</p>`) +
+          `<p class="dim">You own ${S.rides.length} of the ${GARAGE_SIZE} rides your garage holds. Swap between them at the Bunker; ` +
+          `any ride shop pays ${money(rideValue(S.ride))} for this one.</p>`, [['Back', null, 'primary']]);
       } else if (choice.startsWith('a:')) {
         const [name, , , , short] = AMMO[arg];
         const act = await dialog(name, `<div class="syn">${withIcon(ammoIcon(arg), `<b>${name}</b> <span class="dim">${short}</span><br>` +
@@ -4002,7 +4376,12 @@ const ACTIONS = {
         `The street doc is at ${docSpots()}.</p>`
       : `<p class="amber">You still have goods stuck in your prison pocket. Sleeping on them makes you sicker: ${nights(sickLeft() - 1)} ` +
         `and then the one that kills you. The street doc is at ${docSpots()}.</p>`;
-    if (!await confirmDlg('Sleep', gut + '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' +
+    // An engine wants its tank filled in the morning: say what that will cost, and what it gets you.
+    const fuel = rideTwist(S.ride, 'fuel'), loud = rideTwist(S.ride, 'loud');
+    const tank = !fuel ? '' : `<p class="${S.cash >= fuel ? 'dim' : 'amber'}">In the morning the ${VEHICLES[S.ride][0]} takes <b>${money(fuel)}</b> of fuel` +
+      `${loud ? ` and adds ${loud}% Heat` : ''}, for +${VEHICLES[S.ride][2]} hops. ` +
+      `${S.cash >= fuel ? 'To skip it, get on something else in the Garage first.' : 'You do not have that in cash right now: without it, it adds no hops tomorrow.'}</p>`;
+    if (!await confirmDlg('Sleep', gut + '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' + tank +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
     if (S.heat < 20) tally('cool');
@@ -4068,6 +4447,12 @@ const ACTIONS = {
   async ammo() {
     await pickAmmo();
   },
+
+  // Rides: three shops out in the world (see RIDE_SHOPS) and the garage at the Bunker.
+  bikeshop: () => rideShop('bike'),
+  autoshop: () => rideShop('auto'),
+  helishop: () => rideShop('heli'),
+  garage: () => garage(),
 
   // The street doc at the black market takes out whatever is stuck in your prison pocket. It always can be
   // done: if you are short, the fee goes on your tab with the Fixer. The goods come back tagged.
@@ -4329,11 +4714,13 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
       [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing, bags)' : l, l]);
+        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing, bags)'
+          : rideSpot(l) ? `${l} (${rideSpot(l)[2]})` : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', tired
       ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
-      : `<p>Where to? You have <b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left today. Prices stay put until you ` +
+      : `<p>Where to? You have <b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left today` +
+        `${rideHops() ? ` (the ${VEHICLES[S.ride][4]} adds ${rideHops()} a day)` : ''}. Prices stay put until you ` +
         'sleep at the Bunker, and the trip home is always free.</p>', buttons);
     if (!dest) return;
     await travelFx(S.loc, dest);
@@ -4349,7 +4736,9 @@ const ACTIONS = {
   },
 
   async cashout() {
-    const warn = used() ? '<p class="amber">You are still holding goods. They count for nothing at the end.</p>' : '';
+    const warn = (used() ? '<p class="amber">You are still holding goods. They count for nothing at the end.</p>' : '') +
+      (S.rides.length ? '<p class="amber">Your rides count for nothing at the end either. A ride shop pays ' +
+        `${pct(RIDE_TRADE)}% of the list price for the one you arrive on.</p>` : '');
     if (await confirmDlg('Final day', warn + '<p>End the run and cash out?</p>', 'Cash out', 'Not yet')) S.over = true;
   },
 
@@ -4417,7 +4806,7 @@ const ACTIONS = {
   },
 };
 
-function nextDay() {
+function nextDay(inside) {
   S.day += 1;
   S.debt = Math.ceil(S.debt * (1 + debtRate()));
   const banked = S.wallet;
@@ -4431,7 +4820,11 @@ function nextDay() {
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
-  S.trips = TRIPS_PER_DAY;
+  // Trips: what your legs give you, plus the hops of the ride you are on. Engines start the day empty and
+  // are filled here, unless you are inside (a day in a cell): then the tank waits for the day you get out.
+  S.gas = {}; S.tripDebt = 0;
+  S.trips = TRIPS_PER_DAY + rideHops();
+  if (!inside) wakeRide();
   S.markets = {};
   rollMarket();
   if (S.loc !== BUNKER) awayRaid(Math.min(0.25, S.heat / 400));   // days spent locked up or in a clinic
@@ -5333,7 +5726,8 @@ async function lose(E) {
   S.cash -= fine;
   S.inv = {}; S.cost = {};
   let served = 0;
-  while (served < days && S.day < DAYS) { nextDay(); served++; }
+  while (served < days && S.day < DAYS) { nextDay(true); served++; }
+  if (served) wakeRide();   // your ride sat outside the whole time; the tank is for the day you get out
   S.opsec = Math.max(S.opsec, E.tier ? 50 : 60);
   S.hp = Math.max(S.hp, 50);
   S.heat = E.tier ? 20 : 10;
@@ -5559,10 +5953,226 @@ async function coolSelfTest() {
   }
 }
 
+// Rides, step by step: the table is sound, every shop sells every ride it lists for the price it shows, the hops
+// are really there to travel on, fuel, cargo and noise do what the row says, swapping never hands back a used
+// hop, lying low and dysentery still cost what they did, and saves keep it all.
+async function rideSelfTest() {
+  const run = S, random = Math.random, ids = Object.keys(VEHICLES), RICH = 10000000;
+  const fail = (what, ...more) => { throw new Error(`Ride test: ${what} ` + JSON.stringify(more)); };
+  const fresh = o => { newGame(); Object.assign(S, {cash: RICH}, o || {}); notes.length = 0; };
+  // Answer the next dialogs with these, in order, while they are on offer; after that, leave.
+  const tap = async (action, ...seq) => {
+    autoPick = all => (seq.length && all.includes(seq[0]) ? seq.shift() : all.includes(null) ? null : all[0]);
+    try { await ACTIONS[action](); } finally { autoPick = null; }
+    if (seq.length) fail('not on offer', action, seq);
+  };
+  // One trip through the real travel action, with the dice fixed so nothing happens on the way.
+  const go = async to => {
+    Math.random = () => 0.99;
+    autoPick = all => (all.includes(to) ? to : all.includes(null) ? null : all[0]);
+    try { await ACTIONS.travel(); } finally { Math.random = random; autoPick = null; }
+  };
+  const A = LOCATIONS[2], B = LOCATIONS[6];
+  const hopAll = async () => { let n = 0; while (S.trips > 0 && n < 60) { const to = S.loc === A ? B : A; await go(to); if (S.loc !== to) fail('could not travel', to); n++; } return n; };
+  try {
+    // --- the table ---
+    if (ids.length < 18 || ids.length > 30 || MAX_HOPS !== 20) fail('table size', ids.length, MAX_HOPS);
+    const seen = new Set();
+    for (const id of ids) {
+      const [name, price, hops, shop, short, text, t] = VEHICLES[id];
+      if (!name || !short || !text || !(price > 0) || !Number.isInteger(hops) || hops < 1 || !RIDE_SHOPS[shop] || !t || !RIDE_ART[id] || !rideIcon(id) ||
+        seen.has(name) || seen.has(short)) fail('half defined', id);
+      seen.add(name); seen.add(short);
+      if (!rideCard(id).includes(`+${hops} hop`) || (t.fuel && !rideCard(id).includes(`fuel ${money(t.fuel)} a day`)) ||
+        (t.cargo && !rideCard(id).includes(`carries ${t.cargo}`)) || (t.loud && (!t.fuel || !rideCard(id).includes(`+${t.loud}% Heat`)))) fail('row does not say what it does', id);
+    }
+    if (Object.keys(RIDE_ART).some(id => !VEHICLES[id])) fail('a picture with no ride');
+    for (let h = 1; h <= MAX_HOPS; h++) if (!ids.some(id => VEHICLES[id][2] === h)) fail('nothing adds this many hops', h);
+    const byPrice = ids.slice().sort((a, b) => VEHICLES[a][1] - VEHICLES[b][1]);
+    if (byPrice.some((id, i) => i && VEHICLES[id][2] < VEHICLES[byPrice[i - 1]][2])) fail('a dearer ride adds fewer hops');
+    const top = ids.filter(id => VEHICLES[id][2] === MAX_HOPS);
+    if (top.length !== 1 || VEHICLES[top[0]][3] !== 'heli' || !ids.some(id => rideTwist(id, 'uni'))) fail('no top helicopter, or no unicycle');
+    const spots = Object.values(RIDE_SHOPS).map(s => s[1]);
+    if (new Set(spots).size !== 3 || spots.some(s => !LOCATIONS.includes(s) || s === BUNKER || !rideSpot(s))) fail('shops are nowhere', spots);
+    for (const key of Object.keys(RIDE_SHOPS)) {
+      if (ids.filter(id => VEHICLES[id][3] === key).length < 3 || typeof ACTIONS[key + 'shop'] !== 'function') fail('thin shop', key);
+    }
+    if (VEHICLES[byPrice[1]][1] > START_CASH) fail('nothing a new player can afford');
+    // --- a new run is on foot ---
+    fresh();
+    if (S.rides.length || S.ride || S.trips !== TRIPS_PER_DAY || tripsMax() !== TRIPS_PER_DAY || rideCargo()) fail('new run is not on foot');
+    // --- every ride, from its own shop, through the shop's own screen: price, hops, room, and the hops are usable ---
+    for (const id of ids) {
+      const [name, price, hops, key, short] = VEHICLES[id], spot = RIDE_SHOPS[key][1];
+      fresh({loc: spot}); rollMarket();
+      const room = cap(), heat = S.heat;
+      render();
+      if (!$('#actions').innerHTML.includes(`data-act="${key}shop"`)) fail('no shop button', key);
+      await tap(key + 'shop', id);
+      if (S.ride !== id || S.rides.join() !== id || S.cash !== RICH - price || S.trips !== TRIPS_PER_DAY + hops || tripsMax() !== S.trips ||
+        cap() !== room + rideTwist(id, 'cargo') || !tanked(id) || S.heat !== heat) fail('buying', id, S.ride, S.cash, S.trips);
+      if (!logs[0].includes(name) || !logs[0].includes(`+${hops} hop`)) fail('no log line', logs[0]);
+      render();
+      if (!$('#dayloc').textContent.includes(`${S.trips}/${S.trips} trips left +${hops} ${short}`) || !$('#stats').textContent.includes(`Ride+${hops} a day`) ||
+        !$('#ava .ico.ride')) fail('not on the main screen', $('#dayloc').textContent);
+      const made = await hopAll();
+      if (made !== TRIPS_PER_DAY + hops || S.trips !== 0) fail('hops not usable', id, made);
+      const stuck = S.loc;
+      await go(stuck === A ? B : A);
+      if (S.loc !== stuck) fail('travelled with no trips left', id);
+      await go(BUNKER);   // the trip home is still free
+      if (S.loc !== BUNKER || S.trips !== 0) fail('no free trip home', id);
+      // Next morning: the hops are back, and an engine has taken its fuel and made its noise.
+      const cash = S.cash, fuel = rideTwist(id, 'fuel');
+      S.heat = 50; nextDay();
+      if (S.trips !== TRIPS_PER_DAY + hops || S.cash !== cash - fuel || S.heat !== 50 - HEAT_DECAY + rideTwist(id, 'loud')) fail('next morning', id, S.trips, S.cash, S.heat);
+      if (fuel && !logs[0].includes(money(fuel))) fail('fuel not logged', logs[0]);
+    }
+    // --- keeping the old one, trading it in, selling ---
+    const bike = RIDE_SHOPS.bike[1], auto = RIDE_SHOPS.auto[1], P = id => VEHICLES[id][1];
+    fresh({loc: bike}); rollMarket();
+    await tap('bikeshop', 'uni');
+    await tap('bikeshop', 'euni', 'k');
+    if (S.rides.join() !== 'uni,euni' || S.ride !== 'euni' || S.cash !== RICH - P('uni') - P('euni') || S.trips !== TRIPS_PER_DAY + 4) fail('keeping the old ride', S.rides, S.cash);
+    await tap('bikeshop', 'giraffe', 't');
+    let spent = P('uni') + P('euni') + P('giraffe') - rideValue('euni');
+    if (S.rides.join() !== 'uni,giraffe' || S.ride !== 'giraffe' || S.cash !== RICH - spent || S.trips !== TRIPS_PER_DAY + 5) fail('trading in', S.rides, S.cash);
+    await tap('bikeshop', 'sell');
+    spent -= rideValue('giraffe');
+    if (S.rides.join() !== 'uni' || S.ride !== '' || S.cash !== RICH - spent || S.trips !== TRIPS_PER_DAY) fail('selling', S.rides, S.cash, S.trips);
+    // The table is the price, whatever the day.
+    fresh({loc: bike, day: 20}); rollMarket();
+    await tap('bikeshop', 'board');
+    if (S.cash !== RICH - P('board')) fail('late price', S.cash);
+    // A full garage: on foot you cannot buy, and on a ride the only way is to trade it in.
+    fresh({loc: bike}); rollMarket();
+    for (const id of ['board', 'uni', 'scooter', 'fixie']) if (!grantVehicle(id)) fail('grant', id);
+    if (grantVehicle('penny') || grantVehicle('uni') || grantVehicle('nope') || rideVehicle('penny') || S.rides.length !== GARAGE_SIZE) fail('garage overfilled');
+    autoPick = all => (all.includes('penny') ? fail('sold to a full garage') : null);
+    await ACTIONS.bikeshop();
+    rideVehicle('fixie');
+    autoPick = all => (all.includes('k') ? fail('offered to keep with a full garage') : all.includes('penny') ? 'penny' : all.includes('t') ? 't' : null);
+    await ACTIONS.bikeshop();
+    autoPick = null;
+    if (S.rides.join() !== 'board,uni,scooter,penny' || S.ride !== 'penny') fail('trade with a full garage', S.rides);
+    // Not enough cash: nothing is on offer.
+    fresh({loc: bike, cash: P('board') - 1}); rollMarket();
+    autoPick = all => (all.some(v => VEHICLES[v]) ? fail('sold on credit') : null);
+    await ACTIONS.bikeshop();
+    autoPick = null;
+    // --- the garage: swapping moves today's trips by the difference, and used hops stay used ---
+    fresh();
+    for (const id of ['uni', 'black', 'van']) grantVehicle(id);
+    render();
+    if (!$('#actions').innerHTML.includes('data-act="garage"')) fail('no garage button');
+    await tap('garage', 'black');
+    if (S.ride !== 'black' || S.trips !== TRIPS_PER_DAY + 20 || S.cash !== RICH - rideTwist('black', 'fuel') || S.heat !== rideTwist('black', 'loud')) fail('getting on', S.trips, S.cash, S.heat);
+    for (let i = 0; i < 20; i++) await go(S.loc === A ? B : A);
+    await go(BUNKER);
+    if (S.trips !== TRIPS_PER_DAY) fail('twenty hops', S.trips);
+    await tap('garage', 'foot');
+    if (S.ride !== '' || S.trips !== 0) fail('getting off after using its hops', S.trips);
+    await tap('garage', 'black');
+    if (S.trips !== TRIPS_PER_DAY || S.cash !== RICH - rideTwist('black', 'fuel')) fail('getting back on handed hops back, or charged twice', S.trips, S.cash);
+    await tap('garage', 'uni');
+    if (S.trips !== 0) fail('swap down', S.trips);
+    await tap('garage', 'black');
+    if (S.trips !== TRIPS_PER_DAY) fail('swap back up', S.trips);
+    nextDay();
+    if (S.trips !== TRIPS_PER_DAY + 20 || S.tripDebt !== 0) fail('a new day', S.trips);
+    // --- fuel: no cash, no hops, until the tank is filled ---
+    fresh({cash: 100}); grantVehicle('van'); rideVehicle('van');
+    const base = cap() - rideTwist('van', 'cargo');
+    if (S.trips !== TRIPS_PER_DAY || rideHops() !== 0 || rideCargo() !== 80) fail('an empty tank added hops');
+    const dry = dryTally;
+    nextDay();
+    if (S.trips !== TRIPS_PER_DAY || S.cash !== 100 || dryTally !== dry + 1 || notes.length !== 1 || !logs[0].includes('No cash for fuel')) fail('waking up broke', S.trips, S.cash);
+    notes.length = 0;
+    render();
+    if (!$('#dayloc').textContent.includes('+0 white van (no fuel)')) fail('empty tank not shown', $('#dayloc').textContent);
+    S.cash = 50000;
+    await tap('garage', 'van');
+    if (S.cash !== 50000 - rideTwist('van', 'fuel') || S.trips !== TRIPS_PER_DAY + 10) fail('filling the tank', S.cash, S.trips);
+    // A day inside takes no fuel; the day you get out does.
+    fresh(); grantVehicle('cop'); rideVehicle('cop', true);
+    nextDay(true);
+    if (S.cash !== RICH || S.trips !== TRIPS_PER_DAY) fail('fuel charged inside', S.cash, S.trips);
+    wakeRide();
+    if (S.cash !== RICH - rideTwist('cop', 'fuel') || S.trips !== TRIPS_PER_DAY + 18) fail('getting out', S.cash, S.trips);
+    // --- cargo: you cannot get off, sell or swap down while it is carrying what you could not ---
+    fresh({loc: auto}); rollMarket(); grantVehicle('van'); grantVehicle('granny'); rideVehicle('van', true);
+    if (cap() !== base + 80) fail('cargo', cap(), base);
+    addItems('Warez', cap(), 1);
+    await tap('autoshop', 'sell');
+    if (S.ride !== 'van' || S.cash !== RICH) fail('sold the van from under the goods');
+    S.loc = BUNKER; rollMarket();
+    await tap('garage', 'foot');
+    await tap('garage', 'granny');
+    if (S.ride !== 'van' || used() > cap()) fail('got off a full van', S.ride);
+    removeItems('Warez', 80);
+    await tap('garage', 'foot');
+    if (S.ride !== '' || cap() !== base || used() !== cap()) fail('getting off an emptied van', cap(), used());
+    // --- the Lie Low Kit still uses up the day, whatever you get on afterwards, and still needs three trips ---
+    fresh({heat: 50, lielow: 1}); grantVehicle('black'); grantVehicle('uni'); rideVehicle('black', true);
+    await ACTIONS.lielow();
+    if (S.trips !== 0 || S.heat !== 30 || S.lielow !== 0) fail('lying low on a helicopter', S.trips, S.heat);
+    await tap('garage', 'uni'); await tap('garage', 'black'); await tap('garage', 'foot');
+    if (S.trips !== 0) fail('a change of ride undid lying low', S.trips);
+    nextDay();
+    if (S.trips !== TRIPS_PER_DAY) fail('the day after lying low', S.trips);
+    fresh({heat: 50, lielow: 1}); grantVehicle('uni'); rideVehicle('uni');
+    for (let i = 0; i < TRIPS_PER_DAY + 1 - (COOL.lielow.trips - 1); i++) await go(S.loc === A ? B : A);
+    await go(BUNKER);
+    await ACTIONS.lielow();
+    if (S.trips !== COOL.lielow.trips - 1 || S.lielow !== 1 || S.heat !== 50) fail('lay low with too few trips, on a unicycle', S.trips);
+    // --- dysentery still costs trips, off the bigger total ---
+    for (const [sick, slow] of [[2, 1], [4, 2]]) {
+      fresh({sick, stuck: {'Warez': 1}}); grantVehicle('giraffe'); rideVehicle('giraffe');
+      Math.random = () => 0.99;
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await ACTIONS.sleep(); } finally { Math.random = random; autoPick = null; }
+      if (S.day !== 2 || S.sick !== sick + 1 || S.trips !== TRIPS_PER_DAY + 5 - slow) fail('dysentery on a ride', sick, S.trips);
+    }
+    // --- the two functions the rest of the game (and anything that hands out rides) goes through ---
+    fresh();
+    if (!grantVehicle('black') || S.ride !== '' || S.trips !== TRIPS_PER_DAY || !rideVehicle('black') || rideHops() !== 0 || S.trips !== TRIPS_PER_DAY) fail('grant or ride');
+    if (!rideVehicle('') || !rideVehicle('black', true) || S.trips !== TRIPS_PER_DAY + 20 || S.cash !== RICH || !rideVehicle() || S.trips !== TRIPS_PER_DAY) fail('ride with a full tank');
+    // --- achievements ---
+    fresh();
+    if (['wheels', 'unicycle', 'circus', 'choppa'].some(id => ACH[id][3]())) fail('achievement on foot');
+    for (const id of ['uni', 'euni', 'giraffe', 'black']) grantVehicle(id);
+    if (['wheels', 'unicycle', 'circus', 'choppa'].some(id => !ACH[id][3]()) || !ACH.nogas) fail('achievements');
+    // --- a save keeps them; a 1.24 save loads on foot with nothing lost; a damaged one is tidied ---
+    fresh({cash: 4321}); grantVehicle('uni'); grantVehicle('black'); grantVehicle('van'); rideVehicle('black', true);
+    S.trips = 9; S.tripDebt = 3; S.inv = {'Warez': 7}; S.cost = {'Warez': 5};
+    const now = JSON.parse(JSON.stringify(S)), old = JSON.parse(JSON.stringify(S)), bad = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+    for (const k of ['rides', 'ride', 'gas', 'tripDebt']) delete old[k];
+    old.trips = 4;
+    Object.assign(bad, {rides: ['uni', 'uni', 'nope', 5, 'van'], ride: 'nope', gas: {nope: true, van: 1}, tripDebt: -2, trips: 99});
+    const get = store.get, keep = slot, mine = career;
+    try {
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (S.rides.join() !== 'uni,black,van' || S.ride !== 'black' || !S.gas.black || S.trips !== 9 || S.tripDebt !== 3 || S.cash !== 4321) fail('save lost them', S.rides, S.ride, S.trips);
+      store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (S.rides.length || S.ride !== '' || S.trips !== 4 || S.tripDebt !== 0 || S.cash !== 4321 || S.inv['Warez'] !== 7 || rideCargo() || tripsMax() !== TRIPS_PER_DAY) fail('1.24 save loaded wrong', S.rides, S.trips);
+      render();
+      if (!$('#dayloc').textContent.includes(`4/${TRIPS_PER_DAY} trips left`) || !$('#stats').textContent.includes('On foot') || $('#ava .ico.ride')) fail('1.24 save not shown on foot', $('#dayloc').textContent);
+      store.get = key => (key === 'zdh-save' ? bad : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (S.rides.join() !== 'uni,van' || S.ride !== '' || Object.keys(S.gas).join() !== 'van' || S.tripDebt !== 0 || S.trips !== TRIPS_PER_DAY) fail('damaged save', S.rides, S.gas, S.trips);
+    } finally { store.get = get; slot = keep; career = mine; }
+  } finally {
+    Math.random = random; autoPick = null; S = run; logs = []; notes.length = 0;
+  }
+}
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0, coolHot = 0, coolBase = [0, 0, 0];
+  let rideBase = [0, 0, 0, 0, 0], rideHopTally = 0;
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -5607,8 +6217,12 @@ async function selfTest(games) {
         if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
         S = run; career = mine; logs = [];
         await coolSelfTest();
+        await rideSelfTest();
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
+      if (game === 0) rideBase = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally];
+      // One run in three starts with a ride already in the garage, and on it.
+      if (game % 3 === 1) { grantVehicle(pick(Object.keys(VEHICLES))); rideVehicle(S.rides[0], true); }
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
       else if (game % 2) career.gear.back = makeItem(rnd(0, 4), 'back');           // some start with a better one
       if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`<b class="${bagClass()}"`)) {
@@ -5673,6 +6287,21 @@ async function selfTest(games) {
             if (was >= 40) coolHot++;
           }
         }
+        // Rides: every so often the bot turns up at one of the three shops, usually with the price of something in
+        // its pocket, and buys, trades in or sells whatever it taps; at the Bunker it swaps rides in the garage.
+        // However many deals that was, today's trips must have moved by exactly the change in hops.
+        if (Math.random() < 0.05 && (S.loc !== BUNKER || S.rides.length)) {
+          const owed = () => S.trips - S.tripDebt - rideHops(), before = owed();
+          if (S.loc === BUNKER) await ACTIONS.garage();
+          else {
+            const key = pick(Object.keys(RIDE_SHOPS));
+            S.loc = RIDE_SHOPS[key][1]; rollMarket();
+            if (Math.random() < 0.7) S.cash += pick(Object.values(VEHICLES).filter(v => v[3] === key))[1] * 2;
+            await ACTIONS[key + 'shop']();
+          }
+          if (owed() !== before) throw new Error('a change of ride moved the trips wrong: ' + JSON.stringify([before, S.trips, S.tripDebt, S.ride, S.gas]));
+        }
+        const trip = act === 'travel' ? [S.loc, S.day, S.trips, rideHops()] : null;
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
         const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
@@ -5716,6 +6345,12 @@ async function selfTest(games) {
             throw new Error(`sale of ${sold} paid wrong: ` + JSON.stringify([sale, S.cash, gone, cut]));
           }
         }
+        if (trip && S.day === trip[1] && S.loc !== trip[0]) {
+          // A trip costs one trip, the way home costs none, and with nothing left the only place to go is home.
+          const [, , had, hops] = trip, cost = S.loc === BUNKER ? 0 : 1;
+          if (S.trips !== had - cost || (!had && cost)) throw new Error('a trip cost the wrong number of trips: ' + JSON.stringify([trip, S.loc, S.trips]));
+          if (cost && had <= hops) rideHopTally++;   // a hop the bot could not have made on foot
+        }
         await flushNotes();
         await levelUpCheck();
         render();
@@ -5734,8 +6369,13 @@ async function selfTest(games) {
         }
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || S.kit !== 1 ||
           !Number.isInteger(cap()) || cap() < S.drive || cap() !== S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') +
-            Object.values(career.gear).reduce((sum, it) => sum + carries(it), 0) ||
-          career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= TRIPS_PER_DAY) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
+            Object.values(career.gear).reduce((sum, it) => sum + carries(it), 0) + rideTwist(S.ride, 'cargo') ||
+          // Rides: at most a garage full, each a real one and only once, you are on one of them or on foot, and
+          // you never have more trips left than your legs and the ride under you give in a day.
+          !Array.isArray(S.rides) || S.rides.length > GARAGE_SIZE || new Set(S.rides).size !== S.rides.length || S.rides.some(id => !VEHICLES[id]) ||
+          (S.ride !== '' && !S.rides.includes(S.ride)) || !(Number.isInteger(S.tripDebt) && S.tripDebt >= 0) || Object.keys(S.gas).some(id => !S.rides.includes(id)) ||
+          !Number.isInteger(S.trips) || tripsMax() > TRIPS_PER_DAY + MAX_HOPS ||
+          career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= tripsMax()) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
           Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
@@ -5764,8 +6404,13 @@ async function selfTest(games) {
     if (games >= 20 && !(coolBuys > coolBase[0] && coolUses > coolBase[1] && coolHot)) {
       throw new Error('Heat items not exercised: ' + [coolBuys - coolBase[0], coolUses - coolBase[1], coolHot]);
     }
+    // ...and bought rides, swapped them, sold some, paid for fuel in the morning, and travelled on hops only a ride gives.
+    const rideDid = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally].map((n, i) => n - rideBase[i]);
+    if (games >= 20 && !(rideDid[0] && rideDid[1] && rideDid[2] && rideDid[3] && rideHopTally)) {
+      throw new Error('rides not exercised: ' + rideDid.concat(rideHopTally));
+    }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -5829,6 +6474,12 @@ function loadSave(n) {
   // Heat items arrived in 1.24: an older run has none running and no fast fixes used.
   S.fx = {vpn: Math.max(0, Math.min(COOL.vpn.days, Math.floor(fx().vpn) || 0)), decoy: Math.max(0, Math.min(COOL.decoy.nights, Math.floor(fx().decoy) || 0))};
   S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? Math.min(S.tricks, QUICK_MAX) : 0;
+  // Rides arrived in 1.25: an older run has none and is on foot, with the trips it had.
+  S.rides = [...new Set(Array.isArray(S.rides) ? S.rides : [])].filter(id => VEHICLES[id]).slice(0, GARAGE_SIZE);
+  S.ride = S.rides.includes(S.ride) ? S.ride : '';
+  S.gas = S.gas && typeof S.gas === 'object' ? Object.fromEntries(S.rides.filter(id => S.gas[id]).map(id => [id, true])) : {};
+  S.tripDebt = Number.isInteger(S.tripDebt) && S.tripDebt > 0 ? S.tripDebt : 0;
+  S.trips = Math.max(0, Math.min(S.trips, tripsMax()));
   S.ammo = Object.assign(noAmmo(), S.ammo);
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
@@ -5857,6 +6508,9 @@ function introText() {
     `that grows ${pct(debtRate())}% a day.</p>` +
     '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
     'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
+    `<p>A <span class="amber">ride</span> gets you more trips: +1 a day for a skateboard or a unicycle, up to +${MAX_HOPS} for the best helicopter. ` +
+    `They are sold at ${Object.values(RIDE_SHOPS).map(([name, spot]) => `${name} (${spot})`).join(', ')}, and you swap between yours at the Bunker's garage. ` +
+    'Engines want fuel every day you ride them.</p>' +
     '<p><span class="amber">Freelance jobs</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate, and its missions are the fastest way to level from there.</p>' +
     '<p><span class="amber">Achievements</span> pay XP too. One of them is a secret, and it opens a door.</p>' +
