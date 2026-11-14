@@ -688,7 +688,7 @@ const ECON = {
   // (never less than heatMin dollars a point), up to 10 points a deal.
   heatDeal: 0.25, heatMin: 1000,
   // XP: a sale pays xpSale x sqrt(profit / the day's market size), up to 60; finishing a run pays 100 + sqrt(score) / xpScoreDiv, up to 500.
-  xpSale: 75, xpScoreDiv: 2,
+  xpSale: 25, xpScoreDiv: 2,
   driveCurve: 2,         // drive upgrade number n+1 costs (1 + n) ^ driveCurve times the first one
   // Cash taken off beaten hostiles, as a multiple of what it was before 1.28.
   raidLoot: 0.35, lawLoot: 0.6, gangLoot: 0.6, thugLoot: 0.6,
@@ -928,44 +928,49 @@ const rideSpot = loc => Object.values(RIDE_SHOPS).find(shop => shop[1] === loc);
 //         loud = Heat added each day you fuel it, uni = it is a unicycle (there are achievements for those).
 // Saved games store rides by id, so never rename one. Each has a picture under the same id in RIDE_ART.
 // TUNING: every price, hop bonus and upkeep number for rides is in this table (plus GARAGE_SIZE and RIDE_TRADE above),
-// and nothing else scales them: unlike other shops, ride prices do NOT rise with the day. They were set so a ride
-// never pays for itself quickly. Assumed income on foot (6 trips) for a strong player at the point each is bought:
-// +1 $3k a day, +5 $18k, +10 $60k, +13 $110k, +16 $175k, +20 $300k. A ride with h hops is worth about income x h/6
-// extra a day; the price is 4 to 5 days of that (2 to 3 for the +1s, so a new player can afford one), and fuel takes
-// 10% of it at +6 rising to 20% at +20. If the economy is slowed, scale prices and fuel by the same factor as income.
+// and nothing else scales them: unlike other shops, ride prices do NOT rise with the day.
+// Re-priced in 1.28 against MEASURED income (harness in D:\dev-tools\zdh-economy, see RESULTS.md). What hops are
+// worth comes from market depth: a market only takes so much a day, and drifts back a little with every trip you
+// make elsewhere (ECON.tripRecover), so extra trips pay with diminishing returns. A strong player on foot makes
+// about $4k a day on day 3, $40k on day 10, $90k on day 15, $160k on day 20 and $200k from day 24; h extra hops
+// add roughly 1.45 x (1 - e^(-h/11)) of that: +13% at +1, +53% at +5, +87% at +10, +111% at +16, +121% at +20.
+// Prices are set so the usual jumps (foot to +1/+2 in the first days, to +5 around day 9, to the van around day
+// 14, to an aircraft after day 18) pay for themselves, fuel included, in five to eight days; fuel is about 15 to
+// 20% of what the ride adds. Single rungs near the top add little each, so trading up one rung at a time does not
+// pay: jump. If income or ECON.tripRecover changes, re-measure and scale prices and fuel together.
 const VEHICLES = {
   // --- 404: Brakes Not Found: you are the engine, so there is nothing to pay after the price ---
   board: ['Thrift Store Skateboard (Three Wheels)', 1200, 1, 'bike', 'skateboard', 'The fourth wheel is a paid upgrade.', {}],
   uni: ['Unicycle of Shame', 1500, 1, 'bike', 'unicycle', 'One wheel, no dignity. People will film you.', {uni: true}],
   scooter: ['Razor Scooter of Shin Destruction', 6000, 2, 'bike', 'scooter', 'Folds flat. Finds your ankle in the dark.', {}],
   trolley: ['Borrowed Shopping Trolley', 7500, 2, 'bike', 'trolley', 'One wheel has its own opinions. You stand on the back and commit.', {cargo: 15}],
-  fixie: ['Fixie.tar (No Brakes, No Gears)', 16000, 3, 'bike', 'fixie', 'Stopping is a legacy feature.', {}],
-  penny: ['Penny-Farthing of Legacy Code', 18000, 3, 'bike', 'penny-farthing', 'Nobody alive remembers how to get off it.', {}],
-  cargo: ['Cargo Bike (Works on My Machine)', 34000, 4, 'bike', 'cargo bike', 'A crate on wheels with a bicycle attached as an afterthought.', {cargo: 25}],
-  euni: ['Electric Unicycle, Firmware Unknown', 38000, 4, 'bike', 'e-unicycle', 'It balances itself. It also updates itself, usually at speed.', {uni: true}],
-  recumbent: ['Recumbent of Smugness', 65000, 5, 'bike', 'recumbent', 'You lie down, you go fast, and you tell everyone about it.', {}],
-  giraffe: ['Giraffe Unicycle (Enterprise Edition)', 75000, 5, 'bike', 'giraffe unicycle', 'Two metres tall. Scales vertically. Support contract not included.', {uni: true}],
+  fixie: ['Fixie.tar (No Brakes, No Gears)', 15000, 3, 'bike', 'fixie', 'Stopping is a legacy feature.', {}],
+  penny: ['Penny-Farthing of Legacy Code', 17000, 3, 'bike', 'penny-farthing', 'Nobody alive remembers how to get off it.', {}],
+  cargo: ['Cargo Bike (Works on My Machine)', 28000, 4, 'bike', 'cargo bike', 'A crate on wheels with a bicycle attached as an afterthought.', {cargo: 25}],
+  euni: ['Electric Unicycle, Firmware Unknown', 31000, 4, 'bike', 'e-unicycle', 'It balances itself. It also updates itself, usually at speed.', {uni: true}],
+  recumbent: ['Recumbent of Smugness', 60000, 5, 'bike', 'recumbent', 'You lie down, you go fast, and you tell everyone about it.', {}],
+  giraffe: ['Giraffe Unicycle (Enterprise Edition)', 70000, 5, 'bike', 'giraffe unicycle', 'Two metres tall. Scales vertically. Support contract not included.', {uni: true}],
   // --- Grand Theft Otto's: engines, so they want fuel ---
-  moped: ['Moped.bat', 120000, 6, 'auto', 'moped', '49cc of batch-file fury. Sounds like a wasp in a tin.', {fuel: 2500}],
-  granny: ['Mobility Scooter (Overclocked)', 135000, 6, 'auto', 'mobility scooter', 'Has a basket. Does seventy. Nobody suspects it.', {fuel: 2000, cargo: 10}],
-  mower: ['Ride-On Lawnmower (Road Legal-ish)', 190000, 7, 'auto', 'lawnmower', 'Cuts grass, corners and several bylaws.', {fuel: 4000}],
-  dirt: ['Dirt Bike of Dirty Reads', 270000, 8, 'auto', 'dirt bike', 'Fast, filthy, and never quite where you left it.', {fuel: 6000, loud: 1}],
-  golf: ['Golf Cart with Racing Stripes', 300000, 8, 'auto', 'golf cart', 'The stripes add five horsepower, which doubles it.', {fuel: 5000, cargo: 20}],
-  hatch: ['Hatchback, Check Engine Light Included', 380000, 9, 'auto', 'hatchback', 'The light is not a warning. It is a feature flag.', {fuel: 8000, cargo: 30}],
-  van: ['White Van (FREE_CANDY_5G)', 500000, 10, 'auto', 'white van', 'Broadcasts its own network. Nobody connects. Holds a lot.', {fuel: 12000, cargo: 80}],
-  icecream: ['Ice Cream Truck, Jingle Stuck On', 660000, 11, 'auto', 'ice cream truck', 'Plays the jingle. Always. Everyone knows where you are, and they bring change.', {fuel: 16000, cargo: 50, loud: 2}],
-  muscle: ['Muscle Car.dll (Dependency Missing)', 850000, 12, 'auto', 'muscle car', 'Eight cylinders, most of them installed.', {fuel: 22000, loud: 2}],
-  sedan: ['Self-Driving Sedan (Beta, Do Not Sleep)', 1050000, 13, 'auto', 'robo-sedan', 'It drives itself. It also has opinions about where.', {fuel: 30000, cargo: 20}],
-  monster: ['Monster Truck of Technical Debt', 1150000, 13, 'auto', 'monster truck', 'Drives over the problem. The problem is still there. So is the interest.', {fuel: 36000, cargo: 60, loud: 3}],
+  moped: ['Moped.bat', 85000, 6, 'auto', 'moped', '49cc of batch-file fury. Sounds like a wasp in a tin.', {fuel: 800}],
+  granny: ['Mobility Scooter (Overclocked)', 92000, 6, 'auto', 'mobility scooter', 'Has a basket. Does seventy. Nobody suspects it.', {fuel: 700, cargo: 10}],
+  mower: ['Ride-On Lawnmower (Road Legal-ish)', 110000, 7, 'auto', 'lawnmower', 'Cuts grass, corners and several bylaws.', {fuel: 1200}],
+  dirt: ['Dirt Bike of Dirty Reads', 130000, 8, 'auto', 'dirt bike', 'Fast, filthy, and never quite where you left it.', {fuel: 1800, loud: 1}],
+  golf: ['Golf Cart with Racing Stripes', 140000, 8, 'auto', 'golf cart', 'The stripes add five horsepower, which doubles it.', {fuel: 1600, cargo: 20}],
+  hatch: ['Hatchback, Check Engine Light Included', 160000, 9, 'auto', 'hatchback', 'The light is not a warning. It is a feature flag.', {fuel: 2400, cargo: 30}],
+  van: ['White Van (FREE_CANDY_5G)', 190000, 10, 'auto', 'white van', 'Broadcasts its own network. Nobody connects. Holds a lot.', {fuel: 3500, cargo: 80}],
+  icecream: ['Ice Cream Truck, Jingle Stuck On', 230000, 11, 'auto', 'ice cream truck', 'Plays the jingle. Always. Everyone knows where you are, and they bring change.', {fuel: 4500, cargo: 50, loud: 2}],
+  muscle: ['Muscle Car.dll (Dependency Missing)', 270000, 12, 'auto', 'muscle car', 'Eight cylinders, most of them installed.', {fuel: 6000, loud: 2}],
+  sedan: ['Self-Driving Sedan (Beta, Do Not Sleep)', 290000, 13, 'auto', 'robo-sedan', 'It drives itself. It also has opinions about where.', {fuel: 7500, cargo: 20}],
+  monster: ['Monster Truck of Technical Debt', 300000, 13, 'auto', 'monster truck', 'Drives over the problem. The problem is still there. So is the interest.', {fuel: 8500, cargo: 60, loud: 3}],
   // --- Get to the Choppa!: aircraft. The last one is the most hops anything gives ---
-  chair: ['Lawn Chair with Weather Balloons', 1400000, 14, 'heli', 'lawn chair', 'Legally an aircraft. You steer by popping balloons. Helium is not cheap.', {fuel: 40000}],
-  gyro: ['Kit Gyrocopter (Some Screws Left Over)', 1800000, 15, 'heli', 'gyrocopter', 'Built in a weekend from a kit. The spare screws come in a little bag.', {fuel: 60000, loud: 2}],
-  jetpack: ['Jetpack, Beta Build', 2400000, 16, 'heli', 'jetpack', 'Twelve minutes of fuel. The brochure said thirty.', {fuel: 90000, loud: 4}],
-  blimp: ['Blimp of Plausible Deniability', 2200000, 16, 'heli', 'blimp', 'Slow, enormous, and somehow nobody ever looks up.', {fuel: 70000, cargo: 100}],
-  news: ['News Chopper (Traffic Reports Optional)', 2900000, 17, 'heli', 'news chopper', 'Hover over anything you like. People assume it is a slow news day.', {fuel: 110000, loud: 3}],
-  cop: ['Ex-Police Helicopter, Decals Mostly Removed', 3500000, 18, 'heli', 'ex-police chopper', 'One side still says OLICE. The searchlight works. Do not use the searchlight.', {fuel: 140000, loud: 4}],
-  chinook: ['Twin-Rotor Chonk of Chunky Commits', 4200000, 19, 'heli', 'twin-rotor', 'Two rotors, one enormous hold, no subtlety at all.', {fuel: 170000, cargo: 150, loud: 5}],
-  black: ['Black Helicopter (It Was Never Here)', 5000000, 20, 'heli', 'black helicopter', 'Unmarked, unregistered, nearly silent. Officially it does not exist. Neither does the receipt.', {fuel: 200000, loud: 1}],
+  chair: ['Lawn Chair with Weather Balloons', 300000, 14, 'heli', 'lawn chair', 'Legally an aircraft. You steer by popping balloons. Helium is not cheap.', {fuel: 8000}],
+  gyro: ['Kit Gyrocopter (Some Screws Left Over)', 330000, 15, 'heli', 'gyrocopter', 'Built in a weekend from a kit. The spare screws come in a little bag.', {fuel: 10000, loud: 2}],
+  jetpack: ['Jetpack, Beta Build', 380000, 16, 'heli', 'jetpack', 'Twelve minutes of fuel. The brochure said thirty.', {fuel: 13000, loud: 4}],
+  blimp: ['Blimp of Plausible Deniability', 360000, 16, 'heli', 'blimp', 'Slow, enormous, and somehow nobody ever looks up.', {fuel: 11000, cargo: 100}],
+  news: ['News Chopper (Traffic Reports Optional)', 410000, 17, 'heli', 'news chopper', 'Hover over anything you like. People assume it is a slow news day.', {fuel: 15000, loud: 3}],
+  cop: ['Ex-Police Helicopter, Decals Mostly Removed', 440000, 18, 'heli', 'ex-police chopper', 'One side still says OLICE. The searchlight works. Do not use the searchlight.', {fuel: 17000, loud: 4}],
+  chinook: ['Twin-Rotor Chonk of Chunky Commits', 470000, 19, 'heli', 'twin-rotor', 'Two rotors, one enormous hold, no subtlety at all.', {fuel: 19000, cargo: 150, loud: 5}],
+  black: ['Black Helicopter (It Was Never Here)', 500000, 20, 'heli', 'black helicopter', 'Unmarked, unregistered, nearly silent. Officially it does not exist. Neither does the receipt.', {fuel: 20000, loud: 1}],
 };
 const MAX_HOPS = Math.max(...Object.values(VEHICLES).map(v => v[2]));
 const rideTwist = (id, key) => (VEHICLES[id] && VEHICLES[id][6][key]) || 0;
@@ -8678,6 +8683,28 @@ async function econSelfTest() {
     if (Math.abs(S.glut[here]['Warez'] - g1 * ECON.recover) > 0.011) fail('glut does not fade', S.glut);
     for (let i = 0; i < 8; i++) nextDay();
     if (Object.keys(S.glut).length) fail('glut never clears', S.glut);
+    // --- trips: a market you left drifts back toward its opening price with each trip; its stock does not ---
+    open(15, {'Warez': 40});
+    b = book('Warez');
+    const sold = Math.round(b.depth);
+    S.inv = {'Warez': sold}; S.cost = {'Warez': 1}; S.cash = 0;
+    await ACTIONS.sell('Warez');
+    const got = S.cash, sagged = S.prices['Warez'];
+    easeMarkets();
+    if (b.e || S.prices['Warez'] !== sagged) fail('the market you are standing in recovered', b);
+    S.loc = 'Cyber Cafe'; easeMarkets();
+    const e1 = Math.round(ECON.tripRecover * sold * 100) / 100;
+    if (!(e1 > 0) || b.e !== e1 || b.x !== sold || S.markets[here].prices['Warez'] !== priceAt(b, sold - e1) || !(S.markets[here].prices['Warez'] > sagged)) fail('a trip did not ease the market left behind', b, e1);
+    easeMarkets();
+    if (Math.abs(b.e - (e1 + ECON.tripRecover * (sold - e1))) > 0.011 || !(b.e < sold)) fail('second trip eased wrong', b);
+    S.loc = here; S.prices = S.markets[here].prices;
+    if (buyRoom('Warez') !== b.stock + sold) fail('stock came back with the price', buyRoom('Warez'));
+    if (sellTotal('Warez', 1) !== priceAt(b, bookPos(b)) || S.prices['Warez'] !== priceAt(b, bookPos(b))) fail('eased price is not the price you get');
+    if (!(buyTotal('Warez', sold) > got)) fail('selling, leaving and buying back makes money', buyTotal('Warez', sold), got);
+    const eased = bookPos(b) / b.depth;
+    S.loc = BUNKER; nextDay();
+    if (Math.abs(S.glut[here]['Warez'] - eased * ECON.recover) > 0.011) fail('overnight glut ignores the easing', S.glut, eased);
+    S.glut = {};
     // --- the cold wallet: full rate on the first slice, a share of it above ---
     const rate = walletRate(), over = 300000;
     if (walletGain(100000) !== Math.floor(100000 * rate) || walletGain(ECON.walletFull + over) !== Math.floor(ECON.walletFull * rate + over * rate * ECON.walletOver)) fail('wallet tiers wrong');
@@ -8695,6 +8722,20 @@ async function econSelfTest() {
     if (two !== 2 || S.heat !== 12) fail('deal Heat wrong late', two, S.heat);
     // --- freelance jobs: never priced off a spike, never bigger than the market deals ---
     Math.random = random;
+    // --- street goods trade from day one; nothing is asked for that cannot be bought yet ---
+    S.day = 1;
+    if (depthOf('Phishing Kits') !== ECON.streetDepth || depthOf('Rogue APs') < ECON.streetDepth || !notDealtYet('Zero-Days') || notDealtYet('Burner SIMs')) fail('street goods are not dealt on day 1');
+    const from = dealtFrom('Zero-Days');
+    if (!(from > 3 && from < 16) || S.day !== 1) fail('dealtFrom is wrong', from);
+    S.day = from; const dealt = !notDealtYet('Zero-Days'); S.day = from - 1;
+    if (!dealt || !notDealtYet('Zero-Days')) fail('dealtFrom is not the first day', from);
+    open(1, {'Warez': 40, 'Burner SIMs': 80, 'Zero-Days': 20000, 'Rootkits': 9000});
+    for (let i = 0; i < 300; i++) {
+      rollContracts();
+      if (S.contracts.some(c => !c.heist && notDealtYet(c.good))) fail('a job asks for goods nobody sells yet', S.contracts);
+      const G = makeGig(pick(Object.keys(CONTACTS)));
+      if (G.kind === 'deliver' && (G.t < 1 || G.t > Math.floor(depthOf(G.good)) || notDealtYet(G.good))) fail('a delivery gig asks for more than a market sells', G);
+    }
     open(20, {'Zero-Days': 29000 * 5, 'Warez': 300}, {'Zero-Days': 'up', 'Warez': 'up'});
     for (let i = 0, seen = 0; i < 400 || fail('no jobs rolled', seen); i++) {
       rollContracts();
