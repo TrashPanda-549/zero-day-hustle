@@ -941,7 +941,8 @@ const RIDE_SHOPS = {
     'coincidence. Every one of these has papers. Some of them have the right papers."'],
   heli: ['Get to the Choppa!', 'Con Hallway', 'helicopters',
     'The roof of the convention centre: a windsock, a fuel bowser, a man in a headset shouting over nothing. ' +
-    '"GET TO THE CHOPPA! Everything here flies. Most of it lands. Fuel includes the helipad fee."'],
+    '"GET TO THE CHOPPA! Everything here flies. Most of it lands. Fuel includes the helipad fee. And do not buy these ' +
+    'one rung at a time: up here each step adds less than the one before, and the fuel does not. Skip a few."'],
 };
 const GARAGE_SIZE = 4, RIDE_TRADE = 0.4;   // rides you can own at once; what a shop pays for one, as a share of its price
 const rideSpot = loc => Object.values(RIDE_SHOPS).find(shop => shop[1] === loc);   // the ride shop at a place, if it has one
@@ -1006,6 +1007,20 @@ const rideHops = () => (VEHICLES[S.ride] && tanked(S.ride) ? VEHICLES[S.ride][2]
 const rideCargo = () => rideTwist(S.ride, 'cargo');
 const tripsMax = () => TRIPS_PER_DAY + rideHops();
 const rideValue = id => Math.round(VEHICLES[id][1] * RIDE_TRADE);
+// What a strong player clears in a day, by day: the measured income curve the ride prices were set against
+// (the harness in D:\dev-tools\zdh-economy, RESULTS.md). It is only used to tell the player whether a ride can
+// earn its price back before the run ends, so a rough curve between the measured days is enough.
+const TAKE = [[1, 3800], [3, 4000], [10, 40000], [15, 90000], [20, 160000], [24, 200000], [DAYS, 200000]];
+function dayTake(day) {
+  for (let i = 1; i < TAKE.length; i++) {
+    const [d0, v0] = TAKE[i - 1], [d1, v1] = TAKE[i];
+    if (day <= d1) return v0 + (v1 - v0) * Math.max(0, day - d0) / (d1 - d0);
+  }
+  return TAKE[TAKE.length - 1][1];
+}
+// What h extra hops a day are worth, as a share of a day's take. It flattens out, because a market only takes so
+// much in a day: that is why climbing the ladder one rung at a time near the top loses money (see TUNING above).
+const hopWorth = h => 1.45 * (1 - Math.exp(-h / 11));
 let rideBuys = 0, rideSwaps = 0, rideSales = 0, fuelTally = 0, dryTally = 0;   // counted for the self-test
 
 // Anything that changes the hops your ride gives goes through here, so the trips you have left today move by
@@ -1088,6 +1103,30 @@ function rideFacts(id) {
 // Picture, name, facts and the line about it. lead: something to put in front of the name (a price, "riding").
 const rideCard = (id, lead) => withIcon(rideIcon(id), `${lead ? lead + ' &middot; ' : ''}<b>${VEHICLES[id][0]}</b><br>` +
   `${rideFacts(id)}<br><span class="dim">${VEHICLES[id][5]}</span>`);
+// The honest line on a ride in a shop: what it adds over the one you are on, what that is worth a day once its
+// fuel is paid, and whether it can earn that back in the days you have left. cost is the cash it takes to leave on
+// it (price less your trade-in); a shop buys it back for RIDE_TRADE of its price at the end, so that comes off.
+// cost 0 is the Garage, where you already own it and only the hops and the fuel are in question.
+function rideWorth(id, cost) {
+  const v = VEHICLES[id], now = VEHICLES[S.ride], hops = v[2] - (now ? now[2] : 0);
+  const gain = Math.round(dayTake(S.day) * (hopWorth(v[2]) - hopWorth(now ? now[2] : 0)) - (rideTwist(id, 'fuel') - rideTwist(S.ride, 'fuel')));
+  const left = DAYS - S.day + 1, net = Math.max(0, cost - rideValue(id));
+  const over = now ? `the ${now[4]}` : 'your legs';
+  const head = hops > 0 ? `<b>+${hops} hop${hops === 1 ? '' : 's'}</b> over ${over}` : hops === 0 ? `no more hops than ${over}` : `${-hops} hop${hops === -1 ? '' : 's'} fewer than ${over}`;
+  let say;
+  if (hops <= 0) {
+    const save = rideTwist(S.ride, 'fuel') - rideTwist(id, 'fuel');
+    say = save > 0 ? `no more trips in a day, but ${money(save)} a day cheaper to run`
+      : '<span class="red">nothing gained</span>' + (rideTwist(id, 'fuel') ? ', and a tank to fill every day' : '');
+  } else if (gain <= 0) say = '<span class="red">the fuel costs more than the extra hops bring in</span>';
+  else if (!net) say = `<span class="green">about ${money(gain)} a day more after fuel</span>`;
+  else {
+    const days = Math.ceil(net / gain);
+    say = `about ${money(gain)} a day more after fuel: <span class="${days * 2 <= left ? 'green' : days <= left ? 'amber' : 'red'}">` +
+      (days <= left ? `pays for itself in ${days} day${days === 1 ? '' : 's'}, ${left} left` : `${days} days to pay for itself, and only ${left} left`) + '</span>';
+  }
+  return `<span class="dim">${head} &middot; ${say}</span>`;
+}
 // The trips line on the main screen: what is left of today's total, and what the ride adds to it.
 function tripsHtml() {
   const v = VEHICLES[S.ride];
@@ -5583,9 +5622,13 @@ async function rideShop(key) {
     Object.keys(VEHICLES).filter(id => VEHICLES[id][3] === key).sort((a, b) => VEHICLES[a][1] - VEHICLES[b][1]).forEach(id => {
       const owned = S.rides.includes(id), ok = !owned && S.cash >= least(id) && (mine || !full);
       html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${id}"` : ''}>` +
-        rideCard(id, `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? (id === S.ride ? 'riding it' : 'in your garage') : money(priceOf(id))}</span>`) + '</div>';
+        rideCard(id, `<span class="${owned ? 'dim' : ok ? 'amber' : 'red'}">${owned ? (id === S.ride ? 'riding it' : 'in your garage') : money(priceOf(id))}</span>`) +
+        (id === S.ride ? '' : `<br>${rideWorth(id, owned ? 0 : least(id))}`) + '</div>';
     });
-    html += '<p class="dim">Tap a ride to buy it. You leave on it, with a full tank, and its hops count from right now. ' +
+    html += `<p class="dim">What a ride is worth a day is what the extra trips bring in at today's prices, less its fuel; ` +
+      `what it has to earn back is its price, less your trade-in and less the ${pct(RIDE_TRADE)}% a shop will pay you for it later. ` +
+      'Each hop you add is worth less than the last, so going up one rung at a time rarely pays. Jump.</p>' +
+      '<p class="dim">Tap a ride to buy it. You leave on it, with a full tank, and its hops count from right now. ' +
       `The one you came on is traded in for ${pct(RIDE_TRADE)}% of its list price or sent home to your garage, which holds ${garageSize()}. ` +
       'Swap between them at the Bunker.' + (full && !mine ? ' <span class="amber">Your garage is full: come here on one to trade it in.</span>' : '') + '</p>';
     const buttons = [];
@@ -5651,6 +5694,7 @@ async function garage() {
       const on = id === S.ride, fuel = rideTwist(id, 'fuel'), dry = !tanked(id), ok = !on || dry;
       html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${id}"` : ''}>` +
         rideCard(id, on ? '<span class="green">riding it</span>' : '<span class="dim">parked</span>') +
+        (on ? '' : `<br>${rideWorth(id, 0)}`) +
         (dry ? `<br><span class="${S.cash >= fuel ? 'amber' : 'red'}">${on ? 'Tank empty: tap to fill it' : 'Not filled today: getting on it costs a tank'}, ${money(fuel)}` +
           `${S.cash >= fuel ? '' : '. You cannot pay that, so it would add no hops today'}</span>` : '') + '</div>';
     }
