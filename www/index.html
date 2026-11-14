@@ -395,6 +395,100 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 @keyframes packet{to{left:calc(100% - 26px)}}
 .thex{margin-top:16px;color:var(--dim);font-size:11px;letter-spacing:2px;white-space:nowrap;overflow:hidden;opacity:.7}
 @media (prefers-reduced-motion:reduce){h1,.bootlogo,.tlabel,#travel::before,.boothint{animation:none}}
+
+/* ================= WIDE SCREENS =================
+   Everything from here to the end of the style sheet only applies to a window at least 900px wide and 500px
+   tall (a desktop window, a tablet on its side, a desktop browser). Below that nothing here does anything and
+   the page is the one-column phone layout above (from 761px that one column runs the full width).
+   #colme (you: avatar, level, health, stat chips), #coltrade (mission, products, jobs, actions) and, inside
+   it, #colmarket (the mission fold directly above the products) are plain wrappers; on a phone
+   they are display:contents, which is the same as not being there.
+   The play screen fills the window edge to edge like the loading screen: #app is pinned to all four sides and
+   becomes a grid of panels that scroll inside themselves, so the page itself never scrolls.
+     900px and up:  two columns:   you, news, log | mission, products, jobs, actions
+     1200px and up: three columns: you | mission, products, actions | news, jobs, log
+   Panels are placed by grid area and sized by what is in them, so extra lines or rows inside any of them
+   just make that panel taller or scroll.
+   Big screens are scaled up with --z (a zoom factor chosen from the window's size, at the very end), so the
+   interface is about 1500 x 860 units whatever the monitor. The fight screen (#battle) is not scaled or laid
+   out here: it already covers the window and has its own layout. */
+#colme,#coltrade,#colmarket{display:contents}
+/* between the phone column's 760px and the two-column layout: the one column simply runs edge to edge */
+@media (min-width:761px){#app{max-width:none}}
+@media (min-width:900px) and (min-height:500px){
+  :root{--z:1}
+  html,body{height:100%;overflow:hidden}
+  body{min-height:0}
+  *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  #app,#overlay,#boot,#travel{zoom:var(--z)}
+  #app{position:fixed;inset:0;max-width:none;margin:0;display:grid;gap:0 16px;
+    padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+      calc(12px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+    grid-template-columns:minmax(300px,36%) minmax(0,1fr);
+    grid-template-rows:auto auto auto minmax(96px,1fr);
+    grid-template-areas:"head head" "me trade" "news trade" "log trade"}
+  #app>header{grid-area:head;margin-bottom:10px}
+  #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
+  #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
+  #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:150px}
+  #news{grid-area:news;margin:10px 0 0;min-width:0;max-height:8.2em;overflow-y:auto}
+  #news:empty{margin:0}
+  #jobs{flex:0 1 auto;margin:10px 0 0;min-width:0;min-height:0;max-height:calc(34vh / var(--z));overflow-y:auto}
+  #jobs:empty{margin:0}
+  #jobs .fold:last-child,#jobs .job:last-child{margin-bottom:0}
+  #actions{flex:none;margin-top:10px;min-width:0}
+  #log{grid-area:log;margin:10px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:14px}
+  #log div{padding:3px 0}
+  #hud{margin-top:0;grid-template-columns:66px minmax(0,1fr)}
+  /* the mission fold stays directly above the products; the products take the spare height and scroll */
+  #quest{flex:none}
+  #quest .fold{margin:0 0 10px}
+  #market{margin-top:0;flex:1 1 auto;min-height:0;overflow-y:auto;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
+  #market>.fold,#market>.row:first-child{grid-column:1/-1}
+  #market>.fold{border-bottom:1px solid var(--line)}
+  /* on a very wide middle column the product rows run in two or more columns instead of one stretched one */
+  #market>.fold::details-content{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
+  #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
+  /* there is room, so the product list is always open here (folding it is for phones; the choice made there is kept) */
+  @supports selector(::details-content){
+    #market>.fold:not([open])::details-content{content-visibility:visible}
+    #market>.fold>summary{pointer-events:none;cursor:default;border-bottom:1px solid var(--line)}
+    #market>.fold>summary::before{content:none}
+  }
+
+  /* dialogs, shops, inventory, menus: centred, a little wider, never taller than the window */
+  #dialog{max-width:560px;max-height:100%}
+  .bootbox{max-width:460px}
+  .tbox{max-width:560px}
+}
+@media (min-width:1200px) and (min-height:500px){
+  #app{grid-template-columns:minmax(280px,23%) minmax(0,1fr) minmax(320px,27%);
+    grid-template-rows:auto auto auto minmax(0,1fr) auto;
+    grid-template-areas:"head head head" "me trade news" "me trade jobs" "me trade log" "me actions log"}
+  /* you: the avatar stands tall above the level, health and stat chips */
+  #colme{display:flex;flex-direction:column}
+  #hud{display:contents}
+  #ava{flex:1 1 200px;min-height:170px;max-height:470px}
+  #hudr{flex:none;margin-top:10px}
+  #stats{flex:none}
+  #coltrade{display:contents}
+  #colmarket{grid-area:trade;min-height:0}
+  #news{margin:0;max-height:11em}
+  #news:not(:empty){margin-bottom:10px}
+  #jobs{grid-area:jobs;margin:0;max-height:calc(46vh / var(--z))}
+  #jobs:not(:empty){margin-bottom:10px}
+  #log{margin-top:0}
+  #actions{grid-area:actions}
+}
+/* scale: how much bigger everything is drawn, from the size of the window */
+@media (min-width:1600px) and (min-height:880px){:root{--z:1.1}}
+@media (min-width:1800px) and (min-height:1000px){:root{--z:1.25}}
+@media (min-width:2200px) and (min-height:1200px){:root{--z:1.45}}
+@media (min-width:2500px) and (min-height:1380px){:root{--z:1.6}}
+@media (min-width:3000px) and (min-height:1650px){:root{--z:2}}
+@media (min-width:3400px) and (min-height:1900px){:root{--z:2.25}}
+@media (min-width:3800px) and (min-height:2100px){:root{--z:2.5}}
 </style>
 </head>
 <body>
@@ -414,6 +508,7 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 </div>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
+  <div id="colme">
   <div id="hud">
     <div id="ava" data-act="gearmenu" title="Gear"></div>
     <div id="hudr">
@@ -423,11 +518,16 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
     </div>
   </div>
   <section id="stats"></section>
+  </div>
   <section id="news"></section>
+  <div id="coltrade">
+  <div id="colmarket">
   <section id="quest"></section>
   <section id="market"></section>
+  </div>
   <section id="jobs"></section>
   <nav id="actions"></nav>
+  </div>
   <section id="log"></section>
 </div>
 <div id="overlay" hidden><div id="dialog"></div></div>
@@ -5903,7 +6003,16 @@ async function startMenu() {
     else if (ids.includes(last)) buttons.push([`Continue: ${list[last].name || 'anon'}`, `load:${last}`, 'primary']);
     if (!full) buttons.push(['New game', 'new', buttons.length ? '' : 'primary']);
     if (ids.length) buttons.push(['Delete a save', 'del', 'small']);
+    // Desktop app only (window.zdhDesktop comes from its preload script): full screen on or off, and quit.
+    const desk = !AUTO && window.zdhDesktop;
+    if (desk) buttons.push([`Full screen: ${desk.isFullScreen() ? 'ON' : 'OFF'}${/Mac/.test(navigator.platform) ? '' : ' (F11)'}`, 'fullscreen', 'small'], ['Quit', 'quit', 'small']);
     const choice = await dialog('ZERO DAY HUSTLE', html, buttons);
+    if (choice === 'fullscreen') {
+      desk.setFullScreen(!desk.isFullScreen());
+      await new Promise(done => setTimeout(done, 350));   // the window takes a moment to change
+      continue;
+    }
+    if (choice === 'quit') { if (slot) save(); desk.quit(); continue; }
     if (choice === 'back') return;
     if (choice === 'new') {
       const name = (await askText('New game', `<p>Your handle for this save (${ids.length + 1} of ${MAX_SAVES}):</p>`)) || 'anon';

@@ -1,12 +1,14 @@
 // Desktop shell: opens the game page (www/index.html) in a window.
-const { app, BrowserWindow, Menu, screen } = require('electron');
+const { app, BrowserWindow, Menu, screen, ipcMain } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
-// The window opens maximized the first time. After that it comes back the way it was left: its size and
-// place, and whether it was maximized or full screen. That is kept in window-state.json in the user-data folder.
+// The game starts in true full screen, on the screen it is launched on. F11 (or Alt+Enter, or the game's
+// own menu) switches to an ordinary window and back. It comes back the way it was left: full screen or
+// windowed, and the window's size and place and whether it was maximized. That is kept in window-state.json
+// in the user-data folder.
 const MIN_W = 360, MIN_H = 560;          // small enough for the phone layout, which the page still has
-const DEF_W = 1280, DEF_H = 800;         // the size it takes when un-maximized for the first time
+const DEF_W = 1280, DEF_H = 800;         // the windowed size before the player has chosen one
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
 
 function loadState() {
@@ -17,8 +19,9 @@ function loadState() {
   return null;
 }
 
-// Where the window goes when it is not maximized. A saved place is only used if enough of it is still on a
-// screen to grab (a monitor may have been unplugged since); otherwise it is centred on the main screen.
+// Where the window goes when it is neither full screen nor maximized (full screen then happens on the screen
+// this lands on). A saved place is only used if enough of it is still on a screen to grab (a monitor may have
+// been unplugged since); otherwise the window is centred on the screen the mouse pointer is on.
 function normalBounds(saved) {
   const fit = (want, room) => Math.min(want, room);
   if (saved) {
@@ -34,7 +37,7 @@ function normalBounds(saved) {
       return b;
     }
   }
-  const area = screen.getPrimaryDisplay().workArea;
+  const area = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const width = fit(saved ? Math.max(MIN_W, saved.width) : DEF_W, area.width);
   const height = fit(saved ? Math.max(MIN_H, saved.height) : DEF_H, area.height);
   return { width, height, x: Math.round(area.x + (area.width - width) / 2), y: Math.round(area.y + (area.height - height) / 2) };
@@ -42,39 +45,44 @@ function normalBounds(saved) {
 
 function createWindow() {
   const saved = loadState();
+  let normal = normalBounds(saved);   // the windowed size and place, kept up to date below
   const win = new BrowserWindow({
-    ...normalBounds(saved),
+    ...normal,
     minWidth: MIN_W,
     minHeight: MIN_H,
     show: false,
     backgroundColor: '#04070a',
     title: 'Zero Day Hustle',
     autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,
+      preload: path.join(__dirname, 'preload.js') },
   });
 
-  // Remembering: the un-maximized size and place are tracked separately, so leaving maximized or full screen
-  // on a later launch goes back to them.
+  // Remembering: the windowed size and place are tracked apart from full screen and maximized, so leaving
+  // full screen on a later launch goes back to them.
   let maximized = saved ? !!saved.maximized : true;
-  const fullScreen = saved ? !!saved.fullScreen : false;
+  const fullScreen = saved ? saved.fullScreen !== false : true;
   let timer = null;
   const save = () => {
     clearTimeout(timer);
     timer = null;
     if (win.isDestroyed()) return;
     const full = win.isFullScreen();
-    if (!full && !win.isMinimized()) maximized = win.isMaximized();
+    if (!full && !win.isMinimized()) {
+      maximized = win.isMaximized();
+      if (!maximized) normal = win.getBounds();
+    }
     try {
       fs.mkdirSync(path.dirname(stateFile()), { recursive: true });
-      fs.writeFileSync(stateFile(), JSON.stringify({ ...win.getNormalBounds(), maximized, fullScreen: full }));
+      fs.writeFileSync(stateFile(), JSON.stringify({ ...normal, maximized, fullScreen: full }));
     } catch (e) {}
   };
   const saveSoon = () => { if (!timer) timer = setTimeout(save, 400); };
   for (const ev of ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen', 'restore']) win.on(ev, saveSoon);
   win.on('close', save);
 
-  // Full screen: F11 or Alt+Enter (on a Mac the View menu and the green button do it, with the usual
-  // Ctrl+Cmd+F). Escape is left alone: it belongs to the game.
+  // Full screen keys: F11 or Alt+Enter (on a Mac the View menu and the green button do it, with the usual
+  // Ctrl+Cmd+F). Escape is left alone: it belongs to the game. Alt+F4 closes the window as always.
   if (process.platform !== 'darwin') {
     win.webContents.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown' || input.isAutoRepeat) return;
@@ -92,6 +100,12 @@ function createWindow() {
   if (fullScreen) win.setFullScreen(true);
   win.show();
 }
+
+// What the game's own menu can ask for (see preload.js): full screen on or off, and quit.
+const windowOf = event => BrowserWindow.fromWebContents(event.sender);
+ipcMain.on('zdh-is-fullscreen', event => { const w = windowOf(event); event.returnValue = !!w && w.isFullScreen(); });
+ipcMain.on('zdh-set-fullscreen', (event, on) => { const w = windowOf(event); if (w) w.setFullScreen(!!on); });
+ipcMain.on('zdh-quit', () => app.quit());
 
 app.whenReady().then(() => {
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
