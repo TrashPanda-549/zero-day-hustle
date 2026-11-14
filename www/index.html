@@ -276,6 +276,11 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 @media (prefers-reduced-motion:reduce){.bspr,.bpop,.bflash,.bstage{animation-duration:.01s!important;transition:none!important}}
 .slotline{font-size:12px;margin-bottom:7px;line-height:1.3}
 .slotline .dim{letter-spacing:1px;text-transform:uppercase;font-size:10px}
+/* the tag on goods a street doc had to remove */
+.tagmark{display:inline-block;border:1px dashed var(--yellow);color:var(--yellow);font-size:10px;line-height:1.3;letter-spacing:.5px;
+  padding:0 4px;text-transform:none;font-weight:400;white-space:nowrap}
+.tile.tagged{border-style:dashed;border-color:var(--yellow)}
+.tile.stuck{border-color:var(--red);cursor:pointer}.tile.stuck .glyph{color:var(--red)}
 /* gear rarity colours: common, uncommon, rare, epic, legendary */
 .r0,.syn b.r0{color:#c9d1d5}.r1,.syn b.r1{color:#39ff7a}.r2,.syn b.r2{color:#4da3ff}
 .r3,.syn b.r3{color:#c77dff}.r4,.syn b.r4{color:#ff9d2e}
@@ -1061,6 +1066,9 @@ const ACH = {
   jail: ['Jailbird', 'Get arrested', 50, () => stat('arrest') >= 1],
   phish: ['You Clicked the Link', 'Get phished', 50, () => stat('phished') >= 1],
   nsa: ['Untouchable', 'Beat the NSA in a fight', 1000, () => stat('nsawin') >= 1, true],
+  pocket: ['Nothing to Declare', 'Hide goods from the law in your prison pocket', 50, () => stat('pocket') >= 1],
+  reasons: ['Because Reasons', 'Sell goods that a street doc had to remove', 100, () => stat('reasons') >= 1],
+  dysentery: ['You Have Died of Dysentery', 'Leave them in. All the way to the end.', 50, () => stat('dysentery') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -2873,7 +2881,37 @@ function travelFx(from, to) {
 }
 
 // ---------- state helpers ----------
-const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
+// ---------- the prison pocket ----------
+// Cornered by the law, you can hide a few small goods where nobody wants to look: they survive a search,
+// an arrest and a drive wipe. Each time, some of them may not come back out. Stuck goods (S.stuck) still
+// count as carried but cannot be sold, used or moved until a street doc removes them; left in, they give
+// you dysentery (S.sick counts the nights slept on them). Goods a doc has removed are tagged for good:
+// S.tag[name] says how many of S.inv[name] carry the tag (S.stashTag the same for the Bunker stash), so
+// tagged and clean ones of a kind share one stack, and the tagged ones sell for less.
+const POCKET_CAP = 6, STUCK_ODDS = 0.35, EXTRACT_FEE = 2000, SICK_DAYS = 6;
+const TAG = 'discount because reasons', TAG_CUT = 0.2;
+// What fits, and why the rest does not.
+const POCKET_NO = {'Botnet Hours': 'you cannot hide time', 'Phishing Kits': 'the kit includes a laminator',
+  'Rogue APs': 'it has antennas'};
+const stuckTotal = () => Object.values(S.stuck || {}).reduce((a, b) => a + b, 0);
+const tagged = name => Math.min((S.tag && S.tag[name]) || 0, S.inv[name] || 0);
+const tagPrice = price => Math.floor(price * (1 - TAG_CUT));
+const tagHtml = `<span class="tagmark">${TAG}</span>`;
+// Keep the tag counts inside what is actually held: goods can leave in bulk (a wipe, an arrest, a robbery).
+function fixTags() {
+  for (const [tags, held] of [[S.tag, S.inv], [S.stashTag, S.stash]]) {
+    for (const name of Object.keys(tags || {})) {
+      tags[name] = Math.min(tags[name], held[name] || 0);
+      if (!(tags[name] > 0)) delete tags[name];
+    }
+  }
+}
+const sickLeft = () => SICK_DAYS - (S.sick || 0);
+const nights = n => `${n} more night${n === 1 ? '' : 's'}`;
+const stuckList = () => Object.entries(S.stuck).map(([name, q]) => `${num(q)} ${name}`).join(', ');
+const docSpots = () => GEAR_SPOTS.join(' or ');
+
+const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0) + stuckTotal();
 // What you can carry: the drive in your pocket, plus what your backpack and your clothes hold.
 const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') + bagHolds() + pocketsHold();
 // What you could carry with `it` worn in `slot` instead of what is there now (null: with nothing there).
@@ -2896,7 +2934,7 @@ function tooFull(slot, it) {
     `<p class="dim">Sell, stash or dump ${num(over)} first. Nobody is going to hold them for you while you change.</p>`;
 }
 // The amount carried, coloured by the backpack. The total after it, the same way.
-const driveHtml = () => `<span class="${bagClass()}">${num(used())}/${num(cap())}</span>`;
+const driveHtml = () => `<b class="${bagClass()}">${num(used())}/${num(cap())}</b>`;
 // Where the carrying space comes from, piece by piece.
 function capLines() {
   const parts = [['your own drive', S.drive], ['backpack', bagHolds(), bagClass()], ['pockets', pocketsHold()],
@@ -2919,15 +2957,20 @@ const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
 const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && k !== HIDDEN_SYN);
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
 
-function addItems(name, qty, price) {
+// marked (optional): how many of them carry the "discount because reasons" tag. Leave it out for clean goods.
+function addItems(name, qty, price, marked) {
   const held = S.inv[name] || 0;
   const paid = (S.cost[name] || 0) * held + price * qty;
   S.inv[name] = held + qty;
   S.cost[name] = Math.floor(paid / (held + qty));
+  if (marked > 0) { S.tag = S.tag || {}; S.tag[name] = (S.tag[name] || 0) + Math.min(marked, qty); }
 }
-function removeItems(name, qty) {
+// Clean ones go first. marked (optional): true takes tagged ones instead (that is what selling them does).
+function removeItems(name, qty, marked) {
+  if (marked && S.tag && S.tag[name]) S.tag[name] -= Math.min(qty, S.tag[name]);
   S.inv[name] -= qty;
   if (S.inv[name] <= 0) { delete S.inv[name]; delete S.cost[name]; }
+  fixTags();
 }
 function addHeat(value) {
   let gain = Math.min(10, Math.floor(value / 10000));
@@ -2998,6 +3041,7 @@ function newGame() {
   S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
     kit: 1,   // marks a run started with backpacks: its drive is the new, smaller base
+    stuck: {}, stuckCost: {}, sick: 0, tag: {}, stashTag: {},   // the prison pocket and what it leaves behind
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
@@ -3371,6 +3415,7 @@ async function swapSlot(slot) {
 // ---------- rendering ----------
 function render() {
   SND.sync();
+  fixTags();
   const last = S.day >= DAYS;
   const li = levelInfo();
   $('#career').innerHTML = `<span class="lvl">LVL ${li.level}</span><span>${titleFor(li.level)}</span>` +
@@ -3413,6 +3458,11 @@ function render() {
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
+  // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
+  if (stuckTotal()) {
+    chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
+      S.sick >= 3 ? 'red' : 'amber']);
+  }
   $('#vitals').innerHTML = vitals();
   $('#ava').innerHTML = avatarSvg({fill: true});   // the whole figure, so everything worn shows
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
@@ -3429,7 +3479,12 @@ function render() {
     if (held) {
       const cls = !price ? '' : price > S.cost[name] ? 'green' : price < S.cost[name] ? 'red' : '';
       sub = `<div class="sub ${cls}">holding ${num(held)} @ ${money(S.cost[name] || 0)}</div>`;
+      if (tagged(name)) {
+        sub += `<div class="sub">${num(tagged(name))} of them: ${tagHtml}` +
+          (price ? ` <span class="amber">sell${tagged(name) === 1 ? 's' : ''} for ${money(tagPrice(price))}</span>` : '') + '</div>';
+      }
     }
+    if (S.stuck[name]) sub += `<div class="sub red">${num(S.stuck[name])} stuck in your prison pocket: see a street doc</div>`;
     const canBuy = price && free() > 0 && S.cash >= price;
     const second = held && !price
       ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
@@ -3450,6 +3505,7 @@ function render() {
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
+  if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
   if (S.loc === GUN_SPOT) {
     acts += `<button data-act="gunstore">${GUN_STORE} (guns, ammo)</button>` +
       `<button data-act="outfitter">${OUTFITTER} (clothing, bags, armour)</button>`;
@@ -3479,22 +3535,37 @@ const ACTIONS = {
   },
 
   async sell(name) {
-    const price = S.prices[name], held = S.inv[name] || 0;
-    if (!price || !held) return;
+    const list = S.prices[name], all = S.inv[name] || 0;
+    if (!list || !all) return;
+    // Goods a street doc had to remove carry a tag and sell for less. They are sold apart from the clean ones.
+    const marked = tagged(name), clean = all - marked, low = tagPrice(list);
+    let cut = !clean;
+    if (marked && clean) {
+      const which = await dialog(`Sell ${name}`, `<p>You hold ${num(all)} ${name}. ${num(marked)} of them carry a tag:</p>` +
+        `<div class="syn">${tagHtml}<br><span class="dim">Buyers pay ${pct(TAG_CUT)}% less for those: ` +
+        `<s>${money(list)}</s> <b class="amber">${money(low)}</b> each. Nobody asks why. Everybody knows why.</span></div>`,
+        [[`Sell clean ones (${num(clean)}) at ${money(list)}`, 'c', 'primary'], [`Sell tagged ones (${num(marked)}) at ${money(low)}`, 't'],
+          ['Cancel', null, 'small']]);
+      if (!which) return;
+      cut = which === 't';
+    }
+    const price = cut ? low : list, held = cut ? marked : clean;
     const qty = await askQty(`Sell ${name}`,
-      `<p>Buyers pay ${money(price)} each. You hold ${num(held)}, bought at ${money(S.cost[name] || 0)}.</p>`,
+      (cut ? `<p>${tagHtml}</p><p>Buyers pay <s>${money(list)}</s> <b class="amber">${money(price)}</b> each for these: ${pct(TAG_CUT)}% off.` : `<p>Buyers pay ${money(price)} each.`) +
+      ` You hold ${num(held)}, bought at ${money(S.cost[name] || 0)}.</p>`,
       held, {unit: price, ok: 'Sell'});
     if (!qty) return;
     const profit = (price - (S.cost[name] || 0)) * qty;
     S.cash += qty * price;
-    removeItems(name, qty);
+    removeItems(name, qty, cut);
+    if (cut) { tagSales += qty; tally('reasons', qty); }
     addHeat(qty * price);
     const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
     if (profit > 0) { tally('profit', profit); if (S.flags[name] === 'up') tally('spike'); }
     S.mood = profit > 0 ? 'grin' : profit < 0 ? 'ouch' : S.mood;
     SND.play(profit >= 0 ? 'cash' : 'loss');
     log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
-      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${xp}`);
+      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${cut ? ` ${tagHtml}` : ''}${xp}`);
   },
 
   async contract(index) {
@@ -3610,10 +3681,16 @@ const ACTIONS = {
       const goodsHtml = goods.map(n => {
         const q = S.inv[n], price = S.prices[n], cost = S.cost[n] || 0;
         paid += q * cost;
-        if (price) worth += q * price;
+        if (price) worth += (q - tagged(n)) * price + tagged(n) * tagPrice(price);
         const cls = !price ? 'dim' : price > cost ? 'green' : price < cost ? 'red' : '';
-        return tile('g:' + n, `<b class="glyph ${cls}">${initials(n)}</b>`, n, 'x' + num(q));
+        // Tagged ones get a tile of their own, next to the clean ones of the same kind.
+        const marked = tagged(n), glyph = `<b class="glyph ${cls}">${initials(n)}</b>`;
+        return (q > marked ? tile('g:' + n, glyph, n, 'x' + num(q - marked)) : '') +
+          (marked ? tile('g:' + n, glyph, tagHtml, 'x' + num(marked) + ' &#9888;', 'tagged wide') : '');
       }).join('');
+      // --- stuck in the prison pocket: listed, but locked ---
+      const stuckHtml = Object.keys(S.stuck).map(n =>
+        tile('k:' + n, `<b class="glyph">${initials(n)}</b>`, n, 'x' + num(S.stuck[n]) + ' &#128274;', 'stuck')).join('');
       // --- weapon and ammunition ---
       const w = WEAPONS[S.weapon], active = activeAmmo();
       const weaponHtml = (w ? tile('weapon', weaponIcon(S.weapon), w[0], '', 'wide')
@@ -3638,7 +3715,12 @@ const ACTIONS = {
       const html = head('Goods', `drive ${driveHtml()}`) +
         (goods.length ? `<div class="tiles">${goodsHtml}</div>` + '<p class="dim">' +
           (goods.some(n => S.prices[n]) ? `Sells here for <b class="${worth > paid ? 'green' : worth < paid ? 'red' : ''}">${money(worth)}</b>`
-            : 'No market here') + ` &middot; you paid ${money(paid)}</p>` : none('Your drive is empty.')) +
+            : 'No market here') + ` &middot; you paid ${money(paid)}</p>` +
+          (goods.some(n => tagged(n)) ? `<p class="dim">&#9888; ${tagHtml}: these sell for ${pct(TAG_CUT)}% less.</p>` : '')
+          : none('Your drive is empty.')) +
+        (stuckHtml ? head('Prison pocket', `<span class="red">${stuckTotal()}/${POCKET_CAP} stuck</span>`) + `<div class="tiles">${stuckHtml}</div>` +
+          `<p class="red">Stuck. They cannot be sold, used or moved until a street doc at the black market (${docSpots()}) takes them out. ` +
+          `${sickLeft() <= 1 ? 'Sleep on them again and you die of dysentery.' : `You can sleep on them ${nights(sickLeft() - 1)}.`}</p>` : '') +
         head('Weapon &amp; ammo', w ? (WTYPE[w[4]] || [''])[0] : 'unarmed') + `<div class="tiles">${weaponHtml}</div>` +
         head('Supplies', '') + (supplies ? `<div class="tiles">${supplies}</div>` : none('No medkits, proxies or gadgets.')) +
         head('Gear bag', `${career.bag.length}/${BAG_SIZE}`) + `<div class="tiles">${bagHtml}</div>` +
@@ -3689,9 +3771,17 @@ const ACTIONS = {
         const q = S.inv[arg], price = S.prices[arg], cost = S.cost[arg] || 0;
         const act = await dialog(arg, `<div class="syn"><b>${arg}</b> x${num(q)}<br>paid ${money(cost)} each, ${money(q * cost)} in all</div>` +
           (price ? `<p>Sells here for <b class="${price > cost ? 'green' : price < cost ? 'red' : ''}">${money(price)}</b> each, ` +
-            `${money(q * price)} for the lot.</p>` : none('Nobody is buying these here.')),
+            `${money((q - tagged(arg)) * price + tagged(arg) * tagPrice(price))} for the lot.</p>` : none('Nobody is buying these here.')) +
+          (tagged(arg) ? `<div class="syn">${num(tagged(arg))} of them carry a tag: ${tagHtml}<br><span class="dim">Those sell for ${pct(TAG_CUT)}% less` +
+            `${price ? `: ${money(tagPrice(price))} each here` : ''}. A street doc had to remove them. That is all anyone needs to know.</span></div>` : ''),
           [price ? ['Sell', 'sell', 'primary'] : ['Dump', 'dump', 'danger'], ['Back', null]]);
         if (act) await ACTIONS[act](arg);
+      } else if (choice.startsWith('k:')) {
+        await dialog(arg, `<div class="syn"><b class="red">${arg}</b> x${num(S.stuck[arg])} &#128274;<br>stuck in your prison pocket</div>` +
+          `<p>They cannot be sold, used, stashed or dumped until a street doc at the black market (${docSpots()}) takes them out. ` +
+          'He also patches you up to full Health while he is in there.</p>' +
+          `<p class="amber">${sickLeft() <= 1 ? 'Sleep on them again and you die of dysentery.' : `You can sleep on them ${nights(sickLeft() - 1)} before the one that kills you.`}</p>`,
+          [['Back', null, 'primary']]);
       } else if (choice.startsWith('b:')) await bagItem(Number(arg));
       render();
     }
@@ -3728,7 +3818,9 @@ const ACTIONS = {
     const had = S.stash[name] || 0;
     S.stashCost[name] = Math.floor(((S.stashCost[name] || 0) * had + (S.cost[name] || 0) * qty) / (had + qty));
     S.stash[name] = had + qty;
-    removeItems(name, qty);
+    const tagWas = tagged(name);
+    removeItems(name, qty);   // clean ones first; any tagged ones that go keep their tag in the stash
+    if (tagWas > tagged(name)) S.stashTag[name] = (S.stashTag[name] || 0) + tagWas - tagged(name);
     log(`Stashed ${num(qty)} ${name} in the Bunker.`);
   },
 
@@ -3738,9 +3830,12 @@ const ACTIONS = {
     const qty = await askQty(`Take ${name}`, `<p>Load them back onto your drive. The stash holds ${num(had)}.</p>`,
       most, {ok: 'Take'});
     if (!qty) return;
-    addItems(name, qty, S.stashCost[name] || 0);
+    const stTag = Math.min(S.stashTag[name] || 0, had), back = Math.max(0, qty - (had - stTag));   // clean ones first
+    addItems(name, qty, S.stashCost[name] || 0, back);
+    if (back) S.stashTag[name] = stTag - back;
     S.stash[name] = had - qty;
     if (S.stash[name] <= 0) { delete S.stash[name]; delete S.stashCost[name]; }
+    fixTags();
     log(`Took ${num(qty)} ${name} out of the stash.`);
   },
 
@@ -3748,18 +3843,27 @@ const ACTIONS = {
   async sleep() {
     if (S.loc !== BUNKER) return;
     if (S.day >= DAYS) return ACTIONS.cashout();
-    if (!await confirmDlg('Sleep', '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' +
+    const gut = !stuckTotal() ? '' : sickLeft() <= 1
+      ? '<p class="red"><b>You still have goods stuck in your prison pocket. If you sleep now, you will die of dysentery.</b> ' +
+        `The street doc is at ${docSpots()}.</p>`
+      : `<p class="amber">You still have goods stuck in your prison pocket. Sleeping on them makes you sicker: ${nights(sickLeft() - 1)} ` +
+        `and then the one that kills you. The street doc is at ${docSpots()}.</p>`;
+    if (!await confirmDlg('Sleep', gut + '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
     if (S.heat < 20) tally('cool');
     if (S.heat <= 0) tally('zeroheat');
     SND.play('sleep');
     nextDay();
-    S.hp = Math.min(100, S.hp + 35);
+    // Sleeping on stuck goods makes you ill: less rest at first, then none, then dysentery.
+    const ill = stuckTotal() ? ++S.sick : (S.sick = 0);
+    S.hp = Math.min(100, S.hp + (ill >= 3 ? 0 : ill ? 15 : 35));
     S.opsec = Math.min(100, S.opsec + 15);
     S.heat = Math.max(0, S.heat - 20);
     log(`Day ${S.day}: you slept in the Bunker. New prices everywhere.`);
     render();
+    if (ill) await sickNight(ill);
+    if (S.over) return;
     if (Math.random() < Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1)) await homeRaid(true);
   },
 
@@ -3811,6 +3915,36 @@ const ACTIONS = {
     await pickAmmo();
   },
 
+  // The street doc at the black market takes out whatever is stuck in your prison pocket. It always can be
+  // done: if you are short, the fee goes on your tab with the Fixer. The goods come back tagged.
+  async clinic() {
+    if (!GEAR_SPOTS.includes(S.loc) || !stuckTotal()) return;
+    const fee = Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5)), paid = Math.min(fee, S.cash), owed = fee - paid;
+    const n = stuckTotal();
+    if (!await confirmDlg('Street doc', `<div class="syn">${withIcon(miscIcon('doc'), '<b>Extraction</b><br>' +
+      `removes what is stuck in your prison pocket, and patches you up from ${S.hp}% to full Health`)}</div>` +
+      '<p>The street doc looks at you, then at the scan, then at you again. "I am not going to ask. I am going to charge."</p>' +
+      `<p>Stuck: <b>${stuckList()}</b>.</p>` +
+      `<p>Fee: <span class="amber">${money(fee)}</span>. You have <span class="green">${money(S.cash)}</span>.` +
+      (owed ? ` <span class="amber">"I know the Fixer. The other ${money(owed)} goes on your tab."</span>` : '') + '</p>' +
+      `<p class="dim">You get the goods back. They will sell for ${pct(TAG_CUT)}% less from now on, with a tag that reads: ${tagHtml}</p>`,
+      'Get them out', 'Keep them in')) return;
+    S.cash -= paid;
+    S.debt += owed;
+    for (const [name, qty] of Object.entries(S.stuck)) addItems(name, qty, S.stuckCost[name] || 0, qty);
+    S.stuck = {}; S.stuckCost = {}; S.sick = 0;
+    S.hp = 100;
+    extractTally++;
+    tally('extract');
+    SND.play('heal');
+    log(`<span class="green">The street doc got ${num(n)} goods out for ${money(fee)}${owed ? ` (${money(owed)} of it on the Fixer's tab)` : ''}. ` +
+      `Health back to 100%.</span> ${tagHtml}`);
+    render();
+    await alertDlg('Extracted', `<p>Ten minutes, one pair of tongs, no eye contact. All <b>${num(n)}</b> are out, and you are patched up to <b>100% Health</b>.</p>` +
+      `<p>He rinses them, bags them, and staples a tag to the bag: ${tagHtml}</p>` +
+      `<p class="dim">Tagged goods sell for ${pct(TAG_CUT)}% less, wherever you sell them. Word gets around.</p>`);
+  },
+
   // Burn a fake identity to cool your Heat.
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
@@ -3844,9 +3978,11 @@ const ACTIONS = {
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
       const buttons = offers.filter(o => S.cash >= o.price)
         .map(o => [o.key === 'd' ? 'See the street doc' : `Buy ${o.name}`, o.key, o.cls, o.item ? gearIcon(o.item) : miscIcon(o.art)]);
+      if (stuckTotal()) buttons.unshift([`Street doc: get them out (${stuckTotal()})`, 'clinic', 'danger', miscIcon('doc')]);
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
+      if (key === 'clinic') { await ACTIONS.clinic(); continue; }
       const o = offers.find(x => x.key === key);
       S.cash -= o.price;
       if (o.gadget) S[o.gadget]++;
@@ -4137,12 +4273,16 @@ function seizeStash(share) {
 
 function stashHtml() {
   const total = stashTotal();
-  const names = GOODS.map(g => g[0]).filter(n => S.inv[n] || S.stash[n]);
+  const names = GOODS.map(g => g[0]).filter(n => S.inv[n] || S.stash[n] || S.stuck[n]);
   return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${STASH_CAP} &middot; carrying ${driveHtml()}</div>` +
     '<div class="sub">Store goods here to free up your drive. Rival crews can\'t touch you at home, but the law can raid ' +
     'the place whether you are in or out, and they take the stash.</div></div></div>' +
     (names.length ? names.map(n => `<div class="row"><div><div class="name">${n}</div>` +
-      `<div class="sub">carrying ${num(S.inv[n] || 0)} &middot; stashed ${num(S.stash[n] || 0)}</div></div><div></div>` +
+      `<div class="sub">carrying ${num(S.inv[n] || 0)} &middot; stashed ${num(S.stash[n] || 0)}</div>` +
+      (tagged(n) || S.stashTag[n] ? `<div class="sub">${tagHtml} ${[tagged(n) ? `${num(tagged(n))} carried` : '',
+        S.stashTag[n] ? `${num(S.stashTag[n])} stashed` : ''].filter(Boolean).join(', ')}</div>` : '') +
+      (S.stuck[n] ? `<div class="sub red">${num(S.stuck[n])} stuck in your prison pocket: they are not going in the stash</div>` : '') +
+      '</div><div></div>' +
       `<div class="btns"><button data-act="store" data-arg="${n}"${S.inv[n] && total < STASH_CAP ? '' : ' disabled'}>Store</button>` +
       `<button data-act="take" data-arg="${n}"${S.stash[n] && free() > 0 ? '' : ' disabled'}>Take</button></div></div>`).join('')
       : '<div class="row"><div class="sub">Nothing to store yet. Bring goods here to keep them off your drive.</div></div>');
@@ -4385,6 +4525,114 @@ function jumped() {
     intro: `You surface at ${S.loc} and walk straight into it. ${name}: ${n} of them, stepping out of the dark.`});
 }
 
+// ---------- the prison pocket, in use ----------
+// E.pocket holds what went in during this encounter: [{name, qty, cost, tag}]. It only lasts as long as the
+// fight does; pocketOut() empties it again when the fight is over, however it ended.
+let pocketTally = 0, stuckTally = 0, extractTally = 0, tagSales = 0, sickTally = 0, deadTally = 0;   // counted for the self-test
+const pocketRoom = E => POCKET_CAP - stuckTotal() - ((E && E.pocket) || []).reduce((sum, lot) => sum + lot.qty, 0);
+const pocketable = () => GOODS.map(g => g[0]).filter(name => S.inv[name] && !POCKET_NO[name]);
+
+// Choose what to hide. Returns {name, qty}, or null if you thought better of it.
+async function pocketIn(E) {
+  const room = pocketRoom(E), names = pocketable();
+  if (room <= 0 || !names.length) return null;
+  const wont = Object.keys(POCKET_NO).filter(name => S.inv[name]);
+  const html = `<p>There is one place on you ${E.name} will not search without a warrant and a strong stomach. ` +
+    `It holds <b>${room}</b> more small thing${room === 1 ? '' : 's'}.</p>` +
+    names.map(name => {
+      const qty = Math.min(room, S.inv[name]);
+      return `<div class="syn pickable" data-pick="${name}"><b>${name}</b> x${num(qty)}` +
+        `<br><span class="dim">you hold ${num(S.inv[name])}, bought at ${money(S.cost[name] || 0)} each</span></div>`;
+    }).join('') +
+    (wont.length ? `<p class="dim">Will not fit: ${wont.map(name => `${name} (${POCKET_NO[name]})`).join(', ')}.</p>` : '') +
+    '<p class="dim">What you hide survives a search, an arrest and a drive wipe. It costs you this turn. ' +
+    `About one time in three, some of it does not come back out, and then you need a street doc.</p>`;
+  const name = await dialog('Prison pocket', html, [['Never mind', null, 'primary']]);
+  if (!name || !S.inv[name] || POCKET_NO[name]) return null;
+  const qty = Math.min(room, S.inv[name]), cost = S.cost[name] || 0, tagWas = tagged(name);
+  removeItems(name, qty);
+  E.pocket = E.pocket || [];
+  E.pocket.push({name, qty, cost, tag: tagWas - tagged(name)});
+  if (Math.random() < STUCK_ODDS) E.jam = true;   // each use rolls on its own; you find out afterwards
+  pocketTally++;
+  tally('pocket');
+  log(`You hid ${num(qty)} ${name} in your prison pocket.`);
+  return {name, qty};
+}
+
+// The fight is over: get it all back out. If a use went wrong, some of it stays where it is.
+async function pocketOut(E) {
+  const lots = E.pocket || [];
+  delete E.pocket;
+  if (!lots.length || S.over) return;
+  fixTags();   // the drive may have been wiped or seized since they went in
+  const total = lots.reduce((sum, lot) => sum + lot.qty, 0);
+  // Which ones stick is the luck of the draw: shuffle every hidden thing and keep the first few.
+  const units = lots.flatMap((lot, i) => Array(lot.qty).fill(i)).sort(() => Math.random() - 0.5);
+  const jam = E.jam ? rnd(1, total) : 0, held = lots.map(() => 0);
+  units.slice(0, jam).forEach(i => held[i]++);
+  const wasStuck = stuckTotal();
+  lots.forEach((lot, i) => {
+    const out = lot.qty - held[i];
+    if (out) addItems(lot.name, out, lot.cost, Math.min(lot.tag, out));
+    if (held[i]) {
+      const had = S.stuck[lot.name] || 0;
+      S.stuckCost[lot.name] = Math.floor(((S.stuckCost[lot.name] || 0) * had + lot.cost * held[i]) / (had + held[i]));
+      S.stuck[lot.name] = had + held[i];
+    }
+  });
+  render();
+  if (!jam) {
+    log(`<span class="green">Your prison pocket gave back all ${num(total)} goods.</span>`);
+    return alertDlg('Prison pocket', `<p>Somewhere private, you get all <b>${num(total)}</b> back. You do not look at them directly.</p>` +
+      '<p class="dim">Nobody saw anything. You will be telling yourself that for a while.</p>');
+  }
+  if (!wasStuck) S.sick = 0;
+  stuckTally++;
+  tally('stuck');
+  S.mood = 'ouch';
+  log(`<span class="red">${num(jam)} of the goods in your prison pocket are stuck: ${stuckList()}.</span>`);
+  render();
+  return alertDlg('Stuck', `<p>${total - jam ? `<b>${num(total - jam)}</b> come back out.` : 'Nothing comes back out.'} ` +
+    `<b>${num(jam)}</b> ${jam === 1 ? 'does' : 'do'} not, and you tried.</p>` +
+    `<div class="syn"><b class="red">Stuck:</b> ${stuckList()}<br><span class="dim">They cannot be sold, used or moved, and they still count as carried.</span></div>` +
+    `<p>A <b>street doc</b> at the black market (${docSpots()}) will take them out for a fee, and patch you up to full Health while he is in there.</p>` +
+    `<p class="amber">Do not sleep on it. Left in, they give you dysentery: you have ${nights(sickLeft() - 1)} before the one you do not wake up from.</p>`, 'danger');
+}
+
+// A night slept with goods stuck. n: how many nights that makes. Tells you where you stand; the last one ends the run.
+async function sickNight(n) {
+  sickTally++;
+  const left = SICK_DAYS - n, doc = `<p class="dim">Stuck: ${stuckList()}. The street doc at the black market (${docSpots()}) removes them.</p>`;
+  const count = left > 1 ? `<p class="amber">You can sleep on it ${nights(left - 1)}. The one after that is the last.</p>` : '';
+  if (n >= SICK_DAYS) {
+    S.hp = 0;
+    S.over = true;
+    S.dead = 'dysentery';
+    deadTally++;
+    tally('dysentery');
+    log('<span class="red">You have died of dysentery.</span>');
+    return;
+  }
+  if (n < 3) {
+    log(`<span class="amber">Day ${S.day}: your gut is not happy about what is stuck in it. Sleep only healed 15%.</span>`);
+    return alertDlg(n === 1 ? 'Something is wrong' : 'Cramps', (n === 1
+      ? '<p>You sleep badly. What is stuck in your prison pocket has started to disagree with you, and it is winning the argument.</p>'
+      : '<p>Cramps wake you twice. You have begun to plan your day around bathrooms.</p>') +
+      '<p>Sleep only heals 15% Health while they are in there.</p>' + count + doc, 'danger');
+  }
+  const loss = n >= 5 ? 25 : 15, slow = n >= 5 ? 2 : 1;
+  S.hp = Math.max(5, S.hp - loss);
+  S.trips = Math.max(1, S.trips - slow);
+  S.mood = 'ouch';
+  log(`<span class="red">Day ${S.day}: dysentery. Health -${loss}%, and ${slow} trip${slow === 1 ? '' : 's'} lost to the bathroom.</span>`);
+  return alertDlg(n >= 5 ? 'DYSENTERY: LAST WARNING' : 'DYSENTERY', (n >= 5
+    ? '<p>You are grey, shaking, and on first-name terms with the Bunker\'s plumbing. <b>If you sleep again with them still in, you die.</b></p>'
+    : '<p>It is dysentery now. This is what happens when you keep merchandise where merchandise was never meant to be kept.</p>') +
+    `<p>Health <b class="red">-${loss}%</b>, sleep no longer heals you, and you lose <b>${slow}</b> trip${slow === 1 ? '' : 's'} today to the bathroom.</p>` +
+    count + doc, 'danger');
+}
+
 // ---------- battle screen ----------
 // Fights play out on a side-on stage: the hostiles lined up on the left, you on the right, and windows
 // underneath for who is left standing, your vitals and the list of commands. It only draws what
@@ -4513,6 +4761,10 @@ const BTL = (() => {
         stat();
         return pause(750);
       }
+      if (cmd === 'pocket') {   // nothing to see here
+        pop(hero, 'HIDDEN', 'yellow');
+        return pause(750);
+      }
       if (cmd === 'run') {   // only shown when it failed
         fx(hero, 'lunge', 260);
         await pause(300);
@@ -4580,7 +4832,9 @@ async function fight(E) {
   SND.battle = E.kind === 'raid' ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
   try {
-    return await fightRounds(E);
+    const result = await fightRounds(E);
+    await pocketOut(E);   // whatever went into the prison pocket comes back out now. Most of it.
+    return result;
   } finally {
     BTL.close();
     SND.battle = null;
@@ -4599,7 +4853,7 @@ async function fightRounds(E) {
   const title = law ? `!! ${E.name.replace(/^the /, '').toUpperCase()} !!`
     : raid ? `RAID: ${E.name}` : thug ? `!! ${E.name.toUpperCase()} !!` : `!! ${E.name.toUpperCase()} ATTACK !!`;
   const hint = law
-    ? 'Shooting, EMPs and running risk your Health. Hacking risks your OpSec and keeps your Heat down. Wiping the drive loses your goods but always escapes.'
+    ? 'Shooting, EMPs and running risk your Health. Hacking risks your OpSec and keeps your Heat down. Wiping the drive loses your goods but always escapes. Your prison pocket keeps a few small goods through a search, an arrest or a wipe.'
     : raid ? 'A remote fight: only hacking tools work and only your OpSec is at risk. Jack out any time to leave empty-handed.'
     : thug ? 'They are on you in person, so whatever you do, their hits land on your Health. Fight, run, pop smoke, or hand over some cash.'
     : 'Shooting, EMPs and running risk your Health. Hacking back risks your OpSec. Or pay them to go away.';
@@ -4655,10 +4909,13 @@ async function fightRounds(E) {
     if (S.medkits && S.hp < 100) buttons.push([`Medkit (${S.medkits})`, 'med']);
     buttons.push([raid ? 'Jack out' : 'Run', 'run']);
     if (law) buttons.push(['Wipe drive', 'wipe', 'danger']);
+    if (law && pocketRoom(E) > 0 && pocketable().length) buttons.push([`Prison pocket (${pocketRoom(E)} free)`, 'pocket']);
     if ((E.kind === 'gang' || thug) && S.cash >= payoff) buttons.push([`${thug ? 'Hand over' : 'Pay them'} ${money(payoff)}`, 'pay']);
     const cmd = await BTL.menu(buttons, msg);
 
     if (cmd === 'ammo') { await pickAmmo(); continue; }   // swapping ammo does not cost a turn
+    const hid = cmd === 'pocket' ? await pocketIn(E) : null;
+    if (cmd === 'pocket' && !hid) continue;               // thought better of it: that does not cost a turn either
     let kills = 0, stunned = false;
     const hadRounds = !W || !usesAmmo(W) || !!activeAmmo();   // false when a gun is empty and gets swung instead
     const move = buttons.find(b => b[1] === cmd)[0].replace(/\s*\(.*$/, '');   // its name, for the banner over the stage
@@ -4737,6 +4994,9 @@ async function fightRounds(E) {
       E.result = 'fled';
       await BTL.flee();
       return alertDlg('Drive wiped', '<p>You nuke the drive. Nothing left to find. The trail goes cold.</p>');
+    } else if (cmd === 'pocket') {
+      msg = `You turn your back for a moment. ${num(hid.qty)} ${hid.name} ${hid.qty === 1 ? 'is' : 'are'} no longer on your drive, ` +
+        'or anywhere else a warrant covers.';
     } else if (cmd === 'pay') {
       S.cash -= payoff;
       log(`<span class="amber">Paid ${E.name} ${money(payoff)} to back off.</span>`);
@@ -4887,7 +5147,18 @@ async function lose(E) {
 async function finish() {
   store.del('zdh-save');
   render();
-  SND.play(S.busted ? 'gone' : 'level');
+  SND.play(S.busted || S.dead ? 'gone' : 'level');
+  if (S.dead) {
+    // The one way to die: leaving goods stuck in your prison pocket until the dysentery finishes it.
+    await dialog('YOU HAVE DIED OF DYSENTERY', `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` +
+      `<p>Cause of death: <b class="red">${S.dead}</b>.</p>` +
+      `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
+      `A street doc would have had them out in ten minutes.</p>` +
+      '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
+      `<p>Your run ends on day ${S.day}. No score for the dead.</p>` +
+      `<p>XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New run', true, 'primary']], 'danger');
+    return;
+  }
   if (S.busted) {
     await dialog('VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` + '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
       `<p>Your run ends on day ${S.day}. No score for the disappeared.</p>` +
@@ -4988,7 +5259,7 @@ async function selfTest(games) {
       }
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
       else if (game % 2) career.gear.back = makeItem(rnd(0, 4), 'back');           // some start with a better one
-      if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`class="${bagClass()}"`)) {
+      if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`<b class="${bagClass()}"`)) {
         throw new Error('drive colour does not follow the backpack');
       }
       S.proxies = rnd(0, 3); S.weapon = rnd(0, WEAPONS.length - 1);
@@ -5005,6 +5276,30 @@ async function selfTest(games) {
         if ((act === 'gunstore' || act === 'outfitter') && S.loc !== GUN_SPOT) continue;
         if (act === 'raid') raids++;
         if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
+        if (S.over) break;   // the law came in the night, or the dysentery did
+        // The prison pocket, away from a fight so it happens often enough: hide something small, get it back
+        // out, and half the time make sure some of it sticks. (Real brushes with the law use it at random too.)
+        if (Math.random() < 0.012 && pocketRoom() > 0) {
+          if (free() >= 5) addItems(pick(['Burner SIMs', 'USB Droppers', 'Zero-Days']), rnd(1, 5), 40);
+          const E = {kind: 'law', tier: 0, name: LAW[0].name, n: 1, result: pick(['fled', 'won'])};
+          const before = used(), hid = await pocketIn(E);
+          if (hid && (POCKET_NO[hid.name] || hid.qty > POCKET_CAP || used() !== before - hid.qty)) throw new Error('prison pocket took the wrong things');
+          if (hid && Math.random() < 0.5) E.jam = true;
+          await pocketOut(E);
+          if (used() !== before || E.pocket) throw new Error('prison pocket lost or made goods');
+        }
+        // With goods stuck, most runs get to a street doc sooner or later. Every fifth one refuses to go.
+        if (stuckTotal() && game % 5 !== 4 && (GEAR_SPOTS.includes(S.loc) ? Math.random() < 0.5 : Math.random() < 0.03)) {
+          if (!GEAR_SPOTS.includes(S.loc)) { S.loc = GEAR_SPOTS[0]; rollMarket(); }
+          const n = stuckTotal(), before = used(), tags = Object.values(S.tag).reduce((a, b) => a + b, 0), cash = S.cash, debt = S.debt;
+          await ACTIONS.clinic();
+          if (!stuckTotal()) {   // done: everything is back, tagged, you are patched up, and the fee was paid or put on the tab
+            const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5));
+            if (S.hp !== 100 || S.sick || used() !== before || now !== tags + n || cash - S.cash + S.debt - debt !== fee) throw new Error('extraction went wrong');
+          } else if (stuckTotal() !== n) throw new Error('extraction took only some');
+        }
+        const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
+        const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
           stash(makeItem(rnd(0, 4)));
           await swapSlot(pick(Object.keys(SLOTS)));
@@ -5037,7 +5332,14 @@ async function selfTest(games) {
           await ACTIONS.contract(0);
           contractsSeen += c ? 1 : 0;
         } else {
-          await ACTIONS[act](names[rnd(0, names.length - 1)]);
+          await ACTIONS[act](sold || names[rnd(0, names.length - 1)]);
+        }
+        if (sale) {
+          // A sale is all clean or all tagged, and the tagged ones go for exactly 20% less.
+          const [cash, held, marks, price] = sale, gone = held - (S.inv[sold] || 0), cut = marks - tagged(sold);
+          if ((cut && cut !== gone) || S.cash - cash !== (cut ? cut * Math.floor(price * 0.8) : gone * (price || 0))) {
+            throw new Error(`sale of ${sold} paid wrong: ` + JSON.stringify([sale, S.cash, gone, cut]));
+          }
         }
         await flushNotes();
         await levelUpCheck();
@@ -5046,6 +5348,15 @@ async function selfTest(games) {
         const fits = used() <= cap();
         if (!fits && wasFit && career.syn === wasSyn) throw new Error(`carrying ${used()} of ${cap()}: ` + JSON.stringify([act, career.gear]));
         wasFit = fits; wasSyn = career.syn;
+        // Stuck goods: only what fits, never more than the pocket holds, and you are ill exactly while they are in.
+        // Tags never outnumber the goods they are on.
+        const ints = o => Object.values(o).every(q => Number.isInteger(q) && q > 0);
+        if (stuckTotal() > POCKET_CAP || !ints(S.stuck) || !ints(S.tag) || !ints(S.stashTag) || Object.keys(S.stuck).some(n => POCKET_NO[n] || !names.includes(n)) ||
+          Object.keys(S.tag).some(n => S.tag[n] > (S.inv[n] || 0)) || Object.keys(S.stashTag).some(n => S.stashTag[n] > (S.stash[n] || 0)) ||
+          !Number.isInteger(S.sick) || S.sick < 0 || (S.sick >= SICK_DAYS) !== !!S.dead || (S.sick > 0 && !stuckTotal()) || (!!S.dead && !S.over) ||
+          [...document.querySelectorAll('#market .tagmark')].some(el => el.textContent !== 'discount because reasons')) {
+          throw new Error('prison pocket invariant broken: ' + JSON.stringify([S.stuck, S.tag, S.stashTag, S.sick, S.inv, S.stash]));
+        }
         const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || S.kit !== 1 ||
           !Number.isInteger(cap()) || cap() < S.drive || cap() !== S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') +
             Object.values(career.gear).reduce((sum, it) => sum + carries(it), 0) ||
@@ -5062,12 +5373,18 @@ async function selfTest(games) {
       }
       if (S.over) {
         finished++;
-        if (S.busted) busted++; else best = Math.max(best, S.cash + S.wallet - S.debt);
+        if (S.dead && !(S.dead === 'dysentery' && S.sick === SICK_DAYS && stuckTotal() && S.hp === 0)) throw new Error('died of nothing');
+        if (S.busted) busted++; else if (!S.dead) best = Math.max(best, S.cash + S.wallet - S.debt);
         await finish();
       }
     }
+    // A run of any length must have been through the whole of the prison pocket at least once.
+    if (games >= 20 && !(pocketTally && stuckTally && extractTally && tagSales && sickTally && deadTally)) {
+      throw new Error('prison pocket not exercised: ' + [pocketTally, stuckTally, extractTally, tagSales, sickTally, deadTally]);
+    }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}`;
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+      ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
     document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
@@ -5116,6 +5433,9 @@ function loadSave(n) {
     S.kit = 1;
   }
   S.shop = S.shop || [];
+  for (const k of ['stuck', 'stuckCost', 'tag', 'stashTag']) S[k] = S[k] && typeof S[k] === 'object' ? S[k] : {};
+  S.sick = Number.isInteger(S.sick) ? S.sick : 0;
+  fixTags();
   for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
   if (S.armor && !career.gear.body) {
     // The old vest becomes a gear item.
@@ -5164,6 +5484,8 @@ function introText() {
     '<p>When cornered you can shoot, hack, run or pay.Shootouts cost <span class="green">Health</span>, hack fights cost ' +
     '<span class="green">OpSec</span>; lose either and you go down. Gear, a street doc and an arms dealer are at the black market; guns, ammo and a clothing store are at the ' + GUN_SPOT + '.</p>' +
     '<p>Firearms need <span class="amber">ammo</span>, and better rounds hit more often.</p>' +
+    '<p>Cornered by the law, you can hide a few small goods in your <span class="amber">prison pocket</span>. Sometimes they get stuck. ' +
+    'See the street doc before you sleep on it too many times.</p>' +
     '<p>How much you can carry depends on what you wear: a <span class="amber">backpack</span> and anything with pockets. ' +
     'The amount on your Drive takes the colour of the bag on your back.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
