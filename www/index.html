@@ -495,6 +495,7 @@ const ECON = {
   marketGrowth: 0.23, marketCurve: 1.7,
   depthWeight: {'Zero-Days': 3, 'Rootkits': 2},   // per-good multiplier on depth: the big-ticket goods are where the late money is
   minDepth: 0.3,         // the thinnest a market gets: it takes one unit at the price shown and barely a second
+  thin: 0.75,            // below this depth a market buys a good from you but has none of it for sale
   spikeDepth: 1,         // a market that is short of something (the amber up-arrow) takes this many times more
   floodStock: 2,         // a market that is flooded (the cyan down-arrow) has this many times the stock
   stock: 2,              // units on sale per day, as a multiple of the depth
@@ -3231,7 +3232,8 @@ function depthOf(name, flag) {
 }
 const newBook = (name, base) => {
   const depth = depthOf(name, S.flags[name]);
-  return {base, depth, stock: Math.max(1, Math.ceil(depth * ECON.stock * (S.flags[name] === 'down' ? ECON.floodStock : 1))), x: 0};
+  // A market too thin to deal in something (ECON.thin) will take one off you but has none to sell.
+  return {base, depth, stock: depth < ECON.thin ? 0 : Math.max(1, Math.ceil(depth * ECON.stock * (S.flags[name] === 'down' ? ECON.floodStock : 1))), x: 0};
 };
 // Open today's books at a market that was just rolled: yesterday's dumping (or buying out) still shows.
 function openBooks() {
@@ -3800,14 +3802,14 @@ function render() {
     const bk = book(name);
     if (bk) {
       const pc = Math.round((price / bk.base - 1) * 100);
-      sub += `<div class="sub dim">${num(buyRoom(name))} in stock` +
+      sub += `<div class="sub dim">${bk.stock || buyRoom(name) ? `${num(buyRoom(name))} in stock` : 'none for sale yet: they will take one off you'}` +
         (pc <= -3 ? ` &middot; <span class="amber">&#9662; ${-pc}% after your sales</span>` : pc >= 3 ? ` &middot; <span class="amber">&#9652; ${pc}% after your buying</span>`
           : bk.soft ? ' &middot; <span class="amber">still soft from your last visit</span>' : '') + '</div>';
     }
     const canBuy = price && free() > 0 && buyRoom(name) > 0 && S.cash >= buyTotal(name, 1);
     // The price shown is what the next one sells for. In a thin market buying one costs noticeably more: say so.
     const ask = bk && buyRoom(name) > 0 ? buyTotal(name, 1) : 0;
-    const askHtml = ask > price * 1.03 ? `<div class="sub dim">to buy: ${money(ask)}</div>` : '';
+    const askHtml = ask > price * 1.1 ?`<div class="sub dim">to buy: ${money(ask)}</div>` : '';
     const second = held && !price
       ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
       : `<button data-act="sell" data-arg="${name}"${held && price ? '' : ' disabled'}>Sell</button>`;
@@ -5810,9 +5812,14 @@ async function econSelfTest() {
     // --- thin markets: one unit at the price shown, the next for far less, and buying one costs more ---
     open(1, {'Zero-Days': 20000, 'Warez': 40});
     b = book('Zero-Days');
-    if (sellTotal('Zero-Days', 1) !== 20000 || !(sellTotal('Zero-Days', 2) < 23000) || !(buyTotal('Zero-Days', 1) > 100000) || b.stock !== 1) fail('thin market wrong', b);
+    if (sellTotal('Zero-Days', 1) !== 20000 || !(sellTotal('Zero-Days', 2) < 23000) || b.stock !== 0 || buyRoom('Zero-Days') !== 0 || maxBuy('Zero-Days') !== 0) fail('thin market wrong', b);
     render();
-    if (!$('#market').textContent.includes('to buy: ')) fail('thin market does not show what buying costs');
+    if (!$('#market').textContent.includes('none for sale yet') || !/data-act="buy" data-arg="Zero-Days" disabled/.test($('#market').innerHTML)) fail('thin market does not say it has none to sell');
+    // ...and a market that is only just deep enough shows that buying one costs more than selling one brings.
+    open(15, {'Zero-Days': 20000, 'Warez': 40});
+    b = book('Zero-Days');
+    render();
+    if (!(b.depth >= ECON.thin && b.depth < 3) || !(b.stock >= 1) || !(buyTotal('Zero-Days', 1) > 22000) || !$('#market').textContent.includes('to buy: ')) fail('shallow market does not show what buying costs', b);
     // --- overnight: half of the move is still there, then a quarter, then it is forgotten ---
     open(15, {'Warez': 40});
     b = book('Warez');
