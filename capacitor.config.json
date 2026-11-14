@@ -2,5 +2,12 @@
   "appId": "com.trashpanda.zerodayhustle",
   "appName": "Zero Day Hustle",
   "webDir": "www",
-  "backgroundColor": "#04070a"
+  "backgroundColor": "#04070a",
+  "plugins": {
+    "SystemBars": {
+      "hidden": true,
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
 }

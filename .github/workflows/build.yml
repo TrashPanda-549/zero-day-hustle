@@ -75,6 +75,8 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+      - name: Full screen (transient system bars)
+        run: node tools/android-fullscreen.mjs
       - name: App icon and splash screen
         continue-on-error: true
         run: npx --yes @capacitor/assets generate --android --iconBackgroundColor '#04070a' --iconBackgroundColorDark '#04070a' --splashBackgroundColor '#04070a' --splashBackgroundColorDark '#04070a'
