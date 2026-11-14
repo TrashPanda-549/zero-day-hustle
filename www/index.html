@@ -654,7 +654,39 @@ const GADGETS = {
     `and your Heat drops ${COOL.lielow.drop[0]}%`, 'LLK'],
   decoy: ['Decoy Traffic.pcap', 2200, 2, `for the next ${COOL.decoy.nights} nights your Heat cools an extra ${COOL.decoy.cool}% a night`, 'DCY'],
   vpn: ['No-Logs VPN.ovpn', 2800, 2, `for ${COOL.vpn.days} days, today included, everything that raises your Heat raises it half as much`, 'VPN'],
+  // --- entry tools (see TOOLS): not single use, but every one of them wears out or breaks sooner or later ---
+  picks: ['Lock Picks.zip', 400, 8, 'open mechanical locks quietly. Thin steel: a miss can snap one', 'PCK'],
+  bump: ['Bump Key.key', 900, 4, 'raps cheap mechanical locks open fast and not quietly. Useless on security pins; the teeth round off', 'BMP'],
+  pickgun: ['Pick Gun.exe', 3200, 2, 'an electric pick gun: good on any mechanical lock, a little noisy, rarely breaks', 'PGN'],
+  cloner: ['RFID Cloner.bin', 4800, 2, 'copies a badge through a coat pocket: the only quiet way past electronic locks. Burns out now and then', 'RFD'],
+  crowbar: ['Crowbar --force', 1200, 2, 'opens most things. Loudly. For when subtlety has left the building', 'CRW'],
 };
+// Locks on the places you break into (see the break-ins further down).
+// kind: [name, difficulty 1 to 5, 'mech' or 'elec', what it looks like]
+const LOCKS = {
+  padlock: ['Cheap padlock', 1, 'mech', 'Hardware-store brass. The packaging said "security".'],
+  deadbolt: ['Deadbolt', 2, 'mech', 'A proper pin tumbler. Somebody paid a locksmith.'],
+  badge: ['Badge reader', 3, 'elec', 'A grey box with a red light. It wants a card it has met before.'],
+  cylinder: ['High-security cylinder', 4, 'mech', 'Security pins, a sidebar, and a brochure about itself.'],
+  maglock: ['Server-room maglock', 5, 'elec', 'Six hundred kilos of holding force, wired to a controller that keeps a diary.'],
+};
+// What each entry tool is good for. The key is its GADGETS key (the paperclip is free and is not a gadget).
+// on: the kind of lock it works on. q: what it adds to the chance. hard: what it adds instead on locks of
+// difficulty 4 and up. brk: chance it breaks on a miss. wear: chance it wears out on any try.
+// noise: what a miss adds to the site's Alert. loud: it forces the door, which is never quiet.
+// rar: how hard it is to come by (a rarity colour, nothing more).
+const TOOLS = {
+  clip: {on: 'mech', q: -20, brk: 0, wear: 0, noise: 8, rar: 0},
+  picks: {on: 'mech', q: 0, brk: 0.3, wear: 0, noise: 10, rar: 0},
+  bump: {on: 'mech', q: 25, hard: -40, brk: 0, wear: 0.2, noise: 18, rar: 1},
+  pickgun: {on: 'mech', q: 20, brk: 0.08, wear: 0, noise: 14, rar: 2},
+  cloner: {on: 'elec', q: 30, brk: 0, wear: 0.12, noise: 5, rar: 3},
+  crowbar: {on: 'any', loud: true, q: 0, brk: 0.04, wear: 0, noise: 25, rar: 0},
+};
+const CLIP_NAME = 'Bent Paperclip', START_PICKS = 3;
+const toolName = key => (key === 'clip' ? CLIP_NAME : GADGETS[key][0]);
+// "single use: ..." for gadgets, "entry tool: ..." for these, wherever something is offered for sale.
+const gadgetText = key => `${TOOLS[key] ? 'entry tool' : 'single use'}: ${GADGETS[key][3]}`;
 const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black market trades
 // Who comes for you depends on your Heat.
 const LAW = [
@@ -959,7 +991,8 @@ const SND = (() => {
 
 // ---------- career: XP, levels and syndicate carry over between runs ----------
 // stats: running counts of things you have done (see tally()). ach: achievements earned, {id: when}.
-const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}});
+// lockpick: lock picking skill points (see lockInfo()).
+const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0});
 let career = newCareer(), pendingLevel = 0;
 
 function levelInfo(total) {
@@ -1031,6 +1064,7 @@ async function hiddenInvite() {
 }
 
 async function levelUpCheck() {
+  await heistCheck();
   await questCheck();
   await gigCheck();
   if (pendingLevel) {
@@ -1099,6 +1133,11 @@ const ACH = {
   dysentery: ['You Have Died of Dysentery', 'Leave them in. All the way to the end.', 50, () => stat('dysentery') >= 1],
   cooled: ['Plausible Deniability', 'Use 10 things that lower your Heat', 150, () => stat('cooled') >= 10],
   honeypot: ['Thank You for Your Submission', 'Have a Log Wiper trip the alarm', 50, () => stat('honeypot') >= 1],
+  lock1: ['It Was Open When I Got Here', 'Open a lock on a job without forcing it', 50, () => stat('picked') >= 1],
+  nothere: ['Never Here', 'Finish a break-in with a quiet entry and a clean exit', 150, () => stat('cleanin') >= 1],
+  crow: ['Subtlety Has Left the Building', 'Force 5 doors with a crowbar', 100, () => stat('forced') >= 5],
+  planted: ['The Gift That Keeps on Giving', 'Collect $20,000 from devices you left behind', 200, () => stat('plantpay') >= 20000],
+  lock10: ['Locksmith (Unlicensed)', 'Reach lock picking level 10', 500, () => lockInfo().level >= LOCK_MAX],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -1137,55 +1176,70 @@ const QUESTS = {
   // Ghost Shell: stay unseen.
   ghost: [
     ['Clean hands', 'Nobody here has seen your work. Take freelance jobs, but only while nobody is looking at you.', 'quietjob', 2],
+    ['Housekeeping', 'A records annex keeps paper on one of ours. Go in the back, lift the file off their terminal, and leave the door the way you found it.', 'heist', 1, 'ghost1'],
     ['Dead drop', 'The crew needs clean lines for a job you are not cleared to hear about.', 'deliver', 20, 'Burner SIMs', 'Paste Alley'],
     ['Vanishing act', 'Anyone can hide. Show me you can disappear with the law already looking at you. No fighting.', 'escape', 2],
+    ['Wallflower', 'Black Ledger\'s lawyers rent a hotel business centre by the hour. Leave one of ours in the ceiling. If anyone remembers you, you were not there.', 'heist', 1, 'ghost2'],
     ['Quiet nights', 'Noise gets ghosts caught. Keep your Heat down and sleep easy.', 'cool', 3],
     ['No witnesses', 'When they corner you, take them apart from inside their own systems. No guns, no bangs.', 'cleanwin', 1],
     ['New face', 'You have been seen too often. Burn two identities and become someone else.', 'fakeid', 2],
+    ['Read receipts', 'The thing you left in the ceiling has been listening. It heard where they keep the originals. Go and read them. Quietly. You know how I feel about noise.', 'heist', 1, 'ghost3'],
     ['Ghost run', 'A whole run, start to finish, without once being in a cell.', 'cleanrun', 1],
     ['Burn the Ledger', 'Black Ledger keeps a file on every one of us. Breach their core and burn it.', 'boss', 1],
   ],
   // Black Ledger: make money.
   ledger: [
     ['Proof of funds', 'We only work with earners. Show a profit.', 'profit', 25000],
+    ['Petty cash', 'A payday lender owes the firm a rounding error. Collect it from the back office, after hours. Itemise what you take.', 'heist', 1, 'ledger1'],
     ['Square the books', 'Nobody in this firm owes the Fixer. Clear your debt.', 'debt', 1],
     ['Cold storage', 'Money you can lose is not money. Park some where nobody can reach it.', 'wallet', 100000],
+    ['Audit trail', 'A firm of auditors has our name in a spreadsheet. Go in and correct the spreadsheet. A forced door is a line item I will have to explain.', 'heist', 1, 'ledger2'],
     ['Buy the rumour', 'Prices spike when the news breaks. Be holding the goods when it does, and sell into it.', 'spike', 3],
     ['Compound interest', 'Now let the money work. Earn it while you sleep.', 'interest', 25000],
     ['Hostile takeover', 'Rival nodes are holding assets that should be on our books. Go and collect.', 'loot', 60000],
+    ['Safe deposit', 'A bullion dealer at the Bazaar keeps a cage he believes is private. The firm would like its contents reclassified as ours.', 'heist', 1, 'ledger3'],
     ['Year-end close', 'Finish a run with a balance sheet worth showing the partners.', 'score', 500000],
     ['Seize the manifest', 'Null Sector moves cargo we should be taxing. Breach their core and take the manifest.', 'boss', 1],
   ],
   // Null Sector: move cargo.
   null: [
     ['First haul', 'Small cargo first. The campus kids are waiting on a shipment.', 'deliver', 40, 'Warez', 'Campus Lab'],
+    ['Lost property', 'Customs is sitting on a crate of ours in a lock-up at the dock. The padlock cost less than the paperwork. Bring a bag.', 'heist', 1, 'null1'],
     ['Bigger hold', 'You cannot smuggle in your pockets. Get yourself a drive worth the name.', 'drive', 200],
     ['Hot cargo', 'A crate of drives has to reach the dock before anyone asks about it.', 'deliver', 25, 'USB Droppers', 'Datacenter Dock'],
+    ['Tag and release', 'A freight broker keeps selling our routes. Put two loaded drives in his dispatch machines so we hear his routes first. Fair is fair.', 'heist', 1, 'null2'],
     ['Slip the customs', 'Sooner or later they stop you with a full hold. Get away with the cargo.', 'smuggle', 2],
     ['Stash house', 'Every smuggler needs a warehouse. Fill yours.', 'stash', 200],
     ['Heavy freight', 'A buyer at the con wants rented firepower, delivered by hand.', 'deliver', 12, 'Botnet Hours', 'Con Hallway'],
+    ['Bonded goods', 'The bonded warehouse on the dock has a maglock, a camera and a great deal of other people\'s cargo. Two of those are your problem. Fill the hold.', 'heist', 1, 'null3'],
     ['The big run', 'The most dangerous cargo there is, and the Bazaar wants three.', 'deliver', 3, 'Zero-Days', 'Tor Bazaar'],
     ['Sink the Red Team', 'Red Team Zero keeps hitting our convoys. Breach their core and sink it.', 'boss', 1],
   ],
   // Red Team Zero: fight.
   red: [
     ['First blood', 'Rival operators are targets. Knock some offline, in raids or when they come for you.', 'kills', 4],
+    ['Door check', 'Physical pen test. Unpaid, unrequested. Get into a security firm\'s front office, leave a drive in their own machine, get out. Use the door or make one.', 'heist', 1, 'red1'],
     ['Breach and clear', 'Two rival nodes. In, loot, out.', 'raid', 2],
     ['Hold the line', 'When the law shows up you do not run. You win.', 'lawwin', 2],
+    ['Armoury run', 'A private security outfit keeps its toys behind a deadbolt and one tired guard. Relieve them of the toys. Relieve the guard too if he insists.', 'heist', 1, 'red2'],
     ['Not a scratch', 'Sloppy operators bleed. Win a fight without them landing anything.', 'flawless', 1],
     ['Search and destroy', 'Thin them out. Every rival operator offline counts.', 'kills', 15],
     ['Three fronts', 'Hit three different crews. I want all of them looking over their shoulders.', 'raidall', 3],
+    ['Kill switch', 'Ghost Shell runs a relay room at the dock. Get an access point of ours onto their rack. They will be home. Plan for that.', 'heist', 1, 'red3'],
     ['Outnumbered', 'Anyone can win a fair fight. Win when there are four or more of them.', 'bigwin', 2],
     ['Exorcise the Shell', 'Ghost Shell has been reading our comms for a year. Breach their core and end it.', 'boss', 1],
   ],
   // The 404 Collective: be nobody, and go after the people who watch everyone.
   x404: [
     ['Zero footprint', 'You made a lot of noise getting our attention. Now make none at all.', 'zeroheat', 2],
+    ['Lost and found', 'A depot keeps every traffic camera in the district, and every hour they recorded. Some of those hours have us in them. Go in and lose them.', 'heist', 1, 'x4041'],
     ['Street sources', 'The people nobody looks at see everything. Do business with them.', 'junk', 3],
     ['Dark fibre', 'One route out is a leash. Build six.', 'proxies', 6],
+    ['Nobody home', 'A data broker sells lists of people. We would like to listen to who is buying. Three cheap phones, taped where nobody dusts.', 'heist', 1, 'x4042'],
     ['Phantom freight', 'A package for someone on the Backchannel. You never met them and you never will.', 'deliver', 5, 'Rootkits', 'IRC Backchannel'],
     ['Uninvited guests', 'The other crews will come looking for whoever we are. Send them home.', 'gangwin', 3],
     ['Federal offence', 'Agents with budgets. Beat them anyway, twice.', 'fed', 2],
+    ['Redaction', 'There is an annex with no sign on the door and a file with our names in it. The door is a maglock. The people behind it carry badges.', 'heist', 1, 'x4043'],
     ['Watch the watchers', 'You have beaten the NSA once. Once is luck.', 'nsawin', 1],
     ['Take back the list', 'Red Team Zero sold a list of our names. Breach their core and delete it.', 'boss', 1],
   ],
@@ -1196,32 +1250,49 @@ let questTally = 0, junkTally = 0;   // counted for the self-test
 function fixQuest() {
   const q = career.quest;
   if (!career.syn) career.quest = null;
-  else if (!q || !Number.isInteger(q.n) || q.n < 0 || !(q.p >= 0)) career.quest = {n: 0, p: 0, v: 2};
-  else if (q.v !== 2) { q.p = 0; q.v = 2; }   // the lines were rewritten: keep the place, restart that mission's count
+  else if (!q || !Number.isInteger(q.n) || q.n < 0 || !(q.p >= 0)) career.quest = {n: 0, p: 0, v: 3};
+  else if (q.v !== 3) {
+    // v2: the lines were rewritten: keep the place, restart that mission's count.
+    // v3: three break-ins joined each line: move the place past the ones that now come before it, so
+    // everybody stays on the mission they were on (and whoever had finished the line stays finished).
+    if (q.v !== 2) q.p = 0;
+    q.n = q.n < QUEST_V2.length ? QUEST_V2[q.n] : q.n + 3;
+    q.v = 3;
+  }
 }
+const QUEST_V2 = [0, 2, 3, 5, 6, 7, 9, 10];   // where missions 1 to 8 of the old lines sit in the new ones
 // Fill in whatever a career from an older version lacks.
 function fixCareer() {
   if (!career.stats || typeof career.stats !== 'object') career.stats = {};
   if (!career.ach || typeof career.ach !== 'object') career.ach = {};
   if (!Array.isArray(career.locker)) career.locker = [];
+  if (!(Number.isInteger(career.lockpick) && career.lockpick >= 0)) career.lockpick = 0;   // from before lock picking: the starting skill
   fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
 const newOrder = () => pick([{kind: 'jobs', t: rnd(2, 4)}, {kind: 'profit', t: rnd(2, 6) * 50000}, {kind: 'law', t: rnd(2, 3)},
-  {kind: 'raid', t: rnd(2, 3)}, {kind: 'kills', t: rnd(6, 12)}, {kind: 'cool', t: rnd(2, 4)}]);
+  {kind: 'raid', t: rnd(2, 3)}, {kind: 'kills', t: rnd(6, 12)}, {kind: 'cool', t: rnd(2, 4)},
+  // ...or one of the crew's break-ins again (two chances in eight).
+  ...[0, 1].map(() => ({kind: 'heist', t: 1, good: pick(QUESTS[career.syn].filter(m => m[2] === 'heist'))[4]}))]);
 // The mission you are on, or null if you are not in a syndicate.
 function quest() {
   const q = career.quest;
   if (!career.syn || !q) return null;
   const chain = QUESTS[career.syn];
   if (q.n < chain.length) {
-    const [title, brief, kind, t, good, place] = chain[q.n], [xp, cash, rar] = QUEST_PAY[q.n];
-    return {title, brief, kind, t, good, place, xp, cash, rar};
+    // A break-in ('heist': the fifth value is its id in HEISTS) pays by its own tier; the rest are paid in
+    // the order they come, skipping the break-ins.
+    const [title, brief, kind, t, good, place] = chain[q.n], H = kind === 'heist' ? HEISTS[good] : null;
+    const [xp, cash, rar] = H ? HEIST_PAY[H.tier - 1] : QUEST_PAY[chain.slice(0, q.n).filter(m => m[2] !== 'heist').length];
+    return {title, brief, kind, t, good, place: H ? H.at : place, xp, cash, rar};
   }
-  if (!q.o || !q.o.kind || !(q.o.t > 0)) q.o = newOrder();
+  if (!q.o || !q.o.kind || !(q.o.t > 0) || (q.o.kind === 'heist' && !HEISTS[q.o.good])) q.o = newOrder();
   // A standing order is worth 60% of the level you are working on, so it stays useful however high you climb.
+  // A break-in is more work than the others, and pays half as much again.
+  const hard = q.o.kind === 'heist' ? 1.5 : 1;
   return {title: 'Standing orders', brief: 'You have done everything I asked. The crew still has work, and it still pays.',
-    kind: q.o.kind, t: q.o.t, xp: 60 * level(), cash: 10000, rar: -1, order: true};
+    kind: q.o.kind, t: q.o.t, good: q.o.good, place: hard > 1 ? HEISTS[q.o.good].at : undefined,
+    xp: 60 * level() * hard, cash: 10000 * hard, rar: -1, order: true};
 }
 function questGoal(Q) {
   const t = Q.t, times = `${t} time${t === 1 ? '' : 's'}`, s = t === 1 ? '' : 's';
@@ -1259,6 +1330,7 @@ function questGoal(Q) {
     score: `Finish a run worth ${money(t)} or more`,
     boss: `Breach the ${SYNDICATES[NEMESIS[career.syn]][0]} core and win`,
   };
+  if (Q.kind === 'heist' || Q.kind === 'breakin') return heistGoal(Q);   // a break-in, in stages (see HEISTS)
   return text[Q.kind] || Q.kind;
 }
 // How far along the current mission is. Some missions look at where you stand now, not at a count.
@@ -1268,6 +1340,7 @@ const questProg = Q => (QUEST_NOW[Q.kind] ? QUEST_NOW[Q.kind]() : career.quest.p
 function questStatus(Q) {
   const p = Math.min(Q.t, questProg(Q));
   return Q.kind === 'deliver' ? `you carry ${num(S.inv[Q.good] || 0)} / ${Q.t}`
+    : Q.kind === 'heist' ? heistStatus('quest', Q)
     : Q.kind === 'boss' ? 'start it from the briefing'
     : Q.kind === 'debt' ? (S.debt ? `you owe ${money(S.debt)}` : 'paid')
     : Q.kind === 'score' ? `best so far ${money(p)}`
@@ -1337,37 +1410,43 @@ const CONTACTS = {
     [1, 2, 0, 5], [
       ['Family recipe', 'My nephew needs stock for his stall, and he cannot be seen buying it.', 'deliver'],
       ['Hot soup', 'This thermos goes across town. You do not open the thermos.', 'courier'],
-      ['Slow simmer', 'You are loud lately. My customers notice. Cool off, then we talk.', 'cool']]],
+      ['Slow simmer', 'You are loud lately. My customers notice. Cool off, then we talk.', 'cool'],
+      ['Secret ingredient', 'A man across town sells my broth. He keeps the recipe in a lock-up. It is my recipe. Bring it home.', 'breakin', 'gig_mama']]],
   'Old Man Baud': ['A retired phone phreak who still whistles at payphones',
     'An old man is whistling into a dead payphone. He hangs up when he sees you. "Kids today. No craft. Prove me wrong."',
     [0, 3, 4, 3], [
       ['Craft work', 'Take proper freelance work and do it clean. I will hear about it.', 'jobs'],
       ['Old lines', 'I need parts for a rig that is older than you are.', 'deliver'],
-      ['Low and slow', 'The best of us never got famous. Go to bed with a cold trail.', 'cool']]],
+      ['Low and slow', 'The best of us never got famous. Go to bed with a cold trail.', 'cool'],
+      ['Party line', 'There is a switching cabinet with a lock on it older than you. Open it properly and leave a phone on line four. I like to listen.', 'breakin', 'gig_baud']]],
   'Patch': ['Runs errands for a street doc, on a scooter with no brakes',
     'A courier in a stained paramedic jacket skids a scooter to a stop. "Doc says you are reliable. Doc is usually wrong. Got a minute?"',
     [3, 5, 1, 6], [
       ['Cold chain', 'Cooler box, clinic to client, no questions. It is probably a kidney. Kidding. Probably.', 'courier'],
       ['Clinic supplies', 'The clinic runs on other people\'s stuff, and we are out.', 'deliver'],
-      ['Paying patients', 'Doc needs the clinic funded. Go and make real money and we will see you right.', 'profit']]],
+      ['Paying patients', 'Doc needs the clinic funded. Go and make real money and we will see you right.', 'profit'],
+      ['Repeat prescription', 'Doc needs something from a clinic that will not sell it to us. The cabinet has a lock. You have hands.', 'breakin', 'gig_patch']]],
   'The Deacon': ['Preaches to a rack of dead servers behind the datacenter',
     'A man in a long coat is preaching to a rack of dead servers. "The law is a test, child. I would see you tested."',
     [4, 1, 4, 7], [
       ['Trial by fire', 'Let them find you. Then walk away from it.', 'law'],
       ['The tithe', 'The congregation needs an offering. Earn it honestly. Well. Earn it.', 'profit'],
-      ['Cast them out', 'There is a rival node full of sinners. Empty it.', 'raid']]],
+      ['Cast them out', 'There is a rival node full of sinners. Empty it.', 'raid'],
+      ['Absolution', 'There is a door, child, and behind it a machine that remembers what my flock owes. Enter, and teach it to forgive.', 'breakin', 'gig_deacon']]],
   'Sparks': ['A kid who solders things to a skateboard',
     'A kid on the kerb is soldering something to a skateboard. "You are that hacker, right? A crew jumped my brother. I can pay. Sort of."',
     [2, 6, 0, 1], [
       ['Payback', 'Knock some rival operators offline. Any crew. They are all the same to me.', 'kills'],
       ['Clean them out', 'Hit one of their nodes and take everything in it.', 'raid'],
-      ['Spare parts', 'I am building something. Do not ask what. I need parts.', 'deliver']]],
+      ['Spare parts', 'I am building something. Do not ask what. I need parts.', 'deliver'],
+      ['Not theirs', 'A pawn shop has my brother\'s deck in the back room. He never sold it. Go and get it. Please.', 'breakin', 'gig_sparks']]],
   'Lady Checksum': ['A fence who moves things for people who matter',
     'A woman in a suit worth more than your rig is waiting by a black car. "I move things for people who matter. You could matter."',
     [5, 0, 0, 4], [
       ['Proof of work', 'Show me you can turn a profit before I put my name next to yours.', 'profit'],
       ['Discreet package', 'An envelope, a place and a deadline. That is all you get to know.', 'courier'],
-      ['References', 'My clients want someone with a record. Of finished jobs, not arrests.', 'jobs']]],
+      ['References', 'My clients want someone with a record. Of finished jobs, not arrests.', 'jobs'],
+      ['Housewarming', 'A client is moving offices. I would like something of mine to be there before the furniture is.', 'breakin', 'gig_lady']]],
 };
 let gigTally = 0;   // counted for the self-test
 
@@ -1385,7 +1464,9 @@ const contactHead = name => `<div class="versus" style="grid-template-columns:86
 // A gig from this contact, sized for where the run is: {who, title, pitch, kind, t (target), p (progress),
 // good and place (deliveries), due (the last day it can be done), cash, xp, rar (gear on top, or -1)}.
 function makeGig(name) {
-  const [title, pitch, kind] = pick(CONTACTS[name][3]);
+  // Their break-in comes up more often than one gig in four would give it: about four times in ten.
+  const gigs = CONTACTS[name][3], inside = gigs.find(g => g[2] === 'breakin');
+  const [title, pitch, kind, hid] = inside && Math.random() < 0.25 ? inside : pick(gigs);
   const G = {who: name, title, pitch, kind, t: 1, p: 0};
   const elsewhere = () => pick(LOCATIONS.filter(l => l !== BUNKER && l !== S.loc));
   let hard = 1, days = 3, worth = 0;   // how much it pays next to a plain gig, days allowed, and the goods you give up
@@ -1395,6 +1476,11 @@ function makeGig(name) {
     G.t = Math.max(3, Math.min(40, Math.floor(cap() / 2), Math.round((1500 + S.day * 300) / avg)));
     G.place = elsewhere();
     worth = avg * G.t * 1.5;
+  } else if (kind === 'breakin') {
+    // A break-in, in stages (see HEISTS). good: which one. lock: easy ones early in a run, harder later,
+    // always mechanical so a few picks will do. Pays about twice a plain gig.
+    G.good = hid; G.place = elsewhere(); days = 4; hard = 2.2;
+    G.lock = S.day <= 8 ? 'padlock' : S.day <= 18 ? 'deadbolt' : 'cylinder';
   } else if (kind === 'courier') { G.place = elsewhere(); days = 2; hard = 0.7; }
   else if (kind === 'jobs') { G.t = rnd(1, 2); hard = G.t; }
   else if (kind === 'law') { days = 5; hard = 1.4; }
@@ -1410,7 +1496,8 @@ function makeGig(name) {
 }
 const gigGoal = G => G.kind === 'deliver' ? `Bring ${G.t} ${G.good} to ${G.place}`
   : G.kind === 'courier' ? `Carry the package to ${G.place}` : questGoal(G);
-const gigStatus = G => G.kind === 'deliver' ? `you carry ${num(S.inv[G.good] || 0)} / ${G.t}`
+const gigStatus = G => G.kind === 'breakin' ? heistStatus('gig', G)
+  : G.kind === 'deliver' ? `you carry ${num(S.inv[G.good] || 0)} / ${G.t}`
   : G.kind === 'courier' ? (S.loc === G.place ? 'you are here' : 'not delivered yet')
   : G.kind === 'profit' ? `${money(Math.min(G.t, G.p))} / ${money(G.t)}` : `${Math.min(G.t, G.p)} / ${G.t}`;
 const gigDue = G => G.due <= S.day ? '<span class="red">due today</span>'
@@ -1464,6 +1551,709 @@ async function gigCheck() {
     render();
     await alertDlg('Gig lost', `<p>The deadline for <b>${G.title}</b> has passed. ${G.who} found someone else, and will remember it.</p>` +
       `<p class="dim">Trust: ${trustStars(G.who)}</p>`, 'danger');
+  }
+}
+
+// ---------- break-ins: layered missions, entry tools and the lock picking skill ----------
+// A break-in is a mission played in stages at one place: case it or go in blind, get through the lock,
+// do the job inside (hack something, rob the place, or leave a device behind), and get out.
+// What happens early carries forward in the site's Alert (0 to 100): misses at the lock, clumsy work and a
+// forced door all raise it, a full meter trips the alarm, and whatever is on it decides how clean the way
+// out can be. Three things hand them out: the syndicate lines (QUESTS, kind 'heist'), street contacts
+// (gigs, kind 'breakin') and the Local BBS (contracts with a `heist`).
+//
+// EVERY NUMBER for break-ins is in this one table, so it can be re-tuned in one place. (The tools' prices
+// and carry limits are in GADGETS, and what each tool does to the odds is in TOOLS, next to GADGETS.)
+// It was set against a trading income of very roughly $3,000 a day in the first week of a run, $30,000 a
+// day in the middle and $200,000 a day or more at the end: a break-in is meant to pay less cash than a
+// day's trading from the second week on, and to pay in XP, skill, gear and trust instead.
+const BREAKIN = {
+  // --- the lock picking skill ---
+  maxLevel: 10,
+  need: [25, 15],            // points from level L to L+1: need[0] * L + need[1]
+  learnOpen: [6, 4],         // points for opening a lock: [0] + [1] * difficulty
+  learnMiss: [1, 1],         // points for a miss: [0] + [1] * difficulty
+  learnForce: [2, 1],        // points for a crowbar: [it opened, it did not]
+  practiceShare: 0.4,        // the practice board teaches this share of the real thing...
+  practiceCap: 4,            // ...and nothing at all from this level on
+  drills: 6,                 // tries at the practice board per day
+  // --- the odds at a lock (all in %) ---
+  base: 55, perLevel: 7, perDiff: 15,     // quiet tools: base + perLevel * level + the tool's q - perDiff * difficulty
+  force: [88, 10, 2, 15],    // crowbar: [0] - [1] * difficulty + [2] * level - [3] on electronic locks
+  min: 5, max: 95,
+  ease: 0.05,                // each level above 1 takes this share off the chance of a break and off the noise
+  jam: 0.35,                 // a pick that snaps on a miss leaves its tip in the lock this often
+  casedEdge: 10,             // casing the place adds this to the lock and to the job inside
+  // --- Alert ---
+  blind: 20,                 // Alert you start with if you go in without casing
+  caseSeen: [0.12, 10],      // casing: [chance somebody notices you, the Alert that leaves]
+  forced: 35,                // a forced door
+  jobOk: [5, 15],            // the job inside, done [carefully, fast]
+  jobMiss: 25,               // the job inside, botched
+  grab: 15,                  // helping yourself to what is lying around
+  afterFight: 60,            // where the meter sits once you have beaten whoever answered the alarm
+  // --- time inside: moves you get after a [quiet, forced] entry; the careful way costs 2, everything else 1 ---
+  moves: [3, 2],
+  // --- the job inside: chance = job[kind] + its gear and proxy bonuses - tierDrop * (tier - 1); fast is -fastDrop ---
+  job: {hack: 60, rob: 75, plant: 75}, proxyEdge: 5, tierDrop: 5, fastDrop: 20, jobMin: 15, jobMax: 95,
+  // --- the way out ---
+  cleanMin: 10, cleanMax: 95,   // slipping out clean: 100 - Alert + half your stealth bonus (+ casedEdge / 2)
+  // --- Heat (before Ghost Shell's halving, stealth gear and a VPN) ---
+  heat: {seen: 2, forced: 4, alarm: 10, spotted: 8, fast: [3, 12], found: 2},   // fast: [0] + Alert / [1]. found: a device is discovered
+  // --- who answers the alarm ---
+  noShow: 0.35,              // site security does not turn up at all this often (the law and rival crews always do)
+  guards: {hit: 0.35, lo: 3, hi: 7},   // site security in a fight: 1 to 1 + tier / 2 of them, hi + tier damage
+  // --- pay ---
+  pay: [[800, 3000, 1], [1100, 5000, -1], [1600, 9000, 2], [2600, 20000, 3], [3200, 26000, 3]],   // syndicate break-ins by tier: [XP, cash, gear rarity or -1]
+  orderPay: 1.5,             // a break-in as a standing order pays this much more than other standing orders
+  gigHard: 2.2,              // a break-in gig pays this many times a plain gig (cash and XP)
+  bbs: [1000, 250, 0.35, 2], // BBS break-ins: ([0] + [1] * day) * (1 + [2] * difficulty) + [3] * what the devices are worth
+  bbsXp: [60, 30],           // XP for a BBS break-in: [0] + [1] * difficulty
+  ghost: 1.25, messy: 0.8,   // pay for a quiet entry and a clean exit; pay after a forced door (gigs and BBS jobs)
+  ghostXp: 0.2,              // the same bonus for a syndicate break-in, in XP: this share of the mission's XP
+  ghostTrust: 1,             // extra trust from a contact for a quiet, clean job
+  // --- what you carry out ---
+  cash: [300, 600],          // robbing: tier * between these, * (1 + day / 30)
+  grabCash: [100, 250],      // lying around: tier * between these
+  grabGoods: 0.25,           // ...or, this often, a few cheap goods instead (if you have room)
+  forcedLoot: 0.6,           // after a forced door there is only time for this share of it
+  // --- devices left behind: [days it pays for when hidden properly, when taped up fast] ---
+  plantDays: [5, 3], plantPay: [120, 220],   // a day: tier * between these (+25% for each extra device)
+  plantFound: 0.15,          // a taped-up device is found this often, each night
+};
+const LOCK_MAX = BREAKIN.maxLevel;
+const HEIST_PAY = BREAKIN.pay;
+// id: {site, at (where it is; gigs and BBS jobs bring their own place and lock), lock (a LOCKS kind),
+//   job ('hack', 'rob' or 'plant'), tier (1 to 5: what it pays and how hard the inside is),
+//   dev + n (plant: the goods you must bring and leave), data (hack) or swag (rob): [goods, how many] you carry out,
+//   guard (who answers the alarm: 'sec' site security, 'law', or a rival crew's key),
+//   edge (bonus to the job inside, from a device an earlier mission in the line left there),
+//   inside (what you find), prize (what the job is, in words), ad (BBS jobs: the posting)}
+// To start any of them at any stage, wherever you are: startHeist(id, stage).
+const HEISTS = {
+  // Ghost Shell: in, out, nothing disturbed.
+  ghost1: {site: 'the records annex', at: 'Paste Alley', lock: 'padlock', job: 'hack', tier: 1, guard: 'sec', data: ['Leaked Databases', 1],
+    inside: 'One terminal, one filing cabinet, and a kettle somebody left on.', prize: 'copy the file off their terminal'},
+  ghost2: {site: 'the hotel business centre', at: 'Con Hallway', lock: 'badge', job: 'plant', tier: 3, dev: 'Rogue APs', n: 1, guard: 'sec',
+    inside: 'Beige carpet, a dead ficus, and a ceiling made of tiles that lift.', prize: 'hide a Rogue AP in the ceiling'},
+  ghost3: {site: 'the lawyers\' document room', at: 'Strip Mall', lock: 'cylinder', job: 'hack', tier: 4, guard: 'law', edge: 15, data: ['Leaked Databases', 3],
+    inside: 'Shelves of originals and one scanner, still warm. The access point you left last time already knows the Wi-Fi password.', prize: 'read the originals'},
+  // Black Ledger: everything is a collection.
+  ledger1: {site: 'the payday lender\'s back office', at: 'Strip Mall', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec',
+    inside: 'A cash drawer, a ledger kept in pencil, and a motivational poster about trust.', prize: 'collect what they owe'},
+  ledger2: {site: 'the auditors\' server closet', at: 'Con Hallway', lock: 'badge', job: 'hack', tier: 3, guard: 'sec', data: ['Cracked Accounts', 5],
+    inside: 'A rack, a mop bucket, and a sticky note with the admin password on it. The note is out of date.', prize: 'correct their spreadsheet'},
+  ledger3: {site: 'the bullion dealer\'s cage', at: 'Tor Bazaar', lock: 'cylinder', job: 'rob', tier: 4, guard: 'sec',
+    inside: 'Steel mesh, numbered boxes, and a camera with a sock over it. Not your sock.', prize: 'empty the cage'},
+  // Null Sector: cargo in, cargo out.
+  null1: {site: 'the customs lock-up', at: 'Datacenter Dock', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec', swag: ['Burner SIMs', 12],
+    inside: 'Shelves of seized luggage, each with a tag. Yours says PENDING, in red.', prize: 'take the crate back'},
+  null2: {site: 'the freight broker\'s dispatch office', at: 'Strip Mall', lock: 'deadbolt', job: 'plant', tier: 3, dev: 'USB Droppers', n: 2, guard: 'sec',
+    inside: 'Two dispatch terminals, a wall map full of pins, and a mug that says WORLD\'S OKAYEST BOSS.', prize: 'leave 2 USB Droppers in the dispatch machines'},
+  null3: {site: 'the bonded warehouse', at: 'Datacenter Dock', lock: 'maglock', job: 'rob', tier: 4, guard: 'sec', swag: ['Phishing Kits', 6],
+    inside: 'Pallets to the ceiling, a forklift with the keys in, and a camera that is definitely on.', prize: 'fill the hold'},
+  // Red Team Zero: a door is a suggestion.
+  red1: {site: 'the security firm\'s front office', at: 'Campus Lab', lock: 'padlock', job: 'plant', tier: 1, dev: 'USB Droppers', n: 1, guard: 'sec',
+    inside: 'A reception desk, a visitor log nobody signs, and an award for Best Physical Security 2019.', prize: 'leave a USB Dropper in their own machine'},
+  red2: {site: 'the private armoury', at: 'Strip Mall', lock: 'deadbolt', job: 'rob', tier: 3, guard: 'sec',
+    inside: 'Racks of tactical everything, and a guard\'s crossword, half done. Four down is "regret".', prize: 'take the toys'},
+  red3: {site: 'the Ghost Shell relay room', at: 'Datacenter Dock', lock: 'maglock', job: 'plant', tier: 4, dev: 'Rogue APs', n: 1, guard: 'ghost',
+    inside: 'Cold air, blue lights, and a rack labelled DO NOT TOUCH in three languages.', prize: 'get a Rogue AP onto their rack'},
+  // The 404 Collective: the people who watch everyone keep it all somewhere.
+  x4041: {site: 'the traffic camera depot', at: 'Cyber Cafe', lock: 'padlock', job: 'hack', tier: 1, guard: 'sec',
+    inside: 'Shelves of dead cameras and one live recorder, humming to itself.', prize: 'lose a few hours of footage'},
+  x4042: {site: 'the data broker\'s office', at: 'Con Hallway', lock: 'badge', job: 'plant', tier: 3, dev: 'Burner SIMs', n: 3, guard: 'sec',
+    inside: 'Open plan. Every desk has a framed photo of a boat.', prize: 'tape 3 Burner SIM phones where nobody dusts'},
+  x4043: {site: 'the annex with no sign', at: 'Campus Lab', lock: 'maglock', job: 'hack', tier: 4, guard: 'law',
+    inside: 'A room with no windows, and a file with your name spelled correctly, which is the worrying part.', prize: 'redact the file'},
+  // Street contacts (the gig brings the place and the lock).
+  gig_mama: {site: 'the rival cart\'s lock-up', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec',
+    inside: 'Stock pots, a deep freeze, and a lockbox with a recipe card in it. The card has a soup stain. It is the same stain.', prize: 'take the recipe back'},
+  gig_baud: {site: 'the switching cabinet', lock: 'padlock', job: 'plant', tier: 1, dev: 'Burner SIMs', n: 1, guard: 'sec',
+    inside: 'Forty years of wiring, all of it labelled in one man\'s handwriting.', prize: 'leave a Burner SIM phone on line four'},
+  gig_patch: {site: 'the private clinic\'s supply room', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec',
+    inside: 'Glass cabinets, a fridge that beeps, and a sign that says THIS ROOM IS MONITORED. It is not.', prize: 'fill the cooler box'},
+  gig_deacon: {site: 'the collections agency', lock: 'padlock', job: 'hack', tier: 1, guard: 'sec',
+    inside: 'Cubicles, headsets, and a whiteboard ranking the staff by tears caused.', prize: 'teach the machine to forgive'},
+  gig_sparks: {site: 'the pawn shop\'s back room', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec',
+    inside: 'Guitars, power tools, a wedding dress, and a cyberdeck with a cartoon frog sticker on it.', prize: 'get the deck back'},
+  gig_lady: {site: 'the empty executive suite', lock: 'padlock', job: 'plant', tier: 1, dev: 'Rogue APs', n: 1, guard: 'sec',
+    inside: 'New carpet, no furniture, and a view somebody is about to pay far too much for.', prize: 'hide a Rogue AP before the furniture arrives'},
+  // The Local BBS (the posting brings the place, the lock and how many devices).
+  job_usb: {site: 'the law office', lock: 'padlock', job: 'plant', tier: 1, dev: 'USB Droppers', n: 1, guard: 'sec',
+    ad: 'Break in and leave loaded drives in a law office\'s print room',
+    inside: 'Three printers, all jammed. A fourth, working, hidden behind a plant.', prize: 'leave the drives in the print room'},
+  job_ap: {site: 'the boardroom', lock: 'padlock', job: 'plant', tier: 1, dev: 'Rogue APs', n: 1, guard: 'sec',
+    ad: 'Break in and hide an access point above a boardroom',
+    inside: 'A table the size of a small yacht, and a ceiling tile that is already loose.', prize: 'hide the access points above the table'},
+  job_sim: {site: 'the negotiating room', lock: 'padlock', job: 'plant', tier: 1, dev: 'Burner SIMs', n: 1, guard: 'sec',
+    ad: 'Break in and tape a listening phone under a negotiating table',
+    inside: 'Two rows of chairs facing each other, and a jug of water nobody trusts.', prize: 'tape the phones under the table'},
+};
+const PLANT_WHAT = {'USB Droppers': 'loaded drive', 'Rogue APs': 'access point', 'Burner SIMs': 'burner phone'};
+const JOB_WORD = {hack: 'Hack', rob: 'Rob', plant: 'Plant'};
+const STAGES = ['the approach', 'the lock', 'inside', 'the way out'];
+const cap1 = s => s[0].toUpperCase() + s.slice(1);
+const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+// Counted for the self-test: every way each stage can go.
+const heistTally = {cased: 0, seen: 0, blind: 0, quiet: 0, forced: 0, miss: 0, snapped: 0, jammed: 0, alarm: 0, noshow: 0,
+  won: 0, fled: 0, lost: 0, hack: 0, rob: 0, plant: 0, botched: 0, grab: 0, noroom: 0, clean: 0, spotted: 0, fast: 0,
+  done: 0, blown: 0, walked: 0, paid: 0, found: 0, drills: 0, bought: 0};
+
+// ----- the skill -----
+// Lock picking belongs to the career, like XP: career.lockpick is the points earned, and nothing else stores it.
+const lockNeed = l => BREAKIN.need[0] * l + BREAKIN.need[1];
+function lockInfo(points) {
+  let p = points === undefined ? career.lockpick || 0 : points, level = 1;
+  while (level < LOCK_MAX && p >= lockNeed(level)) { p -= lockNeed(level); level++; }
+  const top = level >= LOCK_MAX;
+  return {level, into: top ? 0 : p, need: top ? 0 : lockNeed(level)};
+}
+// Set the skill to the start of a level, 1 to LOCK_MAX. (Nothing in the game calls this: it is for the debug menu and the self-test.)
+function setLockSkill(level) {
+  level = clampN(Math.floor(level) || 1, 1, LOCK_MAX);
+  career.lockpick = 0;
+  for (let l = 1; l < level; l++) career.lockpick += lockNeed(l);
+  saveCareer();
+  return career.lockpick;
+}
+// Adds skill points and returns a snippet for the result line.
+function gainLock(n) {
+  const before = lockInfo().level;
+  if (before >= LOCK_MAX || !(n > 0)) return '';
+  career.lockpick += n;
+  saveCareer();
+  const now = lockInfo().level;
+  return ` <span class="amber">+${n} lock picking</span>` + (now > before ? ` <b class="amber">Lock picking is now level ${now}.</b>` : '');
+}
+const lockLine = () => {
+  const li = lockInfo();
+  return `Lock picking <b class="amber">level ${li.level}</b>` + (li.need ? ` <span class="dim">(${li.into}/${li.need} to the next)</span>` : ' <span class="dim">(as good as it gets)</span>');
+};
+const lockMeter = () => {
+  const li = lockInfo();
+  return meter('Picking', li.need ? li.into : 1, li.need || 1, 'L' + li.level, 'amber');
+};
+
+// ----- tools against locks -----
+// Why this tool is no use on this lock right now, or '' when it can be tried. st: the break-in's state (a jammed lock).
+function toolBlock(key, lock, st) {
+  const T = TOOLS[key], type = LOCKS[lock][2];
+  if (key !== 'clip' && !S[key]) return 'you have none';
+  if (T.on !== 'any' && T.on !== type) return type === 'elec' ? 'there is no keyhole' : 'there is nothing to scan';
+  if (st && st.jam && !T.loud) return 'the lock is jammed with a broken pick';
+  return '';
+}
+// The odds for one try, in whole percent: these are the numbers shown, and the numbers rolled.
+// open: it opens. brk: it breaks, on a miss. wear: it wears out, on any try. noise: Alert added by a miss.
+function lockOdds(key, lock, edge) {
+  const T = TOOLS[key], B = BREAKIN, [, diff, type] = LOCKS[lock], lvl = lockInfo().level;
+  const raw = T.loud ? B.force[0] - B.force[1] * diff + B.force[2] * lvl - (type === 'elec' ? B.force[3] : 0)
+    : B.base + B.perLevel * lvl + (diff >= 4 && T.hard !== undefined ? T.hard : T.q) - B.perDiff * diff;
+  const ease = 1 - B.ease * (lvl - 1);
+  return {open: clampN(Math.round(raw + (edge || 0)), B.min, B.max), brk: Math.round(T.brk * ease * 100),
+    wear: Math.round(T.wear * 100), noise: Math.max(1, Math.round(T.noise * ease))};
+}
+const oddsLine = (key, o) => `<span class="green">opens ${o.open}%</span>` +
+  (TOOLS[key].loud ? ` <span class="red">&middot; forces the door: +${BREAKIN.forced} Alert and Heat</span>` : '') +
+  ` &middot; a miss: +${o.noise} Alert` + (o.brk ? `, ${o.brk}% it ${key === 'picks' ? 'snaps' : 'breaks'}` : '') +
+  (o.wear ? ` &middot; ${o.wear}% it wears out, hit or miss` : '') + (key === 'clip' ? ' &middot; you never run out of paperclips' : '');
+// One try. Successes teach more than misses, and harder locks teach more; forcing a door teaches next to nothing.
+// practice: the board at the Bunker, which teaches less and only up to a point. Returns what happened.
+function lockTry(key, lock, edge, practice) {
+  const T = TOOLS[key], B = BREAKIN, o = lockOdds(key, lock, edge), diff = LOCKS[lock][1];
+  const open = Math.random() * 100 < o.open;
+  let broke = false, jam = false;
+  if (key !== 'clip') {
+    if ((!open && Math.random() * 100 < o.brk) || (o.wear > 0 && Math.random() * 100 < o.wear)) { broke = true; S[key]--; }
+    if (broke && !open && key === 'picks' && !practice && Math.random() < B.jam) jam = true;
+  }
+  let pts = T.loud ? B.learnForce[open ? 0 : 1] : open ? B.learnOpen[0] + B.learnOpen[1] * diff : B.learnMiss[0] + B.learnMiss[1] * diff;
+  if (practice) pts = lockInfo().level >= B.practiceCap ? 0 : Math.ceil(pts * B.practiceShare);
+  return {open, broke, jam, noise: open ? 0 : o.noise, pts, got: gainLock(pts)};
+}
+const alertClass = a => (a >= 70 ? 'red' : a >= 40 ? 'amber' : 'green');
+const alertMeter = st => meter('Alert', st.alert, 100, st.alert + '%', alertClass(st.alert));
+const diffPips = lock => `<span class="amber">${'&#9679;'.repeat(LOCKS[lock][1])}</span><span class="dim">${'&#9675;'.repeat(5 - LOCKS[lock][1])}</span>`;
+const lockCard = lock => `<div class="syn"><b>${LOCKS[lock][0]}</b> ${diffPips(lock)} <span class="dim">${LOCKS[lock][2] === 'elec' ? 'electronic' : 'mechanical'}</span>` +
+  `<br><span class="dim">${LOCKS[lock][3]}</span></div>`;
+// The tools you could use on this lock, best chance first.
+const toolsFor = (lock, st) => Object.keys(TOOLS).filter(k => !toolBlock(k, lock, st));
+
+// The lock, tool by tool: pick one, see the chance, try, read what happened, try again or back off.
+// st: the break-in's state (its Alert rises with every miss), or null at the practice board.
+// o: {head (a line above everything), edge (bonus to the chance), practice}.
+// Returns {res: 'open' | 'forced' | 'back' | 'alarm', key (the tool that did it), last (what the last try did)}.
+async function lockDialog(lock, st, o) {
+  const name = LOCKS[lock][0];
+  let last = '';
+  for (;;) {
+    const drills = o.practice ? BREAKIN.drills - (S.drills || 0) : 1;
+    const shown = Object.keys(TOOLS).filter(k => k === 'clip' || S[k]);
+    const html = (o.head || '') + (last ? `<p>${last}</p>` : '') + lockCard(lock) +
+      (st ? alertMeter(st) : `<p class="dim">Tries left at the board today: <b>${drills}</b></p>`) + `<p>${lockLine()}</p>` +
+      shown.map(k => {
+        const why = toolBlock(k, lock, st);
+        return '<div class="syn">' + withIcon(miscIcon(k), `<b class="r${TOOLS[k].rar}">${toolName(k)}</b>` +
+          (k === 'clip' ? '' : ` <span class="dim">x${S[k]}</span>`) + '<br>' +
+          (why ? `<span class="dim">No use here: ${why}.</span>` : oddsLine(k, lockOdds(k, lock, o.edge)))) + '</div>';
+      }).join('') +
+      (st ? '<p class="dim">Every miss adds to the Alert. At 100% the alarm goes. Backing off costs nothing, and the Alert settles overnight.</p>'
+        : '<p class="dim">Nobody is listening down here, so a miss only costs you the try, and now and then a pick.</p>');
+    const usable = drills > 0 ? toolsFor(lock, st) : [];
+    const buttons = usable.map(k => [`${toolName(k)} (${lockOdds(k, lock, o.edge).open}%)`, k, TOOLS[k].loud ? 'danger' : '', miscIcon(k)]);
+    buttons.push([o.practice ? 'Step away' : 'Back off', null, usable.length ? 'small' : 'primary']);
+    const key = await dialog(o.practice ? `Practice: ${name}` : `The lock: ${name}`, html, buttons, st && st.alert >= 70 ? 'danger' : '');
+    if (!key || !TOOLS[key] || toolBlock(key, lock, st)) return {res: 'back', last};
+    const T = TOOLS[key], r = lockTry(key, lock, o.edge, o.practice);
+    if (o.practice) { S.drills = (S.drills || 0) + 1; heistTally.drills++; }
+    if (st) st.pts = (st.pts || 0) + r.pts;
+    const gone = r.broke ? (key === 'picks' ? ` <span class="red">The pick snaps${r.jam ? ', and its tip stays in the lock' : ''}.</span>`
+      : key === 'bump' ? ' <span class="red">The bump key\'s teeth have rounded off. It is a keyring ornament now.</span>'
+      : key === 'cloner' ? ' <span class="red">The cloner gets warm, then smells of solder, then is a paperweight.</span>'
+      : key === 'crowbar' ? ' <span class="red">The crowbar bends. You did not know they could do that.</span>'
+      : ' <span class="red">Something inside the pick gun goes ping, and it stops being one.</span>') : '';
+    if (r.broke) heistTally.snapped++;
+    if (r.open) {
+      SND.play(T.loud ? 'thud' : 'click');
+      last = (T.loud ? `<span class="amber">The ${name.toLowerCase()} gives up with a noise the whole street can hear.</span>`
+        : `<span class="green">${key === 'cloner' ? 'The light goes green. The reader thinks you work here.' : key === 'bump' ? 'One sharp rap and the pins jump. It turns.' : 'The last pin sets, and the lock turns as if it had been waiting for you.'}</span>`) + gone + r.got;
+      return {res: T.loud ? 'forced' : 'open', key, last};
+    }
+    SND.play('deny');
+    heistTally.miss++;
+    last = `<span class="amber">${T.loud ? 'The door holds. The noise does not.' : key === 'cloner' ? 'The light stays red. The reader beeps, twice, like a judge.' : 'The pins drop. Nothing turns.'}</span>` +
+      (st ? ` Alert +${r.noise}.` : '') + gone + r.got;
+    if (st) {
+      st.alert = Math.min(100, st.alert + r.noise);
+      if (r.jam) { st.jam = true; heistTally.jammed++; }
+      if (st.alert >= 100) return {res: 'alarm', key, last};
+    }
+  }
+}
+
+// ----- where a break-in's progress is kept -----
+// A mission descriptor: {src ('quest', 'gig', 'job' or 'free'), o (the mission, gig or BBS posting), H (the break-in:
+// its HEISTS entry plus whatever the source overrides), box + key (where its state lives)}.
+// The state: {id, stage (0 to 3: see STAGES), day, alert, cased, entry ('quiet' or 'forced'), jam, moves, done,
+// careful, hot (the day the alarm went: no going back that day), loc, took (what you carried out, in words), pts}.
+// A syndicate break-in's state sits on the run (S.qh), a gig's on the gig, a BBS job's on its posting, and one
+// started with startHeist() on the run too (S.fh).
+function heistM(src, o) {
+  const id = src === 'job' ? o.heist : o.good, base = HEISTS[id];
+  if (!base) return null;
+  const H = Object.assign({id}, base);
+  if (src === 'gig') { H.at = o.place; H.lock = LOCKS[o.lock] ? o.lock : base.lock; H.tier = LOCKS[H.lock][1]; }
+  if (src === 'job') { H.at = o.at; H.lock = LOCKS[o.lock] ? o.lock : base.lock; H.tier = LOCKS[H.lock][1]; H.n = o.qty; H.dev = o.good; }
+  if (src === 'free') H.at = o.at;
+  return {src, o, H, box: src === 'gig' || src === 'job' ? o : S, key: src === 'quest' ? 'qh' : src === 'free' ? 'fh' : 'h'};
+}
+// The state, without making one.
+const heistPeek = M => (M && M.box[M.key] && M.box[M.key].id === M.H.id ? M.box[M.key] : null);
+function heistState(M) {
+  let st = heistPeek(M);
+  if (!st) st = M.box[M.key] = {id: M.H.id, stage: 0, day: S.day, alert: 0};
+  if (st.day !== S.day && st.stage < 2) { st.day = S.day; st.alert = 0; st.jam = false; }   // a night has passed: the place has settled, and somebody fixed the lock
+  return st;
+}
+// "Break into the records annex at Paste Alley and copy the file off their terminal"
+function heistGoal(Q) {
+  const M = heistM(Q.kind === 'heist' ? 'quest' : 'gig', Q);
+  return M ? `Break into ${M.H.site} at ${M.H.at} and ${M.H.prize}` : 'Break in';
+}
+// One line for the main screen: where the break-in stands.
+function heistStatus(src, o) {
+  const M = heistM(src, o), st = heistPeek(M);
+  if (!M) return '';
+  if (st && st.hot === S.day) return 'the place is crawling: come back tomorrow';
+  if (!st || (!st.stage && !st.cased)) return S.loc === M.H.at ? 'you are here: open it to start' : `not started &middot; ${LOCKS[M.H.lock][0].toLowerCase()}`;
+  return `stage ${st.stage + 1} of 4: ${STAGES[st.stage]}` + (st.cased && !st.stage ? ' (cased)' : '') +
+    (st.stage && st.day === S.day ? ` &middot; Alert ${st.alert}%` : '');
+}
+// What the briefing says about a break-in: the place, the lock, what to bring, and where it stands.
+function heistBrief(M) {
+  const H = M.H, st = heistPeek(M), type = LOCKS[H.lock][2];
+  const works = Object.keys(TOOLS).filter(k => TOOLS[k].on === 'any' || TOOLS[k].on === type);
+  const mine = works.filter(k => k === 'clip' || S[k]);
+  const need = H.job === 'plant' ? `<p>To leave behind: <b>${H.n} ${H.dev}</b> <span class="${(S.inv[H.dev] || 0) >= H.n ? 'green' : 'red'}">(you carry ${num(S.inv[H.dev] || 0)})</span></p>` : '';
+  return `<div class="syn"><b>${cap1(H.site)}</b> &middot; ${H.at}<br>${JOB_WORD[H.job]} job: ${H.prize}.</div>` + lockCard(H.lock) +
+    `<p>Opens with: ${works.map(k => `<span class="${mine.includes(k) ? 'green' : 'dim'}">${toolName(k)}</span>`).join(', ')}. ` +
+    `<span class="dim">Green ones you carry.</span><br>${lockLine()}</p>` + need +
+    '<p class="dim">Four stages: the approach, the lock, the job inside, the way out. A quiet entry and a clean exit pay a bonus; ' +
+    'a forced door means less time inside and a smaller haul. If it goes wrong you can come back another day.</p>' +
+    (st && st.hot === S.day ? '<p class="amber">The alarm went today. The place is crawling: come back tomorrow.</p>'
+      : S.loc !== H.at ? `<p class="dim">Get to ${H.at}, then open this there.</p>` : '');
+}
+// Can it be started (or carried on) right here, right now?
+const heistReady = M => !!M && S.loc === M.H.at && !(heistPeek(M) && heistPeek(M).hot === S.day);
+const heistButton = M => {
+  const st = heistPeek(M);
+  return !st || !st.stage ? `Go to work at ${M.H.site}` : `Carry on: ${STAGES[st.stage]}`;
+};
+// Everything that raises Heat on a break-in comes through here: Ghost Shell and stealth gear soften it, as they do a deal.
+function heistHeat(n) {
+  if (inSyn('ghost')) n = Math.ceil(n / 2);
+  n = Math.ceil(n * (1 - bonus('stealth') / 100));
+  const was = S.heat;
+  if (n > 0) heatUp(n);
+  return S.heat - was;
+}
+// The chance the job inside works, carefully and fast.
+function jobOddsIn(M, st) {
+  const H = M.H, B = BREAKIN;
+  const gear = H.job === 'hack' ? B.proxyEdge * S.proxies + bonus('hack') / 2 : H.job === 'rob' ? bonus('speed') / 2 : bonus('stealth') / 2;
+  const base = B.job[H.job] + gear - B.tierDrop * (H.tier - 1) + (st.cased ? B.casedEdge : 0) + (H.edge || 0);
+  return {careful: clampN(Math.round(base), B.jobMin, B.jobMax), fast: clampN(Math.round(base - B.fastDrop), B.jobMin, B.jobMax)};
+}
+const cleanOdds = st => clampN(Math.round(100 - st.alert + bonus('stealth') / 2 + (st.cased ? BREAKIN.casedEdge / 2 : 0)), BREAKIN.cleanMin, BREAKIN.cleanMax);
+const fastHeat = st => BREAKIN.heat.fast[0] + Math.round(st.alert / BREAKIN.heat.fast[1]);
+// Put goods on the drive, as many as there is room for. Returns how many went on.
+function heistGoods(name, qty) {
+  const n = Math.max(0, Math.min(qty, free()));
+  if (n < qty) heistTally.noroom++;
+  if (n) addItems(name, n, 0);
+  return n;
+}
+const stageHead = (n, M) => `<p class="dim">STAGE ${n + 1} OF 4 &middot; ${STAGES[n].toUpperCase()} &middot; ${M.H.site.toUpperCase()}</p>`;
+
+// The alarm has gone, or somebody saw you. Heat, and then whoever answers it: site security, the law or a rival crew.
+// Returns 'won' (they are down: carry on), 'fled' (you got away), 'lost', 'none' (nobody came) or 'over' (the run ended).
+async function heistAlarm(M, st, spotted) {
+  const H = M.H, B = BREAKIN, heat = heistHeat(spotted ? B.heat.spotted : B.heat.alarm);
+  heistTally.alarm++;
+  st.alert = 100;
+  S.mood = 'ouch';
+  SND.play('alarm');
+  log(`<span class="red">${spotted ? `Somebody saw you leaving ${H.site}` : `The alarm went at ${H.site}`}: Heat +${heat}%.</span>`);
+  render();
+  const quiet = H.guard === 'sec' && Math.random() < B.noShow;
+  await alertDlg(spotted ? 'SPOTTED' : 'ALARM', `<p>${spotted ? 'A torch beam finds you halfway across the car park, and then a voice does.'
+    : 'A bell the size of a dinner plate starts up above the door. It is very good at its job.'}</p>` +
+    `<p>Heat <b class="red">+${heat}%</b>.</p>` +
+    (quiet ? '<p class="dim">Nobody comes. The alarm company has put the call on hold. You do not wait to find out for how long.</p>' : ''), 'danger');
+  if (quiet) { heistTally.noshow++; return 'none'; }
+  const tier = lawTier(), L = LAW[tier], crew = SYNDICATES[H.guard];
+  const E = H.guard === 'law' ? {kind: 'law', tier, name: L.name, n: [rnd(1, 2), rnd(2, 3), rnd(2, 3)][tier], hit: L.hit, lo: L.lo, hi: L.hi,
+    intro: `${cap1(L.name)} was already on the way. They are between you and the street.`}
+    : crew ? {kind: 'gang', gang: H.guard, name: crew[0], n: rnd(2, 3), hit: 0.3, lo: 3, hi: 8}
+      : {kind: 'thug', name: 'Site security', n: rnd(1, 1 + Math.ceil(H.tier / 2)), hit: B.guards.hit, lo: B.guards.lo, hi: B.guards.hi + H.tier, seed: rnd(0, 5),
+        intro: `Site security comes round the corner of ${H.site}, torches up, already on the radio.`};
+  await fight(E);
+  const res = S.over ? 'over' : E.result === 'won' ? 'won' : E.result === 'lost' ? 'lost' : 'fled';
+  if (heistTally[res] !== undefined) heistTally[res]++;
+  if (res === 'won') st.alert = B.afterFight;
+  return res;
+}
+
+// It did not work this time. The mission is still there: the place needs a night to settle down.
+// (A BBS job is not: the client reads the news.)
+async function heistBlown(M, st, why) {
+  const H = M.H;
+  heistTally.blown++;
+  M.box[M.key] = {id: H.id, stage: 0, day: S.day, alert: 0, cased: st.cased, hot: S.day};
+  if (M.src === 'job') { const i = S.contracts.indexOf(M.o); if (i >= 0) S.contracts.splice(i, 1); }
+  if (M.src === 'free') delete S.fh;
+  log(`<span class="red">The job at ${H.site} is blown for today.</span>`);
+  render();
+  if (S.over) return;
+  await alertDlg('Blown', `<p>${why}</p>` + (M.src === 'job' ? '<p class="dim">The client has stopped answering. The posting is gone.</p>'
+    : M.src === 'free' ? '' : '<p class="dim">The job is still yours. Give the place a night to calm down, then try again.</p>'), 'danger');
+}
+
+// The job is done and you are out. clean: you slipped out unseen. Pays whatever this kind of break-in pays.
+async function heistDone(M, st, clean) {
+  const H = M.H, B = BREAKIN, ghost = st.entry === 'quiet' && clean, mult = ghost ? B.ghost : st.entry === 'forced' ? B.messy : 1;
+  heistTally.done++;
+  delete M.box[M.key];
+  tally('breakins');
+  if (ghost) tally('cleanin');
+  let pay = '';
+  if (M.src === 'quest') {
+    // The mission's own reward is paid by questCheck, like any other mission's. A quiet, clean job earns extra respect.
+    const xp = ghost ? gainXp(Math.round(M.o.xp * B.ghostXp)) : '';
+    pay = `Your handler will hear about it.${xp ? ` Nobody will ever know you were there, which the crew values:${xp}.` : ''}`;
+    questEvent('heist', 1);
+  } else if (M.src === 'gig') {
+    M.o.cash = Math.round(M.o.cash * mult / 10) * 10;
+    M.o.p = M.o.t;   // gigCheck pays it out
+    if (ghost) addTrust(M.o.who, B.ghostTrust);
+    pay = `${M.o.who} will pay <b>${money(M.o.cash)}</b>` + (ghost ? ', with a bonus for leaving no trace, and trusts you a little more for it.' : st.entry === 'forced' ? ', less the price of a new door.' : '.');
+  } else if (M.src === 'job') {
+    const cash = Math.round(payoutFor(M.o) * mult / 10) * 10, i = S.contracts.indexOf(M.o);
+    if (i >= 0) S.contracts.splice(i, 1);
+    S.cash += cash;
+    tally('jobs');
+    const xp = gainXp(B.bbsXp[0] + B.bbsXp[1] * LOCKS[H.lock][1]);
+    pay = `${M.o.client} pays <b>${money(cash)}</b>` + (ghost ? ', bonus included: nobody knows anyone was there' : st.entry === 'forced' ? ', less the price of a new door' : '') + `.${xp}`;
+  } else {
+    const [xp, cash] = HEIST_PAY[H.tier - 1];
+    S.cash += cash;
+    pay = `It pays <b>${money(cash)}</b>.${gainXp(xp)}`;
+  }
+  S.mood = 'grin';
+  SND.play('cash');
+  log(`<span class="green">Break-in done at ${H.site}: ${st.entry === 'forced' ? 'forced entry' : 'quiet entry'}, ${clean ? 'clean exit' : 'messy exit'}.</span>` +
+    (st.took ? ` You took ${st.took}.` : ''));
+  render();
+  await alertDlg('JOB DONE', `<p><b>${cap1(H.site)}</b>: you came to ${H.prize}, and you did.</p>` +
+    `<div class="syn">Entry: <b class="${st.entry === 'forced' ? 'amber' : 'green'}">${st.entry === 'forced' ? 'forced' : 'quiet'}</b> &middot; ` +
+    `Exit: <b class="${clean ? 'green' : 'amber'}">${clean ? 'clean' : 'messy'}</b>` +
+    (st.took ? `<br>Carried out: ${st.took}` : '') + (st.pts ? `<br>Lock picking: <span class="amber">+${st.pts}</span> this job` : '') + '</div>' +
+    `<p>${pay}</p>`);
+}
+
+// ----- the four stages -----
+// Play a break-in from wherever it stands. Returns when it is done, blown, or you back off.
+async function heistPlay(M) {
+  if (!M || !heistReady(M)) return;
+  const H = M.H, B = BREAKIN, st = heistState(M);
+  st.loc = S.loc;
+  let note = '';   // what the last stage did, shown at the top of the next one
+
+  // Stage 1, the approach: case the place (a trip, and a small chance of being noticed) or go in blind.
+  if (st.stage === 0) {
+    const type = LOCKS[H.lock][2], short = H.job === 'plant' && (S.inv[H.dev] || 0) < H.n, tools = toolsFor(H.lock, st);
+    const html = stageHead(0, M) + `<p>${cap1(H.site)}, from across the street. You are here to ${H.prize}.</p>` + lockCard(H.lock) +
+      (short ? `<p class="red">You need ${H.n} ${H.dev} to leave behind, and you carry ${num(S.inv[H.dev] || 0)}. There is nothing to do in there without them.</p>` : '') +
+      (!tools.length ? `<p class="red">Nothing you carry opens this. ${type === 'elec' ? 'An electronic lock needs an RFID Cloner, or a Crowbar and a tolerance for noise.' : 'Find a pick, a paperclip, anything.'}</p>` : '') +
+      (st.cased ? '<p class="green">You cased this place already: you know when the guard goes for his tea.</p>'
+        : `<p><b>Case it</b>: an hour across the street with a coffee. Uses a trip. +${B.casedEdge}% at the lock and inside, an easier way out, and no Alert to start with. ` +
+          `About one time in ${Math.round(1 / B.caseSeen[0])} somebody wonders what you are looking at.<br>` +
+          `<b>Go in blind</b>: no trip, no waiting, and you start with ${B.blind}% Alert because you do not know where the cameras are.</p>`) +
+      `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today.</p>`;
+    const buttons = [];
+    if (!short && tools.length) {
+      if (st.cased) buttons.push(['Go in', 'in', 'primary']);
+      else {
+        if (S.trips > 0) buttons.push(['Case the place (1 trip)', 'case', 'primary']);
+        buttons.push(['Go in blind', 'blind', S.trips > 0 ? '' : 'primary']);
+      }
+    }
+    buttons.push(['Not now', null, buttons.length ? 'small' : 'primary']);
+    const how = await dialog('The approach', html, buttons);
+    if (!how) return;
+    if (how === 'case') {
+      S.trips--;
+      st.cased = true;
+      heistTally.cased++;
+      if (Math.random() < B.caseSeen[0]) {
+        heistTally.seen++;
+        st.alert = B.caseSeen[1];
+        note = `<span class="amber">A man in a hi-vis vest asks if you are lost. You say yes. He does not believe you: Alert ${st.alert}%, Heat +${heistHeat(B.heat.seen)}%.</span>`;
+      } else {
+        st.alert = 0;
+        note = '<span class="green">Two coffees later you know the cameras, the patrol, and that the guard does the crossword in pen.</span>';
+      }
+    } else if (how === 'blind') { st.alert = Math.max(st.alert, B.blind); heistTally.blind++; note = 'No plan survives contact with the door anyway.'; }
+    st.stage = 1;
+    save();
+  }
+
+  // Stage 2, the lock: quietly, loudly, or not at all.
+  if (st.stage === 1) {
+    const r = await lockDialog(H.lock, st, {head: stageHead(1, M) + (note ? `<p>${note}</p>` : ''), edge: st.cased ? B.casedEdge : 0});
+    note = r.last;
+    if (r.res === 'back') { save(); return; }
+    if (r.res === 'alarm') {
+      const res = await heistAlarm(M, st);
+      if (res !== 'won') return heistBlown(M, st, res === 'lost' ? 'You never got through the door, and you are in no state to try again today.'
+        : 'You are three streets away before the bell stops. The door is still locked.');
+      note = '<span class="amber">Whoever answered the alarm is on the floor, and one of them had keys. That is one way through a door.</span>';
+      r.res = 'forced';
+    } else if (r.res === 'forced') {
+      st.alert = Math.min(100, st.alert + B.forced);
+      note += ` <span class="amber">Alert +${B.forced}, Heat +${heistHeat(B.heat.forced)}%.</span>`;
+      tally('forced');
+    } else tally('picked');
+    st.entry = r.res === 'forced' ? 'forced' : 'quiet';
+    heistTally[st.entry]++;
+    st.moves = B.moves[st.entry === 'forced' ? 1 : 0];
+    st.stage = 2;
+    st.jam = false;
+    SND.play('imin', 0.2);
+    save();
+    if (st.alert >= 100) {   // the door came off, and so did the roof
+      const res = await heistAlarm(M, st);
+      if (res !== 'won') return heistBlown(M, st, res === 'lost' ? 'The door is open. So, after a fashion, are you.' : 'The door is open, the alarm is ringing, and you are leaving.');
+    }
+  }
+
+  // Stage 3, inside: the job, carefully or fast, and whatever else there is time for.
+  if (st.stage === 2) {
+    const verb = {hack: ['Hack it carefully', 'Smash and grab the data'], rob: ['Take only what will not be missed yet', 'Grab everything and go'],
+      plant: ['Hide it properly', 'Tape it under the nearest desk']}[H.job];
+    while (st.moves > 0) {
+      const odds = jobOddsIn(M, st), short = H.job === 'plant' && (S.inv[H.dev] || 0) < H.n;
+      const html = stageHead(2, M) + (note ? `<p>${note}</p>` : '') + `<p>${H.inside}</p>` + alertMeter(st) +
+        `<p>Time left: <b class="${st.moves > 1 ? 'green' : 'amber'}">${'&#9632;'.repeat(st.moves)}</b> <span class="dim">(${st.entry === 'forced' ? 'a forced door: somebody will come and look' : 'a quiet entry: nobody knows you are here'})</span></p>` +
+        `<div class="syn"><b>${cap1(H.prize)}</b>: ${st.done ? '<span class="green">done</span>' : '<span class="amber">not yet</span>'}` +
+        (st.took ? `<br><span class="dim">In your bag: ${st.took}</span>` : '') + '</div>' +
+        (short && !st.done ? `<p class="red">You no longer have the ${H.n} ${H.dev} to leave behind.</p>` : '') +
+        (st.done ? '' : `<p class="dim">Carefully takes two moves and adds ${B.jobOk[0]} Alert. Fast takes one and adds ${B.jobOk[1]}` +
+          `${H.job === 'plant' ? ', and a taped-up device does not last as long' : ''}. A botched try adds ${B.jobMiss}.</p>`) +
+        `<p class="dim">Helping yourself to what is lying around takes one move and adds ${B.grab} Alert. Drive: ${used()}/${cap()}.</p>`;
+      const buttons = [];
+      if (!st.done && !short) {
+        if (st.moves >= 2) buttons.push([`${verb[0]} (${odds.careful}%, 2 moves)`, 'careful', 'primary']);
+        buttons.push([`${verb[1]} (${odds.fast}%, 1 move)`, 'fast', st.moves >= 2 ? '' : 'primary']);
+      }
+      buttons.push(['Help yourself (1 move)', 'grab'], ['Head for the door', null, 'small']);
+      const act = await dialog('Inside', html, buttons, st.alert >= 70 ? 'danger' : '');
+      if (!act) break;
+      if (act === 'grab') {
+        st.moves--;
+        st.alert = Math.min(100, st.alert + B.grab);
+        heistTally.grab++;
+        const cut = st.entry === 'forced' ? B.forcedLoot : 1;
+        if (Math.random() < B.grabGoods) {
+          const name = GOODS[rnd(6, GOODS.length - 1)][0], want = Math.max(1, Math.round(rnd(1, 3) * cut)), n = heistGoods(name, want);
+          note = n ? `<span class="green">A desk drawer gives up ${n} ${name}.</span>${n < want ? ' The rest will not fit on your drive.' : ''}`
+            : `<span class="amber">There are ${name} in a drawer, and no room on your drive for any of them.</span>`;
+          if (n) st.took = (st.took ? st.took + ', ' : '') + `${n} ${name}`;
+        } else {
+          const cash = Math.round(rnd(B.grabCash[0], B.grabCash[1]) * H.tier * cut / 10) * 10;
+          S.cash += cash;
+          st.took = (st.took ? st.took + ', ' : '') + money(cash);
+          note = `<span class="green">The petty cash tin was not locked. ${money(cash)}.</span>`;
+        }
+        note += ` Alert +${B.grab}.`;
+      } else {
+        const careful = act === 'careful';
+        st.moves -= careful ? 2 : 1;
+        if (Math.random() * 100 < (careful ? odds.careful : odds.fast)) {
+          st.done = true;
+          st.careful = careful;
+          heistTally[H.job]++;
+          const add = B.jobOk[careful ? 0 : 1], cut = st.entry === 'forced' ? B.forcedLoot : 1;
+          st.alert = Math.min(100, st.alert + add);
+          let got = '';
+          if (H.job === 'plant') {
+            removeItems(H.dev, H.n);
+            const each = Math.round(rnd(B.plantPay[0], B.plantPay[1]) * H.tier * (1 + 0.25 * (H.n - 1)) / 10) * 10;
+            S.plants = S.plants || [];
+            S.plants.push({site: H.site, what: PLANT_WHAT[H.dev] || 'device', left: B.plantDays[careful ? 0 : 1], pay: each, sloppy: !careful});
+            got = `It should send home about ${money(each)} a night for ${B.plantDays[careful ? 0 : 1]} nights${careful ? '' : ', if nobody finds it first'}.`;
+          } else {
+            const lot = H.job === 'hack' ? H.data : H.swag;
+            if (H.job === 'rob') {
+              const cash = Math.round(rnd(B.cash[0], B.cash[1]) * H.tier * (1 + S.day / 30) * cut / 10) * 10;
+              S.cash += cash;
+              st.took = (st.took ? st.took + ', ' : '') + money(cash);
+              got = `${money(cash)} in notes that do not need counting twice.`;
+            }
+            if (lot) {
+              const want = Math.max(1, Math.round(lot[1] * cut)), n = heistGoods(lot[0], want);
+              if (n) st.took = (st.took ? st.took + ', ' : '') + `${n} ${lot[0]}`;
+              got += n ? ` ${n} ${lot[0]} ${H.job === 'hack' ? 'copied to' : 'on'} your drive.${n < want ? ` There was room for no more: ${want - n} stay behind.` : ''}`
+                : ` There were ${want} ${lot[0]} for the taking, and no room on your drive for one of them.`;
+            }
+          }
+          note = `<span class="green">${H.job === 'hack' ? 'You are in, you have it, and the logs say the cleaner did it.' : H.job === 'rob' ? 'It goes in the bag.' : careful ? 'It is in, it is hidden, and it has started to listen.' : 'It is in. It is held on with tape and optimism.'}</span> ${got} Alert +${add}.`;
+          SND.play('hack');
+        } else {
+          heistTally.botched++;
+          st.alert = Math.min(100, st.alert + B.jobMiss);
+          note = `<span class="red">${H.job === 'hack' ? 'Wrong password. The screen says so in a large, red, shared-with-IT sort of way.' : H.job === 'rob' ? 'You knock over a display of something made entirely of glass.' : 'The tile comes down, and brings its friends.'}</span> Alert +${B.jobMiss}.`;
+          SND.play('deny');
+        }
+      }
+      save();
+      if (st.alert >= 100) {
+        const res = await heistAlarm(M, st);
+        if (res === 'won') { note = '<span class="amber">That is the alarm answered. You have a little time before anybody else does.</span>'; continue; }
+        if (res === 'over') return heistBlown(M, st, '');
+        if (st.done && res !== 'lost') return heistDone(M, st, false);   // out, in a hurry, with the job done
+        return heistBlown(M, st, res === 'lost' ? 'They have you, and everything you came for.' : 'You go out through a fire door with nothing to show for it.');
+      }
+    }
+    if (!st.moves && !st.done) note = '<span class="amber">Out of time. Somebody is coming up the stairs, whistling.</span>';
+    st.stage = 3;
+    save();
+  }
+
+  // Stage 4, the way out: clean, if the Alert lets you, or fast.
+  if (st.stage === 3) {
+    const odds = cleanOdds(st), hot = fastHeat(st);
+    const how = await dialog('The way out', stageHead(3, M) + (note ? `<p>${note}</p>` : '') + alertMeter(st) +
+      (st.done ? '' : '<p class="amber">The job is not done. You can still leave in one piece and come back another day.</p>') +
+      `<p><b>Slip out clean</b>: the way you came, at a walk, closing things behind you. <b>${odds}%</b>, and no Heat if it works. If it does not, somebody sees you: Heat +${B.heat.spotted} and a fight.<br>` +
+      `<b>Leg it</b>: always works. Heat +${hot}, because running is what guilty people do.</p>`,
+      [[`Slip out clean (${odds}%)`, 'clean', 'primary'], [`Leg it (Heat +${hot})`, 'fast']], st.alert >= 70 ? 'danger' : '');
+    let clean = false;
+    if (how === 'clean') {
+      if (Math.random() * 100 < odds) { clean = true; heistTally.clean++; }
+      else {
+        heistTally.spotted++;
+        const res = await heistAlarm(M, st, true);
+        if (res === 'lost' || res === 'over') return heistBlown(M, st, res === 'lost' ? 'So close to the street. They take back what you took, and then some.' : '');
+      }
+    } else {
+      heistTally.fast++;
+      const up = heistHeat(hot);
+      log(`You ran from ${H.site}: Heat +${up}%.`);
+    }
+    if (!st.done) return heistBlown(M, st, 'You are out, with nothing to show for it. The job is still there.');
+    return heistDone(M, st, clean);
+  }
+}
+
+// Every break-in in progress, wherever its state is kept.
+function heistList() {
+  const list = [], Q = quest(), G = S.gig;
+  if (Q && Q.kind === 'heist') list.push(heistM('quest', Q));
+  if (G && G.kind === 'breakin') list.push(heistM('gig', G));
+  if (S.fh && HEISTS[S.fh.id]) list.push(heistM('free', {good: S.fh.id, at: S.fh.loc}));
+  for (const c of new Set(Object.values(S.markets || {}).flatMap(m => m.contracts || []).concat(S.contracts || []))) if (c.heist) list.push(heistM('job', c));
+  return list.filter(Boolean);
+}
+// You cannot be inside a building and somewhere else. Anyone who was inside (after a reload, say) and has
+// since turned up in another part of town left in a hurry: the job counts if it was done, and the Heat is real.
+async function heistCheck() {
+  for (const M of heistList()) {
+    const st = heistPeek(M);
+    if (!st || st.stage < 2 || st.loc === S.loc || S.over) continue;
+    heistTally.walked++;
+    const up = heistHeat(fastHeat(st));
+    log(`You left ${M.H.site} in a hurry: Heat +${up}%.`);
+    if (st.done) await heistDone(M, st, false);
+    else await heistBlown(M, st, `You walked out of ${M.H.site} with the job half done. It will keep.`);
+  }
+}
+// Start (or restart) any break-in at a given stage, right where you stand: 0 the approach, 1 the lock, 2 inside,
+// 3 the way out. It pays its tier's reward directly. (For the debug menu and the self-test.)
+async function startHeist(id, stage) {
+  if (!HEISTS[id]) return;
+  stage = clampN(Math.floor(stage) || 0, 0, 3);
+  S.fh = {id, stage, day: S.day, alert: 0, loc: S.loc, entry: stage >= 2 ? 'quiet' : '', moves: stage >= 2 ? BREAKIN.moves[0] : 0, done: stage >= 3};
+  return heistPlay(heistM('free', {good: id, at: S.loc}));
+}
+// A break-in for the Local BBS: somebody wants a device left somewhere it should not be.
+function breakinJob() {
+  const B = BREAKIN, [id, good] = pick([['job_usb', 'USB Droppers'], ['job_ap', 'Rogue APs'], ['job_sim', 'Burner SIMs']]);
+  const lock = pick(S.day <= 6 ? ['padlock', 'padlock', 'deadbolt'] : S.day <= 15 ? ['padlock', 'deadbolt', 'deadbolt', 'badge']
+    : ['deadbolt', 'badge', 'cylinder', 'maglock']);
+  const diff = LOCKS[lock][1], qty = rnd(1, 3), g = GOODS.find(x => x[0] === good), worth = (g[1] + g[2]) / 2 * qty;
+  return {good, qty, chance: 50, payout: Math.round(((B.bbs[0] + B.bbs[1] * S.day) * (1 + B.bbs[2] * diff) + B.bbs[3] * worth) / 10) * 10,
+    job: HEISTS[id].ad, client: pick(CLIENTS), heist: id, lock, at: S.loc};
+}
+// What the BBS says about a job's odds: a chance for ordinary jobs, the lock for a break-in.
+const jobOdds = c => (c.heist ? `break-in &middot; ${(LOCKS[c.lock] || LOCKS.padlock)[0].toLowerCase()}` : `${chanceFor(c)}% chance`);
+// Devices you left behind send a little money home every night until the battery goes, or somebody finds them.
+function plantsTick() {
+  const B = BREAKIN;
+  for (const p of (S.plants || []).slice()) {
+    if (p.sloppy && Math.random() < B.plantFound) {
+      S.plants.splice(S.plants.indexOf(p), 1);
+      heistTally.found++;
+      heatUp(B.heat.found);
+      log(`<span class="amber">Somebody found the ${p.what} you taped up at ${p.site}. It has stopped paying, and they are dusting it for prints.</span>`);
+      continue;
+    }
+    S.cash += p.pay;
+    heistTally.paid++;
+    tally('plantpay', p.pay);
+    if (--p.left <= 0) S.plants.splice(S.plants.indexOf(p), 1);
+    log(`<span class="green">The ${p.what} you left at ${p.site} sent home ${money(p.pay)}.</span>${p.left <= 0 ? ' Its battery is flat now.' : ''}`);
   }
 }
 
@@ -3134,6 +3924,8 @@ function rollContracts() {
     S.contracts.push({good: name, qty, chance, payout: Math.round(unit * qty * mult / 10) * 10,
       job: pick(JOBS[name]), client: pick(CLIENTS)});
   }
+  // About one board in three also has a break-in on it: a device to leave somewhere, behind a lock.
+  if (Math.random() < 0.33) S.contracts.push(breakinJob());
 }
 const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1));
 const chanceFor = c => Math.max(10, Math.min(95,
@@ -3184,6 +3976,8 @@ function newGame() {
     fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
     over: false, busted: false};
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
+  S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
+  S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
   logs = [];
   starterGear();
   rollMarket();
@@ -3327,6 +4121,13 @@ const MISC_ART = {
   lielow: '<path d="M5 10 h14 l-2 11.5 h-10 z" fill="#ff8a1e" stroke="#0b0a19"/><rect x="4" y="8" width="16" height="3" rx="1" fill="#e9e9f0" stroke="#0b0a19"/><path d="M8 6 q1.4 -1.8 0 -3.6 M12 6 q1.4 -1.8 0 -3.6 M16 6 q1.4 -1.8 0 -3.6" stroke="#c9d1d5" stroke-width="1.2" fill="none"/><path d="M8.5 15 q3.5 3 7 0" stroke="#fcee0a" stroke-width="1.5" fill="none"/>',
   decoy: '<circle cx="12" cy="12" r="9" fill="#0c2a3a" stroke="#00e5ff"/><circle cx="12" cy="12" r="5" fill="none" stroke="#00e5ff" opacity=".5"/><path d="M12 12 L18.5 6" stroke="#00e5ff" stroke-width="1.2"/><circle cx="8" cy="9" r="1.6" fill="#ff4fd8"/><circle cx="15.5" cy="16" r="1.6" fill="#ff4fd8"/><circle cx="8.5" cy="16" r="1.6" fill="#ff4fd8"/><circle cx="15" cy="9.5" r="1.6" fill="#fcee0a"/>',
   vpn: '<rect x="5" y="10.5" width="14" height="10" rx="2" fill="#0c4270" stroke="#00e5ff"/><path d="M8 10.5 v-3 a4 4 0 0 1 8 0 v3" fill="none" stroke="#00e5ff" stroke-width="1.8"/><circle cx="12" cy="14.6" r="1.8" fill="#fcee0a"/><path d="M12 15.5 v2.5" stroke="#fcee0a" stroke-width="1.6"/>',
+  // --- entry tools ---
+  clip: '<path d="M8 6 v10 a4 4 0 0 0 8 0 v-9 a2.6 2.6 0 0 0 -5.2 0 v8 a1.2 1.2 0 0 0 2.4 0 v-6" fill="none" stroke="#c9d1d5" stroke-width="1.5" stroke-linecap="round"/>',
+  picks: '<circle cx="5.5" cy="5.5" r="3" fill="none" stroke="#fcee0a" stroke-width="1.4"/><path d="M7.5 7.5 L19 19 l2 -.6 M7 8 L12.5 21 l1.8 -1 M8 7 L21 12.5 l-.4 1.8" fill="none" stroke="#c9d1d5" stroke-width="1.4" stroke-linecap="round"/>',
+  bump: '<circle cx="7" cy="12" r="4.6" fill="#fcee0a" stroke="#0b0a19"/><circle cx="6.4" cy="12" r="1.4" fill="#0b0a19"/><path d="M11.4 10.4 h10.6 v2.2 l-1.4 1.6 -1.4 -1.6 -1.4 1.6 -1.4 -1.6 -1.4 1.6 -1.4 -1.6 -2.2 .6 z" fill="#fcee0a" stroke="#0b0a19" stroke-width=".8"/>',
+  pickgun: '<path d="M2.5 7 h12 v4.5 h-5.5 l-1 8 h-4.5 l1.2 -8 h-2.2 z" fill="#4da3ff" stroke="#0b0a19"/><path d="M14.5 9 h7.5" stroke="#c9d1d5" stroke-width="1.5" stroke-linecap="round"/><path d="M9 11.5 q2 1.6 -.4 3.2" fill="none" stroke="#0b0a19" stroke-width="1.1"/>',
+  cloner: '<rect x="2.5" y="7" width="13" height="10" rx="1.6" fill="#2a2f45" stroke="#c77dff"/><rect x="4.6" y="9.4" width="4" height="3" fill="#fcee0a"/><path d="M4.6 14.6 h8.6" stroke="#8a8fa8" stroke-width="1.2"/><path d="M17.6 9.2 q2.4 2.8 0 5.6 M20 7 q4 5 0 10" fill="none" stroke="#c77dff" stroke-width="1.5" stroke-linecap="round"/>',
+  crowbar: '<path d="M4.5 21 L16.5 6.5 q2.2 -2.8 4.6 -.8 M16.5 6.5 q-.6 -2.6 -3.6 -2" fill="none" stroke="#ff3b5c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const miscIcon = key => (MISC_ART[key] ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${MISC_ART[key]}</svg>` : '');
 // A picture with text beside it.
@@ -3586,7 +4387,7 @@ function render() {
     const held = S.inv[c.good] || 0;
     return `<div class="job"><div><div class="what">${c.job}</div>
       <div class="sub">for ${c.client} &middot; uses ${num(c.qty)} ${c.good} (you hold ${num(held)})</div>
-      <div class="sub"><span class="amber">pays ${money(payoutFor(c))}</span> &middot; ${chanceFor(c)}% chance</div></div>
+      <div class="sub"><span class="amber">pays ${money(payoutFor(c))}</span> &middot; ${jobOdds(c)}</div></div>
       <button data-act="contract" data-arg="${i}"${held >= c.qty ? '' : ' disabled'}>Run job</button></div>`;
   }).join('') || '<div class="none">Nobody is hiring here today. Boards change every day and from place to place.</div>'));
   $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
@@ -3602,7 +4403,10 @@ function render() {
     ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
     ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
       usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
-    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
+    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
+    // Entry tools carried, and the lock picking skill with how far along its level is.
+    ['Tools', Object.keys(TOOLS).filter(k => S[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'Paperclip', ''],
+    ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber'],
     ['Armour', bonus('armor') + '%', ''],
     ['Medkits', S.medkits, ''],
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
@@ -3611,6 +4415,7 @@ function render() {
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
   if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
   if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
+  if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green']);   // devices left behind on break-ins
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
     chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
@@ -3649,7 +4454,8 @@ function render() {
   let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
   if (S.loc === BUNKER) {
     acts += `<button data-act="sleep">${last ? 'Sleep (end the run)' : 'Sleep (end the day)'}</button>` +
-      '<button data-act="locker">Gear locker</button>';
+      '<button data-act="locker">Gear locker</button>' +
+      `<button data-act="practice">Practice locks (${Math.max(0, BREAKIN.drills - (S.drills || 0))} left)</button>`;
   }
   if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
@@ -3725,6 +4531,7 @@ const ACTIONS = {
   async contract(index) {
     const c = S.contracts[index];
     if (!c || (S.inv[c.good] || 0) < c.qty) return;
+    if (c.heist) return heistPlay(heistM('job', c));   // a break-in: the goods are the devices you leave behind
     const chance = chanceFor(c), pay = payoutFor(c), price = S.prices[c.good];
     const compare = price ? `Selling them here instead would bring ${money(price * c.qty)}.` : 'Nobody is buying them here today.';
     if (!await confirmDlg('Freelance job', `<p><b>${c.job}</b>, for ${c.client}.</p>` +
@@ -3914,10 +4721,11 @@ const ACTIONS = {
           ? ['Medkit', `heals ${MED_HEAL}% Health, even in the middle of a fight`, S.medkits, MAX_MED, S.hp < 100]
           : arg === 'proxy' ? ['Proxy chain', 'powers your counter-hacks; more proxies, better odds', S.proxies, MAX_PROXIES, false]
             : [GADGETS[arg][0], GADGETS[arg][3], S[arg], GADGETS[arg][2], COOL[arg] ? !coolBlock(arg) : arg === 'fakeid' && S.heat > 0];
-        const fightOnly = arg !== 'medkit' && arg !== 'fakeid' && !COOL[arg];
+        const fightOnly = arg !== 'medkit' && arg !== 'fakeid' && !COOL[arg] && !TOOLS[arg];
         const act = await dialog(name, `<div class="syn">${withIcon(miscIcon(arg), `<b>${name}</b><br>${text}`)}</div>` +
           `<p>You carry <b>${have}</b> of ${most}.</p>` + (COOL[arg] ? coolHint(arg) : '') +
           (fightOnly ? none('Used from the fight screen.')
+            : TOOLS[arg] ? `<p>${lockLine()}</p>` + none('An entry tool: used at the lock when you break in on a job, and at the practice board in the Bunker.')
             : usable || COOL[arg] ? '' : none(arg === 'medkit' ? 'Your Health is already full.' : 'You have no Heat to drop.')),
           usable ? [['Use it', 'use', 'primary'], ['Back', null]] : [['Back', null, 'primary']]);
         if (act === 'use') await ACTIONS[arg]();
@@ -4045,6 +4853,33 @@ const ACTIONS = {
     }
   },
 
+  // The practice board in the Bunker: real locks, nobody listening. It teaches slowly, a few tries a day,
+  // and only up to a point (BREAKIN.practiceCap), so a new player can open the first doors they meet.
+  async practice() {
+    if (S.loc !== BUNKER) return;
+    for (;;) {
+      const left = BREAKIN.drills - (S.drills || 0), capped = lockInfo().level >= BREAKIN.practiceCap;
+      const html = '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
+        `<div class="syn">${lockLine()}${lockMeter()}</div>` +
+        `<p>Tries left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${BREAKIN.drills}.</p>` +
+        (capped ? `<p class="amber">You have learned what a workbench can teach (level ${BREAKIN.practiceCap}). The rest is behind real doors.</p>`
+          : `<p class="dim">Practice teaches less than a real door, and only up to level ${BREAKIN.practiceCap}. Harder locks teach more. ` +
+            'Your picks can still snap, and a paperclip costs nothing.</p>') +
+        '<p class="dim">Electronic locks cannot be practised: nobody sells a badge reader by the job lot.</p>';
+      const buttons = left > 0 ? ['padlock', 'deadbolt', 'cylinder'].map(k => [`${LOCKS[k][0]} (difficulty ${LOCKS[k][1]})`, k]) : [];
+      buttons.push(['Done', null, 'primary']);
+      const lock = await dialog('Practice locks', html, buttons);
+      if (!LOCKS[lock]) return;
+      const r = await lockDialog(lock, null, {practice: true});
+      if (r.res === 'open' || r.res === 'forced') {
+        log(`You opened the practice ${LOCKS[lock][0].toLowerCase()}.`);
+        render();
+        await alertDlg('Practice locks', `<p>${r.last}</p><p class="dim">You lock it again. That is the whole job.</p>`);
+      }
+      render();
+    }
+  },
+
   // The legal gun store: blunt weapons, blades and firearms, with a background check on the guns.
   async gunstore() {
     if (S.loc !== GUN_SPOT) return;
@@ -4152,7 +4987,7 @@ const ACTIONS = {
       for (const [key, [name, price, most, what]] of Object.entries(GADGETS)) {
         if (COOL[key] && !stock[key]) continue;
         if (S[key] < most) offers.push({key: 'x' + key, gadget: key, art: key, name, price: Math.round(price * scale * (COOL[key] ? hot : 1)),
-          text: `single use: ${what} (you have ${S[key]}${COOL[key] ? `; ${stock[key]} left here today` : ''})`});
+          text: `${gadgetText(key)} (you have ${S[key]}${COOL[key] ? `; ${stock[key]} left here today` : ''})`});
       }
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', art: 'proxy', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and freelance jobs (you have ${S.proxies})`});
@@ -4198,7 +5033,11 @@ const ACTIONS = {
       '<p class="dim">XP comes from profitable sales, freelance jobs, escaping or beating the law and rival crews, raids, clearing your debt, ' +
       'finishing a run and, most of all, syndicate missions. It carries over between runs.</p>' +
       '<p class="dim">Cyberware shows on your avatar as you level: ' + WARE.map(([at, what]) =>
-        `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>';
+        `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>' +
+      // The lock picking skill: it belongs to the save, like XP.
+      `<div class="syn">${lockLine()}${lockMeter()}<span class="dim">It rises with practice: opening a lock teaches more than a miss, and a harder lock ` +
+      `teaches more. It carries over between runs. The practice board in the Bunker teaches up to level ${BREAKIN.practiceCap}; the rest is behind real doors.</span></div>` +
+      (S.plants && S.plants.length ? `<p class="dim">Devices you left behind: ${S.plants.map(p => `${p.what} at ${p.site} (${money(p.pay)} a night, ${p.left} to go)`).join('; ')}.</p>` : '');
     const buttons = [['Close', null, 'primary']];
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
     if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
@@ -4256,6 +5095,10 @@ const ACTIONS = {
       if (S.raided) html += '<p class="amber">You have already raided today. Sleep first.</p>';
       else if (!S.proxies && !S.inv['Zero-Days']) html += '<p class="amber">You need at least one proxy chain or a Zero-Day to breach it.</p>';
       else buttons.push(['Launch the breach', 'boss', 'danger']);
+    } else if (Q.kind === 'heist') {   // a break-in, played in stages (see heistPlay)
+      const M = heistM('quest', Q);
+      html += heistBrief(M);
+      if (heistReady(M)) buttons.push([heistButton(M), 'heist', 'primary']);
     }
     html += '<p class="dim" style="margin-top:12px">THE LINE</p>' + chain.map((m, i) =>
       `<div class="${i < q.n ? 'green' : i === q.n ? 'cyan' : 'dim'}">${i < q.n ? '&#10003;' : i === q.n ? '&#9656;' : '&middot;'} ` +
@@ -4273,7 +5116,7 @@ const ACTIONS = {
         intro: `You are inside the ${SYNDICATES[foe][0]} core. 7 of their best operators are jacked in, and they were expecting someone.`};
       await fight(E);
       if (E.result === 'won') tally('boss');
-    }
+    } else if (choice === 'heist') await heistPlay(heistM('quest', Q));
   },
 
   // The street gig you are holding: who gave it, how far along it is, and handing over a delivery.
@@ -4293,10 +5136,15 @@ const ACTIONS = {
     } else if (G.kind === 'courier') {
       if (here) buttons.push(['Hand over the package', 'give', 'primary']);
       else html += `<p class="dim">Get to ${G.place}, then open this there to hand the package over.</p>`;
+    } else if (G.kind === 'breakin') {   // a break-in, played in stages (see heistPlay)
+      const M = heistM('gig', G);
+      html += heistBrief(M);
+      if (heistReady(M)) buttons.push([heistButton(M), 'heist', 'primary']);
     } else html += '<p class="dim">It pays out by itself as soon as it is done.</p>';
     buttons.push(['Drop the gig', 'drop', 'small'], ['Close', null, buttons.length ? '' : 'primary']);
     const choice = await dialog('Street gig', html, buttons);
-    if (choice === 'give' && S.gig === G && S.loc === G.place && (G.kind === 'courier' || (S.inv[G.good] || 0) >= G.t)) {
+    if (choice === 'heist' && S.gig === G) await heistPlay(heistM('gig', G));
+    else if (choice === 'give' && S.gig === G && S.loc === G.place && (G.kind === 'courier' || (S.inv[G.good] || 0) >= G.t)) {
       if (G.kind === 'deliver') removeItems(G.good, G.t);
       G.p = G.t;   // gigCheck pays it out
       log(G.kind === 'deliver' ? `Handed ${G.t} ${G.good} to ${G.who}'s people at ${G.place}.`
@@ -4428,6 +5276,8 @@ function nextDay() {
   if (fx().decoy > 0) { S.heat = Math.max(0, S.heat - COOL.decoy.cool); S.fx.decoy--; }
   if (S.fx.vpn > 0) S.fx.vpn--;
   S.tricks = 0;
+  S.drills = 0;      // the practice board is fresh again
+  plantsTick();      // devices left behind on break-ins send their money home
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
@@ -4610,7 +5460,7 @@ function junkOffer(kind) {
     const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2] && !COOL[k] === (kind === 'gadget'));
     if (!spare.length) return null;
     const k = pick(spare), [name, price, , what] = GADGETS[k];
-    return {name, text: `single use: ${what} (you have ${S[k]})`, list: price * scale, icon: miscIcon(k), take() { S[k]++; }};
+    return {name, text: `${gadgetText(k)} (you have ${S[k]})`, list: price * scale, icon: miscIcon(k), take() { S[k]++; }};
   }
   if (kind === 'proxy') {
     if (S.proxies >= MAX_PROXIES) return null;
@@ -5559,10 +6409,251 @@ async function coolSelfTest() {
   }
 }
 
+// Break-ins, step by step: the tables are whole, the odds shown are the odds rolled, the skill starts low and
+// rises the way it says, every stage can go each way, loot respects the drive, devices pay later, and saves keep it all.
+async function lockSelfTest() {
+  const run = S, mine = career, keep = slot, random = Math.random, B = BREAKIN, get = store.get;
+  const fail = (what, ...more) => { throw new Error(`Break-in test: ${what} ` + JSON.stringify(more)); };
+  // Answer the next dialogs with these, in order (a dialog with one button answers itself); after that, the first thing on offer.
+  const steer = list => {
+    const q = list.slice();
+    autoPick = all => {
+      if (all.length === 1 || !q.length) return all.includes(true) ? true : all[0];
+      const want = q.shift();
+      if (!all.includes(want)) fail('choice not on offer', want, all);
+      return want;
+    };
+  };
+  const fixed = async (value, fn) => { Math.random = () => value; try { return await fn(); } finally { Math.random = random; } };
+  const fresh = (level, o) => {
+    career = newCareer(); fixCareer(); newGame(); setLockSkill(level);
+    for (const k of Object.keys(TOOLS)) if (k !== 'clip') S[k] = GADGETS[k][2];
+    Object.assign(S, o || {});
+  };
+  try {
+    // The tables: every tool is a gadget with a picture, every break-in is whole, every line has three of them.
+    for (const k of Object.keys(TOOLS)) {
+      if (!MISC_ART[k] || (k !== 'clip' && !(GADGETS[k] && GADGETS[k][1] > 0 && GADGETS[k][2] > 0)) || !toolName(k)) fail('tool half defined', k);
+    }
+    for (const [id, H] of Object.entries(HEISTS)) {
+      if (!LOCKS[H.lock] || !B.job[H.job] || !(H.tier >= 1 && H.tier <= B.pay.length) || !H.site || !H.inside || !H.prize ||
+        (H.at && (!LOCATIONS.includes(H.at) || H.at === BUNKER)) || (H.job === 'plant' && !(GOODS.some(g => g[0] === H.dev) && H.n > 0 && PLANT_WHAT[H.dev])) ||
+        !(H.guard === 'sec' || H.guard === 'law' || SYNDICATES[H.guard]) || [H.data, H.swag].some(l => l && !(GOODS.some(g => g[0] === l[0]) && l[1] > 0))) fail('break-in half defined', id);
+    }
+    for (const [key, chain] of Object.entries(QUESTS)) {
+      const ids = chain.filter(m => m[2] === 'heist').map(m => m[4]);
+      if (ids.length !== 3 || ids.some(id => !HEISTS[id] || !HEISTS[id].at) || chain.length !== QUEST_PAY.length + 3) fail('line', key, ids);
+      career = newCareer(); career.syn = key;
+      chain.forEach((m, n) => {
+        career.quest = {n, p: 0, v: 3};
+        const Q = quest();
+        if (!(Q.xp > 0 && Q.cash > 0) || Q.title !== m[0] || !questGoal(Q) || (m[2] === 'heist' && Q.place !== HEISTS[m[4]].at)) fail('mission', key, n);
+      });
+      // A line from before the break-ins keeps its place: the same mission, by name.
+      [0, 1, 2, 3, 4, 5, 6, 7].forEach(old => {
+        career.quest = {n: old, p: 1, v: 2}; fixQuest();
+        if (chain[career.quest.n][2] === 'heist' || chain.filter(m => m[2] !== 'heist')[old] !== chain[career.quest.n] || career.quest.p !== 1) fail('old place moved', key, old);
+      });
+      career.quest = {n: 9, p: 0, v: 2}; fixQuest();
+      if (career.quest.n !== 12 || quest().title !== 'Standing orders') fail('finished line reopened', key);
+    }
+    for (const [name, c] of Object.entries(CONTACTS)) if (c[3].filter(g => g[2] === 'breakin' && HEISTS[g[3]]).length !== 1) fail('contact has no break-in', name);
+
+    // The skill starts at level 1, a new run starts with picks, and the first doors open at that level.
+    fresh(1);
+    if (lockInfo().level !== 1 || career.lockpick !== 0) fail('starting skill', career.lockpick);
+    newGame();
+    if (S.picks !== START_PICKS || !toolsFor('padlock').includes('picks') || !toolsFor('padlock').includes('clip')) fail('starting tools');
+    for (const [id, H] of Object.entries(HEISTS)) {
+      if (H.tier === 1 && !(LOCKS[H.lock][2] === 'mech' && lockOdds('picks', H.lock, 0).open >= 40)) fail('first break-ins too hard', id);
+    }
+    // The odds: better with skill and with the right tool, worse on harder locks, and the wrong tool is no use at all.
+    fresh(1);
+    const kinds = Object.keys(LOCKS);
+    for (const k of Object.keys(TOOLS)) {
+      for (const lock of kinds) {
+        const type = LOCKS[lock][2], block = toolBlock(k, lock);
+        if (!!block !== (TOOLS[k].on !== 'any' && TOOLS[k].on !== type)) fail('wrong tool allowed', k, lock);
+        setLockSkill(1); const low = lockOdds(k, lock, 0);
+        setLockSkill(LOCK_MAX); const high = lockOdds(k, lock, 0);
+        if (high.open < low.open || high.noise > low.noise || high.brk > low.brk || low.open < B.min || high.open > B.max) fail('skill does not help', k, lock, low, high);
+        if (!block && !oddsLine(k, low).includes(`opens ${low.open}%`)) fail('odds not shown', k, lock);
+        if (lockOdds(k, lock, 10).open < low.open) fail('casing does not help', k, lock);
+      }
+    }
+    setLockSkill(3);
+    if (!(lockOdds('picks', 'padlock').open > lockOdds('picks', 'deadbolt').open && lockOdds('picks', 'deadbolt').open > lockOdds('picks', 'cylinder').open) ||
+      !(lockOdds('pickgun', 'deadbolt').open > lockOdds('picks', 'deadbolt').open && lockOdds('picks', 'deadbolt').open > lockOdds('clip', 'deadbolt').open) ||
+      !(lockOdds('bump', 'padlock').open > lockOdds('pickgun', 'padlock').open && lockOdds('bump', 'cylinder').open < lockOdds('picks', 'cylinder').open)) fail('tool or lock order');
+    // What is shown is what is rolled: just under the chance opens, just over does not; and over many real tries it comes out the same.
+    for (const [k, lock] of [['picks', 'deadbolt'], ['cloner', 'badge'], ['crowbar', 'maglock'], ['clip', 'padlock']]) {
+      const o = lockOdds(k, lock, 0);
+      S[k] = 2;
+      if (!(await fixed((o.open - 0.5) / 100, () => lockTry(k, lock, 0))).open) fail('did not open under the chance', k, o);
+      S[k] = 2;
+      if ((await fixed((o.open + 0.5) / 100, () => lockTry(k, lock, 0))).open) fail('opened over the chance', k, o);
+    }
+    setLockSkill(3);
+    const shown = lockOdds('picks', 'deadbolt', 0), points = career.lockpick;
+    let opened = 0, snapped = 0, misses = 0;
+    for (let i = 0; i < 4000; i++) { S.picks = 5; const r = lockTry('picks', 'deadbolt', 0); if (r.open) opened++; else { misses++; if (r.broke) snapped++; } career.lockpick = points; }
+    if (Math.abs(opened / 40 - shown.open) > 4 || Math.abs(snapped / misses * 100 - shown.brk) > 5) fail('odds shown do not match', shown, opened / 40, snapped / misses * 100);
+    // Learning: a success teaches more than a miss, a harder lock more than an easy one, a crowbar next to nothing.
+    const learn = async (value, k, lock, practice) => { S[k] = 2; const was = career.lockpick; await fixed(value, () => lockTry(k, lock, 0, practice)); return career.lockpick - was; };
+    setLockSkill(2);
+    const won = await learn(0, 'pickgun', 'deadbolt'), lost = await learn(0.999, 'pickgun', 'deadbolt'), hard = await learn(0, 'pickgun', 'cylinder');
+    if (!(won > lost && lost > 0 && hard > won) || await learn(0, 'crowbar', 'deadbolt') >= lost + 2) fail('learning', won, lost, hard);
+    // The practice board teaches less, and nothing from the cap on; a miss can snap a pick and jam a real lock.
+    const drill = await learn(0, 'pickgun', 'deadbolt', true);
+    setLockSkill(B.practiceCap);
+    if (!(drill > 0 && drill < won) || await learn(0, 'pickgun', 'deadbolt', true) !== 0) fail('practice gains', drill, won);
+    setLockSkill(1); S.picks = 3;
+    const snap = await fixed(0.999, () => lockTry('picks', 'padlock', 0));   // 0.999: a miss, no break
+    const snap2 = await (async () => { let n = 0; Math.random = () => [0.999, 0, 0][n++]; try { return lockTry('picks', 'padlock', 0); } finally { Math.random = random; } })();
+    if (snap.open || snap.broke || S.picks !== 2 || !snap2.broke || !snap2.jam) fail('snapping', snap, snap2, S.picks);
+    if (setLockSkill(99) !== career.lockpick || lockInfo().level !== LOCK_MAX || lockInfo().need !== 0 || gainLock(50) !== '') fail('top of the skill');
+
+    // A quiet, clean break-in: cased (and noticed), picked, robbed carefully, something off a desk, out unseen.
+    fresh(LOCK_MAX);
+    let cash = S.cash, clean = stat('cleanin'), done = stat('breakins');
+    steer(['case', 'pickgun', 'careful', 'grab', 'clean']);
+    await fixed(0, () => startHeist('ledger1', 0));
+    if (S.fh || S.trips !== TRIPS_PER_DAY - 1 || S.heat !== B.heat.seen || S.cash < cash + B.pay[0][1] + B.cash[0] || stat('cleanin') !== clean + 1 ||
+      stat('breakins') !== done + 1 || !S.inv['Cracked Accounts'] || S.pickgun !== GADGETS.pickgun[2]) fail('quiet job', S.heat, S.cash - cash, S.inv);
+    // A loud one: in blind, crowbar, device taped up fast, out at a run. Less time inside, and the Heat is real.
+    fresh(1);
+    addItems('Rogue APs', 1, 0);
+    steer(['blind', 'crowbar', 'fast', null, 'fast']);
+    await fixed(0, () => startHeist('gig_lady', 0));
+    const alert = B.blind + B.forced + B.jobOk[1];
+    if (S.fh || S.inv['Rogue APs'] || S.plants.length !== 1 || !S.plants[0].sloppy || S.plants[0].left !== B.plantDays[1] ||
+      S.heat !== B.heat.forced + B.heat.fast[0] + Math.round(alert / B.heat.fast[1]) || stat('forced') < 1 || S.trips !== TRIPS_PER_DAY) fail('loud job', S.heat, S.plants);
+    // A taped-up device can be found; a hidden one pays every night until it runs out.
+    await fixed(0, () => plantsTick());
+    if (S.plants.length || S.heat !== B.heat.forced + B.heat.fast[0] + Math.round(alert / B.heat.fast[1]) + B.heat.found) fail('device not found');
+    fresh(LOCK_MAX);
+    addItems('USB Droppers', 2, 0);
+    steer(['blind', 'pickgun', 'careful', null, 'clean']);
+    await fixed(0, () => startHeist('null2', 0));
+    if (S.plants.length !== 1 || S.plants[0].sloppy || S.plants[0].left !== B.plantDays[0] || S.inv['USB Droppers']) fail('careful plant', S.plants);
+    const each = S.plants[0].pay, paid = stat('plantpay');
+    for (let night = 1; night <= B.plantDays[0]; night++) {
+      cash = S.cash; nextDay();
+      if (S.cash !== cash + each || S.plants.length !== (night < B.plantDays[0] ? 1 : 0)) fail('device pay', night, S.cash - cash, each);
+    }
+    cash = S.cash; nextDay();
+    if (S.cash !== cash || stat('plantpay') !== paid + each * B.plantDays[0]) fail('device paid after it ran out');
+    // Robbing with a full drive: the cash comes, the goods stay behind, and you never carry more than you can.
+    fresh(LOCK_MAX);
+    addItems('Warez', free(), 0);
+    const room = heistTally.noroom;
+    steer(['careful', 'grab', 'clean']);
+    await fixed(0, () => startHeist('null1', 2));
+    if (used() !== cap() || S.inv['Burner SIMs'] || heistTally.noroom !== room + 2) fail('robbed past the drive', used(), cap());
+    fresh(LOCK_MAX);
+    S.drive += 5 - free();   // room for five of the twelve
+    steer(['careful', null, 'clean']);
+    await fixed(0, () => startHeist('null1', 2));
+    if (S.inv['Burner SIMs'] !== 5 || used() !== cap()) fail('robbed the wrong amount', S.inv);
+    // The alarm: a paperclip at level 1, missing until the meter is full. Nobody answers it. The job is blown, not lost.
+    fresh(1, {loc: 'Cyber Cafe'});
+    const G = {who: 'Sparks', title: 'Not theirs', pitch: '', kind: 'breakin', t: 1, p: 0, good: 'gig_sparks', place: 'Cyber Cafe', lock: 'padlock', due: 9, cash: 1000, xp: 100, rar: -1};
+    S.gig = G;
+    const blown = heistTally.blown, tries = Math.ceil((100 - B.blind) / lockOdds('clip', 'padlock', 0).noise);
+    steer(['blind'].concat(Array(tries).fill('clip')));
+    await fixed(0.3, () => heistPlay(heistM('gig', G)));
+    if (heistTally.blown !== blown + 1 || S.gig !== G || G.p !== 0 || !G.h || G.h.hot !== S.day || S.heat !== B.heat.alarm || heistReady(heistM('gig', G)) ||
+      !gigStatus(G).includes('tomorrow') || career.lockpick !== tries * (B.learnMiss[0] + B.learnMiss[1])) fail('alarm', S.heat, G.h, career.lockpick);
+    // The next day it can be done, quietly, and the gig pays its bonus and an extra point of trust.
+    S.day++; S.heat = 0; setLockSkill(LOCK_MAX);
+    if (!heistReady(heistM('gig', G))) fail('still locked out the next day');
+    steer(['blind', 'pickgun', 'careful', null, 'clean']);
+    await fixed(0, () => heistPlay(heistM('gig', G)));
+    if (G.p !== 1 || G.cash !== 1000 * B.ghost || G.h || trust('Sparks') !== B.ghostTrust || S.heat !== 0) fail('gig break-in', G, S.heat);
+    steer([]); await gigCheck();
+    if (S.gig || trust('Sparks') !== B.ghostTrust + 1) fail('gig not paid');
+    // A syndicate break-in: the mission moves on when the job is done, and pays what its tier pays.
+    fresh(LOCK_MAX, {loc: 'Paste Alley'});
+    career.syn = 'ghost'; career.quest = {n: 1, p: 0, v: 3};
+    let Q = quest();
+    if (Q.kind !== 'heist' || Q.cash !== B.pay[0][1] || !questStatus(Q).includes('you are here')) fail('line break-in', Q);
+    autoPick = all => (all.includes('blind') ? 'blind' : null);   // up to the door, then back off: the stage is kept
+    await fixed(0, () => heistPlay(heistM('quest', Q)));
+    if (!S.qh || S.qh.stage !== 1 || S.qh.alert !== B.blind || !questStatus(Q).includes('stage 2 of 4')) fail('stage not kept', S.qh);
+    // A save keeps the stage; so does leaving town in the middle, which counts as running for it.
+    S.qh = {id: 'ghost1', stage: 2, day: S.day, alert: 30, entry: 'quiet', moves: 2, loc: 'Paste Alley', done: true};
+    const now = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+    store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+    loadSave(0);
+    Q = quest();
+    if (!S.qh || S.qh.stage !== 2 || !questStatus(Q).includes('stage 3 of 4') || lockInfo().level !== LOCK_MAX || S.picks !== GADGETS.picks[2]) fail('save lost the break-in', S.qh);
+    S.loc = BUNKER; cash = S.cash;
+    steer([]); await heistCheck();
+    // (Ghost Shell halves the Heat, here as everywhere.)
+    if (S.qh || career.quest.p !== 1 || S.heat !== Math.ceil((B.heat.fast[0] + Math.round(30 / B.heat.fast[1])) / 2)) fail('walking out', S.qh, S.heat);
+    await questCheck();
+    if (career.quest.n !== 2 || S.cash !== cash + B.pay[0][1]) fail('line did not move on', career.quest);
+    // A save from 1.24 loads with the starting skill, no tools, nothing planted, and its mission by the same name.
+    const old = JSON.parse(JSON.stringify(now)), was = JSON.parse(JSON.stringify(record));
+    for (const k of Object.keys(TOOLS).concat('plants', 'drills', 'qh', 'fh')) delete old[k];
+    delete was.lockpick; was.quest = {n: 3, p: 1, v: 2};
+    store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? was : null);
+    loadSave(0);
+    if (career.lockpick !== 0 || lockInfo().level !== 1 || Object.keys(TOOLS).some(k => S[k]) || S.plants.length || S.drills !== 0 ||
+      career.quest.n !== 5 || career.quest.p !== 1 || quest().title !== 'Quiet nights') fail('old save loaded wrong', career.lockpick, career.quest);
+    render();
+    if (!$('#stats').textContent.includes('Lock picking') || !$('#stats').textContent.includes('Paperclip')) fail('skill not on the main screen');
+    store.get = get;
+    // The practice board: six tries a day, slow gains, and a night's sleep brings the tries back.
+    fresh(1);
+    render();
+    if (!$('#actions').innerHTML.includes('data-act="practice"')) fail('no practice board at the Bunker');
+    autoPick = all => (all.includes('padlock') ? 'padlock' : all.includes('clip') ? 'clip' : all.includes(true) ? true : null);
+    await fixed(0, () => ACTIONS.practice());
+    const per = Math.ceil((B.learnOpen[0] + B.learnOpen[1]) * B.practiceShare);
+    if (S.drills !== B.drills || career.lockpick !== B.drills * per) fail('practice', S.drills, career.lockpick);
+    await fixed(0, () => ACTIONS.practice());
+    if (career.lockpick !== B.drills * per) fail('practised past the daily limit');
+    nextDay();
+    if (S.drills !== 0) fail('practice not reset by the night');
+    // The black market sells every tool, and the BBS break-in asks for its devices before it starts.
+    fresh(1, {loc: GEAR_SPOTS[0], cash: 1000000});
+    for (const k of Object.keys(TOOLS)) if (k !== 'clip') S[k] = 0;
+    const wanted = Object.keys(TOOLS).filter(k => k !== 'clip');
+    autoPick = all => { const k = wanted.find(key => all.includes('x' + key) && !S[key]); return k ? 'x' + k : null; };
+    rollMarket(); await ACTIONS.gear();
+    if (wanted.some(k => S[k] !== 1) || S.cash !== 1000000 - wanted.reduce((sum, k) => sum + GADGETS[k][1], 0) || used() !== 0) fail('buying tools', wanted.map(k => S[k]));
+    const job = await fixed(0, () => breakinJob());
+    S.contracts = [job];
+    if (!(job.payout > 0 && job.qty > 0 && HEISTS[job.heist] && jobOdds(job).includes('break-in'))) fail('BBS job', job);
+    steer([]); await ACTIONS.contract(0);
+    if (job.h) fail('BBS break-in started without the devices');
+    addItems(job.good, job.qty, 0); setLockSkill(LOCK_MAX); cash = S.cash;
+    steer(['blind', 'pickgun', 'careful', null, 'clean']);
+    await fixed(0, () => ACTIONS.contract(0));
+    if (S.contracts.length || S.inv[job.good] || S.cash !== cash + Math.round(job.payout * B.ghost / 10) * 10 || S.plants.length !== 1) fail('BBS break-in', S.cash - cash, job);
+    // The debug menu's two handles exist and do what they say.
+    fresh(1);
+    if (setLockSkill(5) !== career.lockpick || lockInfo().level !== 5 || lockInfo().into !== 0) fail('setLockSkill');
+    for (const stage of [0, 1, 2, 3]) {
+      // Saying no to everything: the first two stages wait for you, a job left half done is blown, and one that was done pays.
+      const blownWas = heistTally.blown, doneWas = heistTally.done;
+      autoPick = all => (all.length === 1 ? all[0] : null);
+      await startHeist('x4043', stage);
+      if (stage < 2 ? !(S.fh && S.fh.stage === stage) : S.fh || heistTally.blown !== blownWas + (stage === 2 ? 1 : 0) ||
+        heistTally.done !== doneWas + (stage === 3 ? 1 : 0)) fail('startHeist', stage, S.fh);
+      delete S.fh;
+    }
+  } finally {
+    Math.random = random; autoPick = null; store.get = get; slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
+  }
+}
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0, coolHot = 0, coolBase = [0, 0, 0];
+  let heistBase = {};   // what the step-by-step break-in test counted, so the random games are counted on their own
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -5607,8 +6698,10 @@ async function selfTest(games) {
         if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
         S = run; career = mine; logs = [];
         await coolSelfTest();
+        await lockSelfTest();
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
+      if (game === 0) heistBase = Object.assign({}, heistTally);
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
       else if (game % 2) career.gear.back = makeItem(rnd(0, 4), 'back');           // some start with a better one
       if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`<b class="${bagClass()}"`)) {
@@ -5673,6 +6766,34 @@ async function selfTest(games) {
             if (was >= 40) coolHot++;
           }
         }
+        // Break-ins: every so often the bot buys entry tools at the black market, practises at the Bunker, and
+        // plays a break-in from a random stage, choosing at random, so every stage goes every way sooner or later.
+        if (Math.random() < 0.03) {
+          const tools = () => Object.keys(TOOLS).reduce((sum, k) => sum + (S[k] || 0), 0);
+          if (GEAR_SPOTS.includes(S.loc)) {
+            const had = tools(), cash = S.cash;
+            autoPick = all => all.find(v => typeof v === 'string' && v[0] === 'x' && TOOLS[v.slice(1)]) || null;
+            try { await ACTIONS.gear(); } finally { autoPick = null; }
+            if (tools() < had || (tools() > had) !== (S.cash < cash)) throw new Error('black market sold entry tools wrong');
+            heistTally.bought += tools() - had;
+          }
+          if (S.loc === BUNKER) {
+            const was = career.lockpick, drills = S.drills;
+            await ACTIONS.practice();
+            if (S.drills < drills || S.drills > BREAKIN.drills || career.lockpick < was ||
+              (lockInfo(was).level >= BREAKIN.practiceCap && career.lockpick !== was)) throw new Error('practice board went wrong');
+          }
+          const id = pick(Object.keys(HEISTS)), H = HEISTS[id], kept = used() <= cap();
+          if (H.job === 'plant' && free() >= H.n) addItems(H.dev, H.n, 0);
+          if (Math.random() < 0.3) setLockSkill(rnd(1, LOCK_MAX));
+          for (const k of Object.keys(TOOLS)) if (k !== 'clip' && Math.random() < 0.4) S[k] = Math.max(S[k], 1);
+          const before = career.lockpick;
+          await startHeist(id, pick([0, 0, 0, 0, 1, 2, 3]));
+          if (career.lockpick < before || (kept && used() > cap()) || (S.fh && !(S.fh.stage <= 1 && S.fh.alert >= 0 && S.fh.alert <= 100))) {
+            throw new Error('break-in went wrong: ' + JSON.stringify([id, S.fh, used(), cap()]));
+          }
+          if (S.over) break;
+        }
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
         const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
@@ -5692,11 +6813,17 @@ async function selfTest(games) {
         if (act === 'syndicate') {   // turn up with the goods so deliveries get handed over
           const Q = quest();
           if (Q && Q.kind === 'deliver' && free() >= Q.t) { addItems(Q.good, Q.t, 0); S.loc = Q.place; rollMarket(); }
+          if (Q && Q.kind === 'heist') {   // ...and turn up at the door with whatever has to be left behind
+            const H = HEISTS[Q.good];
+            if (H.job === 'plant' && free() >= H.n) addItems(H.dev, H.n, 0);
+            S.loc = Q.place; rollMarket();
+          }
         }
         if (act === 'gig') {   // the same for street gigs
           const G = S.gig;
           if (G && G.place && (G.kind === 'courier' || free() >= G.t)) {
             if (G.kind === 'deliver') addItems(G.good, G.t, 0);
+            if (G.kind === 'breakin' && HEISTS[G.good].job === 'plant') addItems(HEISTS[G.good].dev, HEISTS[G.good].n, 0);
             S.loc = G.place; rollMarket();
           }
         }
@@ -5746,7 +6873,13 @@ async function selfTest(games) {
           !(Number.isInteger(S.tricks) && S.tricks >= 0 && S.tricks <= QUICK_MAX) || !(Number.isInteger(S.fx.vpn) && S.fx.vpn >= 0 && S.fx.vpn <= COOL.vpn.days) ||
           !(Number.isInteger(S.fx.decoy) && S.fx.decoy >= 0 && S.fx.decoy <= COOL.decoy.nights) ||
           Object.values(S.markets).some(m => m.cool && Object.values(m.cool).some(q => !(q >= 0 && q <= COOL_EACH))) ||
-          Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v));
+          Object.values(S.inv).some(q => !(q > 0)) || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v)) ||
+          // Break-ins: the skill is a whole number of points, the practice board keeps count, planted devices are still paying,
+          // and anything in progress is at a real stage with its Alert on the meter.
+          !Number.isInteger(career.lockpick) || career.lockpick < 0 || !(lockInfo().level >= 1 && lockInfo().level <= LOCK_MAX) ||
+          !(Number.isInteger(S.drills) && S.drills >= 0 && S.drills <= BREAKIN.drills) ||
+          !Array.isArray(S.plants) || S.plants.some(p => !(Number.isInteger(p.pay) && p.pay > 0 && p.left > 0 && p.site && p.what)) ||
+          heistList().some(M => { const st = heistPeek(M); return st && !(st.stage >= 0 && st.stage <= 3 && st.alert >= 0 && st.alert <= 100); });
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
       if (S.over) {
@@ -5764,8 +6897,21 @@ async function selfTest(games) {
     if (games >= 20 && !(coolBuys > coolBase[0] && coolUses > coolBase[1] && coolHot)) {
       throw new Error('Heat items not exercised: ' + [coolBuys - coolBase[0], coolUses - coolBase[1], coolHot]);
     }
+    // ...and it must have bought entry tools, practised, and seen every stage of a break-in go well and go badly:
+    // cased and blind, picked and forced, misses and snapped picks, alarms and fights, each kind of job done and
+    // botched, clean, spotted and running exits, jobs finished and blown, and a planted device paying out.
+    const hc = {};
+    for (const k of Object.keys(heistTally)) hc[k] = heistTally[k] - (heistBase[k] || 0);
+    const must = ['bought', 'drills', 'cased', 'blind', 'quiet', 'forced', 'miss', 'snapped', 'alarm', 'hack', 'rob', 'plant', 'botched',
+      'grab', 'clean', 'spotted', 'fast', 'done', 'blown', 'paid'];
+    if (games >= 20 && (must.some(k => !hc[k]) || !(hc.won + hc.fled + hc.lost))) {
+      throw new Error('break-ins not exercised: ' + JSON.stringify(hc));
+    }
+    const hsum = ` breakins=${hc.done} blown=${hc.blown} picked=${hc.quiet} forced=${hc.forced} lockmisses=${hc.miss} snapped=${hc.snapped} jammed=${hc.jammed}` +
+      ` alarms=${hc.alarm} alarmfights=${hc.won}/${hc.fled}/${hc.lost} noshow=${hc.noshow} hack=${hc.hack} rob=${hc.rob} plant=${hc.plant} botched=${hc.botched}` +
+      ` cleanexit=${hc.clean} spotted=${hc.spotted} ranexit=${hc.fast} walked=${hc.walked} plantpaid=${hc.paid} plantfound=${hc.found} drills=${hc.drills} toolsbought=${hc.bought}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -5786,7 +6932,8 @@ function loadSave(n) {
       bag: Array.isArray(record.bag) ? record.bag : [],
       locker: Array.isArray(record.locker) ? record.locker : [],
       stats: record.stats, ach: record.ach,
-      rep: record.rep && typeof record.rep === 'object' ? record.rep : {}};
+      rep: record.rep && typeof record.rep === 'object' ? record.rep : {},
+      lockpick: record.lockpick};   // fixCareer() starts it at 0 for a save from before lock picking
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
   }
@@ -5829,6 +6976,11 @@ function loadSave(n) {
   // Heat items arrived in 1.24: an older run has none running and no fast fixes used.
   S.fx = {vpn: Math.max(0, Math.min(COOL.vpn.days, Math.floor(fx().vpn) || 0)), decoy: Math.max(0, Math.min(COOL.decoy.nights, Math.floor(fx().decoy) || 0))};
   S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? Math.min(S.tricks, QUICK_MAX) : 0;
+  // Break-ins arrived in 1.27: an older run has no devices planted, no practice used and no entry tools.
+  S.plants = Array.isArray(S.plants) ? S.plants.filter(p => p && p.pay > 0 && p.left > 0) : [];
+  S.drills = Number.isInteger(S.drills) && S.drills > 0 ? Math.min(S.drills, BREAKIN.drills) : 0;
+  // The board you are looking at and today's market here are the same list, so a break-in posted on it keeps its place.
+  if (S.loc !== BUNKER && S.markets[S.loc]) S.markets[S.loc].contracts = S.contracts;
   S.ammo = Object.assign(noAmmo(), S.ammo);
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
@@ -5873,6 +7025,9 @@ function introText() {
     '<p>Firearms need <span class="amber">ammo</span>, and better rounds hit more often.</p>' +
     '<p>Cornered by the law, you can hide a few small goods in your <span class="amber">prison pocket</span>. Sometimes they get stuck. ' +
     'See the street doc before you sleep on it too many times.</p>' +
+    '<p>Some work is behind a locked door. <span class="amber">Break-ins</span> come from street contacts, the Local BBS and the syndicates, and play out in stages: ' +
+    'case the place, get through the lock, do the job inside, get out. You start with a few lock picks; your <span class="amber">lock picking</span> skill grows with use, ' +
+    'and there is a practice board in the Bunker.</p>' +
     '<p>How much you can carry depends on what you wear: a <span class="amber">backpack</span> and anything with pockets. ' +
     'The amount on your Drive takes the colour of the bag on your back.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
