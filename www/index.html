@@ -124,6 +124,11 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #news{margin:10px 0 0}
 #news div{color:var(--yellow);padding:2px 0}
 #news div::before{content:">> ";color:var(--pink)}
+#quest .fold{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
+#quest .fold>summary{color:var(--pink)}
+#quest .fold>summary small{text-align:right}
+#quest .fold[open]>summary small{display:none}
+#quest .fold .job{margin:6px}
 #market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
 .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
   border-bottom:1px solid var(--line)}
@@ -419,6 +424,7 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
   </div>
   <section id="stats"></section>
   <section id="news"></section>
+  <section id="quest"></section>
   <section id="market"></section>
   <section id="jobs"></section>
   <nav id="actions"></nav>
@@ -715,7 +721,7 @@ function adoptOldSave() {
     localStorage.setItem('zdh-last', '1');
   } catch (e) {}
 }
-// The drop-downs on the main screen (products, Local BBS). Which ones are open is remembered.
+// The drop-downs on the main screen (syndicate mission, products, Local BBS). Which ones are open is remembered.
 const FOLDS = store.get('zdh-folds') || {};
 const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${FOLDS[id] ? ' open' : ''}>` +
   `<summary>${label}<small>${note}</small></summary>${body}</details>`;
@@ -3572,10 +3578,12 @@ function render() {
     `<span class="bar"><i style="width:${Math.floor(li.into / li.need * 100)}%"></i></span>` +
     `<span class="xp">${career.syn ? SYNDICATES[career.syn][0] : `${li.into}/${li.need} XP`}</span>`;
   const Q = quest();
-  $('#jobs').innerHTML = (!Q ? '' : `<h3>${SYNDICATES[career.syn][0].toUpperCase()} MISSION</h3>` +
+  // The syndicate mission sits above the products, folded to one line (tap to open; the fold is remembered).
+  $('#quest').innerHTML = !Q ? '' : fold('quest', `${SYNDICATES[career.syn][0].toUpperCase()} MISSION`, `${Q.title} &middot; ${questStatus(Q)}`,
     `<div class="job quest"><div><div class="what">${Q.title}</div><div class="sub">${questGoal(Q)}</div>` +
     `<div class="sub"><span class="cyan">${questStatus(Q)}</span> &middot; pays ${questReward(Q)}</div></div>` +
-    '<button data-act="syndicate">Briefing</button></div>') +
+    '<button data-act="syndicate">Briefing</button></div>');
+  $('#jobs').innerHTML =
     (!S.gig || !CONTACTS[S.gig.who] ? '' : `<h3>STREET GIG &middot; ${S.gig.who.toUpperCase()}</h3>` +
     `<div class="job gig"><div><div class="what">${S.gig.title}</div><div class="sub">${gigGoal(S.gig)}</div>` +
     `<div class="sub"><span class="amber">${gigStatus(S.gig)}</span> &middot; ${gigDue(S.gig)} &middot; pays ${questReward(S.gig)}</div></div>` +
