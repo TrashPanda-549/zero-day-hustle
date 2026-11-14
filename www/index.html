@@ -444,7 +444,8 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 /* ===== the base: BEGIN =====
    A cutaway of the Bunker on the main screen (one tappable room per station), station pictures for lists,
    requirement rows, and the Range's target. */
-.basemap{display:block;width:100%;height:auto;max-height:78vh;margin:0 auto;background:#06050d;border-bottom:1px solid var(--line)}
+.basewrap{background:#06050d;border-bottom:1px solid var(--line)}
+.basemap{display:block;width:100%;height:auto;aspect-ratio:364/286;margin:0 auto}
 .basemap .room{cursor:pointer;outline:none}
 .basemap .room:hover .rbox,.basemap .room:focus-visible .rbox{stroke:#fff;stroke-width:1.6}
 .basemap .room:active .rbox{fill:#17142e}
@@ -459,8 +460,8 @@ button .ico.room{width:44px;height:26px}
   margin-bottom:8px;touch-action:none;cursor:crosshair}
 @media (prefers-reduced-motion:reduce){.basemap .blink{animation:none}}
 /* big windows (see WIDE SCREENS below): the cutaway and its line run the full width of the middle panel, the stash rows flow under them */
-@media (min-width:900px) and (min-height:500px){#market>.basemap,#market>.baseline,#market>.baseline+.row{grid-column:1/-1}
-  .basemap{max-height:calc(62vh / var(--z))}}
+@media (min-width:900px) and (min-height:500px){#market>.basewrap,#market>.baseline,#market>.baseline+.row{grid-column:1/-1}
+  .basemap{width:min(100%,calc(60vh / var(--z) * 1.2727))}}
 /* ===== the base: END ===== */
 /* ================= WIDE SCREENS =================
    Everything from here to the end of the style sheet only applies to a window at least 900px wide and 500px
@@ -1055,17 +1056,21 @@ function tripsHtml() {
 // What belongs to the day or the run is in S.hq ({shots, patch, cook, conv: used today; tips + tipDay: today's
 // rumours; dark: the power is out today}) and S.tune ({w, hit}: the Workshop's work on the weapon you carry).
 //
-// TUNING: every cost, requirement, build time and bonus of the base is in BASE_TUNE, MARKS and BASE, and nothing
-// else scales them. The cash prices are a ladder set against this assumed income for a strong player on foot
-// (cash made per day): days 1 to 5 about $2,000; the middle of a run $15,000 to $30,000; the last third $80,000
-// to $150,000; $1m to $2m over a good 30-day run. Level 1 of anything is a day or two of early income
-// ($500 to $5,000), level 2 a day of mid-run income ($5,000 to $40,000), level 3 a day or two of late income
-// ($45,000 to $250,000), level 4 a large part of a whole run ($280,000 to $900,000). The whole base is about $9.5m
-// plus the items, so it is a project for many runs. If the economy is slowed or sped up, scale every cash()
-// by the same factor as income. Nothing here makes money except the Server Closet (at most about $950 of goods a
-// night before the running cost, and only while the stash has room) and the cat (a few dollars of junk).
+// TUNING: every cost, requirement, build time and bonus of the base is in BASE_TUNE, MARKS, MAKE and BASE, and
+// nothing else scales them. The cash prices are a ladder set against the income the economy rebalance (1.28) aims
+// for, for a strong player (cash made per day): about $6,000 on days 3 to 6; $15,000 to $35,000 on days 6 to 10;
+// $50,000 to $75,000 on days 10 to 15; $110,000 to $130,000 on days 15 to 20; about $200,000 after day 20; a
+// sensible trader ends a run around $1.6m and a strong one at $3m to $4m.
+//   level 1: $750 to $7,500      a day of early income: affordable in a first run
+//   level 2: $7,500 to $60,000   a day or two around days 6 to 10
+//   level 3: $90,000 to $500,000 one to four days of income in the second half of a run
+//   level 4: $560,000 to $1.8m   a large part of a whole run, each
+// The whole base is about $18.4m plus the items: many runs. Cash paid in is cash that is not trading or on the
+// final score, which is the real price. If income moves again, scale every rCash() by the same factor.
+// Nothing here makes money except the Server Closet (at most about $950 of goods a night before the running
+// cost, and only while the stash has room) and the cat (a few dollars of junk on one night in four).
 const BASE_TUNE = {
-  upkeep: 30,        // cash per night for each built level that needs power (the whole base: 31 levels, $930 a night)
+  upkeep: 40,        // cash per night for each built level that needs power (the whole base: 31 levels, $1,240 a night)
   drillAim: 8,       // the Range's top level: % added to the chance to hit on your first volley in a fight
   tuneCost: 0.04,    // tuning a weapon at the Workshop costs this share of its price...
   tuneMin: 500,      // ...and never less than this
@@ -1100,51 +1105,51 @@ const BASE = {
     about: 'Everything with a plug hangs off this. The bigger the base, the more it costs to run each night.',
     say: (L, i) => `Runs level ${i} of the stations that need power.${L.crews > 1 ? ` Room for ${L.crews} builds at a time.` : ''}`,
     lv: [{crews: 1},
-      {n: 'Extension Lead from Next Door', t: 1, crews: 1, req: [rCash(1500), rGood('USB Droppers', 5)]},
-      {n: 'Petrol Generator', t: 2, crews: 1, req: [rCash(20000), rLv(5), rGad('crowbar', 1), rGood('Rogue APs', 2)]},
-      {n: 'Grid Tap', t: 3, crews: 2, req: [rCash(120000), rLv(12), rGad('cloner', 1), rGood('Botnet Hours', 4)]},
-      {n: 'Unofficial Substation', t: 4, crews: 2, req: [rCash(600000), rLv(20), rGood('Rootkits', 2), rGear(3, 1)]}]},
+      {n: 'Extension Lead from Next Door', t: 1, crews: 1, req: [rCash(2300), rGood('USB Droppers', 5)]},
+      {n: 'Petrol Generator', t: 2, crews: 1, req: [rCash(30000), rLv(5), rGad('crowbar', 1), rGood('Rogue APs', 2)]},
+      {n: 'Grid Tap', t: 3, crews: 2, req: [rCash(240000), rLv(12), rGad('cloner', 1), rGood('Botnet Hours', 4)]},
+      {n: 'Unofficial Substation', t: 4, crews: 2, req: [rCash(1200000), rLv(20), rGood('Rootkits', 2), rGear(3, 1)]}]},
   stash: {name: 'The Stash', tag: 'STASH', col: '#00e5ff', start: 1,
     about: 'Where goods wait off your drive. The law takes what is in it when they raid the place.',
     say: L => `Holds ${L.cap} goods.`,
     lv: [{cap: 300},
       {n: 'Pile in the Corner', t: 0, cap: 300, req: []},
-      {n: 'Steel Shelving', t: 1, cap: 450, req: [rCash(8000), rGad('crowbar', 1)]},
-      {n: 'False Wall', t: 2, cap: 600, req: [rCash(60000), rLv(8), rSt('locker', 2), rGood('Rogue APs', 6)]},
-      {n: 'Vault Behind the False Wall', t: 3, cap: 800, req: [rCash(350000), rLv(16), rGood('Zero-Days', 2), rGear(3, 1)]}]},
+      {n: 'Steel Shelving', t: 1, cap: 450, req: [rCash(12000), rGad('crowbar', 1)]},
+      {n: 'False Wall', t: 2, cap: 600, req: [rCash(120000), rLv(8), rSt('locker', 2), rGood('Rogue APs', 6)]},
+      {n: 'Vault Behind the False Wall', t: 3, cap: 800, req: [rCash(700000), rLv(16), rGood('Zero-Days', 2), rGear(3, 1)]}]},
   locker: {name: 'Gear Locker', tag: 'LOCKER', col: '#c77dff', start: 1,
     about: 'Gear you are not carrying. It has a hidden compartment: raids never find it.',
     say: L => `Holds ${L.size} pieces of gear.`,
     lv: [{size: 20},
       {n: 'Dented School Locker', t: 0, size: 20, req: []},
-      {n: 'Two Lockers, Bolted Together', t: 1, size: 28, req: [rCash(6000), rGear(0, 3)]},
-      {n: 'Walk-In Wardrobe', t: 2, size: 36, req: [rCash(50000), rLv(8), rGear(2, 2)]},
-      {n: 'Armoury Cage', t: 3, size: 48, req: [rCash(300000), rLv(15), rGear(3, 2)]}]},
+      {n: 'Two Lockers, Bolted Together', t: 1, size: 28, req: [rCash(9000), rGear(0, 3)]},
+      {n: 'Walk-In Wardrobe', t: 2, size: 36, req: [rCash(100000), rLv(8), rGear(2, 2)]},
+      {n: 'Armoury Cage', t: 3, size: 48, req: [rCash(600000), rLv(15), rGear(3, 2)]}]},
   bed: {name: 'Bunk', tag: 'BUNK', col: '#ff4fd8', start: 1,
     about: 'Sleeping is the only thing that ends the day. It heals you and settles your OpSec.',
     say: L => `A night heals ${L.heal}% Health and ${L.opsec}% OpSec.`,
     lv: [{heal: 35, opsec: 15},
       {n: 'Camp Cot', t: 0, heal: 35, opsec: 15, req: []},
-      {n: 'An Actual Mattress', t: 1, heal: 42, opsec: 15, req: [rCash(5000), rGood('Warez', 30)]},
-      {n: 'Memory Foam (It Remembers Everything)', t: 2, heal: 50, opsec: 20, req: [rCash(45000), rLv(7), rMeds(2)]},
-      {n: 'Sensory Deprivation Pod, Ex-Rental', t: 3, heal: 60, opsec: 25, req: [rCash(280000), rLv(14), rSt('power', 2), rGear(3, 1)]}]},
+      {n: 'An Actual Mattress', t: 1, heal: 42, opsec: 15, req: [rCash(7500), rGood('Warez', 30)]},
+      {n: 'Memory Foam (It Remembers Everything)', t: 2, heal: 50, opsec: 20, req: [rCash(90000), rLv(7), rMeds(2)]},
+      {n: 'Sensory Deprivation Pod, Ex-Rental', t: 3, heal: 60, opsec: 25, req: [rCash(560000), rLv(14), rSt('power', 2), rGear(3, 1)]}]},
   garage: {name: 'Garage', tag: 'GARAGE', col: '#3dff9a', start: 1,
     about: 'A roller door and an oil stain. Every ride you own lives here.',
     say: L => `Room for ${L.bays} rides.${L.fuel ? ` Fuel costs ${L.fuel}% less.` : ''}`,
     lv: [{bays: 4, fuel: 0},
       {n: 'Roller Door and an Oil Stain', t: 0, bays: 4, fuel: 0, req: []},
-      {n: 'Knocked Through to the Boiler Room', t: 2, bays: 5, fuel: 0, req: [rCash(40000), rLv(6), rGad('crowbar', 1)]},
-      {n: 'Own Fuel Tank (Do Not Smoke)', t: 3, bays: 6, fuel: 10, req: [rCash(250000), rLv(13), rGood('Botnet Hours', 4)]},
-      {n: 'Car Lift and a Man Called Gary', t: 4, bays: 7, fuel: 15, req: [rCash(900000), rLv(20), rSt('power', 3)]}]},
+      {n: 'Knocked Through to the Boiler Room', t: 2, bays: 5, fuel: 0, req: [rCash(60000), rLv(6), rGad('crowbar', 1)]},
+      {n: 'Own Fuel Tank (Do Not Smoke)', t: 3, bays: 6, fuel: 10, req: [rCash(500000), rLv(13), rGood('Botnet Hours', 4)]},
+      {n: 'Car Lift and a Man Called Gary', t: 4, bays: 7, fuel: 15, req: [rCash(1800000), rLv(20), rSt('power', 3)]}]},
   locks: {name: 'Lock Board', tag: 'LOCK BOARD', col: '#fcee0a', start: 1,
     about: 'Real locks screwed to a board, and nobody listening. It teaches lock picking slowly, a few tries a day.',
     say: L => `${L.tries} tries a day. Teaches up to lock picking level ${L.cap}.` +
       (L.elec.length ? ` Electronic locks to practise on: ${L.elec.map(k => LOCKS[k][0].toLowerCase()).join(', ')}.` : ''),
     lv: [{tries: 6, cap: 4, elec: []},
       {n: 'Job Lot from a Retired Locksmith', t: 0, tries: 6, cap: 4, elec: [], req: []},
-      {n: 'A Second Board', t: 1, tries: 8, cap: 5, elec: [], req: [rCash(7000), rLock(2), rGad('picks', 4)]},
-      {n: 'Badge Reader, Fell Off a Wall', t: 2, tries: 10, cap: 6, elec: ['badge'], req: [rCash(70000), rLock(4), rSt('power', 1), rGad('cloner', 1), rGad('pickgun', 1)]},
-      {n: 'Maglock on a Door to Nowhere', t: 3, tries: 12, cap: 7, elec: ['badge', 'maglock'], req: [rCash(320000), rLock(6), rSt('power', 2), rGad('cloner', 2)]}]},
+      {n: 'A Second Board', t: 1, tries: 8, cap: 5, elec: [], req: [rCash(11000), rLock(2), rGad('picks', 4)]},
+      {n: 'Badge Reader, Fell Off a Wall', t: 2, tries: 10, cap: 6, elec: ['badge'], req: [rCash(140000), rLock(4), rSt('power', 1), rGad('cloner', 1), rGad('pickgun', 1)]},
+      {n: 'Maglock on a Door to Nowhere', t: 3, tries: 12, cap: 7, elec: ['badge', 'maglock'], req: [rCash(640000), rLock(6), rSt('power', 2), rGad('cloner', 2)]}]},
   range: {name: 'The Range', tag: 'RANGE', col: '#ff3b5c', wide: true,
     about: 'Somewhere to practise with the weapon you carry. Practice makes you hit more often, and waste fewer rounds.',
     say: L => `Practise with ${L.kinds.map(k => WTYPE[k][0].toLowerCase()).join(', ')}: ${L.shots} sessions a day, up to skill level ${L.cap}.` +
@@ -1152,73 +1157,73 @@ const BASE = {
       (L.drill ? ` Entry drill: +${L.drill}% to hit on your first volley in any fight.` : ''),
     lv: [{kinds: [], cap: 0, shots: 0, rounds: 0, drill: 0},
       {n: 'Punching Dummy and a Dartboard', t: 1, kinds: ['blunt', 'blade'], cap: 3, shots: 2, rounds: 0, drill: 0,
-        req: [rCash(3000), rWpn('melee'), rGood('Warez', 20)]},
+        req: [rCash(4500), rWpn('melee'), rGood('Warez', 20)]},
       {n: 'Ten-Metre Lane', t: 2, kinds: ['blunt', 'blade', 'gun'], cap: 5, shots: 3, rounds: 12, drill: 0,
-        req: [rCash(30000), rLv(5), rSt('power', 1), rWpn('gun'), rAmmo('std', 60)]},
+        req: [rCash(45000), rLv(5), rSt('power', 1), rWpn('gun'), rAmmo('std', 60)]},
       {n: 'Long Lane with a Proper Backstop', t: 3, kinds: MARK_KINDS, cap: 7, shots: 3, rounds: 9, drill: 0,
-        req: [rCash(180000), rLv(12), rSt('power', 2), rGear(2, 2), rAmmo('hollow', 80)]},
+        req: [rCash(360000), rLv(12), rSt('power', 2), rGear(2, 2), rAmmo('hollow', 80)]},
       {n: 'The Kill House', t: 4, kinds: MARK_KINDS, cap: 10, shots: 4, rounds: 9, drill: BASE_TUNE.drillAim, moving: true,
-        req: [rCash(800000), rLv(20), rMark(6), rSt('power', 3), rWpn('heavy', 60000), rAmmo('ap', 60), rGad('emp', 2)]}]},
+        req: [rCash(1600000), rLv(20), rMark(6), rSt('power', 3), rWpn('heavy', 60000), rAmmo('ap', 60), rGad('emp', 2)]}]},
   med: {name: 'Med Bay', tag: 'MED BAY', col: '#3dff9a',
     about: 'Patching yourself up at home, for nothing, once a day.',
     say: L => `Patch up ${L.heal}% Health once a day, free.` + (L.cook ? ` Cook a medkit from ${L.cook} Cracked Accounts, once a day.` : '') +
       (L.doc === undefined ? '' : L.doc ? ` Get stuck goods out at home for ${Math.round(L.doc * 100)}% of the street doc's fee.` : ' Get stuck goods out at home for nothing.'),
     lv: [{heal: 0, cook: 0},
-      {n: 'First Aid Shelf', t: 1, heal: 15, cook: 0, req: [rCash(2500), rSt('power', 1), rMeds(2)]},
-      {n: 'Kitchen Table Surgery', t: 2, heal: 25, cook: 6, req: [rCash(25000), rLv(6), rSt('power', 2), rMeds(3), rGad('acid', 1)]},
-      {n: 'Back-Room Clinic', t: 3, heal: 40, cook: 6, doc: 0.5, req: [rCash(150000), rLv(12), rSt('power', 3), rMeds(4), rGood('Leaked Databases', 10)]},
-      {n: 'Private Ward (One Bed, No Visitors)', t: 4, heal: 60, cook: 4, doc: 0, req: [rCash(650000), rLv(18), rSt('power', 4), rMeds(5), rGear(3, 1)]}]},
+      {n: 'First Aid Shelf', t: 1, heal: 15, cook: 0, req: [rCash(3800), rSt('power', 1), rMeds(2)]},
+      {n: 'Kitchen Table Surgery', t: 2, heal: 25, cook: 6, req: [rCash(38000), rLv(6), rSt('power', 2), rMeds(3), rGad('acid', 1)]},
+      {n: 'Back-Room Clinic', t: 3, heal: 40, cook: 6, doc: 0.5, req: [rCash(300000), rLv(12), rSt('power', 3), rMeds(4), rGood('Leaked Databases', 10)]},
+      {n: 'Private Ward (One Bed, No Visitors)', t: 4, heal: 60, cook: 4, doc: 0, req: [rCash(1300000), rLv(18), rSt('power', 4), rMeds(5), rGear(3, 1)]}]},
   bench: {name: 'Workshop', tag: 'WORKSHOP', col: '#ff9d2e',
     about: 'A bench for making things better, or at least different.',
     say: L => `Press ${L.ratio[0]} rounds into ${L.ratio[1]} of the next grade up, ${L.press} a day.` +
       (L.make.length ? ` Make: ${L.make.map(k => GADGETS[k][0]).join(', ')}.` : '') +
       (L.tune ? ` Tune the weapon you carry: +${L.tune}% to hit until you change it.` : ''),
     lv: [{ratio: [0, 0], press: 0, make: [], tune: 0},
-      {n: 'Vice and a Hand Press', t: 1, ratio: [3, 2], press: 30, make: [], tune: 0, req: [rCash(4000), rSt('power', 1), rAmmo('budget', 40), rGad('crowbar', 1)]},
-      {n: 'Bench Grinder and Key Blanks', t: 2, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 0, req: [rCash(28000), rLv(6), rSt('power', 2), rGad('picks', 3), rGood('USB Droppers', 6)]},
-      {n: "Gunsmith's Corner", t: 3, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 3, req: [rCash(160000), rLv(12), rSt('power', 3), rWpn('gun', 10000), rGad('pickgun', 2)]},
-      {n: 'Machine Shop', t: 4, ratio: [5, 4], press: 120, make: ['picks', 'bump', 'pickgun'], tune: 5, req: [rCash(700000), rLv(18), rSt('power', 4), rWpn('heavy'), rGear(3, 1)]}]},
+      {n: 'Vice and a Hand Press', t: 1, ratio: [3, 2], press: 30, make: [], tune: 0, req: [rCash(6000), rSt('power', 1), rAmmo('budget', 40), rGad('crowbar', 1)]},
+      {n: 'Bench Grinder and Key Blanks', t: 2, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 0, req: [rCash(42000), rLv(6), rSt('power', 2), rGad('picks', 3), rGood('USB Droppers', 6)]},
+      {n: "Gunsmith's Corner", t: 3, ratio: [4, 3], press: 60, make: ['picks', 'bump'], tune: 3, req: [rCash(320000), rLv(12), rSt('power', 3), rWpn('gun', 10000), rGad('pickgun', 2)]},
+      {n: 'Machine Shop', t: 4, ratio: [5, 4], press: 120, make: ['picks', 'bump', 'pickgun'], tune: 5, req: [rCash(1400000), rLv(18), rSt('power', 4), rWpn('heavy'), rGear(3, 1)]}]},
   rig: {name: 'Server Closet', tag: 'SERVERS', col: '#00e5ff',
     about: 'Machines that work while you sleep. What they turn out goes into the stash, if there is room.',
     say: L => `Turns out ${L.out[1]} ${L.out[0]} a night, into the stash.`,
     lv: [{out: null},
-      {n: 'Shoebox Server', t: 1, out: ['Warez', 3], req: [rCash(5000), rSt('power', 1), rGood('USB Droppers', 4), rGood('Warez', 20)]},
-      {n: 'Second-Hand Rack', t: 2, out: ['USB Droppers', 2], req: [rCash(35000), rLv(6), rSt('power', 2), rGood('Rogue APs', 3), rGood('Cracked Accounts', 10)]},
-      {n: 'Rack with Actual Cooling', t: 3, out: ['Rogue APs', 1], req: [rCash(200000), rLv(13), rSt('power', 3), rGood('Botnet Hours', 6), rGood('Rootkits', 1)]},
-      {n: 'Small Illegal Datacentre', t: 4, out: ['Phishing Kits', 1], req: [rCash(900000), rLv(22), rSt('power', 4), rGood('Zero-Days', 2), rGood('Botnet Hours', 10)]}]},
+      {n: 'Shoebox Server', t: 1, out: ['Warez', 3], req: [rCash(7500), rSt('power', 1), rGood('USB Droppers', 4), rGood('Warez', 20)]},
+      {n: 'Second-Hand Rack', t: 2, out: ['USB Droppers', 2], req: [rCash(53000), rLv(6), rSt('power', 2), rGood('Rogue APs', 3), rGood('Cracked Accounts', 10)]},
+      {n: 'Rack with Actual Cooling', t: 3, out: ['Rogue APs', 1], req: [rCash(400000), rLv(13), rSt('power', 3), rGood('Botnet Hours', 6), rGood('Rootkits', 1)]},
+      {n: 'Small Illegal Datacentre', t: 4, out: ['Phishing Kits', 1], req: [rCash(1800000), rLv(22), rSt('power', 4), rGood('Zero-Days', 2), rGood('Botnet Hours', 10)]}]},
   jam: {name: 'Jammer', tag: 'JAMMER', col: '#4da3ff',
     about: 'Makes the Bunker harder to find. The law still comes. Less often.',
     say: L => `Raids on the Bunker are ${Math.round((1 - L.raid) * 100)}% less likely.` + (L.cool ? ` Heat cools ${L.cool}% more each night.` : '') +
       (L.warn ? ' Before you sleep, the scanner tells you the odds of a raid tonight.' : ''),
     lv: [{raid: 1, cool: 0},
-      {n: 'Tinfoil on the Windows', t: 1, raid: 0.9, cool: 0, req: [rCash(3500), rGood('Burner SIMs', 10), rGad('burner', 1)]},
-      {n: 'Signal Jammer', t: 2, raid: 0.8, cool: 2, req: [rCash(30000), rLv(7), rSt('power', 1), rGad('decoy', 1), rGood('Rogue APs', 2)]},
-      {n: 'Police-Band Scanner', t: 3, raid: 0.7, cool: 3, warn: true, req: [rCash(170000), rLv(13), rSt('power', 2), rGad('vpn', 1), rGad('wiper', 1), rGood('Botnet Hours', 4)]},
-      {n: 'Faraday Lining', t: 4, raid: 0.6, cool: 4, warn: true, req: [rCash(750000), rLv(20), rSt('power', 3), rGood('Rootkits', 2), rGear(3, 1)]}]},
+      {n: 'Tinfoil on the Windows', t: 1, raid: 0.9, cool: 0, req: [rCash(5300), rGood('Burner SIMs', 10), rGad('burner', 1)]},
+      {n: 'Signal Jammer', t: 2, raid: 0.8, cool: 2, req: [rCash(45000), rLv(7), rSt('power', 1), rGad('decoy', 1), rGood('Rogue APs', 2)]},
+      {n: 'Police-Band Scanner', t: 3, raid: 0.7, cool: 3, warn: true, req: [rCash(340000), rLv(13), rSt('power', 2), rGad('vpn', 1), rGad('wiper', 1), rGood('Botnet Hours', 4)]},
+      {n: 'Faraday Lining', t: 4, raid: 0.6, cool: 4, warn: true, req: [rCash(1500000), rLv(20), rSt('power', 3), rGood('Rootkits', 2), rGear(3, 1)]}]},
   intel: {name: 'Intel Board', tag: 'INTEL', col: '#ff2a6d',
     about: 'Rumours about today\'s prices. Some of them are even true.',
     say: L => `${L.tips} rumour${L.tips === 1 ? '' : 's'} a day about prices elsewhere, right about ${Math.round(L.right * 100)}% of the time.` +
       (L.law ? ' Shows how likely the law is to stop you on a trip today.' : ''),
     lv: [{tips: 0, right: 0},
-      {n: 'Corkboard and Red String', t: 1, tips: 1, right: 0.7, req: [rCash(2000), rGood('Cracked Accounts', 8)]},
-      {n: 'Scanner on a Shelf', t: 2, tips: 2, right: 0.8, req: [rCash(22000), rLv(5), rSt('power', 1), rGood('Leaked Databases', 4)]},
-      {n: 'Wall of Monitors', t: 3, tips: 3, right: 0.88, law: true, req: [rCash(140000), rLv(11), rSt('power', 2), rGood('Leaked Databases', 8), rGood('Rootkits', 2)]},
-      {n: 'Informant on a Retainer', t: 4, tips: 4, right: 0.95, law: true, req: [rCash(600000), rLv(18), rSt('power', 3), rGood('Zero-Days', 1), rGad('fakeid', 2)]}]},
+      {n: 'Corkboard and Red String', t: 1, tips: 1, right: 0.7, req: [rCash(3000), rGood('Cracked Accounts', 8)]},
+      {n: 'Scanner on a Shelf', t: 2, tips: 2, right: 0.8, req: [rCash(33000), rLv(5), rSt('power', 1), rGood('Leaked Databases', 4)]},
+      {n: 'Wall of Monitors', t: 3, tips: 3, right: 0.88, law: true, req: [rCash(280000), rLv(11), rSt('power', 2), rGood('Leaked Databases', 8), rGood('Rootkits', 2)]},
+      {n: 'Informant on a Retainer', t: 4, tips: 4, right: 0.95, law: true, req: [rCash(1200000), rLv(18), rSt('power', 3), rGood('Zero-Days', 1), rGad('fakeid', 2)]}]},
   cat: {name: 'The Cat', tag: 'CAT', col: '#ff9d2e',
     about: 'Nobody builds a cat. You make the place acceptable, and one moves in.',
     say: L => `Purring: +${L.hp}% Health a night.` + (L.gift ? ` About one night in ${Math.round(1 / L.gift)} it leaves a present in the stash.` : '') +
       (L.opsec ? ` Sleeps on the router: +${L.opsec}% OpSec a night.` : ''),
     lv: [{hp: 0, gift: 0, opsec: 0},
-      {n: 'A Cat Has Moved In', t: 1, hp: 2, gift: 0, opsec: 0, req: [rCash(500), rGood('Warez', 10)]},
-      {n: 'Cat Tree (It Prefers the Box)', t: 1, hp: 2, gift: 0.25, opsec: 0, req: [rCash(12000), rLv(4), rGear(1, 2)]},
-      {n: 'Heated Cat Bed', t: 2, hp: 2, gift: 0.25, opsec: 5, req: [rCash(90000), rLv(10), rSt('power', 1), rGear(2, 1)]}]},
+      {n: 'A Cat Has Moved In', t: 1, hp: 2, gift: 0, opsec: 0, req: [rCash(750), rGood('Warez', 10)]},
+      {n: 'Cat Tree (It Prefers the Box)', t: 1, hp: 2, gift: 0.25, opsec: 0, req: [rCash(18000), rLv(4), rGear(1, 2)]},
+      {n: 'Heated Cat Bed', t: 2, hp: 2, gift: 0.25, opsec: 5, req: [rCash(180000), rLv(10), rSt('power', 1), rGear(2, 1)]}]},
   trophy: {name: 'Trophy Wall', tag: 'TROPHIES', col: '#fcee0a',
     about: 'Your achievements, where you can see them. Looking at them makes you try harder.',
     say: L => `Everything you do earns ${L.xp}% more XP.`,
     lv: [{xp: 0},
-      {n: 'A Nail in the Wall', t: 1, xp: 2, req: [rCash(1000), rAch(5)]},
-      {n: 'Trophy Shelf', t: 1, xp: 4, req: [rCash(18000), rAch(15), rGear(2, 1)]},
-      {n: 'Wall with Its Own Lighting', t: 2, xp: 6, req: [rCash(110000), rAch(28), rSt('power', 1), rGear(3, 1)]}]},
+      {n: 'A Nail in the Wall', t: 1, xp: 2, req: [rCash(1500), rAch(5)]},
+      {n: 'Trophy Shelf', t: 1, xp: 4, req: [rCash(27000), rAch(15), rGear(2, 1)]},
+      {n: 'Wall with Its Own Lighting', t: 2, xp: 6, req: [rCash(220000), rAch(28), rSt('power', 1), rGear(3, 1)]}]},
 };
 const BASE_IDS = Object.keys(BASE);
 const CAT_GIFTS = ['Warez', 'Burner SIMs', 'USB Droppers'];
@@ -6686,7 +6691,7 @@ function baseHtml() {
   const line = [jobs.length ? `<span class="amber">Building: ${jobs.map(j => `${BASE[j.id].name} L${lvl(j.id) + 1} (${nightsTxt(j.left)})`).join(', ')}</span>` : '',
     ready.length ? `<span class="green">Ready to build: ${ready.map(id => BASE[id].name).join(', ')}</span>` : '',
     baseDark() ? `<span class="red">Power is out: no cash for it this morning (${money(baseUpkeep())})</span>` : baseUpkeep() ? `power ${money(baseUpkeep())} a night` : ''].filter(Boolean).join(' &middot; ');
-  return baseMap() + `<div class="baseline">${line || 'Tap a room. Empty ones can be built; the rest can be built up.'}</div>`;
+  return `<div class="basewrap">${baseMap()}</div><div class="baseline">${line || 'Tap a room. Empty ones can be built; the rest can be built up.'}</div>`;
 }
 // Chips for the main screen, wherever you are: builds under way, and a power cut.
 function baseChips() {
@@ -10315,7 +10320,7 @@ async function selfTest(games) {
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0, coolHot = 0, coolBase = [0, 0, 0];
   let heistBase = {};   // what the step-by-step break-in test counted, so the random games are counted on their own
   let rideBase = [0, 0, 0, 0, 0], rideHopTally = 0;
-  let baseWas = {}, baseUses = 0;   // BASE
+  let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -10367,7 +10372,7 @@ async function selfTest(games) {
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
       if (game === 0) rideBase = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally];
-      if (game === 0) baseWas = Object.assign({}, baseTally);
+      if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -10640,7 +10645,7 @@ async function selfTest(games) {
     const bd = {};
     for (const k of Object.keys(baseTally)) bd[k] = baseTally[k] - (baseWas[k] || 0);
     if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && bd.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd]));
-    const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots} roundssaved=${fireTally.saved}`;
+    const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots - fireWas.shots} roundssaved=${fireTally.saved - fireWas.saved}`;
     document.title = 'SELFTEST OK';
     document.body.textContent = `SELFTEST OK${hsum}${bsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
