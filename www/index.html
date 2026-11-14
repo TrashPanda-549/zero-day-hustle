@@ -578,6 +578,195 @@ button .ico.room{width:44px;height:26px}
 @media (min-width:3000px) and (min-height:1650px){:root{--z:2}}
 @media (min-width:3400px) and (min-height:1900px){:root{--z:2.25}}
 @media (min-width:3800px) and (min-height:2100px){:root{--z:2.5}}
+/* ================= TINY SCREENS (a handheld: 320 x 170) =================
+   Everything from here to the end of the style sheet only applies to a window no wider than 600px and no
+   taller than 260px: a wide, very short screen like the Cardputer Zero's 320 x 170. No phone, tablet or
+   desktop viewport is that short (the shortest phone in landscape is 320 tall, and a phone in portrait is
+   taller still), so nothing here can reach the one-column phone layout, the phone-landscape battle layout
+   (max-height:480px, which this block sits after and overrides at this size) or the WIDE SCREENS rules
+   (min-width:900px, which cannot match at the same time).
+   The play screen is two panes side by side: the trading core on the left (mission, products, jobs,
+   actions) and you on the right (avatar, level, health, chips, news, log). The page itself never scrolls;
+   every pane scrolls inside itself. Decoration that costs a full-screen repaint (the scanline overlay, the
+   background gradients, the glitch and streak animations, the avatar's idle animations) is off here,
+   because this runs on a slow handheld. */
+@media (max-width:600px) and (max-height:260px){
+  :root{--cut:none}                       /* the clipped corners cost 9px of every button and a mask per paint */
+  html,body{height:100%;overflow:hidden}
+  body{font-size:11px;line-height:1.25;min-height:0;background:var(--bg)}
+  body::after{content:none}               /* the scanlines are a fixed full-screen layer over everything */
+  *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  h1,.bootlogo,.tlabel,.boothint,.basemap .blink,.av-fig,.av-bob,.avatar *{animation:none}
+  #travel::before{content:none}
+  button:focus-visible,summary:focus-visible,input:focus-visible,[tabindex]:focus-visible,
+  .room:focus-visible .rbox,.tile:focus-visible,.slottag:focus-visible,.bopt:focus-visible{
+    outline:2px solid var(--yellow);outline-offset:1px}
+
+  /* --- the play screen --- */
+  #app{position:fixed;inset:0;max-width:none;margin:0;display:grid;gap:0 5px;
+    padding:2px calc(3px + env(safe-area-inset-right)) 2px calc(3px + env(safe-area-inset-left));
+    grid-template-columns:minmax(0,1fr) 118px;
+    grid-template-rows:auto auto auto minmax(0,1fr);
+    grid-template-areas:"head head" "trade me" "trade news" "trade log"}
+  #app>header{grid-area:head;gap:4px;margin-bottom:1px}
+  .hbtns{gap:3px}
+  button{min-height:20px;padding:2px 6px;font-size:10px;text-shadow:none}
+  button.small{min-height:16px;padding:1px 4px;font-size:9px}
+  h2{margin:0 0 4px;font-size:11px;letter-spacing:1px}
+
+  #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
+  #hud{margin-top:0;gap:4px;grid-template-columns:36px minmax(0,1fr)}
+  #ava{min-height:46px}
+  #ava .ico.ride{width:18px;height:11px}
+  #career{gap:4px;padding:2px 4px;font-size:9px;border-left-width:2px}
+  #career .lvl{text-shadow:none}
+  #career .bar{height:5px;min-width:14px}
+  #dayloc{margin:2px 0 0;font-size:9.5px;letter-spacing:0}
+  .meter{grid-template-columns:30px 1fr 34px;gap:4px;font-size:9px;margin:2px 0}
+  .meter span:first-child{font-size:8px;letter-spacing:0}
+  .meter .track{height:6px}
+  .meter .track i{box-shadow:none}
+  #stats{gap:2px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(54px,1fr))}
+  .chip{padding:2px 3px;border-left-width:2px;clip-path:none}
+  .chip small{font-size:8px;letter-spacing:0}
+  .chip b{font-size:10px}
+  #news{grid-area:news;margin:2px 0 0;min-width:0;max-height:2.6em;overflow-y:auto;font-size:9.5px}
+  #news:empty{margin:0}
+  #log{grid-area:log;margin:2px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:9px;padding-top:3px}
+  #log div{padding:0}
+
+  #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+  #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0}
+  #quest{flex:none}
+  #quest .fold,#jobs .fold{margin:0 0 3px;border-top-width:1px}
+  #market{margin-top:0;flex:1 1 auto;min-height:36px;overflow-y:auto;border-top-width:1px}
+  #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
+  .fold>summary{gap:4px;padding:3px 5px;font-size:10px;letter-spacing:1px}
+  .fold>summary small{font-size:9px}
+  .row{gap:4px;padding:2px 4px}
+  .row .name{overflow-wrap:anywhere}
+  .row .sub{font-size:9px}
+  .row .btns{gap:3px}
+  .row .btns button{padding:1px 4px;min-width:24px;min-height:18px}
+  #jobs{flex:0 1 auto;margin:2px 0 0;min-height:0;max-height:46%;overflow-y:auto}
+  #jobs h3{margin:0 0 2px;font-size:9px;letter-spacing:1px}
+  #jobs .fold .none{padding:3px 5px;font-size:9px}
+  .job{gap:4px;padding:3px 4px;margin-bottom:3px;border-left-width:2px}
+  .job .sub{font-size:9px}
+  .job:last-child{margin-bottom:0}
+  #actions{flex:none;gap:3px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(70px,1fr))}
+  #actions button{min-height:20px}
+
+  /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
+  #overlay{padding:2px}
+  #dialog{max-width:none;max-height:100%;padding:4px 6px;border-top-width:2px;clip-path:none;animation:none}
+  #dialog p{margin:0 0 4px}
+  .dbtns{gap:3px;margin-top:5px;grid-template-columns:repeat(auto-fit,minmax(68px,1fr))}
+  .qty{gap:4px;margin-top:3px}
+  input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
+  input[type=range]{height:18px}
+  .quick{gap:3px;margin-top:4px}
+  .total{margin-top:5px}
+  .syn{margin:0 0 5px;padding:3px 5px;border-left-width:2px}
+  .hall td{padding:1px 3px}
+  .req{font-size:9.5px;padding:1px 0}
+  .slotline{font-size:9px;margin-bottom:4px;gap:5px}
+  .slotline .ico{width:22px;height:22px}
+  .slotline .dim{font-size:8px}
+  .invhead{margin:5px 0 3px;font-size:9px;letter-spacing:1px}
+  .tiles{grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:4px}
+  .tile{padding:2px 2px 9px}
+  .tile .glyph{font-size:13px;letter-spacing:0}
+  .tile i{top:0;right:2px;font-size:8px}
+  .tile small{left:1px;right:1px;bottom:1px;font-size:7px;letter-spacing:0}
+  .tile.r4,.tile.on{box-shadow:none}
+  .ico{width:26px;height:26px}
+  .ico.wide{width:56px;height:24px}
+  .ico.ride{width:40px;height:24px}
+  .ico.room{width:44px;height:25px}
+  button .ico{width:20px;height:20px}
+  button .ico.ride{width:32px;height:19px}
+  button .ico.room{width:30px;height:18px}
+  button.hasico{gap:5px;padding:2px 5px}
+  .avatarbox{grid-template-columns:70px 1fr;gap:5px;margin-bottom:5px}
+  .posebox{max-width:84px;margin:0 auto 5px}
+  .posebox.wide{max-width:150px}
+  .versus{grid-template-columns:48px auto 48px;gap:6px;margin-bottom:5px}
+  .versus b{font-size:13px;text-shadow:none}
+  .versus small{font-size:8px;letter-spacing:0;margin-top:1px}
+  .stage{margin:0 auto 4px}
+  .stage .avatar{width:32%}
+  .slottag{width:32%;padding:2px 3px;font-size:8px;line-height:1.15}
+  .slottag small{font-size:7px}
+  .slottag i{font-size:7px}
+  .slottag.has{box-shadow:none}
+  .zoomable small{bottom:2px;font-size:8px;letter-spacing:0}
+
+  /* --- the Bunker's cutaway: kept at its own 1:1 size and panned, rather than shrunk to 4px lettering --- */
+  .basewrap{max-height:112px;overflow:auto}
+  .basemap{width:364px;height:286px;max-width:none;aspect-ratio:auto;margin:0}
+  .baseline{padding:2px 5px;font-size:9px}
+  .rangebox{width:auto;height:112px;max-width:100%;margin:0 auto 4px}
+
+  /* --- the loading screen and the travel wipe --- */
+  #boot{padding:8px}
+  .bootbox{max-width:none}
+  .bootlogo{font-size:20px;letter-spacing:1px;text-shadow:2px 0 var(--pink),-2px 0 var(--cyan)}
+  .bootsub{margin:4px 0 6px;font-size:9px;letter-spacing:1px}
+  .bootlog div{margin:1px 0;font-size:9px}
+  .bootbar{margin-top:6px;height:7px}
+  .boothint{margin-top:5px;font-size:9px;letter-spacing:1px}
+  #travel{padding:8px}
+  .tbox{max-width:none}
+  .tlabel{font-size:14px;letter-spacing:2px}
+  .troute{margin:8px 0 4px;font-size:9.5px}
+  .troute .to{text-shadow:none}
+  .ttrack .ico.ride{width:32px;height:19px;bottom:6px}
+  .tride{margin-top:5px;font-size:9px}
+  .thex{margin-top:6px;font-size:9px}
+
+  /* --- the fight screen: the stage fills the screen at 1 screen pixel to the big pixel (layout() picks
+         K=1 from the 170px of height), with the log over the sky and the windows over the floor --- */
+  #battle{padding:0;overflow:hidden}
+  .bwrap{position:relative;max-width:none;height:100%;min-height:0;gap:0;
+    display:grid;grid-template-columns:100%;grid-template-rows:100%}
+  .bfield{grid-area:1/1;width:100%;height:100%;min-height:0;border:0}
+  .bw{padding:11px 4px 3px;font-size:10px;border-bottom-width:1px;box-shadow:inset 0 0 0 1px #06050d}
+  .bw[data-t]::before{left:4px;font-size:8px;line-height:9px;letter-spacing:1px;padding:0 6px 0 4px}
+  .bw::after{content:none}
+  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 42px);height:33px;min-height:0;
+    overflow-y:auto;line-height:1.2;padding-top:10px}
+  .bspd{z-index:7;right:2px;top:2px;min-height:15px;padding:1px 5px;font-size:9px}
+  .bban{top:auto;bottom:62px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:10px;letter-spacing:0}
+  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:58px;gap:2px;
+    grid-template-columns:82px 90px minmax(0,1fr)}
+  .bfoes{order:0;grid-column:1;overflow-y:auto}
+  .bstat{order:0;grid-column:2;overflow-y:auto}
+  .bcmd{order:0;grid-column:3;overflow-y:auto}
+  .bfoes .row{padding:0 2px;border:0;font-size:9px}
+  .bstat .who{font-size:9px;letter-spacing:0;margin-bottom:1px}
+  .bbar{grid-template-columns:22px 1fr auto;gap:4px;margin:1px 0;font-size:9px}
+  .bbar .lbl{font-size:8px;letter-spacing:0}
+  .bbar .track{height:6px}
+  .bgear{margin-top:2px;font-size:8px}
+  .bturn{gap:3px;margin-top:2px;font-size:8px;letter-spacing:0}
+  .bturn b{padding:0 3px}
+  .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
+  .bopt{min-height:15px;padding:1px 3px 1px 12px;font-size:9.5px;text-shadow:none}
+  .bopt small{font-size:8px}
+  .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
+  .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
+  .bsub .bopt{min-height:16px}
+  .bnote{margin:0 1px 4px;font-size:9px;line-height:1.25}
+  .bres{width:calc(100% - 12px);max-height:100%;font-size:9.5px;box-shadow:0 0 0 2px #04030b}
+  .bres p{margin:0 0 3px;line-height:1.2}
+  .bres .line{padding:1px;animation:none}
+  .bres .foot{margin:3px 0 2px;font-size:8px}
+  .bhint{display:none}
+  .bbig{font-size:22px;letter-spacing:2px}
+  .bpop{font-size:13px;text-shadow:1px 1px 0 #000,-1px -1px 0 #000}
+  .bpop small{font-size:8px}
+}
 </style>
 </head>
 <body>
@@ -599,9 +788,9 @@ button .ico.room{width:44px;height:26px}
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
   <div id="colme">
   <div id="hud">
-    <div id="ava" data-act="gearmenu" title="Gear"></div>
+    <div id="ava" data-act="gearmenu" title="Gear" tabindex="0" role="button" aria-label="Gear"></div>
     <div id="hudr">
-      <div id="career" data-act="profile"></div>
+      <div id="career" data-act="profile" tabindex="0" role="button" aria-label="Profile"></div>
       <div id="dayloc"></div>
       <section id="vitals"></section>
     </div>
@@ -5729,7 +5918,7 @@ async function inspectGear() {
   for (;;) {
     const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
       const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
-      return `<div class="slottag${spare ? ' has' : ''}" data-pick="${slot}" style="${POS[slot]}"><small>${label}</small>` +
+      return `<div class="slottag${spare ? ' has' : ''}" data-pick="${slot}" tabindex="0" role="button" style="${POS[slot]}"><small>${label}</small>` +
         (it ? `<b class="r${it.rar}">${it.name}</b>` : '<b class="dim">empty</b>') +
         (spare ? `<i>${spare} in bag to swap</i>` : '') + '</div>';
     }).join('');
@@ -6112,7 +6301,7 @@ const ACTIONS = {
   async inventory() {
     // pick: what the dialog answers when the tile is tapped. cls: extra classes (rarity, wide, state).
     const tile = (pick, art, label, count, cls) =>
-      `<div class="tile ${cls || ''}"${pick ? ` data-pick="${pick}"` : ''}>${art}` +
+      `<div class="tile ${cls || ''}"${pick ? ` data-pick="${pick}" tabindex="0" role="button"` : ''}>${art}` +
       (count ? `<i>${count}</i>` : '') + `<small>${label}</small></div>`;
     const head = (title, note) => `<div class="invhead"><b>${title}</b><span>${note}</span></div>`;
     const none = text => `<p class="dim">${text}</p>`;
@@ -7383,8 +7572,10 @@ Object.assign(ACTIONS, {
   },
 });
 // Rooms are drawings, not buttons, so the keyboard needs telling: Enter or Space on a room is a tap.
+// Enter or Space works the focused thing that is not a button (rooms in the cutaway, tiles, gear slots,
+// the avatar, the level bar): a button does that by itself, these have to be told.
 document.addEventListener('keydown', e => {
-  const el = e.target && e.target.closest && e.target.closest('.room[data-act]');
+  const el = e.target && e.target.closest && e.target.closest('[tabindex][data-act],[tabindex][data-pick]');
   if (!el || (e.key !== 'Enter' && e.key !== ' ')) return;
   e.preventDefault();
   el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
@@ -11125,7 +11316,9 @@ async function selfTest(games) {
     // BASE: ...and tapped rooms, handed things in, been refused, started builds, slept through them and practised.
     const bd = {};
     for (const k of Object.keys(baseTally)) bd[k] = baseTally[k] - (baseWas[k] || 0);
-    if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && bd.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd]));
+    // (the Range is counted over the whole test, step-by-step part included: a short random run does not
+    //  always happen to practise, and that alone is no reason to call the base untouched)
+    if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && baseTally.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd, baseTally.sessions]));
     const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots - fireWas.shots} roundssaved=${fireTally.saved - fireWas.saved}`;
     document.title = 'SELFTEST OK';
     document.body.textContent = `SELFTEST OK${hsum}${bsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
