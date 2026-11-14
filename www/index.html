@@ -425,7 +425,10 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
 <script>
 'use strict';
 const DAYS = 30, START_CASH = 2000, START_DEBT = 5500, DEBT_RATE = 0.08, WALLET_RATE = 0.03,
-  DEBT_LIMIT = 25000, START_DRIVE = 100, HEAT_DECAY = 8, MAX_PROXIES = 8;
+  DEBT_LIMIT = 25000, START_DRIVE = 60, HEAT_DECAY = 8, MAX_PROXIES = 8;
+// What you can carry = START_DRIVE (plus upgrades) + what your clothes and backpack hold (see POCKETS).
+// It was a flat 100 before backpacks; runs saved back then are adjusted when they load (see loadSave).
+const OLD_START_DRIVE = 100;
 
 // name, low, high, news when scarce, news when flooded
 const GOODS = [
@@ -1472,7 +1475,26 @@ const SLOTS = {
     'Christmas Jumper'], ['charm', 'regen', 'stealth', 'luck']],
   coat: ['Coat', ['Lab Coat', 'Puffer Jacket', 'Duster', 'Rain Poncho', 'Parka', 'Hi-Vis Vest', 'Cape', 'Fur Coat'],
     ['armor', 'storage', 'stealth', 'firewall']],
+  // A bag on your back. What it holds comes from POCKETS, not from a rolled stat.
+  back: ['Backpack', ['School Backpack', 'Fanny Pack', 'Tote Bag', 'Messenger Bag', 'Duffel Bag', 'Tactical Rucksack',
+    'Hiking Pack', 'Guitar Case'], ['speed', 'stealth', 'luck', 'regen']],
 };
+// How many goods each item type holds at Common, in the same order as the names in SLOTS. Rarer items
+// hold more (x RARITY_MULT). Backpacks hold the most; clothes hold what their pockets would.
+// It is worked out from the item's type and rarity, so gear from older saves has it too.
+const POCKETS = {
+  back: [24, 14, 18, 22, 30, 28, 32, 26],
+  legs: [10, 4, 3, 9, 1, 7, 2, 3],
+  body: [5, 4, 8, 3, 4, 9, 2, 1],
+  coat: [6, 5, 9, 2, 8, 4, 0, 5],
+  shirt: [1, 3, 1, 0, 2, 1, 1, 2],
+};
+function carries(it) {
+  const table = it && POCKETS[it.slot];
+  if (!table) return 0;
+  const kind = SLOTS[it.slot][1].findIndex(name => String(it.name).endsWith(name));
+  return kind < 0 ? 0 : Math.round(table[kind] * RARITY_MULT[it.rar]);
+}
 // stat: [what it does, value on a Common item, cap on your total, unit]
 const STATS = {
   armor: ['less Health damage', 6, 70, '%'],
@@ -1508,8 +1530,17 @@ const scrapValue = it => Math.round(itemValue(it) * 0.25);
 const bonus = key => Math.min(STATS[key][2],
   Object.values(career.gear).reduce((sum, it) => sum + ((it && it.stats[key]) || 0), 0));
 const statLine = (key, v) => `+${v}${STATS[key][3]} ${STATS[key][0]}`;
+// What the backpack and the clothes you are wearing hold between them, and the pieces of that.
+const bagHolds = () => carries(career.gear.back);
+const pocketsHold = () => Object.values(career.gear).reduce((sum, it) => sum + (it && it.slot !== 'back' ? carries(it) : 0), 0);
+// The colour for the amount you can carry: the rarity of the backpack you wear, or plain with no bag.
+const bagClass = () => (career.gear.back ? 'r' + career.gear.back.rar : 'dim');
+// "holds 24" in the item's rarity colour, then its rolled stats.
+const holdsLine = it => (POCKETS[it.slot] ? `<span class="r${it.rar}">holds ${carries(it)}</span> ` +
+  `<span class="dim">(${it.slot === 'back' ? 'bag' : 'pockets'})</span>` : '');
+const itemStats = it => [holdsLine(it)].concat(Object.entries(it.stats).map(([k, v]) => statLine(k, v))).filter(Boolean).join(', ');
 const itemHtml = it => withIcon(gearIcon(it), `<b class="r${it.rar}">${it.name}</b> <span class="dim">${RARITY[it.rar]} &middot; ` +
-  `${SLOTS[it.slot][0]}</span><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`);
+  `${SLOTS[it.slot][0]}</span><br>${itemStats(it)}`);
 const saveCareer = () => { if (!AUTO) store.set('zdh-career', career); };
 
 // Item types that used to belong to another slot: [name, old slot, new slot].
@@ -1535,7 +1566,7 @@ function reslotCareer() {
 
 // Everyone starts with a basic item in every slot except the face and the coat, which stay empty until you find something.
 const STARTER = {head: [0, 'firewall'], body: [0, 'armor'], hands: [0, 'aim'], feet: [0, 'speed'], deck: [0, 'hack'],
-  legs: [0, 'storage'], wrist: [0, 'luck'], shirt: [0, 'regen']};
+  legs: [0, 'storage'], wrist: [0, 'luck'], shirt: [0, 'regen'], back: [0, 'regen']};
 function starterGear() {
   for (const [slot, [index, stat]] of Object.entries(STARTER)) {
     if (!career.gear[slot]) {
@@ -1562,7 +1593,11 @@ async function dropLoot(from, boost, gift) {
     (worn ? `<p class="dim">You are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
     [['Equip it', 'e', 'primary'], ['Put it in the bag', 'b']]);
-  if (choice === 'e') {
+  const full = choice === 'e' ? tooFull(it.slot, it) : '';
+  if (full) {   // it holds less than what you have on, and you are loaded up: it goes in the bag instead
+    stash(it);
+    await alertDlg('Too much to carry', full + '<p>It goes in your gear bag for now.</p>');
+  } else if (choice === 'e') {
     if (worn) stash(worn);
     career.gear[it.slot] = it;
   } else {
@@ -1729,7 +1764,10 @@ function figure(F) {
   const INK = '#0b0a19', EYE = '#1b1426', GOLD = '#ffd24a', CYAN = '#00e5ff';
   const [, SKIN, SHADE] = SKINS[F.look.skin];
   const HAIR = HAIRCOLS[F.look.col][1], STREAK = STREAKS[F.look.streak][1], hair = F.look.hair;
-  const {head, body, hands, feet, deck, face, legs, wrist, shirt, coat} = F.gear;
+  const {head, body, hands, feet, deck, face, legs, wrist, shirt, coat, back} = F.gear;
+  // One fill colour per name in SLOTS.back, in the same order. The bag itself is drawn behind the body
+  // and its straps over the clothes, so each kind has two drawings further down.
+  const BAGFILL = ['#a8321f', '#ff4fd8', '#d8c9a8', '#4a3a2c', '#0f6f78', '#39402f', '#c0392b', '#6b4a2c'];
   const hurt = F.hp <= 35 && !F.ko;
   // A shape and its mirror image, for the left and right side of the body.
   const both = d => `<path d="${d}"/><path d="${d}" transform="translate(200 0) scale(-1 1)"/>`;
@@ -1758,6 +1796,28 @@ function figure(F) {
       '<circle cx="62" cy="79" r="2"/><circle cx="138" cy="65" r="2"/><circle cx="131" cy="79" r="2"/>' +
       '<circle cx="138" cy="93" r="2"/><circle cx="62" cy="93" r="2"/></g>' +
       '<path d="M124 58 v-22 M130 58 v-14" fill="none"/>');
+  }
+  if (back) {
+    // The part of the bag that shows round the body. One drawing per name in SLOTS.back, in the same order.
+    const pack = [
+      // School Backpack: round-shouldered, with a grab handle
+      '<path d="M52 70 Q52 52 70 52 L130 52 Q148 52 148 70 L150 158 Q100 172 50 158 Z"/>' +
+        '<path d="M92 52 q8 -9 16 0" fill="none"/>',
+      '',   // Fanny Pack: all of it is in front
+      '',   // Tote Bag: hangs at the side, in front
+      '',   // Messenger Bag: hangs at the hip, in front
+      // Duffel Bag: slung across the back, sticking out both sides
+      '<rect x="38" y="80" width="124" height="42" rx="20"/><path d="M52 81 v40 M148 81 v40" fill="none"/>',
+      // Tactical Rucksack: square, with a pouch on each side
+      '<path d="M58 58 h84 v106 h-84 z"/>' + both('M46 98 h12 v42 h-12 z') + both('M46 106 h12'),
+      // Hiking Pack: taller than you are, with a bedroll on top
+      '<path d="M58 52 Q58 40 70 40 L130 40 Q142 40 142 52 L146 166 Q100 178 54 166 Z"/>' +
+        '<rect x="46" y="26" width="108" height="18" rx="9"/><path d="M60 27 v16 M140 27 v16" fill="none"/>',
+      // Guitar Case: the neck sticks up over one shoulder. Nobody has ever seen the guitar.
+      '<g transform="rotate(24 100 120)"><rect x="91" y="6" width="18" height="84" rx="4"/>' +
+        '<path d="M76 88 Q76 76 100 76 Q124 76 124 88 L130 176 Q100 190 70 176 Z"/></g>',
+    ][back.kind];
+    if (pack) out += wear(back, BAGFILL[back.kind], pack);
   }
   if (hair === 2) {   // long hair falls behind the shoulders
     out += `<path d="M81 30 Q74 62 79 90 L121 90 Q126 62 119 30 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>`;
@@ -1964,6 +2024,28 @@ function figure(F) {
       side(272, 54) + arms + `<g fill="#e3d2b0">${both('M90 73 L93 124 L77 94 Z')}</g>` +
         '<g fill="none" stroke="#8a5a2e" stroke-width="1">' + both('M66 140 l3 4 M74 160 l3 4 M64 186 l3 4 M76 210 l3 4 M62 236 l3 4 M78 250 l3 4 M50 130 l2 4 M48 166 l2 4') + '</g>',
     ][coat.kind]);
+  }
+
+  // --- backpack straps, and the bags that hang in front ---
+  if (back) {
+    const STRAPS = both('M79 76 L84 76 L81 150 L76 150 Z');
+    out += wear(back, BAGFILL[back.kind], [
+      STRAPS,                                                                         // School Backpack
+      // Fanny Pack: a belt and a pouch
+      '<path d="M68 177 h64" fill="none" stroke-width="4"/><rect x="83" y="169" width="34" height="17" rx="7"/>' +
+        '<path d="M88 175 h24" fill="none"/>',
+      // Tote Bag: off one shoulder, down at the hip
+      '<path d="M127 78 L137 152 M133 80 L156 152" fill="none" stroke-width="2.4"/><path d="M132 152 h28 l-2 46 h-24 z"/>' +
+        '<path d="M139 166 h14 M139 172 h14" fill="none"/>',
+      // Messenger Bag: a strap across the chest and a flap bag at the hip
+      '<path d="M76 76 L128 168" fill="none" stroke-width="4"/><path d="M110 164 h36 v28 q-18 6 -36 0 z"/>' +
+        '<path d="M110 176 q18 6 36 0" fill="none"/>',
+      '<path d="M76 79 L128 120" fill="none" stroke-width="4"/>',                     // Duffel Bag: one strap
+      STRAPS + '<path d="M81 108 h38" fill="none" stroke-width="3"/>',                // Tactical Rucksack: chest strap
+      STRAPS + '<path d="M70 172 h60" fill="none" stroke-width="4"/>' +
+        '<rect x="94" y="168" width="12" height="8" rx="1"/>',                        // Hiking Pack: hip belt
+      '<path d="M124 76 L76 160" fill="none" stroke-width="4"/>',                     // Guitar Case: one strap
+    ][back.kind]);
   }
 
   // --- syndicate marks ---
@@ -2526,7 +2608,7 @@ function figure(F) {
 
   // --- Legendary gear throws off sparks ---
   const anchor = {head: [100, 22], body: [100, 120], hands: [49, 206], feet: [100, 322], deck: [152, 182],
-    face: [100, 46], legs: [100, 250], wrist: [151, 182], shirt: [100, 150], coat: [72, 232]};
+    face: [100, 46], legs: [100, 250], wrist: [151, 182], shirt: [100, 150], coat: [72, 232], back: [140, 96]};
   for (const [slot, [x, y]] of Object.entries(anchor)) {
     const p = F.gear[slot];
     if (!p || p.rar !== 4) continue;
@@ -2792,7 +2874,37 @@ function travelFx(from, to) {
 
 // ---------- state helpers ----------
 const used = () => Object.values(S.inv).reduce((a, b) => a + b, 0);
-const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage');
+// What you can carry: the drive in your pocket, plus what your backpack and your clothes hold.
+const cap = () => S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') + bagHolds() + pocketsHold();
+// What you could carry with `it` worn in `slot` instead of what is there now (null: with nothing there).
+function capWith(slot, it) {
+  const worn = career.gear[slot];
+  if (it) career.gear[slot] = it; else delete career.gear[slot];
+  const n = cap();
+  if (worn) career.gear[slot] = worn; else delete career.gear[slot];
+  return n;
+}
+let fullTally = 0;   // counted for the self-test
+// Changing clothes cannot leave you holding more than you can carry. Returns the reason, or '' if it is fine.
+function tooFull(slot, it) {
+  const room = capWith(slot, it), over = used() - room;
+  if (over <= 0) return '';
+  fullTally++;
+  const worn = career.gear[slot];
+  return `<p>You are carrying <b>${num(used())}</b> goods. ${it ? `In the ${it.name}` : `Without the ${worn.name}`} ` +
+    `you could only carry <b>${num(room)}</b>.</p>` +
+    `<p class="dim">Sell, stash or dump ${num(over)} first. Nobody is going to hold them for you while you change.</p>`;
+}
+// The amount carried, coloured by the backpack. The total after it, the same way.
+const driveHtml = () => `<span class="${bagClass()}">${num(used())}/${num(cap())}</span>`;
+// Where the carrying space comes from, piece by piece.
+function capLines() {
+  const parts = [['your own drive', S.drive], ['backpack', bagHolds(), bagClass()], ['pockets', pocketsHold()],
+    ['gear bonuses', bonus('storage')], ['Null Sector', inSyn('null') ? 60 : 0]].filter(([, n]) => n);
+  return `<b>Carrying space:</b> <b class="${bagClass()}">${num(cap())}</b> = ` +
+    parts.map(([what, n, cls]) => `<span class="${cls || ''}">${num(n)} ${what}</span>`).join(' + ') +
+    (career.gear.back ? '' : ' <span class="dim">(no backpack)</span>');
+}
 const free = () => cap() - used();
 const pick = list => list[rnd(0, list.length - 1)];
 // A labelled bar: Health, OpSec, or the hostiles left in a fight.
@@ -2885,6 +2997,7 @@ function rollMarket() {
 function newGame() {
   S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
+    kit: 1,   // marks a run started with backpacks: its drive is the new, smaller base
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     over: false, busted: false};
   logs = [];
@@ -2996,6 +3109,7 @@ function gearIcon(it) {
     : it.slot === 'wrist' ? (kind >= 8 ? '30 176 40 40' : '30 154 40 40')   // watches and braces sit lower
     : it.slot === 'shirt' ? '36 62 128 138'
     : it.slot === 'coat' ? (kind === 1 || kind === 5 ? '36 62 128 138' : '26 62 148 250')
+    : it.slot === 'back' ? (kind === 1 ? '64 148 72 56' : kind === 2 ? '104 70 72 136' : kind === 3 ? '60 66 100 136' : '30 14 140 176')
     : DECK_BOX[kind] || '30 16 170 200';
   return `<svg class="ico" viewBox="${box}" aria-hidden="true">${figure(F)}</svg>`;
 }
@@ -3160,7 +3274,8 @@ async function outfitShop() {
 // A big view of the avatar with a tag on each gear slot. Tapping a tag opens that slot.
 async function inspectGear() {
   const POS = {face: 'top:1%;left:0', shirt: 'top:19%;left:0', body: 'top:37%;left:0', wrist: 'top:55%;left:0', hands: 'top:73%;left:0',
-    head: 'top:1%;right:0', coat: 'top:19%;right:0', deck: 'top:37%;right:0', legs: 'top:58%;right:0', feet: 'bottom:1%;right:0'};
+    head: 'top:1%;right:0', coat: 'top:17%;right:0', back: 'top:33%;right:0', deck: 'top:49%;right:0', legs: 'top:65%;right:0',
+    feet: 'bottom:1%;right:0'};
   for (;;) {
     const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
       const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
@@ -3169,6 +3284,7 @@ async function inspectGear() {
         (spare ? `<i>${spare} in bag to swap</i>` : '') + '</div>';
     }).join('');
     const slot = await dialog('Loadout', `<div class="stage">${avatarSvg()}${tags}</div>` +
+      `<p>${capLines()}</p>` +
       '<p class="dim">Tap a slot to see it and change what you are wearing there. Yellow slots have something in your bag.</p>',
       [['Back', null, 'primary']]);
     if (!slot) return;
@@ -3184,6 +3300,8 @@ function swapDiff(it) {
     const d = (it.stats[k] || 0) - ((worn && worn.stats[k]) || 0);
     return d ? `<span class="${d > 0 ? 'green' : 'red'}">${d > 0 ? '+' : ''}${d}${STATS[k][3]} ${STATS[k][0]}</span>` : '';
   }).filter(Boolean);
+  const room = carries(it) - carries(worn);   // what the bag or the pockets hold
+  if (room) parts.unshift(`<span class="${room > 0 ? 'green' : 'red'}">holds ${room > 0 ? '+' : ''}${room}</span>`);
   return parts.length ? `<br><span class="dim">If you swap:</span> ${parts.join(', ')}` : '';
 }
 
@@ -3194,7 +3312,9 @@ async function bagItem(index) {
     (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
     [['Wear it', 'e', 'primary'], [`Scrap for ${money(scrapValue(it))}`, 's', 'danger'], ['Back', null, 'small']]);
-  if (act === 'e') {
+  if (act === 'e' && tooFull(it.slot, it)) {
+    await alertDlg('Too much to carry', tooFull(it.slot, it));
+  } else if (act === 'e') {
     career.bag.splice(index, 1);
     if (worn) career.bag.push(worn);
     career.gear[it.slot] = it;
@@ -3229,6 +3349,8 @@ async function swapSlot(slot) {
   buttons.push(['Back', null, 'primary']);
   const choice = await dialog(`${label} slot`, html, buttons);
   if (choice === null) return;
+  const swap = choice === 'off' ? null : career.bag[Number(choice)];
+  if (tooFull(slot, swap)) return alertDlg('Too much to carry', tooFull(slot, swap));
   if (choice === 'off') {   // back into the bag, leaving the slot empty
     career.bag.push(worn);
     delete career.gear[slot];
@@ -3278,7 +3400,8 @@ function render() {
   const chips = [
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
     ['Debt', money(S.debt), S.debt ? 'red' : ''],
-    ['Drive', `${used()}/${cap()}`, free() <= 0 ? 'amber' : ''],
+    // The amount takes the colour of the backpack you wear; the label goes amber when there is no room left.
+    [free() <= 0 ? '<span class="amber">Drive full</span>' : 'Drive', `${used()}/${cap()}`, bagClass()],
     ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
     ['Proxies', S.proxies, ''],
     ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
@@ -3329,7 +3452,7 @@ function render() {
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
   if (S.loc === GUN_SPOT) {
     acts += `<button data-act="gunstore">${GUN_STORE} (guns, ammo)</button>` +
-      `<button data-act="outfitter">${OUTFITTER} (clothing, armour)</button>`;
+      `<button data-act="outfitter">${OUTFITTER} (clothing, bags, armour)</button>`;
   }
   if (Object.values(S.ammo).some(q => q > 0)) acts += '<button data-act="ammo">Change ammo</button>';
   if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
@@ -3446,10 +3569,12 @@ const ACTIONS = {
         Object.entries(SLOTS).map(([slot, [label]]) => {
         const it = career.gear[slot];
         return `<div class="slotline" data-pick="slot:${slot}">${it ? gearIcon(it) : ''}<span><span class="dim">${label}</span><br>` + (it
-          ? `<b class="r${it.rar}">${it.name}</b><br>${Object.entries(it.stats).map(([k, v]) => statLine(k, v)).join(', ')}`
+          ? `<b class="r${it.rar}">${it.name}</b><br>${itemStats(it)}`
           : '<span class="dim">empty</span>') + '</span></div>';
       }).join('') + '</div></div>' +
         `<p><b>Total bonuses:</b> ${totals.length ? totals.join(', ') : 'none yet'}</p>` +
+        `<p>${capLines()}<br><span class="dim">Backpacks and anything with pockets add to what you can carry. ` +
+        'The number takes the colour of your backpack.</span></p>' +
         `<p class="dim">BAG ${career.bag.length}/${BAG_SIZE}. Tap an item to wear or scrap it. Gear drops from rival crews, ` +
         'is sold at the black market, and stays with you between runs.</p>' +
         `<p class="dim">${RARITY.map((name, i) => `<span class="r${i}">${name}</span>`).join(' &middot; ')}</p>`;
@@ -3510,7 +3635,7 @@ const ACTIONS = {
       for (let i = career.bag.length; i < BAG_SIZE; i++) bagHtml += '<div class="tile empty"></div>';
       const junk = career.bag.filter(it => it.rar === 0);
       const junkCash = junk.reduce((sum, it) => sum + scrapValue(it), 0);
-      const html = head('Goods', `drive ${num(used())}/${num(cap())}`) +
+      const html = head('Goods', `drive ${driveHtml()}`) +
         (goods.length ? `<div class="tiles">${goodsHtml}</div>` + '<p class="dim">' +
           (goods.some(n => S.prices[n]) ? `Sells here for <b class="${worth > paid ? 'green' : worth < paid ? 'red' : ''}">${money(worth)}</b>`
             : 'No market here') + ` &middot; you paid ${money(paid)}</p>` : none('Your drive is empty.')) +
@@ -3872,7 +3997,7 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
       [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing)' : l, l]);
+        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing, bags)' : l, l]);
     buttons.push(['Stay here', null, 'small']);
     const dest = await dialog('Tunnel out', tired
       ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
@@ -4013,7 +4138,7 @@ function seizeStash(share) {
 function stashHtml() {
   const total = stashTotal();
   const names = GOODS.map(g => g[0]).filter(n => S.inv[n] || S.stash[n]);
-  return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${STASH_CAP}</div>` +
+  return `<div class="row"><div><div class="name cyan">THE BUNKER &middot; stash ${num(total)}/${STASH_CAP} &middot; carrying ${driveHtml()}</div>` +
     '<div class="sub">Store goods here to free up your drive. Rival crews can\'t touch you at home, but the law can raid ' +
     'the place whether you are in or out, and they take the stash.</div></div></div>' +
     (names.length ? names.map(n => `<div class="row"><div><div class="name">${n}</div>` +
@@ -4211,7 +4336,9 @@ async function junkie() {
         `<span class="dim">(<s>${money(o.list)}</s>)</span>` +
         `${o.item ? itemHtml(o.item) : withIcon(o.icon, `<b>${o.name}</b><br>${o.text}`)}</div>`).join('') +
       '<p class="dim">Junkies sell for a fraction of what the shops charge. Walk away and they are gone.</p>';
-    const buttons = offers.filter(o => S.cash >= o.price).map(o => [`Buy ${o.name}`, o.name, o.cls, o.icon]);
+    // Goods only while there is still room for them: an earlier buy from the same junkie may have used it up.
+    const buttons = offers.filter(o => S.cash >= o.price && (!o.goods || o.goods[1] <= free()))
+      .map(o => [`Buy ${o.name}`, o.name, o.cls, o.icon]);
     buttons.push(['Walk on', null, buttons.length ? 'small' : 'primary']);
     const choice = await dialog('A junkie with a deal', html, buttons, '');
     const o = offers.find(x => x.name === choice);
@@ -4814,8 +4941,19 @@ document.addEventListener('click', async e => {
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
-  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0;
+  let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0, bagSwaps = 0, noBag = 0;
   try {
+    // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
+    for (const [slot, table] of Object.entries(POCKETS)) {
+      if (table.length !== SLOTS[slot][1].length) throw new Error('POCKETS does not match SLOTS for ' + slot);
+      SLOTS[slot][1].forEach((name, kind) => RARITY.forEach((r, rar) => {
+        const it = {slot, rar, name: 'Test ' + name, stats: {}}, n = carries(it);
+        if (n !== Math.round(table[kind] * RARITY_MULT[rar]) || (rar && n < carries({slot, rar: rar - 1, name: it.name, stats: {}}))) {
+          throw new Error('carries() is wrong for ' + it.name);
+        }
+        if (!itemHtml(it).includes(table[kind] ? `holds ${n}` : 'holds 0')) throw new Error('no holds line for ' + it.name);
+      }));
+    }
     for (let game = 0; game < games; game++) {
       career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red', 'x404']), gear: {}, bag: [], locker: [],
         quest: pick([null, {n: rnd(0, 9), p: 0}])};
@@ -4823,9 +4961,40 @@ async function selfTest(games) {
       for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
       if (game % 2) career.look = {skin: rnd(0, 5), hair: rnd(0, 4), col: rnd(0, 6), streak: rnd(0, 4)};
       newGame();
+      // A new run always has a backpack, and a bare starter kit carries what the old flat drive did.
+      if (!career.gear.back || S.drive !== START_DRIVE) throw new Error('no starter backpack');
+      if (game === 0) {
+        const mine = career, run = S;
+        career = newCareer(); starterGear();
+        const was = OLD_START_DRIVE + STATS.storage[1];   // what a new player carried before backpacks
+        if (cap() !== was) throw new Error('starter kit carries ' + cap());
+        // Loading a run from before backpacks: nothing is lost and you never carry less than you did.
+        const old = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+        delete old.kit; old.drive = OLD_START_DRIVE; old.inv = {'Warez': 100, 'Burner SIMs': 10}; old.cost = {'Warez': 5, 'Burner SIMs': 9};
+        delete record.gear.back;
+        const get = store.get, keep = slot;   // loadSave reads storage: hand it the old run and nothing else
+        store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+        try { loadSave(0); } finally { store.get = get; slot = keep; }
+        if (!career.gear.back || S.kit !== 1 || used() !== 110 || cap() !== was || S.drive !== START_DRIVE) {
+          throw new Error('old save loaded wrong: ' + JSON.stringify([S.drive, cap(), used(), was]));
+        }
+        // The same run in a career with nothing that holds anything: the drive keeps what the clothes cannot give back.
+        delete old.kit; old.drive = OLD_START_DRIVE; record.gear = {back: makeItem(0, 'back'), legs: {slot: 'legs', rar: 0, name: 'n00b Pyjama Bottoms', stats: {speed: 5}},
+          body: {slot: 'body', rar: 0, name: 'n00b Hawaiian Shirt', stats: {armor: 6}}, shirt: {slot: 'shirt', rar: 0, name: 'n00b Tank Top', stats: {regen: 1}}};
+        store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+        try { loadSave(0); } finally { store.get = get; slot = keep; }
+        if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
+        S = run; career = mine; logs = [];
+      }
+      if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
+      else if (game % 2) career.gear.back = makeItem(rnd(0, 4), 'back');           // some start with a better one
+      if (bagClass() !== (career.gear.back ? 'r' + career.gear.back.rar : 'dim') || !driveHtml().includes(`class="${bagClass()}"`)) {
+        throw new Error('drive colour does not follow the backpack');
+      }
       S.proxies = rnd(0, 3); S.weapon = rnd(0, WEAPONS.length - 1);
       S.emp = rnd(0, 2); S.smoke = rnd(0, 2); S.bomb = rnd(0, 2); S.fakeid = rnd(0, 2);
       for (const k of Object.keys(AMMO)) S.ammo[k] = pick([0, 0, rnd(1, 40)]);
+      let wasFit = true, wasSyn = career.syn;
       for (let step = 0; step < 600 && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
@@ -4840,6 +5009,15 @@ async function selfTest(games) {
           stash(makeItem(rnd(0, 4)));
           await swapSlot(pick(Object.keys(SLOTS)));
           await inspectGear();
+          // ...and changing bags and pocketed clothes, often with a full load, which must be refused.
+          const was = career.gear.back;
+          if (Math.random() < 0.5 && free() > 0) addItems(pick(names), free(), 0);
+          stash(makeItem(rnd(0, 4), pick(Object.keys(POCKETS))));
+          stash(makeItem(rnd(0, 4), 'back'));
+          await swapSlot('back');
+          await swapSlot(pick(Object.keys(POCKETS)));
+          if (career.bag.length) await bagItem(rnd(0, career.bag.length - 1));
+          if (career.gear.back !== was) bagSwaps++;
         }
         if (act === 'syndicate') {   // turn up with the goods so deliveries get handed over
           const Q = quest();
@@ -4864,7 +5042,13 @@ async function selfTest(games) {
         await flushNotes();
         await levelUpCheck();
         render();
-        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 ||
+        // You never hold more than you can carry, unless you just walked out on the smugglers and their +60.
+        const fits = used() <= cap();
+        if (!fits && wasFit && career.syn === wasSyn) throw new Error(`carrying ${used()} of ${cap()}: ` + JSON.stringify([act, career.gear]));
+        wasFit = fits; wasSyn = career.syn;
+        const bad = S.cash < 0 || S.wallet < 0 || S.debt < 0 || used() < 0 || S.kit !== 1 ||
+          !Number.isInteger(cap()) || cap() < S.drive || cap() !== S.drive + (inSyn('null') ? 60 : 0) + bonus('storage') +
+            Object.values(career.gear).reduce((sum, it) => sum + carries(it), 0) ||
           career.bag.length > BAG_SIZE || !AMMO[S.loaded] || Object.values(S.ammo).some(q => !(q >= 0 && q <= AMMO_MAX)) || !(S.trips >= 0 && S.trips <= TRIPS_PER_DAY) || career.locker.length > LOCKER_SIZE || stashTotal() > STASH_CAP ||
           Object.values(S.stash).some(q => !(q > 0)) || S.medkits < 0 || S.medkits > MAX_MED || S.shop.length > 3 ||
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
@@ -4883,7 +5067,7 @@ async function selfTest(games) {
       }
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally}`;
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
     document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
@@ -4922,7 +5106,15 @@ function loadSave(n) {
   if (S.loc !== BUNKER && S.prices) S.markets[S.loc] = S.markets[S.loc] ||
     {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
   S.stashCost = S.stashCost || {};
-  starterGear();
+  starterGear();   // also hands a basic backpack to anyone from before there were backpacks
+  if (!S.kit) {
+    // A run from before backpacks had a flat drive of 100. Part of that now comes from the bag and the
+    // pockets instead, so take it off the drive, but never more than they give back: nobody loads a save
+    // and finds they can carry less than before. Nothing is taken out of the inventory either way.
+    if (!Number.isInteger(S.drive)) S.drive = OLD_START_DRIVE;
+    S.drive -= Math.min(OLD_START_DRIVE - START_DRIVE, bagHolds() + pocketsHold());
+    S.kit = 1;
+  }
   S.shop = S.shop || [];
   for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
   if (S.armor && !career.gear.body) {
@@ -4972,6 +5164,8 @@ function introText() {
     '<p>When cornered you can shoot, hack, run or pay.Shootouts cost <span class="green">Health</span>, hack fights cost ' +
     '<span class="green">OpSec</span>; lose either and you go down. Gear, a street doc and an arms dealer are at the black market; guns, ammo and a clothing store are at the ' + GUN_SPOT + '.</p>' +
     '<p>Firearms need <span class="amber">ammo</span>, and better rounds hit more often.</p>' +
+    '<p>How much you can carry depends on what you wear: a <span class="amber">backpack</span> and anything with pockets. ' +
+    'The amount on your Drive takes the colour of the bag on your back.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
     '<p class="dim">Only cash and your cold wallet count at the end.</p>';
