@@ -2938,7 +2938,7 @@ const stageHead = (n, M) => `<p class="dim">STAGE ${n + 1} OF 4 &middot; ${STAGE
 // The alarm has gone, or somebody saw you. Heat, and then whoever answers it: site security, the law or a rival crew.
 // Returns 'won' (they are down: carry on), 'fled' (you got away), 'lost', 'none' (nobody came) or 'over' (the run ended).
 async function heistAlarm(M, st, spotted) {
-  const H = M.H, B = BREAKIN, heat = heistHeat(spotted ? B.heat.spotted : B.heat.alarm);
+  const H = M.H, B = BREAKIN, heat = heistHeat(spotted ? B.heat.spotted : B.heat.alarm), floor = S.heat;
   heistTally.alarm++;
   st.alert = 100;
   S.mood = 'ouch';
@@ -2959,6 +2959,10 @@ async function heistAlarm(M, st, spotted) {
         guard: true,   // the battle screen draws them in uniform
         intro: `Site security comes round the corner of ${H.site}, torches up, already on the radio.`};
   await fight(E);
+  // Giving the law the slip (or beating them clean, or nuking the drive) takes Heat off, which is right in the street
+  // and wrong here: whatever happens in the yard, the Heat the alarm cost you stays on, so a break-in can never
+  // leave you cooler than you were when you went in.
+  if (S.heat < floor) S.heat = floor;
   const res = S.over ? 'over' : E.result === 'won' ? 'won' : E.result === 'lost' ? 'lost' : 'fled';
   if (heistTally[res] !== undefined) heistTally[res]++;
   if (res === 'won') st.alert = B.afterFight;
