@@ -26,8 +26,10 @@ Grab the latest build from the [Releases page](../../releases):
 - Ten goods, from Warez up to Zero-Days, with prices that change every day. News events make some scarce and others dirt cheap.
 - Tunnel between the locations. Travelling does not end the day: you get six trips a day, prices stay put until you sleep, and only sleeping at the Bunker starts a new day. The trip home is always free.
 - The Hackerspace is home: pay down or borrow from the Fixer, and park cash in the cold wallet where it earns interest and can't be phished.
-- Contracts use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
+- Freelance jobs use up goods you hold on a job. If the job works it pays more than selling them; if it fails the goods are burned and your Heat jumps.
 - You earn XP and levels that carry over between runs. At level 10 you can join one of four syndicates, each with a permanent perk.
+- Each syndicate has its own line of eight missions, given by a handler: deliveries, raids, shaking the law, trading targets, and a final breach of a rival crew's core. Missions pay far more XP than anything else, plus cash and gear, and progress carries over between runs. After the last one the crew hands out repeatable standing orders that pay more XP the higher your level.
+- Now and then a junkie is waiting where you surface, selling gadgets, medkits, ammo, weapons, gear or goods for 25 to 45% of the shop price. Each one carries different things, and they are gone once you walk on.
 - Big deals raise your Heat, and Heat decides who hunts you: the police, then the FBI, then the NSA. Police and FBI seize your goods, fine you and cost you days. The NSA ends the run.
 - The Bunker is your hideout. Stash goods there to free up your drive, keep spare gear in the locker, and sleep to end the day and heal. Rival crews can't attack you at home, but the police, the FBI and the NSA can raid it whether you are in or out, including while you sleep, and they seize the stash.
 - Rival syndicates try to rob you, and once a day you can raid one of their nodes for loot. Every raid makes that crew angrier.
@@ -43,7 +45,7 @@ Grab the latest build from the [Releases page](../../releases):
 
 ## Terminal version
 
-There is also a text-only version that needs nothing but Python 3. It is the original, simpler game, without contracts, levels or syndicates:
+There is also a text-only version that needs nothing but Python 3. It is the original, simpler game, without freelance jobs, levels or syndicates:
 
 ```
 python hustle.py
