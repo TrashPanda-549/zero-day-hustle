@@ -2078,7 +2078,11 @@ function figure(F) {
   const {head, body, hands, feet, deck, face, legs, wrist, shirt, coat, back} = F.gear;
   // One fill colour per name in SLOTS.back, in the same order. The bag itself is drawn behind the body
   // and its straps over the clothes, so each kind has two drawings further down.
-  const BAGFILL = ['#a8321f', '#ff4fd8', '#d8c9a8', '#4a3a2c', '#0f6f78', '#39402f', '#c0392b', '#6b4a2c'];
+  const BAGFILL = ['#a8321f', '#ff4fd8', '#d8c9a8', '#4a3a2c', '#0f6f78', '#5b6b3c', '#c0392b', '#6b4a2c'];
+  // Parts of a bag too small to carry the thick rarity trim: `thin` keeps them the colour of the bag,
+  // `tint` paints them the rarity colour all over (the bag's own colour for a Common one).
+  const thin = shapes => `<g stroke-width=".6">${shapes}</g>`;
+  const tint = shapes => `<g stroke-width=".6"${back.rar ? ` fill="${back.c}"` : ''}>${shapes}</g>`;
   const hurt = F.hp <= 35 && !F.ko;
   // A shape and its mirror image, for the left and right side of the body.
   const both = d => `<path d="${d}"/><path d="${d}" transform="translate(200 0) scale(-1 1)"/>`;
@@ -2110,25 +2114,28 @@ function figure(F) {
   }
   if (back) {
     // The part of the bag that shows round the body. One drawing per name in SLOTS.back, in the same order.
+    // Seen from the front a pack on the back is nearly all hidden: only its top shows, between the neck and the
+    // shoulders. Keep it narrower than the shoulders and below the chin. The pixel model doubles the width of
+    // anything up here (see pxWide), so a shape that reaches past the shoulders turns into a pair of wings.
     const pack = [
-      // School Backpack: round-shouldered, with a grab handle
-      '<path d="M52 70 Q52 52 70 52 L130 52 Q148 52 148 70 L150 158 Q100 172 50 158 Z"/>' +
-        '<path d="M92 52 q8 -9 16 0" fill="none"/>',
+      // School Backpack: a rounded top with a grab handle
+      thin('<path d="M81 80 V70 Q81 65 87 65 H113 Q119 65 119 70 V80 Z"/><path d="M95 65 q5 -5 10 0" fill="none"/>'),
       '',   // Fanny Pack: all of it is in front
       '',   // Tote Bag: hangs at the side, in front
       '',   // Messenger Bag: hangs at the hip, in front
-      // Duffel Bag: slung across the back, sticking out both sides
-      '<rect x="38" y="80" width="124" height="42" rx="20"/><path d="M52 81 v40 M148 81 v40" fill="none"/>',
-      // Tactical Rucksack: square, with a pouch on each side
-      '<path d="M58 58 h84 v106 h-84 z"/>' + both('M46 98 h12 v42 h-12 z') + both('M46 106 h12'),
-      // Hiking Pack: taller than you are, with a bedroll on top
-      '<path d="M58 52 Q58 40 70 40 L130 40 Q142 40 142 52 L146 166 Q100 178 54 166 Z"/>' +
-        '<rect x="46" y="26" width="108" height="18" rx="9"/><path d="M60 27 v16 M140 27 v16" fill="none"/>',
-      // Guitar Case: the neck sticks up over one shoulder. Nobody has ever seen the guitar.
-      '<g transform="rotate(24 100 120)"><rect x="91" y="6" width="18" height="84" rx="4"/>' +
-        '<path d="M76 88 Q76 76 100 76 Q124 76 124 88 L130 176 Q100 190 70 176 Z"/></g>',
+      '',   // Duffel Bag: hangs at the hip, in front
+      // Tactical Rucksack: a square lid
+      thin('<path d="M81 80 V61 H119 V80 Z"/><path d="M81 68 H119" fill="none"/>'),
+      // Hiking Pack: a lid with a rolled-up sleeping mat strapped across the top
+      thin('<path d="M81 80 V66 H119 V80 Z"/><rect x="78" y="57" width="44" height="11" rx="5.5" fill="#e8c53a"/>' +
+        '<path d="M83 57 h4 v11 h-4 z M113 57 h4 v11 h-4 z" stroke="none"/>'),
+      // Guitar Case: the neck and headstock stick up over one shoulder and the bottom of the case shows at the
+      // other hip. Nobody has ever seen the guitar.
+      `<g stroke="${INK}" stroke-width=".6"><path d="M108.8 76.5 L115.2 79.5 L141.2 23.5 L134.8 20.5 Z"/>` +
+        '<path d="M72 178 Q50 182 50 206 Q52 232 76 234 Z"/><path d="M131.7 19.1 L144.3 24.9 L151.9 8.6 L139.3 2.8 Z"/></g>',
     ][back.kind];
-    if (pack) out += wear(back, BAGFILL[back.kind], pack);
+    // The guitar neck is too thin to glow: beside the head the glow breaks up into stray dots.
+    if (pack) out += wear(back.kind === 7 ? {c: back.c, rar: 0, fill: back.fill} : back, BAGFILL[back.kind], pack);
   }
   if (hair === 2) {   // long hair falls behind the shoulders
     out += `<path d="M81 30 Q74 62 79 90 L121 90 Q126 62 119 30 Z" fill="${HAIR}" stroke="${INK}" stroke-width="1"/>`;
@@ -2339,24 +2346,65 @@ function figure(F) {
 
   // --- backpack straps, and the bags that hang in front ---
   if (back) {
-    const STRAPS = both('M79 76 L84 76 L81 150 L76 150 Z');
+    // Straps are solid shapes, not lines: the pixel model draws lines too thin to show.
+    // Two shoulder straps, w wide, that run down the chest and tuck in under the arms.
+    const straps = w => both(`M${85 - w} 75 L85 75 L84 124 Q83 141 73 151 L${75 - w} 146 Q${84 - w} 138 ${84 - w} 124 Z`);
+    const SASH = tint('<path d="M120 75 L126 77 L80 164 L74 161 Z"/>');   // one strap, from a shoulder to the other hip
+    const dark = shapes => `<g fill="#000" fill-opacity=".28" stroke="none">${shapes}</g>`;
+    const metal = shapes => `<g fill="#e9e4d8" stroke="none">${shapes}</g>`;
     out += wear(back, BAGFILL[back.kind], [
-      STRAPS,                                                                         // School Backpack
-      // Fanny Pack: a belt and a pouch
-      '<path d="M68 177 h64" fill="none" stroke-width="4"/><rect x="83" y="169" width="34" height="17" rx="7"/>' +
-        '<path d="M88 175 h24" fill="none"/>',
-      // Tote Bag: off one shoulder, down at the hip
-      '<path d="M127 78 L137 152 M133 80 L156 152" fill="none" stroke-width="2.4"/><path d="M132 152 h28 l-2 46 h-24 z"/>' +
-        '<path d="M139 166 h14 M139 172 h14" fill="none"/>',
+      tint(straps(6)),                                                                // School Backpack
+      // Fanny Pack: a belt round the waist and a pouch on the front of it
+      tint('<rect x="67" y="170" width="66" height="6"/>') +
+        '<path d="M95 166 h24 q5 0 5 5 v9 q0 9 -9 9 h-16 q-9 0 -9 -9 v-9 q0 -5 5 -5 z"/><path d="M96 173 h22" fill="none"/>',
+      // Tote Bag: two long handles over one shoulder, the bag hanging flat under that arm
+      tint('<path d="M71 76 L77 77 L66 148 L61 148 Z M69 77 L73 80 L45 148 L39 148 Z"/>') + '<path d="M36 146 h34 l-2 54 h-30 z"/>' +
+        `<rect x="47" y="164" width="12" height="12" fill="${back.c}" stroke="none"/>`,
       // Messenger Bag: a strap across the chest and a flap bag at the hip
-      '<path d="M76 76 L128 168" fill="none" stroke-width="4"/><path d="M110 164 h36 v28 q-18 6 -36 0 z"/>' +
-        '<path d="M110 176 q18 6 36 0" fill="none"/>',
-      '<path d="M76 79 L128 120" fill="none" stroke-width="4"/>',                     // Duffel Bag: one strap
-      STRAPS + '<path d="M81 108 h38" fill="none" stroke-width="3"/>',                // Tactical Rucksack: chest strap
-      STRAPS + '<path d="M70 172 h60" fill="none" stroke-width="4"/>' +
-        '<rect x="94" y="168" width="12" height="8" rx="1"/>',                        // Hiking Pack: hip belt
-      '<path d="M124 76 L76 160" fill="none" stroke-width="4"/>',                     // Guitar Case: one strap
+      flip(SASH) + '<path d="M102 158 h44 v32 q-22 7 -44 0 z"/>' +
+        '<path d="M102 158 h44 v15 q-22 8 -44 0 z" fill="#fff" fill-opacity=".22" stroke="none"/>' +
+        metal('<rect x="121" y="175" width="6" height="8"/>'),
+      // Duffel Bag: one strap across the chest and a long round bag at the other hip
+      SASH + '<rect x="38" y="155" width="56" height="34" rx="14"/>' + dark('<rect x="46" y="156" width="6" height="32"/>' +
+        '<rect x="80" y="156" width="6" height="32"/>') + '<path d="M57 155 q9 -11 18 0" fill="none"/>',
+      // Tactical Rucksack: wide straps, a chest strap, and a hip belt with a pouch on each side
+      tint(straps(9) + '<rect x="84" y="106" width="32" height="7"/>') + thin('<rect x="68" y="169" width="64" height="7"/>' +
+        '<rect x="70" y="162" width="15" height="19" rx="2"/><rect x="115" y="162" width="15" height="19" rx="2"/>') +
+        dark('<rect x="96" y="105" width="8" height="9"/><rect x="95" y="168" width="10" height="9"/>'),
+      // Hiking Pack: padded straps, a chest strap, and a broad hip belt with a big buckle
+      tint(straps(8) + '<rect x="84" y="106" width="32" height="6"/>') + '<path d="M66 167 h68 v11 h-68 z"/>' +
+        metal('<rect x="97" y="106" width="6" height="6"/><rect x="94" y="166" width="12" height="13" rx="1"/>'),
+      SASH,                                                                           // Guitar Case: one strap
     ][back.kind]);
+    // The bag on its own, drawn beside the figure where only gearIcon() looks: a pack worn on the back shows
+    // too little of itself from the front to make a picture of.
+    if (back.solo) {
+      out += `<g transform="translate(300 0)">${wear(back, BAGFILL[back.kind], [
+        // School Backpack
+        '<path d="M24 46 q-11 20 -2 44 M76 46 q11 20 2 44" fill="none" stroke-width="3"/>' +
+          '<path d="M24 92 V40 Q24 14 50 14 Q76 14 76 40 V92 Q50 98 24 92 Z"/>' +
+          '<path d="M42 15 q8 -12 16 0" fill="none" stroke-width="3"/><path d="M30 42 Q50 26 70 42" fill="none"/>' +
+          '<path d="M32 58 h36 v26 q-18 5 -36 0 z" fill="#000" fill-opacity=".25"/><path d="M32 66 h36" fill="none"/>',
+        '', '', '',
+        // Duffel Bag
+        '<path d="M14 52 Q50 -6 86 52" fill="none" stroke-width="3"/><rect x="8" y="40" width="84" height="44" rx="21"/>' +
+          '<path d="M27 42 v40 M73 42 v40 M34 52 h32" fill="none"/><path d="M38 66 q12 -20 24 0" fill="none" stroke-width="3"/>',
+        // Tactical Rucksack
+        '<path d="M14 44 h12 v32 h-12 z M74 44 h12 v32 h-12 z"/><path d="M26 16 h48 v76 h-48 z"/>' +
+          '<path d="M24 14 h52 v20 h-52 z"/><path d="M34 56 h32 v26 h-32 z" fill="#000" fill-opacity=".25"/>' +
+          '<path d="M30 42 h40 M30 48 h40 M34 64 h32 M44 34 v-9 M56 34 v-9 M14 52 h12 M74 52 h12" fill="none"/>',
+        // Hiking Pack
+        '<path d="M28 58 q-10 2 -10 15 q0 13 10 15 z M72 58 q10 2 10 15 q0 13 -10 15 z"/>' +
+          '<path d="M28 94 V34 Q28 26 36 26 H64 Q72 26 72 34 V94 Q50 99 28 94 Z"/>' +
+          '<rect x="14" y="6" width="72" height="20" rx="10" fill="#e8c53a"/>' +
+          '<path d="M36 60 h28 v24 h-28 z" fill="#000" fill-opacity=".25"/>' +
+          '<path d="M28 7 v18 M72 7 v18 M28 44 Q50 52 72 44 M36 68 h28" fill="none"/>',
+        // Guitar Case
+        '<g transform="rotate(24 50 50)"><path d="M50 96 Q24 96 26 74 Q28 62 36 56 Q32 46 40 40 Q44 37 44 30 V10 Q44 4 50 4 ' +
+          'Q56 4 56 10 V30 Q56 37 60 40 Q68 46 64 56 Q72 62 74 74 Q76 96 50 96 Z"/>' +
+          '<path d="M73 62 q9 6 2 17" fill="none" stroke-width="3"/><path d="M44 30 h12 M44 14 h12 M35 57 h30" fill="none"/></g>',
+      ][back.kind])}</g>`;
+    }
   }
 
   // --- syndicate marks ---
@@ -3565,6 +3613,9 @@ function gearIcon(it) {
   const kind = Math.max(0, SLOTS[it.slot][1].findIndex(name => it.name.endsWith(name)));
   const F = BARE();
   F.gear[it.slot] = {kind, c: RCOL[it.rar], rar: it.rar};
+  // Bags carried on the back, and the duffel, get a picture of the bag itself (see `solo` in figure()).
+  const solo = it.slot === 'back' && [0, 4, 5, 6, 7].includes(kind);
+  if (solo) F.gear.back.solo = true;
   const box = it.slot === 'head' ? '68 0 64 78'
     : it.slot === 'body' ? (kind === 2 || kind === 6 ? '36 62 128 222' : '36 62 128 138')
     : it.slot === 'hands' ? '30 168 40 70'
@@ -3574,7 +3625,7 @@ function gearIcon(it) {
     : it.slot === 'wrist' ? (kind >= 8 ? '30 176 40 40' : '30 154 40 40')   // watches and braces sit lower
     : it.slot === 'shirt' ? '36 62 128 138'
     : it.slot === 'coat' ? (kind === 1 || kind === 5 ? '36 62 128 138' : '26 62 148 250')
-    : it.slot === 'back' ? (kind === 1 ? '64 148 72 56' : kind === 2 ? '104 70 72 136' : kind === 3 ? '60 66 100 136' : '30 14 140 176')
+    : it.slot === 'back' ? (solo ? '298 -2 104 104' : kind === 1 ? '64 148 72 56' : kind === 2 ? '20 70 72 136' : kind === 3 ? '60 66 100 136' : '30 14 140 176')
     : DECK_BOX[kind] || '30 16 170 200';
   return `<svg class="ico" viewBox="${box}" aria-hidden="true">${figure(F)}</svg>`;
 }
