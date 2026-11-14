@@ -455,8 +455,8 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
    Panels are placed by grid area and sized by what is in them, so extra lines or rows inside any of them
    just make that panel taller or scroll.
    Big screens are scaled up with --z (a zoom factor chosen from the window's size, at the very end), so the
-   interface is about 1500 x 860 units whatever the monitor. The fight screen (#battle) is not scaled or laid
-   out here: it already covers the window and has its own layout. */
+   interface is about 1500 x 860 units whatever the monitor. The fight screen (#battle) has its phone and
+   phone-landscape layouts in the battle block; its layout for these big windows is in here. */
 #colme,#coltrade,#colmarket{display:contents}
 /* between the phone column's 760px and the two-column layout: the one column simply runs edge to edge */
 @media (min-width:761px){#app{max-width:none}}
@@ -502,8 +502,28 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
     #market>.fold>summary::before{content:none}
   }
 
+  /* the fight screen fills the window too: the stage as large as it will go on the left (layout() in the battle
+     block picks the whole-number pixel scale and then sets the first grid row to the stage's height), the log
+     under it, and the windows down the right-hand side, drawn at the same scale as everything else */
+  #battle{width:100%}
+  .bwrap{max-width:none;height:100%;min-height:0;display:grid;gap:6px;
+    grid-template-columns:minmax(0,1fr) clamp(calc(330px*var(--z)),30%,calc(520px*var(--z)));
+    grid-template-rows:minmax(0,1fr) auto auto;
+    grid-template-areas:"field side" "msg side" "msg hint"}
+  .bfield{grid-area:field;height:auto;min-height:0}
+  .bmsg{grid-area:msg;zoom:var(--z);min-height:52px;overflow-y:auto;font-size:14px}
+  .bpanel{grid-area:side;zoom:var(--z);display:flex;flex-direction:column;gap:6px;min-height:0;overflow-y:auto}
+  .bstat{order:1}.bfoes{order:2}.bcmd{order:3;flex:1 0 auto}
+  .bhint{grid-area:hint;zoom:var(--z)}
+  .bsub{left:0;width:100%;bottom:0;max-height:100%}
+  .bres,.bban,.bspd{zoom:var(--z)}
+  .bbig{font-size:calc(60px*var(--z))}
+  .bpop{font-size:calc(24px*var(--z))}
+  .bpop small{font-size:calc(13px*var(--z))}
+
   /* dialogs, shops, inventory, menus: centred, a little wider, never taller than the window */
   #dialog{max-width:560px;max-height:100%}
+  .dbtns{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
   .bootbox{max-width:460px}
   .tbox{max-width:560px}
 }
@@ -514,9 +534,10 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
   /* you: the avatar stands tall above the level, health and stat chips */
   #colme{display:flex;flex-direction:column}
   #hud{display:contents}
-  #ava{flex:1 1 200px;min-height:170px;max-height:470px}
+  #ava{flex:1 1 200px;min-height:150px;max-height:470px}
   #hudr{flex:none;margin-top:10px}
-  #stats{flex:none}
+  #stats{flex:none;gap:4px;margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
+  #stats .chip{padding:4px 8px 3px}
   #coltrade{display:contents}
   #colmarket{grid-area:trade;min-height:0}
   #news{margin:0;max-height:11em}
@@ -7033,14 +7054,17 @@ const BTL = (() => {
   // Fit the stage to the space it has, and (re)paint the backdrop at that width.
   function layout() {
     if (!E || !cv) return;
-    const field = q('.bfield'), st = q('.bstage'), stacked = getComputedStyle(q('.bwrap')).display !== 'grid';
+    const wrap = q('.bwrap'), field = q('.bfield'), st = q('.bstage'), stacked = getComputedStyle(wrap).display !== 'grid';
+    // A big window (the WIDE SCREENS layout: stage on the left, windows down the side) lets the stage grow past phone sizes.
+    const big = window.matchMedia('(min-width:900px) and (min-height:500px)').matches;
     field.style.height = '';
+    wrap.style.gridTemplateRows = '';
     const bw = field.clientWidth, bh = field.clientHeight;
     if (!bw || !bh) return;
     // A whole number of screen pixels to every big pixel keeps the art crisp; the width takes up the slack.
     const dpr = window.devicePixelRatio || 1;
-    K = Math.min(6, Math.floor(bh * dpr / H), Math.floor(bw * dpr / 208));
-    if (K === 6 && bw * dpr * H * K > 1500000) K = 5;   // keep the canvas a size a phone can repaint easily
+    K = Math.min(big ? 16 : 6, Math.floor(bh * dpr / H), Math.floor(bw * dpr / 208));
+    if (!big && K === 6 && bw * dpr * H * K > 1500000) K = 5;   // keep the canvas a size a phone can repaint easily
     if (K >= 2) {
       W = Math.max(208, Math.min(400, Math.floor(bw * dpr / K / 2) * 2));
       st.style.width = W * K / dpr + 'px'; st.style.height = H * K / dpr + 'px';
@@ -7051,6 +7075,7 @@ const BTL = (() => {
       st.style.width = Math.floor(W * fit) + 'px'; st.style.height = Math.floor(H * fit) + 'px';
     }
     if (stacked) field.style.height = st.offsetHeight + 2 + 'px';   // no empty band above and below the stage
+    else if (big) wrap.style.gridTemplateRows = st.offsetHeight + 3 + 'px minmax(0,1fr) auto';   // the same in the big-window grid: the log takes what is left
     cv.width = W * K; cv.height = H * K;
     const [kind, col] = E.kind === 'raid' ? ['node', SYN_COL[E.gang] || '#3dff9a'] : S.loc === BUNKER ? ['bunker', '#fcee0a'] : SCENES[S.loc] || ['street', '#ff4fd8'];
     scn = paint(kind, W, col, {gang: E.gang, boss: foes.some(f => f.boss)});
