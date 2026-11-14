@@ -478,6 +478,44 @@ const BUNKER = 'The Bunker', STASH_CAP = 300, LOCKER_SIZE = 20;
 // the trip home to the Bunker is always free.
 const TRIPS_PER_DAY = 6;
 
+// ---------- ECONOMY BALANCE (v1.28) ----------
+// Every number that decides how fast a run gets rich is in this block (plus START_CASH, START_DEBT, DEBT_RATE,
+// WALLET_RATE and the GOODS price ranges above). The mechanics that read them are next to rollMarket().
+// They were tuned with the harness in D:\dev-tools\zdh-economy (see its README): re-measure after changing any.
+//
+// Market depth is the core rule. A market only deals in so much of one good a day: every unit you sell
+// pushes its price down, every unit you buy pushes it up. `depth` is the number of units that halves
+// (selling) or doubles (buying) the price. It is worked out in dollars, so every good is about as deep in
+// money terms: depth = marketSize(day) / the good's mid price. Half of a move is still there next morning.
+const ECON = {
+  version: 2,            // stamped on new hall-of-fame entries; entries without it are from the old economy
+  // The scene gets busier as the month goes on: size on day d = marketSize x (1 + marketGrowth x (d - 1) ^ marketCurve).
+  // (Day 1: $550. Day 6: about $2,500. Day 10: $5,900. Day 15: $11,800. Day 20: $19,400. Day 30: $39,300.)
+  marketSize: 550,       // $ of one good (at mid price) a market takes on day 1 before its price has halved
+  marketGrowth: 0.23, marketCurve: 1.7,
+  depthWeight: {'Zero-Days': 3, 'Rootkits': 2},   // per-good multiplier on depth: the big-ticket goods are where the late money is
+  minDepth: 0.3,         // the thinnest a market gets: it takes one unit at the price shown and barely a second
+  spikeDepth: 1,         // a market that is short of something (the amber up-arrow) takes this many times more
+  floodStock: 2,         // a market that is flooded (the cyan down-arrow) has this many times the stock
+  stock: 2,              // units on sale per day, as a multiple of the depth
+  floor: 0.1,            // however much you dump, the price never falls below this share of the opening price
+  recover: 0.5,          // share of yesterday's price move that is still there in the morning
+  spikeOdds: 0.035, spikeMult: [2, 4],   // chance per good per market per day that it is scarce, and by how much
+  crashOdds: 0.06, crashDiv: [3, 5],     // ...or flooded, and what the price is divided by
+  // Freelance jobs pay goods' value x (jobBase + up to jobRisk for a risky job + up to jobLuck at random).
+  // The value is the day's local price or the good's mid price, whichever is higher, but never a spike price.
+  // A job asks for at most jobLot times what a market's depth in that good is that day.
+  jobBase: 1.15, jobRisk: 0.6, jobLuck: 0.25, jobLot: 1,
+  // The cold wallet pays its full rate on the first walletFull dollars and walletOver of the rate above that.
+  walletFull: 250000, walletOver: 1 / 3,
+  // Heat from dealing: one point for every heatDeal x the day's market size that changes hands in one deal
+  // (never less than heatMin dollars a point), up to 10 points a deal.
+  heatDeal: 0.25, heatMin: 1000,
+  driveCurve: 2,         // drive upgrade number n+1 costs (1 + n) ^ driveCurve times the first one
+  // Cash taken off beaten hostiles, as a multiple of what it was before 1.28.
+  raidLoot: 0.35, lawLoot: 0.6, gangLoot: 0.6, thugLoot: 0.6,
+};
+
 // Crews you can join at level 10. The choice is permanent and applies to every run.
 const SYNDICATES = {
   ghost: ['Ghost Shell', 'Stealth crew. Deals and freelance jobs raise half the Heat, and traces find you less often.'],
@@ -3003,7 +3041,8 @@ function removeItems(name, qty, marked) {
   fixTags();
 }
 function addHeat(value) {
-  let gain = Math.min(10, Math.floor(value / 10000));
+  // A deal is big or small next to what the markets move that day (ECON.heatDeal): before 1.28 it was a flat $10,000 a point.
+  let gain = Math.min(10, Math.floor(value / Math.max(ECON.heatMin, marketSize() * ECON.heatDeal)));
   if (inSyn('ghost')) gain = Math.ceil(gain / 2);
   gain = Math.ceil(gain * (1 - bonus('stealth') / 100));
   if (gain) heatUp(gain);
@@ -3125,12 +3164,13 @@ function rollContracts() {
   for (const [name, low, high] of pool) {
     const mid = (low + high) / 2;
     const lot = mid >= 10000 ? 3 : mid >= 2000 ? 8 : mid >= 500 ? 15 : mid >= 100 ? 30 : 50;
-    const qty = Math.min(60, Math.max(1, Math.round(rnd(Math.ceil(lot / 3), lot) * (1 + S.day / 8))));
+    // A job never asks for much more than a market deals in that day (ECON.jobLot x the market's depth).
+    const qty = Math.min(60, Math.max(1, Math.round(depthOf(name) * ECON.jobLot)), Math.max(1, Math.round(rnd(Math.ceil(lot / 3), lot) * (1 + S.day / 8))));
     const chance = rnd(50, 85);
-    // Riskier jobs pay more. The unit price is never below today's local price,
-    // so a job that works always beats selling the same goods here.
-    const mult = 1.5 + (85 - chance) / 35 * 1.3 + Math.random() * 0.4;
-    const unit = Math.max(S.prices[name] || 0, Math.round(mid));
+    // Riskier jobs pay more. The unit price is never below today's local price, so a job that works beats
+    // selling the same goods here, except into a scarcity spike: a job is never priced off one of those (ECON).
+    const mult = ECON.jobBase + (85 - chance) / 35 * ECON.jobRisk + Math.random() * ECON.jobLuck;
+    const unit = Math.max(Math.min(S.prices[name] || 0, high), Math.round(mid));
     S.contracts.push({good: name, qty, chance, payout: Math.round(unit * qty * mult / 10) * 10,
       job: pick(JOBS[name]), client: pick(CLIENTS)});
   }
@@ -3162,18 +3202,126 @@ function rollMarket() {
       if (Math.random() < 0.18) continue;   // nobody is dealing this here today
       let price = rnd(low, high);
       const r = Math.random();
-      if (r < 0.06) { price *= rnd(3, 6); S.news.push(scarce); S.flags[name] = 'up'; }
-      else if (r < 0.12) { price = Math.max(1, Math.floor(price / rnd(3, 5))); S.news.push(flood); S.flags[name] = 'down'; }
+      if (r < ECON.spikeOdds) { price *= rnd(ECON.spikeMult[0], ECON.spikeMult[1]); S.news.push(scarce); S.flags[name] = 'up'; }
+      else if (r < ECON.spikeOdds + ECON.crashOdds) { price = Math.max(1, Math.floor(price / rnd(ECON.crashDiv[0], ECON.crashDiv[1]))); S.news.push(flood); S.flags[name] = 'down'; }
       S.prices[name] = price;
     }
     if (Object.keys(S.prices).length >= 4) break;
   }
-  rollContracts();
+  rollContracts();   // priced off the day's prices, before what you did here lately moves them
+  const hang = openBooks();   // economy 1.28: market depth (see ECON)
   // Today's gear on the black market: up to Epic, never Legendary.
   S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(S.day * 0.3))));
   S.store = S.loc === GUN_SPOT ? outfitStock() : [];
   S.markets[S.loc] = {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop, store: S.store};
+  S.markets[S.loc].book = hang;
 }
+
+// ---------- market depth (economy 1.28; the numbers are in ECON) ----------
+// Each market keeps a book per good for the day: {base: the opening price, depth: units that halve or double
+// it, stock: units on sale, x: units you have sold here today minus units you bought}. The price shown
+// (S.prices) is what the next unit SELLS for: base x 0.5 ^ (x / depth). A unit you buy costs what it would then
+// sell back for, so buying and selling the same thing in one place never makes or loses money.
+// S.glut[place][good] carries what is left of earlier days' moves, counted in halvings.
+const marketSize = () => ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(S.day - 1, ECON.marketCurve));
+function depthOf(name, flag) {
+  const g = GOODS.find(x => x[0] === name), mid = (g[1] + g[2]) / 2;
+  const units = marketSize() * (ECON.depthWeight[name] || 1) * (flag === 'up' ? ECON.spikeDepth : 1) / mid;
+  return Math.max(ECON.minDepth, Math.round(units * 10) / 10);
+}
+const newBook = (name, base) => {
+  const depth = depthOf(name, S.flags[name]);
+  return {base, depth, stock: Math.max(1, Math.ceil(depth * ECON.stock * (S.flags[name] === 'down' ? ECON.floodStock : 1))), x: 0};
+};
+// Open today's books at a market that was just rolled: yesterday's dumping (or buying out) still shows.
+function openBooks() {
+  const books = {}, left = (S.glut && S.glut[S.loc]) || {};
+  for (const name of Object.keys(S.prices)) {
+    const g = Math.max(-1, Math.min(3, left[name] || 0));
+    if (g) S.prices[name] = Math.max(1, Math.round(S.prices[name] * Math.pow(0.5, g)));
+    books[name] = newBook(name, S.prices[name]);
+    if (g >= 0.15) books[name].soft = 1;   // still soft from what you sold here: the market screen says so
+  }
+  return books;
+}
+// The book for one good at the market you are in, or null if it is not traded here. A market saved before
+// 1.28 has none: it gets one that opens at the price it shows.
+function book(name) {
+  const m = S.markets && S.markets[S.loc];
+  if (!m || !S.prices[name]) return null;
+  if (!m.book || typeof m.book !== 'object') m.book = {};
+  const b = m.book[name];
+  if (b && b.base > 0 && b.depth > 0 && Number.isInteger(b.x) && Number.isInteger(b.stock)) return b;
+  return (m.book[name] = newBook(name, S.prices[name]));
+}
+// What one unit trades for when you have already sold x here today (x below zero: bought).
+const priceAt = (b, x) => Math.max(1, Math.round(b.base * Math.max(ECON.floor, Math.pow(0.5, x / b.depth))));
+// Cash for selling qty here now. cut: they carry the street doc's tag and go for less, unit by unit.
+function sellTotal(name, qty, cut) {
+  const b = book(name);
+  let sum = 0;
+  for (let i = 0; b && i < qty; i++) sum += cut ? tagPrice(priceAt(b, b.x + i)) : priceAt(b, b.x + i);
+  return sum;
+}
+// What buying qty here costs now.
+function buyTotal(name, qty) {
+  const b = book(name);
+  let sum = 0;
+  for (let i = 1; b && i <= qty; i++) sum += priceAt(b, b.x - i);
+  return sum;
+}
+// How many are left to buy here today (what you sold them is back on the shelf).
+const buyRoom = name => { const b = book(name); return b ? Math.max(0, b.stock + b.x) : 0; };
+// The most you can buy: what you can carry, what is in stock, and what your cash covers as the price climbs.
+function maxBuy(name) {
+  const b = book(name), most = Math.min(free(), buyRoom(name));
+  let q = 0, sum = 0;
+  while (b && q < most && (sum += priceAt(b, b.x - q - 1)) <= S.cash) q++;
+  return q;
+}
+// A trade went through: sold > 0 units went into this market (below zero: came out of it).
+function moveMarket(name, sold) {
+  const b = book(name);
+  if (!b) return;
+  b.x += sold;
+  S.prices[name] = priceAt(b, b.x);
+}
+// "It moved": for the log line and the pop-up after a trade.
+const movedText = (was, now) => (now === was ? '' : ` The price here ${now < was ? 'fell' : 'rose'} from ${money(was)} to ${money(now)}.`);
+// One line on how deep this market is in a good, for the buy and sell dialogs.
+function depthText(name) {
+  const b = book(name), n = Math.round(b.depth), stock = `${num(buyRoom(name))} in stock today. Half of the move is still there tomorrow.`;
+  if (b.depth < 1.5) {
+    return `<p class="dim">Hardly anyone here deals in ${name} yet: the market takes <b>one</b> at this price, and the next goes for ` +
+      `${b.depth < 0.75 ? 'next to nothing' : 'about half'}. Buying one costs far more than selling one brings. ` +
+      `The markets deal bigger as the month goes on. ${stock}</p>`;
+  }
+  return `<p class="dim">This market is only so deep in ${name}: about every <b>${num(n)}</b> you sell here halves the price, ` +
+    `and every ${num(n)} you buy doubles it. ${stock}</p>`;
+}
+// Night falls: half of what you did to each market's prices is still there in the morning (ECON.recover).
+function settleMarkets() {
+  S.glut = S.glut && typeof S.glut === 'object' ? S.glut : {};
+  for (const [place, m] of Object.entries(S.markets || {})) {
+    for (const [name, b] of Object.entries((m && m.book) || {})) {
+      if (!b || !b.x || !(b.depth > 0)) continue;
+      const g = S.glut[place] = S.glut[place] || {};
+      g[name] = (g[name] || 0) + b.x / b.depth;
+    }
+  }
+  for (const [place, g] of Object.entries(S.glut)) {
+    for (const name of Object.keys(g)) {
+      g[name] = Math.round(Math.max(-1, Math.min(3, g[name] * ECON.recover)) * 100) / 100;
+      if (!(Math.abs(g[name]) >= 0.05)) delete g[name];
+    }
+    if (!Object.keys(g).length) delete S.glut[place];
+  }
+}
+// What the cold wallet earns overnight (ECON.walletFull, ECON.walletOver).
+const walletGain = amount => Math.floor(Math.min(amount, ECON.walletFull) * walletRate() +
+  Math.max(0, amount - ECON.walletFull) * walletRate() * ECON.walletOver);
+// A drive upgrade costs more the more of them you have fitted (ECON.driveCurve). base: what the first one costs.
+const drivePrice = base => Math.round(base * Math.pow(1 + Math.max(0, S.drive - START_DRIVE) / 50, ECON.driveCurve) / 10) * 10;
 
 function newGame() {
   S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
@@ -3182,6 +3330,7 @@ function newGame() {
     stuck: {}, stuckCost: {}, sick: 0, tag: {}, stashTag: {},   // the prison pocket and what it leaves behind
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
+    glut: {},   // market depth: what is left of your earlier dealing on each market's prices (see settleMarkets)
     over: false, busted: false};
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   logs = [];
@@ -3242,6 +3391,13 @@ function askQty(title, html, max, opts) {
       const v = value();
       qt.textContent = !v ? '' : opts.unit ? `${num(v)} x ${money(opts.unit)} = ${money(v * opts.unit)}`
         : opts.cash ? money(v) : num(v);
+      if (v && opts.total) {
+        // A trade that moves the price (market depth): the total, the average, and what the last unit goes for.
+        const sum = opts.total(v), last = sum - opts.total(v - 1), first = opts.total(1);
+        qt.innerHTML = `${num(v)} for <b>${money(sum)}</b> &middot; ${money(Math.round(sum / v))} each on average` +
+          (last !== first ? `<br><span class="${Math.abs(last - first) >= first * 0.15 ? 'amber' : 'dim'}">the price moves as you go: ` +
+            `first one ${money(first)}, last one ${money(last)}</span>` : '');
+      }
       $('#qok').disabled = !v;
     };
     const set = v => { qn.value = v; qs.value = v; show(); };
@@ -3622,7 +3778,9 @@ function render() {
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
   const onSale = GOODS.filter(([name]) => S.prices[name]).length, holding = Object.keys(S.inv).length;
-  $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''), GOODS.map(([name]) => {
+  $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''),
+    '<div class="sub dim" style="padding:2px 4px 6px">Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
+    'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the month goes on.</div>' + GOODS.map(([name]) => {
     const price = S.prices[name], held = S.inv[name] || 0, flag = S.flags[name];
     const priceHtml = price
       ? `<span class="${flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : ''}">` +
@@ -3638,12 +3796,23 @@ function render() {
       }
     }
     if (S.stuck[name]) sub += `<div class="sub red">${num(S.stuck[name])} stuck in your prison pocket: see a street doc</div>`;
-    const canBuy = price && free() > 0 && S.cash >= price;
+    // Market depth (ECON): how much is on the shelf, and what your own dealing has done to the price today.
+    const bk = book(name);
+    if (bk) {
+      const pc = Math.round((price / bk.base - 1) * 100);
+      sub += `<div class="sub dim">${num(buyRoom(name))} in stock` +
+        (pc <= -3 ? ` &middot; <span class="amber">&#9662; ${-pc}% after your sales</span>` : pc >= 3 ? ` &middot; <span class="amber">&#9652; ${pc}% after your buying</span>`
+          : bk.soft ? ' &middot; <span class="amber">still soft from your last visit</span>' : '') + '</div>';
+    }
+    const canBuy = price && free() > 0 && buyRoom(name) > 0 && S.cash >= buyTotal(name, 1);
+    // The price shown is what the next one sells for. In a thin market buying one costs noticeably more: say so.
+    const ask = bk && buyRoom(name) > 0 ? buyTotal(name, 1) : 0;
+    const askHtml = ask > price * 1.03 ? `<div class="sub dim">to buy: ${money(ask)}</div>` : '';
     const second = held && !price
       ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
       : `<button data-act="sell" data-arg="${name}"${held && price ? '' : ' disabled'}>Sell</button>`;
     return `<div class="row"><div><div class="name">${name}</div>${sub}</div>
-      <div class="price">${priceHtml}</div>
+      <div class="price">${priceHtml}${askHtml}</div>
       <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
   }).join(''));
   let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
@@ -3676,16 +3845,19 @@ const ACTIONS = {
   async buy(name) {
     const price = S.prices[name];
     if (!price) return;
-    const most = Math.min(Math.floor(S.cash / price), free());
+    // Market depth: every unit you buy here pushes the price of the next one up (see ECON).
+    const most = maxBuy(name);
     if (most <= 0) return;
-    const qty = await askQty(`Buy ${name}`, `<p>${money(price)} each. You can take up to ${num(most)}.</p>`,
-      most, {unit: price, ok: 'Buy'});
+    const qty = await askQty(`Buy ${name}`, `<p>${money(buyTotal(name, 1))} for the first one, and the price climbs as you buy. ` +
+      `You can take up to ${num(most)}.</p>` + depthText(name), most, {total: q => buyTotal(name, q), ok: 'Buy'});
     if (!qty) return;
-    S.cash -= qty * price;
-    addItems(name, qty, price);
-    addHeat(qty * price);
+    const cost = buyTotal(name, qty);
+    S.cash -= cost;
+    addItems(name, qty, cost / qty);
+    moveMarket(name, -qty);
+    addHeat(cost);
     SND.play('buy');
-    log(`Bought ${num(qty)} ${name} for ${money(qty * price)}.`);
+    log(`Bought ${num(qty)} ${name} for ${money(cost)}.${movedText(price, S.prices[name])}`);
   },
 
   async sell(name) {
@@ -3698,35 +3870,38 @@ const ACTIONS = {
       const which = await dialog(`Sell ${name}`, `<p>You hold ${num(all)} ${name}. ${num(marked)} of them carry a tag:</p>` +
         `<div class="syn">${tagHtml}<br><span class="dim">Buyers pay ${pct(TAG_CUT)}% less for those: ` +
         `<s>${money(list)}</s> <b class="amber">${money(low)}</b> each. Nobody asks why. Everybody knows why.</span></div>`,
-        [[`Sell clean ones (${num(clean)}) at ${money(list)}`, 'c', 'primary'], [`Sell tagged ones (${num(marked)}) at ${money(low)}`, 't'],
+        [[`Sell clean ones (${num(clean)}) from ${money(list)}`, 'c', 'primary'], [`Sell tagged ones (${num(marked)}) from ${money(low)}`, 't'],
           ['Cancel', null, 'small']]);
       if (!which) return;
       cut = which === 't';
     }
+    // Market depth: every unit you sell here pushes the price of the next one down (see ECON).
     const price = cut ? low : list, held = cut ? marked : clean;
     const qty = await askQty(`Sell ${name}`,
-      (cut ? `<p>${tagHtml}</p><p>Buyers pay <s>${money(list)}</s> <b class="amber">${money(price)}</b> each for these: ${pct(TAG_CUT)}% off.` : `<p>Buyers pay ${money(price)} each.`) +
-      ` You hold ${num(held)}, bought at ${money(S.cost[name] || 0)}.</p>`,
-      held, {unit: price, ok: 'Sell'});
+      (cut ? `<p>${tagHtml}</p><p>Buyers pay <s>${money(list)}</s> <b class="amber">${money(price)}</b> for the first of these: ${pct(TAG_CUT)}% off.`
+        : `<p>Buyers pay ${money(price)} for the first one, and less for each one after it.`) +
+      ` You hold ${num(held)}, bought at ${money(S.cost[name] || 0)}.</p>` + depthText(name),
+      held, {total: q => sellTotal(name, q, cut), ok: 'Sell'});
     if (!qty) return;
-    const profit = (price - (S.cost[name] || 0)) * qty;
-    S.cash += qty * price;
+    const got = sellTotal(name, qty, cut), profit = got - (S.cost[name] || 0) * qty;
+    S.cash += got;
     removeItems(name, qty, cut);
+    moveMarket(name, qty);
     if (cut) { tagSales += qty; tally('reasons', qty); }
-    addHeat(qty * price);
+    addHeat(got);
     const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
     if (profit > 0) { tally('profit', profit); if (S.flags[name] === 'up') tally('spike'); }
     S.mood = profit > 0 ? 'grin' : profit < 0 ? 'ouch' : S.mood;
     SND.play(profit >= 0 ? 'cash' : 'loss');
-    log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
-      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${cut ? ` ${tagHtml}` : ''}${xp}`);
+    log(`Sold ${num(qty)} ${name} for ${money(got)} ` +
+      `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${movedText(list, S.prices[name])}${cut ? ` ${tagHtml}` : ''}${xp}`);
   },
 
   async contract(index) {
     const c = S.contracts[index];
     if (!c || (S.inv[c.good] || 0) < c.qty) return;
     const chance = chanceFor(c), pay = payoutFor(c), price = S.prices[c.good];
-    const compare = price ? `Selling them here instead would bring ${money(price * c.qty)}.` : 'Nobody is buying them here today.';
+    const compare = price ? `Selling them here instead would bring ${money(sellTotal(c.good, c.qty))}.` : 'Nobody is buying them here today.';
     if (!await confirmDlg('Freelance job', `<p><b>${c.job}</b>, for ${c.client}.</p>` +
       `<p>Uses up ${num(c.qty)} ${c.good}. Pays <span class="amber">${money(pay)}</span> if it works. ${compare}</p>` +
       `<p>Chance of success: <b>${chance}%</b></p>` +
@@ -3835,7 +4010,7 @@ const ACTIONS = {
       const goodsHtml = goods.map(n => {
         const q = S.inv[n], price = S.prices[n], cost = S.cost[n] || 0;
         paid += q * cost;
-        if (price) worth += (q - tagged(n)) * price + tagged(n) * tagPrice(price);
+        if (price) worth += sellTotal(n, q - tagged(n)) + tagged(n) * tagPrice(priceAt(book(n), book(n).x + q - tagged(n)));
         const cls = !price ? 'dim' : price > cost ? 'green' : price < cost ? 'red' : '';
         // Tagged ones get a tile of their own, next to the clean ones of the same kind.
         const marked = tagged(n), glyph = `<b class="glyph ${cls}">${initials(n)}</b>`;
@@ -3924,8 +4099,9 @@ const ACTIONS = {
       } else if (choice.startsWith('g:')) {
         const q = S.inv[arg], price = S.prices[arg], cost = S.cost[arg] || 0;
         const act = await dialog(arg, `<div class="syn"><b>${arg}</b> x${num(q)}<br>paid ${money(cost)} each, ${money(q * cost)} in all</div>` +
-          (price ? `<p>Sells here for <b class="${price > cost ? 'green' : price < cost ? 'red' : ''}">${money(price)}</b> each, ` +
-            `${money((q - tagged(arg)) * price + tagged(arg) * tagPrice(price))} for the lot.</p>` : none('Nobody is buying these here.')) +
+          (price ? `<p>Sells here from <b class="${price > cost ? 'green' : price < cost ? 'red' : ''}">${money(price)}</b> each, ` +
+            `about ${money(sellTotal(arg, q - tagged(arg)) + tagged(arg) * tagPrice(priceAt(book(arg), book(arg).x + q - tagged(arg))))} for the lot ` +
+            '(the price sags as you sell).</p>' : none('Nobody is buying these here.')) +
           (tagged(arg) ? `<div class="syn">${num(tagged(arg))} of them carry a tag: ${tagHtml}<br><span class="dim">Those sell for ${pct(TAG_CUT)}% less` +
             `${price ? `: ${money(tagPrice(price))} each here` : ''}. A street doc had to remove them. That is all anyone needs to know.</span></div>` : ''),
           [price ? ['Sell', 'sell', 'primary'] : ['Dump', 'dump', 'danger'], ['Back', null]]);
@@ -4383,7 +4559,9 @@ const ACTIONS = {
 
   async wallet() {
     const cmd = await dialog('Cold wallet',
-      `<p>Balance: ${money(S.wallet)}. Earns ${pct(walletRate())}% a day and can't be phished.</p>`,
+      `<p>Balance: ${money(S.wallet)}. Earns ${pct(walletRate())}% a day on the first ${money(ECON.walletFull)} and ` +
+      `${pct(walletRate() * ECON.walletOver)}% a day on anything above that, and it can't be phished.</p>` +
+      `<p class="dim">Tonight it earns ${money(walletGain(S.wallet))}.</p>`,
       [['Deposit', 'd', 'primary'], ['Withdraw', 'w'], ['Leave', null, 'small']]);
     if (cmd === 'd') {
       if (S.cash <= 0) return alertDlg('Cold wallet', '<p>You have no cash to deposit.</p>');
@@ -4421,8 +4599,9 @@ function nextDay() {
   S.day += 1;
   S.debt = Math.ceil(S.debt * (1 + debtRate()));
   const banked = S.wallet;
-  S.wallet = Math.floor(S.wallet * (1 + walletRate()));
+  S.wallet += walletGain(S.wallet);   // economy 1.28: full rate on the first slice only (ECON)
   if (S.wallet > banked) tally('interest', S.wallet - banked);
+  settleMarkets();                    // economy 1.28: markets remember part of what you did to their prices
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   // Heat items: decoy traffic cools a little more each night, a VPN runs down, and fast fixes are fresh again.
   if (fx().decoy > 0) { S.heat = Math.max(0, S.heat - COOL.decoy.cool); S.fx.decoy--; }
@@ -4538,9 +4717,10 @@ async function randomEvent() {
       await alertDlg('Lucky find', `<p>Someone left an unlocked laptop in a ride share. You lift <b>${qty} ${name}</b>.</p>`);
     }
   } else if (r < 0.18) {
-    const price = rnd(400, 1200) * (1 + Math.floor(S.day / 8));
+    const price = drivePrice(rnd(400, 1200) * (1 + Math.floor(S.day / 8)));   // dearer the more you have fitted (ECON)
     if (S.cash >= price && await confirmDlg('Drive upgrade',
-      `<p>A hardware hacker offers an encrypted drive upgrade: <b>+50 slots</b> for ${money(price)}.</p>`, 'Buy it', 'Pass')) {
+      `<p>A hardware hacker offers an encrypted drive upgrade: <b>+50 slots</b> for ${money(price)}.</p>` +
+      (S.drive > START_DRIVE ? '<p class="dim">Every upgrade is harder to fit than the last, and priced like it.</p>' : ''), 'Buy it', 'Pass')) {
       S.cash -= price; S.drive += 50;
       log(`Drive upgraded to ${cap()} slots.`);
     }
@@ -4650,7 +4830,7 @@ function junkOffer(kind) {
       take(paid) { addItems(name, qty, Math.floor(paid / qty)); }};
   }
   // 'drive': a pocketful of storage
-  return {name: 'Loose drives', text: '+25 drive slots, wiped (he says)', list: 600 * (1 + Math.floor(S.day / 8)), icon: '',
+  return {name: 'Loose drives', text: '+25 drive slots, wiped (he says)', list: drivePrice(600 * (1 + Math.floor(S.day / 8))), icon: '',
     take() { S.drive += 25; }};
 }
 
@@ -5235,7 +5415,7 @@ async function fightRounds(E) {
         S.grudge[E.gang] += 1;
         xp = gainXp(30 * total);
       }
-      loot = Math.round(loot * (1 + bonus('luck') / 100));
+      loot = Math.round(loot * (1 + bonus('luck') / 100) * (law ? ECON.lawLoot : raid ? ECON.raidLoot : thug ? ECON.thugLoot : ECON.gangLoot));
       S.cash += loot;
       if (law) {
         tally('law'); tally('lawwin');
@@ -5387,15 +5567,22 @@ async function finish() {
     : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` + `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
     `<p>Final score: <b class="green">${money(score)}</b><br>Run rating: <b class="cyan">${rank}</b><br>` +
     `XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
-  if (scores.length < 10 || score > Math.min(...scores.map(s => s.score))) {
+  // Scores from before 1.28 were made in an economy where money came far faster. They are kept, but listed
+  // apart, and a new score only has to beat the ones made under the same rules (the `eco` stamp, ECON.version).
+  const byScore = (a, b) => b.score - a.score;
+  let now = scores.filter(s => s && s.eco === ECON.version).sort(byScore);
+  const old = scores.filter(s => s && s.eco !== ECON.version).sort(byScore).slice(0, 10);
+  if (now.length < 10 || score > Math.min(...now.map(s => s.score))) {
     const handle = (await askText('New high score!', summary + '<p>Your handle:</p>')) || 'anon';
-    scores.push({handle: handle.slice(0, 16), score});
-    scores = scores.sort((a, b) => b.score - a.score).slice(0, 10);
-    if (!AUTO) store.set('zdh-scores', scores);
+    now.push({handle: handle.slice(0, 16), score, eco: ECON.version});
+    now = now.sort(byScore).slice(0, 10);
+    if (!AUTO) store.set('zdh-scores', now.concat(old));
   }
-  const hall = scores.map((s, i) =>
+  const rows = list => list.map((s, i) =>
     `<tr><td>${i + 1}.</td><td>${esc(s.handle)}</td><td>${money(s.score)}</td></tr>`).join('');
-  await dialog('Run complete', summary + `<p class="dim">HALL OF FAME</p><table class="hall">${hall}</table>`,
+  await dialog('Run complete', summary + `<p class="dim">HALL OF FAME</p><table class="hall">${rows(now)}</table>` +
+    (old.length ? '<p class="dim">BEFORE THE CRASH: scores from the old economy (before 1.28), when money grew on trees</p>' +
+      `<table class="hall dim">${rows(old)}</table>` : ''),
     [['New run', true, 'primary']]);
 }
 
@@ -5559,6 +5746,146 @@ async function coolSelfTest() {
   }
 }
 
+// The 1.28 economy, step by step: market depth arithmetic (each unit moves the price, the total is the sum, a
+// round trip is free, stock runs out, there is a floor, half of a move is left next morning), what the player
+// is shown, the cold wallet's tiers, drive upgrade prices, Heat from deals, jobs never priced off a spike, and saves.
+async function econSelfTest() {
+  const run = S, random = Math.random, mine = career, keep = slot, get = store.get, here = GEAR_SPOTS[0];
+  const fail = (what, ...more) => { throw new Error(`Economy test: ${what} ` + JSON.stringify(more)); };
+  // A market at `here` on a given day with exactly these prices, books open, as if just rolled.
+  const open = (day, prices, flags) => {
+    S.day = day; S.loc = here; S.prices = prices; S.flags = flags || {}; S.news = []; S.contracts = []; S.shop = []; S.store = [];
+    S.markets = {[here]: {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop, store: S.store}};
+    S.markets[here].book = openBooks();
+  };
+  const sumOf = (b, from, n, cut) => { let s = 0; for (let i = 0; i < n; i++) s += cut ? Math.floor(priceAt(b, from + i) * (1 - TAG_CUT)) : priceAt(b, from + i); return s; };
+  try {
+    career = newCareer();
+    newGame();
+    S.drive = 100000;
+    Math.random = () => 0.5;   // amount pickers answer "all of it"; no dialog here has more than one answer
+    // --- depth: worked out in dollars, grows through the month, thinner for dearer goods ---
+    S.day = 1; const d1 = marketSize(); S.day = 15; const d15 = marketSize(); S.day = DAYS; const d30 = marketSize();
+    if (d1 !== ECON.marketSize || !(d15 > d1 * 5) || !(d30 > d15 * 2)) fail('market size does not grow', d1, d15, d30);
+    S.day = 15;
+    if (!(depthOf('Warez') > depthOf('Phishing Kits') && depthOf('Phishing Kits') > depthOf('Botnet Hours'))) fail('dearer goods are not thinner');
+    if (Math.abs(depthOf('Warez') * 35 - d15) > 35 || depthOf('Phishing Kits', 'up') !== Math.round(d15 * ECON.spikeDepth / 950 * 10) / 10) fail('depth is not size / mid price', depthOf('Warez'));
+    S.day = 1;
+    if (depthOf('Zero-Days') !== ECON.minDepth) fail('no minimum depth', depthOf('Zero-Days'));
+    // --- selling: each unit goes for less than the one before, the total is the sum, the price shown moves ---
+    open(15, {'Warez': 40, 'Phishing Kits': 1000, 'Zero-Days': 20000});
+    let b = book('Warez');
+    if (b.base !== 40 || b.x !== 0 || b.depth !== depthOf('Warez') || b.stock !== Math.ceil(b.depth * ECON.stock)) fail('book opened wrong', b);
+    if (priceAt(b, 0) !== 40 || priceAt(b, b.depth) !== 20 || priceAt(b, -b.depth) !== 80 || priceAt(b, 2 * b.depth) !== 10) fail('price does not halve per depth', priceAt(b, b.depth));
+    const q = Math.round(b.depth), want = sumOf(b, 0, q);
+    if (sellTotal('Warez', q) !== want || !(want < q * 40) || !(want > q * priceAt(b, q))) fail('sell total is not the sum', want);
+    S.cash = 0; S.inv = {'Warez': q}; S.cost = {'Warez': 1};
+    await ACTIONS.sell('Warez');
+    if (S.cash !== want || S.inv['Warez'] || b.x !== q || S.prices['Warez'] !== priceAt(b, q) || S.prices['Warez'] > 21) fail('sale paid wrong', S.cash, want, b);
+    // ...the player saw it coming in the amount picker, and is told afterwards and on the market screen.
+    if (!dlg.textContent.includes('last one') || !dlg.textContent.includes('halves the price')) fail('the sell dialog does not show the falling price', dlg.textContent);
+    if (!logs[0].includes('The price here fell from $40 to')) fail('the log does not say the price fell', logs[0]);
+    render();
+    if (!$('#market').textContent.includes('% after your sales') || !$('#market').textContent.includes('in stock')) fail('the market screen does not show the move');
+    // --- buying it back costs exactly what selling it brought: a round trip is free, and no more than that ---
+    if (buyTotal('Warez', q) !== want || buyRoom('Warez') !== b.stock + q) fail('buying back is not the mirror of selling', buyTotal('Warez', q));
+    if (maxBuy('Warez') !== q) fail('maxBuy does not stop at the cash', maxBuy('Warez'));
+    await ACTIONS.buy('Warez');
+    if (S.cash !== 0 || S.inv['Warez'] !== q || b.x !== 0 || S.prices['Warez'] !== 40) fail('round trip was not free', S.cash, b);
+    if (!dlg.textContent.includes('doubles it') || !dlg.textContent.includes('in stock today')) fail('the buy dialog does not explain the climb');
+    // --- buying: the price climbs, and the shelf runs out ---
+    S.inv = {}; S.cost = {}; S.cash = 1e9;
+    const costAll = buyTotal('Warez', b.stock);
+    if (!(costAll > b.stock * 40) || costAll !== sumOf(b, -b.stock, b.stock)) fail('buy total is not the sum', costAll);
+    await ACTIONS.buy('Warez');
+    if (S.inv['Warez'] !== b.stock || S.cash !== 1e9 - costAll || buyRoom('Warez') !== 0 || maxBuy('Warez') !== 0 || !(S.prices['Warez'] > 150)) fail('stock limit broken', S.inv, b);
+    if (S.cost['Warez'] !== Math.floor(costAll / b.stock)) fail('average cost is wrong', S.cost);
+    render();
+    if (!/data-act="buy" data-arg="Warez" disabled/.test($('#market').innerHTML) || !$('#market').textContent.includes('% after your buying')) fail('sold-out market still offers it');
+    // --- a floor under a flooded market; tagged goods 20% under it, unit by unit ---
+    open(15, {'Warez': 40, 'Phishing Kits': 1000});
+    b = book('Phishing Kits');
+    if (priceAt(b, 1000) !== Math.round(1000 * ECON.floor)) fail('no floor', priceAt(b, 1000));
+    if (sellTotal('Phishing Kits', 5, true) !== sumOf(b, 0, 5, true) || sellTotal('Phishing Kits', 1, true) !== 800) fail('tagged goods priced wrong');
+    // --- thin markets: one unit at the price shown, the next for far less, and buying one costs more ---
+    open(1, {'Zero-Days': 20000, 'Warez': 40});
+    b = book('Zero-Days');
+    if (sellTotal('Zero-Days', 1) !== 20000 || !(sellTotal('Zero-Days', 2) < 23000) || !(buyTotal('Zero-Days', 1) > 100000) || b.stock !== 1) fail('thin market wrong', b);
+    render();
+    if (!$('#market').textContent.includes('to buy: ')) fail('thin market does not show what buying costs');
+    // --- overnight: half of the move is still there, then a quarter, then it is forgotten ---
+    open(15, {'Warez': 40});
+    b = book('Warez');
+    S.inv = {'Warez': Math.round(b.depth * 2)}; S.cost = {'Warez': 1}; S.cash = 0; S.debt = 0; S.wallet = 0;
+    await ACTIONS.sell('Warez');
+    const moved = b.x / b.depth;
+    S.loc = BUNKER; nextDay();
+    const g1 = S.glut[here] && S.glut[here]['Warez'];
+    if (Math.abs(g1 - moved * ECON.recover) > 0.011) fail('glut not carried over', S.glut, moved);
+    S.loc = here; S.prices = {'Warez': 40}; S.flags = {};
+    const next = openBooks();
+    if (S.prices['Warez'] !== Math.round(40 * Math.pow(0.5, g1)) || !next['Warez'].soft || next['Warez'].base !== S.prices['Warez'] || next['Warez'].x !== 0) fail('morning price ignores yesterday', S.prices, next);
+    S.loc = BUNKER; nextDay();
+    if (Math.abs(S.glut[here]['Warez'] - g1 * ECON.recover) > 0.011) fail('glut does not fade', S.glut);
+    for (let i = 0; i < 8; i++) nextDay();
+    if (Object.keys(S.glut).length) fail('glut never clears', S.glut);
+    // --- the cold wallet: full rate on the first slice, a share of it above ---
+    const rate = walletRate(), over = 300000;
+    if (walletGain(100000) !== Math.floor(100000 * rate) || walletGain(ECON.walletFull + over) !== Math.floor(ECON.walletFull * rate + over * rate * ECON.walletOver)) fail('wallet tiers wrong');
+    S.day = 5; S.wallet = ECON.walletFull + over; nextDay();
+    if (S.wallet !== ECON.walletFull + over + walletGain(ECON.walletFull + over)) fail('wallet interest not paid by tier', S.wallet);
+    // --- drive upgrades cost more each time ---
+    S.drive = START_DRIVE; const p0 = drivePrice(1000); S.drive = START_DRIVE + 50; const p1 = drivePrice(1000); S.drive = START_DRIVE + 100;
+    if (p0 !== 1000 || p1 !== Math.round(1000 * Math.pow(2, ECON.driveCurve)) || drivePrice(1000) !== Math.round(1000 * Math.pow(3, ECON.driveCurve))) fail('drive price curve', p0, p1);
+    // --- Heat from a deal is measured against what the markets move that day ---
+    S.day = 1; S.heat = 0; S.fx = {vpn: 0, decoy: 0}; addHeat(ECON.heatMin - 1);
+    if (S.heat !== 0) fail('small deal raised Heat');
+    addHeat(ECON.heatMin * 3);
+    if (S.heat !== 3) fail('deal Heat wrong on day 1', S.heat);
+    S.day = DAYS; S.heat = 0; const point = Math.max(ECON.heatMin, marketSize() * ECON.heatDeal); addHeat(point * 2.5); const two = S.heat; addHeat(point * 500);
+    if (two !== 2 || S.heat !== 12) fail('deal Heat wrong late', two, S.heat);
+    // --- freelance jobs: never priced off a spike, never bigger than the market deals ---
+    Math.random = random;
+    open(20, {'Zero-Days': 29000 * 5, 'Warez': 300}, {'Zero-Days': 'up', 'Warez': 'up'});
+    for (let i = 0, seen = 0; i < 400 || fail('no jobs rolled', seen); i++) {
+      rollContracts();
+      for (const c of S.contracts) {
+        const [, low, high] = GOODS.find(x => x[0] === c.good), top = ECON.jobBase + ECON.jobRisk + ECON.jobLuck;
+        if (c.payout > Math.max(high, S.prices[c.good] && !S.flags[c.good] ? S.prices[c.good] : 0) * c.qty * top + 10) fail('job priced off a spike', c);
+        if (c.qty > Math.max(1, Math.round(depthOf(c.good) * ECON.jobLot)) || c.qty < 1 || !(c.payout >= Math.round((low + high) / 2) * c.qty * ECON.jobBase - 10)) fail('job size or floor wrong', c);
+        if (c.good === 'Zero-Days') seen++;
+      }
+      if (seen >= 5) break;
+    }
+    // --- saves: a run saved now keeps its books and its gluts; one from 1.24 gets them on loading ---
+    Math.random = () => 0.5;
+    newGame();
+    open(12, {'Warez': 40, 'Rogue APs': 600});
+    S.drive = 5000; S.inv = {'Warez': 30}; S.cost = {'Warez': 1}; S.glut = {'Paste Alley': {'Warez': 0.6}};
+    await ACTIONS.sell('Warez');
+    const now = JSON.parse(JSON.stringify(S)), old = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+    delete old.glut;
+    for (const m of Object.values(old.markets)) delete m.book;
+    try {
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      b = book('Warez');
+      if (b.x !== 30 || b.base !== 40 || S.prices['Warez'] !== priceAt(b, 30) || S.glut['Paste Alley']['Warez'] !== 0.6) fail('save lost market state', b, S.glut);
+      store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      render();
+      b = book('Warez');
+      if (JSON.stringify(S.glut) !== '{}' || b.x !== 0 || b.base !== S.prices['Warez'] || b.depth !== depthOf('Warez') || !(b.stock > 0)) fail('1.24 save loaded wrong', b, S.glut);
+      S.inv = {'Rogue APs': 4}; S.cost = {'Rogue APs': 1}; S.cash = 0;
+      const due = sellTotal('Rogue APs', 4);
+      await ACTIONS.sell('Rogue APs');
+      if (S.cash !== due || !(due < 2400) || !(due > 600)) fail('1.24 save cannot trade', S.cash, due);
+    } finally { store.get = get; slot = keep; }
+  } finally {
+    Math.random = random; store.get = get; slot = keep; S = run; career = mine; logs = [];
+  }
+}
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -5607,6 +5934,7 @@ async function selfTest(games) {
         if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
         S = run; career = mine; logs = [];
         await coolSelfTest();
+        await econSelfTest();
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game % 4 === 3) { delete career.gear.back; noBag++; }                    // some go without
@@ -5675,6 +6003,7 @@ async function selfTest(games) {
         }
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
         const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
+        const saleBook = sold ? book(sold) : null;   // the same object after the sale, with x moved on
         if (act === 'gearmenu') {   // also exercise the loadout close-up and slot swapping
           stash(makeItem(rnd(0, 4)));
           await swapSlot(pick(Object.keys(SLOTS)));
@@ -5712,7 +6041,11 @@ async function selfTest(games) {
         if (sale) {
           // A sale is all clean or all tagged, and the tagged ones go for exactly 20% less.
           const [cash, held, marks, price] = sale, gone = held - (S.inv[sold] || 0), cut = marks - tagged(sold);
-          if ((cut && cut !== gone) || S.cash - cash !== (cut ? cut * Math.floor(price * 0.8) : gone * (price || 0))) {
+          // ...and with market depth each unit goes for less than the one before: the total is the sum of those prices.
+          let due = 0;
+          for (let i = 0; i < gone; i++) due += cut ? Math.floor(priceAt(saleBook, saleBook.x - gone + i) * 0.8) : priceAt(saleBook, saleBook.x - gone + i);
+          if (gone && S.prices[sold] !== priceAt(saleBook, saleBook.x)) throw new Error(`sale of ${sold} left the wrong price`);
+          if ((cut && cut !== gone) || S.cash - cash !== due) {
             throw new Error(`sale of ${sold} paid wrong: ` + JSON.stringify([sale, S.cash, gone, cut]));
           }
         }
@@ -5829,6 +6162,9 @@ function loadSave(n) {
   // Heat items arrived in 1.24: an older run has none running and no fast fixes used.
   S.fx = {vpn: Math.max(0, Math.min(COOL.vpn.days, Math.floor(fx().vpn) || 0)), decoy: Math.max(0, Math.min(COOL.decoy.nights, Math.floor(fx().decoy) || 0))};
   S.tricks = Number.isInteger(S.tricks) && S.tricks > 0 ? Math.min(S.tricks, QUICK_MAX) : 0;
+  // Market depth arrived in 1.28: an older run has moved no prices yet, and its markets get their books
+  // when they are next looked at (see book()).
+  S.glut = S.glut && typeof S.glut === 'object' ? S.glut : {};
   S.ammo = Object.assign(noAmmo(), S.ammo);
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
@@ -5857,6 +6193,8 @@ function introText() {
     `that grows ${pct(debtRate())}% a day.</p>` +
     '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
     'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
+    '<p>No market can move unlimited weight: <span class="amber">sell a lot of one thing in one place and its price sags, buy a lot and it climbs</span>. ' +
+    'Spread your deals around. A market you flooded is still soft the next day, and every market deals bigger as the month goes on.</p>' +
     '<p><span class="amber">Freelance jobs</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate, and its missions are the fastest way to level from there.</p>' +
     '<p><span class="amber">Achievements</span> pay XP too. One of them is a secret, and it opens a door.</p>' +
