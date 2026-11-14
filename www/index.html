@@ -2724,9 +2724,11 @@ function avatarSvg(o) {
         'fill="#3dff9a" stroke="#0b3a22" stroke-width="1"/>' + `<circle cx="${14.5 + (i * 67) % 180}" cy="3.5" r="1.8" fill="#0b3a22"/></g>`;
     }
   }
-  // The portrait fills its box whatever the box's shape: head pinned to the top, the excess cropped.
+  // fill: the picture takes the shape of its box. A portrait is cropped with the head pinned to the top;
+  // the whole figure is fitted inside, standing on the bottom edge.
   if (o.bust) box = bustBox(o.fill);
-  return `<svg class="avatar" viewBox="${box}"${o.fill ? ' preserveAspectRatio="xMidYMin slice"' : ''} role="img" aria-label="Your character">` +
+  else if (o.fill) box = '0 0 200 340';
+  return `<svg class="avatar" viewBox="${box}"${o.fill ? ` preserveAspectRatio="${o.bust ? 'xMidYMin slice' : 'xMidYMax meet'}"` : ''} role="img" aria-label="Your character">` +
     `${defs ? `<defs>${defs}</defs>` : ''}${back}${fig}${front}</svg>`;
 }
 
@@ -3289,7 +3291,7 @@ function render() {
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
   $('#vitals').innerHTML = vitals();
-  $('#ava').innerHTML = avatarSvg({bust: true, fill: true});
+  $('#ava').innerHTML = avatarSvg({fill: true});   // the whole figure, so everything worn shows
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
   $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
