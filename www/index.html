@@ -6282,6 +6282,9 @@ const ACTIONS = {
       // The lock picking skill: it belongs to the save, like XP.
       `<div class="syn">${lockLine()}${lockMeter()}<span class="dim">It rises with practice: opening a lock teaches more than a miss, and a harder lock ` +
       `teaches more. It carries over between runs. The practice board in the Bunker teaches up to level ${practiceCap()}; the rest is behind real doors.</span></div>` +
+      // BASE: the weapon skills, which belong to the save too.
+      `<div class="syn"><b>Weapon skill</b>${MARK_KINDS.map(markLine).join('')}<span class="dim">Practice on the Range in the Bunker builds it, up to what that range can teach; real fights build it too, slowly. ` +
+      `Each level adds ${MARKS.hit}% to your chance to hit with that kind of weapon. It carries over between runs.</span></div>` +
       (S.plants && S.plants.length ? `<p class="dim">Devices you left behind: ${S.plants.map(p => `${p.what} at ${p.site} (${money(p.pay)} a night, ${p.left} to go)`).join('; ')}.</p>` : '');
     const buttons = [['Close', null, 'primary']];
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
@@ -6820,7 +6823,7 @@ function rangeGame(kind, moving) {
     let raf = 0, sx = 120, sy = 75, cx = 120, done = false;
     dlg.className = '';
     dlg.innerHTML = '<h2>The Range</h2><div class="body">' +
-      `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
+      `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx" transform="translate(120 75)"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
       `<p id="rgs"></p><p class="dim">The sight drifts. ${verb === 'FIRE' ? 'Fire' : verb === 'THROW' ? 'Throw' : 'Swing'} when it crosses the middle: tap the target, or use the button. ` +
       'It drifts less the better you get.</p></div>' +
       `<div class="dbtns"><button id="rgf" class="primary">${verb}</button><button id="rgk" class="small">Skip the aiming</button></div>`;
