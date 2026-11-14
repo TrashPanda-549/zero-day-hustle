@@ -33,6 +33,7 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:200;
 #app{max-width:760px;margin:0 auto;
   padding:calc(10px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))}
 header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hbtns{display:flex;gap:6px}
 h1{margin:0;font-size:18px;letter-spacing:3px;font-weight:800;font-style:italic;color:#000;background:var(--yellow);
   padding:5px 22px 5px 10px;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);
   animation:glitch 4.5s infinite steps(1)}
@@ -288,7 +289,7 @@ button.hasico{display:flex;align-items:center;gap:7px;text-align:left;padding:5p
   </div>
 </div>
 <div id="app">
-  <header><h1>ZERO DAY HUSTLE</h1><button class="small" data-act="restart">New run</button></header>
+  <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="restart">New run</button></span></header>
   <div id="hud">
     <div id="ava" data-act="gearmenu" title="Gear"></div>
     <div id="hudr">
@@ -360,6 +361,9 @@ const SYNDICATES = {
   ledger: ['Black Ledger', 'Money people. The Fixer charges you 4% a day instead of 8%, and your cold wallet earns 6%.'],
   null: ['Null Sector', 'Smugglers. +60 drive slots and an extra $3,000 at the start of every run.'],
   red: ['Red Team Zero', 'Operators. Freelance jobs succeed 10% more often and pay 25% more.'],
+  // Hidden: it only appears once you hold the achievement named in KEY_ACH. The other crews cannot find it,
+  // so it is never a rival: it does not attack anyone and cannot be raided.
+  x404: ['404 Collective', 'Crew not found. Hostiles hit you 25% less often, and everything you do earns 25% more XP.'],
 };
 const TITLES = ['Script Kiddie', 'Lurker', 'Packet Monkey', 'Phreak', 'Cracker', 'Gray Hat', 'Exploit Dev',
   'Netrunner', 'Black Hat', 'Syndicate Operator'];
@@ -519,18 +523,56 @@ const esc = s => String(s).replace(/[&<>"']/g,
 let S, logs = [], busy = false, AUTO = false;
 
 // ---------- storage ----------
+// There are up to MAX_SAVES save files. Each has its own career and its own run in progress, stored
+// under 'zdh-career-<n>' and 'zdh-save-<n>'. 'zdh-slots' lists them ({n: {name, t: last played}}) and
+// 'zdh-last' is the one played most recently. The hall of fame ('zdh-scores') is shared.
+const MAX_SAVES = 5;
+let slot = 0;   // the save file in use; 0 until one is chosen from the start menu, and nothing is saved until then
+const perSave = key => key === 'zdh-save' || key === 'zdh-career';
 const store = {
-  get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } },
-  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} },
-  del(key) { try { localStorage.removeItem(key); } catch (e) {} },
+  // n: read or write another save file's copy instead of the one in use.
+  get(key, n) { try { return JSON.parse(localStorage.getItem(perSave(key) ? `${key}-${n || slot}` : key)); } catch (e) { return null; } },
+  set(key, value, n) {
+    if (perSave(key) && !(n || slot)) return;
+    try { localStorage.setItem(perSave(key) ? `${key}-${n || slot}` : key, JSON.stringify(value)); } catch (e) {}
+  },
+  del(key, n) { try { localStorage.removeItem(perSave(key) ? `${key}-${n || slot}` : key); } catch (e) {} },
 };
-const save = () => { if (!AUTO) store.set('zdh-save', S); };
+function saveList() {
+  const m = store.get('zdh-slots');
+  return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+}
+// Note that the save file in use was just played (and name it, when it is new).
+function touchSave(name) {
+  if (!slot) return;
+  const m = saveList();
+  m[slot] = {name: name || (m[slot] && m[slot].name) || 'anon', t: Date.now()};
+  store.set('zdh-slots', m);
+  store.set('zdh-last', slot);
+}
+const save = () => { if (!AUTO && slot) { store.set('zdh-save', S); touchSave(); } };
+// A game from before there were save files becomes save 1.
+function adoptOldSave() {
+  try {
+    if (localStorage.getItem('zdh-slots')) return;
+    const c = localStorage.getItem('zdh-career'), r = localStorage.getItem('zdh-save');
+    if (!c && !r) return;
+    if (c) localStorage.setItem('zdh-career-1', c);
+    if (r) localStorage.setItem('zdh-save-1', r);
+    localStorage.setItem('zdh-slots', JSON.stringify({1: {name: 'anon', t: Date.now()}}));
+    localStorage.setItem('zdh-last', '1');
+    localStorage.removeItem('zdh-career');
+    localStorage.removeItem('zdh-save');
+  } catch (e) {}
+}
 
 // ---------- career: XP, levels and syndicate carry over between runs ----------
-let career = {xp: 0, syn: null, gear: {}, bag: []}, pendingLevel = 0;
+// stats: running counts of things you have done (see tally()). ach: achievements earned, {id: when}.
+const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}});
+let career = newCareer(), pendingLevel = 0;
 
-function levelInfo() {
-  let xp = career.xp, level = 1, need = 100;
+function levelInfo(total) {
+  let xp = total === undefined ? career.xp : total, level = 1, need = 100;
   while (xp >= need) { xp -= need; level++; need = 100 * level; }
   return {level, into: xp, need};
 }
@@ -542,7 +584,7 @@ const pct = rate => Math.round(rate * 100);
 
 // Adds XP and returns a snippet to append to a log line.
 function gainXp(n) {
-  n = Math.floor(n);
+  n = Math.floor(n * (inSyn(HIDDEN_SYN) ? 1.25 : 1));
   if (n <= 0) return '';
   const before = level();
   career.xp += n;
@@ -552,20 +594,49 @@ function gainXp(n) {
   return ` <span class="cyan">+${n} XP</span>`;
 }
 
-async function chooseSyndicate() {
-  const html = '<p>You are level 10. Four syndicates want you. The choice is permanent.</p>' +
-    Object.values(SYNDICATES).map(([name, perk]) => `<div class="syn"><b>${name}</b><br>${perk}</div>`).join('');
-  const buttons = Object.entries(SYNDICATES).map(([key, [name]]) => [name, key]);
-  buttons.push(['Decide later', null, 'small']);
-  const key = await dialog('Join a syndicate', html, buttons);
-  if (!key) return;
+// The crews you can see: the hidden one only once you hold the achievement that reveals it.
+const openSyns = () => Object.keys(SYNDICATES).filter(k => k !== HIDDEN_SYN || career.ach[KEY_ACH]);
+
+async function joinSyndicate(key) {
   career.syn = key;
+  career.quest = null;
   fixQuest();
   if (!AUTO) store.set('zdh-career', career);
   log(`<span class="cyan">You joined ${SYNDICATES[key][0]}.</span>`);
   await alertDlg(SYNDICATES[key][0], `<p>You're in. ${SYNDICATES[key][1]}</p>` +
     `<p>Your handler is <b>${HANDLER[key]}</b>. The crew has work for you: its missions pay big XP, cash and gear.</p>`);
   await questBrief();
+}
+
+async function chooseSyndicate() {
+  const keys = openSyns();
+  const html = `<p>You are level 10. ${keys.length === 4 ? 'Four' : 'Five'} syndicates want you. The choice is permanent.</p>` +
+    keys.map(k => `<div class="syn"><b>${SYNDICATES[k][0]}</b>${k === HIDDEN_SYN ? ' <span class="amber">hidden</span>' : ''}<br>${SYNDICATES[k][1]}</div>`).join('');
+  const buttons = keys.map(k => [SYNDICATES[k][0], k]);
+  buttons.push(['Decide later', null, 'small']);
+  const key = await dialog('Join a syndicate', html, buttons);
+  if (key) await joinSyndicate(key);
+}
+
+// The hidden syndicate gets in touch once you have earned its achievement. It is the one crew you can
+// leave another crew for.
+async function hiddenInvite() {
+  const name = SYNDICATES[HIDDEN_SYN][0];
+  if (inSyn(HIDDEN_SYN)) return;
+  if (level() < 10) {
+    return alertDlg('UNKNOWN SENDER', `<p>A message with no headers: "We saw what you did. Reach level 10 and we will talk."</p>` +
+      `<p class="dim">A hidden syndicate, the <b>${name}</b>, will be on the list when you choose a crew.</p>`);
+  }
+  if (!career.syn) {
+    await alertDlg('UNKNOWN SENDER', `<p>A message with no headers: "We saw what you did. There is a place for you."</p>` +
+      `<p class="dim">A hidden syndicate, the <b>${name}</b>, is now on the list.</p>`);
+    return chooseSyndicate();
+  }
+  const old = SYNDICATES[career.syn][0];
+  if (await confirmDlg('UNKNOWN SENDER', `<p>A message with no headers: "We saw what you did. Walk away from ${old}. There is a place for you."</p>` +
+    `<div class="syn"><b>${name}</b><br>${SYNDICATES[HIDDEN_SYN][1]}</div>` +
+    `<p class="dim">Leaving ${old} is permanent: you lose its perk and its missions, and start the ${name} line from the top. ` +
+    'You can also answer later, from your record.</p>', `Join the ${name}`, 'Not now')) await joinSyndicate(HIDDEN_SYN);
 }
 
 async function levelUpCheck() {
@@ -579,58 +650,146 @@ async function levelUpCheck() {
       '<p class="dim">Each level (up to 10) adds 1% to your freelance job success chance.</p>');
     if (l >= 10 && !career.syn) await chooseSyndicate();
   }
+  await achCheck();
+  if (pendingLevel) return levelUpCheck();   // an achievement's XP was enough for another level
+}
+
+// ---------- achievements ----------
+// Count something the player did. The counts feed the achievements and the current syndicate mission.
+function tally(kind, amount) {
+  amount = amount === undefined ? 1 : amount;
+  const st = career.stats;
+  st[kind] = kind === 'score' ? Math.max(st[kind] || 0, amount) : (st[kind] || 0) + amount;
+  questEvent(kind, amount);
+  saveCareer();
+}
+const stat = kind => career.stats[kind] || 0;
+const ownedGear = () => Object.values(career.gear).concat(career.bag, career.locker || []).filter(Boolean);
+// id: [name, how to earn it, XP, test, secret (shown as ??? until earned)]. They belong to the save file.
+const KEY_ACH = 'nsa', HIDDEN_SYN = 'x404';   // the achievement that reveals the hidden syndicate
+const ACH = {
+  sale: ['First Score', 'Sell something at a profit', 50, () => stat('profit') > 0],
+  k100: ['Six Figures', 'Hold $100,000 in cash', 100, () => S.cash >= 100000],
+  m1: ['Seven Figures', 'Have $1,000,000 between your cash and cold wallet', 300, () => S.cash + S.wallet >= 1000000],
+  debt: ['Square with the Fixer', 'Pay off your debt in full', 100, () => stat('debt') >= 1],
+  gig10: ['Gig Economy', 'Pull off 10 freelance jobs', 150, () => stat('jobs') >= 10],
+  gig50: ['Hired Gun', 'Pull off 50 freelance jobs', 500, () => stat('jobs') >= 50],
+  raid1: ['Breaking and Entering', 'Clean out a rival node', 100, () => stat('raid') >= 1],
+  raid25: ['Home Wrecker', 'Clean out 25 rival nodes', 500, () => stat('raid') >= 25],
+  law10: ['Slippery', 'Beat the law or get away from it 10 times', 300, () => stat('law') >= 10],
+  fed: ['Federal Offence', 'Beat the FBI or the NSA in a fight', 300, () => stat('fed') >= 1],
+  kills100: ['Body Count', 'Knock 100 rival operators offline', 500, () => stat('kills') >= 100],
+  flawless: ['Not a Scratch', 'Win a fight without taking a hit', 150, () => stat('flawless') >= 1],
+  junk1: ['Bargain Hunter', 'Buy something from a junkie', 50, () => stat('junk') >= 1],
+  junk10: ['Friend of the Street', 'Buy 10 things from junkies', 300, () => stat('junk') >= 10],
+  dressed: ['Fully Dressed', 'Wear something in every gear slot', 200, () => Object.keys(SLOTS).every(k => career.gear[k])],
+  mythic: ['Mythic Drip', 'Own a Legendary piece of gear', 300, () => ownedGear().some(it => it.rar === 4)],
+  overkill: ['Overkill', 'Carry a weapon worth $100,000 or more', 200, () => !!WEAPONS[S.weapon] && WEAPONS[S.weapon][1] >= 100000],
+  arsenal: ['Arsenal', 'Hold 10 Zero-Days at once', 200, () => (S.inv['Zero-Days'] || 0) >= 10],
+  hoard: ['Hoarder', 'Fill the Bunker stash', 150, () => stashTotal() >= STASH_CAP],
+  run1: ['Survivor', 'Finish a run', 100, () => stat('runs') >= 1],
+  run10: ['Veteran', 'Finish 10 runs', 500, () => stat('runs') >= 10],
+  clean: ['Clean Record', 'Finish a run without being arrested', 200, () => stat('cleanrun') >= 1],
+  elite: ['Elite Operator', 'Finish a run worth $1,000,000', 400, () => stat('score') >= 1000000],
+  legend: ['Legend of the Underground', 'Finish a run worth $10,000,000', 1000, () => stat('score') >= 10000000],
+  lvl10: ['Syndicate Material', 'Reach level 10', 100, () => level() >= 10],
+  lvl20: ['Ghost in the Wire', 'Reach level 20', 300, () => level() >= 20],
+  lvl30: ['Legend of the Wire', 'Reach level 30', 500, () => level() >= 30],
+  made: ['Made', 'Join a syndicate', 100, () => !!career.syn],
+  inner: ['Inner Circle', "Finish a syndicate's whole line of missions", 1000,
+    () => !!career.syn && !!career.quest && career.quest.n >= QUESTS[career.syn].length],
+  jail: ['Jailbird', 'Get arrested', 50, () => stat('arrest') >= 1],
+  phish: ['You Clicked the Link', 'Get phished', 50, () => stat('phished') >= 1],
+  nsa: ['Untouchable', 'Beat the NSA in a fight', 1000, () => stat('nsawin') >= 1, true],
+};
+let achTally = 0;   // counted for the self-test
+const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
+
+// Award anything newly earned. Runs after every action.
+async function achCheck() {
+  for (const [id, [name, how, xp, test]] of Object.entries(ACH)) {
+    if (career.ach[id]) continue;
+    let earned = false;
+    try { earned = !!test(); } catch (e) {}
+    if (!earned) continue;
+    career.ach[id] = Date.now();
+    achTally++;
+    const got = gainXp(xp);
+    saveCareer();
+    log(`<span class="amber">Achievement: ${name}.</span>${got}`);
+    render();
+    await alertDlg('ACHIEVEMENT UNLOCKED', `<p><b class="amber">${name}</b><br>${how}</p><p>Reward:${got}</p>` +
+      `<p class="dim">${achCount()} of ${Object.keys(ACH).length} earned.</p>`);
+    if (id === KEY_ACH) await hiddenInvite();
+  }
 }
 
 // ---------- syndicate questlines ----------
 // Joining a crew starts its chain of missions. Progress belongs to the career (career.quest = {n: missions
 // done, p: progress on the current one, o: the current standing order}), so it carries over between runs.
 // When the chain is finished the crew keeps handing out repeatable standing orders.
-const HANDLER = {ghost: 'Wraith', ledger: 'the Accountant', null: 'Captain Nil', red: 'Sgt. Root'};
-const NEMESIS = {ghost: 'ledger', ledger: 'null', null: 'red', red: 'ghost'};   // whose core the last mission hits
+const HANDLER = {ghost: 'Wraith', ledger: 'the Accountant', null: 'Captain Nil', red: 'Sgt. Root', x404: 'nobody'};
+const NEMESIS = {ghost: 'ledger', ledger: 'null', null: 'red', red: 'ghost', x404: 'red'};   // whose core the last mission hits
 // Reward for each mission in the chain: [XP, cash, rarity of the gear you are handed (-1 for none)]
 const QUEST_PAY = [[500, 2000, -1], [700, 3000, -1], [900, 5000, 2], [1200, 8000, -1], [1500, 12000, 3],
   [1900, 18000, -1], [2400, 25000, 3], [3500, 50000, 4]];
 // [title, briefing, kind, target, goods to deliver, where to deliver them]. The kinds are explained in questGoal().
+// Each crew's line is built from what that crew is about: no two crews ask for the same things.
 const QUESTS = {
+  // Ghost Shell: stay unseen.
   ghost: [
-    ['Clean hands', 'Nobody here has seen your work. Take some freelance jobs and leave no prints.', 'jobs', 2],
+    ['Clean hands', 'Nobody here has seen your work. Take freelance jobs, but only while nobody is looking at you.', 'quietjob', 2],
     ['Dead drop', 'The crew needs clean lines for a job you are not cleared to hear about.', 'deliver', 20, 'Burner SIMs', 'Paste Alley'],
-    ['Vanishing act', 'Anyone can hide. Show me you can disappear with the law already looking at you.', 'law', 2],
+    ['Vanishing act', 'Anyone can hide. Show me you can disappear with the law already looking at you. No fighting.', 'escape', 2],
     ['Quiet nights', 'Noise gets ghosts caught. Keep your Heat down and sleep easy.', 'cool', 3],
-    ['Inside their wires', 'Walk through two rival nodes and take what is there.', 'raid', 2],
-    ['Silent money', 'The next op needs funding. Earn it by trading, quietly.', 'profit', 150000],
-    ['Smoke and mirrors', 'They will come for you harder now. Slip them every time.', 'law', 4],
+    ['No witnesses', 'When they corner you, take them apart from inside their own systems. No guns, no bangs.', 'cleanwin', 1],
+    ['New face', 'You have been seen too often. Burn two identities and become someone else.', 'fakeid', 2],
+    ['Ghost run', 'A whole run, start to finish, without once being in a cell.', 'cleanrun', 1],
     ['Burn the Ledger', 'Black Ledger keeps a file on every one of us. Breach their core and burn it.', 'boss', 1],
   ],
+  // Black Ledger: make money.
   ledger: [
     ['Proof of funds', 'We only work with earners. Show a profit.', 'profit', 25000],
     ['Square the books', 'Nobody in this firm owes the Fixer. Clear your debt.', 'debt', 1],
     ['Cold storage', 'Money you can lose is not money. Park some where nobody can reach it.', 'wallet', 100000],
-    ['Billable hours', 'Take freelance work. We take a cut of the reputation.', 'jobs', 3],
-    ['Hostile takeover', 'Two rival nodes are holding assets that should be ours.', 'raid', 2],
-    ['Quarterly numbers', 'The partners want growth. Real growth.', 'profit', 400000],
+    ['Buy the rumour', 'Prices spike when the news breaks. Be holding the goods when it does, and sell into it.', 'spike', 3],
+    ['Compound interest', 'Now let the money work. Earn it while you sleep.', 'interest', 25000],
+    ['Hostile takeover', 'Rival nodes are holding assets that should be on our books. Go and collect.', 'loot', 60000],
     ['Year-end close', 'Finish a run with a balance sheet worth showing the partners.', 'score', 500000],
     ['Seize the manifest', 'Null Sector moves cargo we should be taxing. Breach their core and take the manifest.', 'boss', 1],
   ],
+  // Null Sector: move cargo.
   null: [
     ['First haul', 'Small cargo first. The campus kids are waiting on a shipment.', 'deliver', 40, 'Warez', 'Campus Lab'],
-    ['Turn a profit', 'A smuggler who cannot sell is just a courier.', 'profit', 30000],
+    ['Bigger hold', 'You cannot smuggle in your pockets. Get yourself a drive worth the name.', 'drive', 200],
     ['Hot cargo', 'A crate of drives has to reach the dock before anyone asks about it.', 'deliver', 25, 'USB Droppers', 'Datacenter Dock'],
-    ['Slip the customs', 'Sooner or later they stop you. Do not stay stopped.', 'law', 2],
+    ['Slip the customs', 'Sooner or later they stop you with a full hold. Get away with the cargo.', 'smuggle', 2],
+    ['Stash house', 'Every smuggler needs a warehouse. Fill yours.', 'stash', 200],
     ['Heavy freight', 'A buyer at the con wants rented firepower, delivered by hand.', 'deliver', 12, 'Botnet Hours', 'Con Hallway'],
-    ['Pirate waters', 'Three rival nodes are sitting on cargo. Go and board them.', 'raid', 3],
     ['The big run', 'The most dangerous cargo there is, and the Bazaar wants three.', 'deliver', 3, 'Zero-Days', 'Tor Bazaar'],
     ['Sink the Red Team', 'Red Team Zero keeps hitting our convoys. Breach their core and sink it.', 'boss', 1],
   ],
+  // Red Team Zero: fight.
   red: [
-    ['Boot camp', 'Prove you can finish a job. Two freelance jobs, done clean.', 'jobs', 2],
     ['First blood', 'Rival operators are targets. Knock some offline, in raids or when they come for you.', 'kills', 4],
     ['Breach and clear', 'Two rival nodes. In, loot, out.', 'raid', 2],
-    ['Hold the line', 'When the law shows up you do not fold. Beat them or lose them.', 'law', 3],
-    ['Contract season', 'The team gets paid in reputation. Go and earn some.', 'jobs', 5],
-    ['Search and destroy', 'Thin them out. Every rival operator offline counts.', 'kills', 12],
-    ['Deep strike', 'Four rival nodes. They should feel it.', 'raid', 4],
+    ['Hold the line', 'When the law shows up you do not run. You win.', 'lawwin', 2],
+    ['Not a scratch', 'Sloppy operators bleed. Win a fight without them landing anything.', 'flawless', 1],
+    ['Search and destroy', 'Thin them out. Every rival operator offline counts.', 'kills', 15],
+    ['Three fronts', 'Hit three different crews. I want all of them looking over their shoulders.', 'raidall', 3],
+    ['Outnumbered', 'Anyone can win a fair fight. Win when there are four or more of them.', 'bigwin', 2],
     ['Exorcise the Shell', 'Ghost Shell has been reading our comms for a year. Breach their core and end it.', 'boss', 1],
+  ],
+  // The 404 Collective: be nobody, and go after the people who watch everyone.
+  x404: [
+    ['Zero footprint', 'You made a lot of noise getting our attention. Now make none at all.', 'zeroheat', 2],
+    ['Street sources', 'The people nobody looks at see everything. Do business with them.', 'junk', 3],
+    ['Dark fibre', 'One route out is a leash. Build six.', 'proxies', 6],
+    ['Phantom freight', 'A package for someone on the Backchannel. You never met them and you never will.', 'deliver', 5, 'Rootkits', 'IRC Backchannel'],
+    ['Uninvited guests', 'The other crews will come looking for whoever we are. Send them home.', 'gangwin', 3],
+    ['Federal offence', 'Agents with budgets. Beat them anyway, twice.', 'fed', 2],
+    ['Watch the watchers', 'You have beaten the NSA once. Once is luck.', 'nsawin', 1],
+    ['Take back the list', 'Red Team Zero sold a list of our names. Breach their core and delete it.', 'boss', 1],
   ],
 };
 let questTally = 0, junkTally = 0;   // counted for the self-test
@@ -639,7 +798,15 @@ let questTally = 0, junkTally = 0;   // counted for the self-test
 function fixQuest() {
   const q = career.quest;
   if (!career.syn) career.quest = null;
-  else if (!q || !Number.isInteger(q.n) || q.n < 0 || !(q.p >= 0)) career.quest = {n: 0, p: 0};
+  else if (!q || !Number.isInteger(q.n) || q.n < 0 || !(q.p >= 0)) career.quest = {n: 0, p: 0, v: 2};
+  else if (q.v !== 2) { q.p = 0; q.v = 2; }   // the lines were rewritten: keep the place, restart that mission's count
+}
+// Fill in whatever a career from an older version lacks.
+function fixCareer() {
+  if (!career.stats || typeof career.stats !== 'object') career.stats = {};
+  if (!career.ach || typeof career.ach !== 'object') career.ach = {};
+  if (!Array.isArray(career.locker)) career.locker = [];
+  fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
 const newOrder = () => pick([{kind: 'jobs', t: rnd(2, 4)}, {kind: 'profit', t: rnd(2, 6) * 50000}, {kind: 'law', t: rnd(2, 3)},
@@ -659,28 +826,54 @@ function quest() {
     kind: q.o.kind, t: q.o.t, xp: 60 * level(), cash: 10000, rar: -1, order: true};
 }
 function questGoal(Q) {
-  const times = `${Q.t} time${Q.t === 1 ? '' : 's'}`;
-  return Q.kind === 'jobs' ? `Pull off ${Q.t} freelance job${Q.t === 1 ? '' : 's'}`
-    : Q.kind === 'profit' ? `Make ${money(Q.t)} profit selling goods`
-    : Q.kind === 'law' ? `Beat the law or get away from it ${times}`
-    : Q.kind === 'raid' ? `Clean out ${Q.t} rival node${Q.t === 1 ? '' : 's'} (Hack a rival)`
-    : Q.kind === 'kills' ? `Knock ${Q.t} rival operators offline, in fights you win`
-    : Q.kind === 'cool' ? `Go to sleep with your Heat under 20%, ${times}`
-    : Q.kind === 'wallet' ? `Hold ${money(Q.t)} in the cold wallet`
-    : Q.kind === 'debt' ? 'Pay off the Fixer in full'
-    : Q.kind === 'deliver' ? `Bring ${Q.t} ${Q.good} to ${Q.place}`
-    : Q.kind === 'score' ? `Finish a run worth ${money(Q.t)} or more`
-    : `Breach the ${SYNDICATES[NEMESIS[career.syn]][0]} core and win`;
+  const t = Q.t, times = `${t} time${t === 1 ? '' : 's'}`, s = t === 1 ? '' : 's';
+  const text = {
+    jobs: `Pull off ${t} freelance job${s}`,
+    quietjob: `Pull off ${t} freelance job${s} while your Heat is under 30%`,
+    profit: `Make ${money(t)} profit selling goods`,
+    spike: `Sell at a profit into a price spike (&#9650;), ${times}`,
+    interest: `Earn ${money(t)} in cold wallet interest`,
+    loot: `Take ${money(t)} out of rival nodes (Hack a rival)`,
+    law: `Beat the law or get away from it ${times}`,
+    escape: `Get away from the law ${times}, by running or with smoke`,
+    smuggle: `Get away from the law ${times} while carrying 50 or more goods`,
+    lawwin: `Beat the law in a fight ${times}`,
+    cleanwin: `Beat the law ${times} without a weapon or an EMP`,
+    fed: `Beat the FBI or the NSA in a fight ${times}`,
+    nsawin: `Beat the NSA in a fight ${times}`,
+    raid: `Clean out ${t} rival node${s} (Hack a rival)`,
+    raidall: `Clean out a node belonging to ${t} different rival crews`,
+    kills: `Knock ${t} rival operators offline, in fights you win`,
+    gangwin: `Beat back ${t} rival crew attack${s}`,
+    flawless: `Win ${t} fight${s} without taking a hit`,
+    bigwin: `Win ${t} fight${s} against 4 or more hostiles`,
+    cool: `Go to sleep with your Heat under 20%, ${times}`,
+    zeroheat: `Go to sleep with 0% Heat, ${times}`,
+    fakeid: `Burn ${t} Fake ID${s}`,
+    junk: `Buy ${t} thing${s} from junkies`,
+    cleanrun: 'Finish a run without being arrested',
+    wallet: `Hold ${money(t)} in the cold wallet`,
+    debt: 'Pay off the Fixer in full',
+    drive: `Grow your drive to ${t} slots`,
+    stash: `Have ${t} goods stashed in the Bunker`,
+    proxies: `Run ${t} proxy chains at once`,
+    deliver: `Bring ${t} ${Q.good} to ${Q.place}`,
+    score: `Finish a run worth ${money(t)} or more`,
+    boss: `Breach the ${SYNDICATES[NEMESIS[career.syn]][0]} core and win`,
+  };
+  return text[Q.kind] || Q.kind;
 }
 // How far along the current mission is. Some missions look at where you stand now, not at a count.
-const questProg = Q => Q.kind === 'wallet' ? S.wallet : Q.kind === 'debt' ? (S.debt ? 0 : 1) : career.quest.p;
+const QUEST_NOW = {wallet: () => S.wallet, debt: () => (S.debt ? 0 : 1), drive: () => cap(), stash: () => stashTotal(),
+  proxies: () => S.proxies};
+const questProg = Q => (QUEST_NOW[Q.kind] ? QUEST_NOW[Q.kind]() : career.quest.p);
 function questStatus(Q) {
   const p = Math.min(Q.t, questProg(Q));
   return Q.kind === 'deliver' ? `you carry ${num(S.inv[Q.good] || 0)} / ${Q.t}`
     : Q.kind === 'boss' ? 'start it from the briefing'
     : Q.kind === 'debt' ? (S.debt ? `you owe ${money(S.debt)}` : 'paid')
     : Q.kind === 'score' ? `best so far ${money(p)}`
-    : Q.kind === 'profit' || Q.kind === 'wallet' ? `${money(p)} / ${money(Q.t)}`
+    : ['profit', 'wallet', 'interest', 'loot'].includes(Q.kind) ? `${money(p)} / ${money(Q.t)}`
     : `${p} / ${Q.t}`;
 }
 const questReward = Q => `<span class="cyan">+${num(Q.xp)} XP</span>, ${money(Q.cash)}` +
@@ -690,7 +883,13 @@ function questEvent(kind, amount) {
   const Q = quest();
   if (!Q || Q.kind !== kind) return;
   const q = career.quest;
-  q.p = kind === 'score' ? Math.max(q.p, amount) : q.p + amount;
+  if (kind === 'raidall') {   // amount is the crew that was raided: count each crew once
+    q.set = q.set || {};
+    q.set[amount] = 1;
+    q.p = Object.keys(q.set).length;
+  } else {
+    q.p = kind === 'score' ? Math.max(q.p, amount) : q.p + amount;
+  }
   saveCareer();
 }
 async function questBrief() {
@@ -706,7 +905,7 @@ async function questCheck() {
   for (let Q = quest(); Q && questProg(Q) >= Q.t; Q = quest()) {
     const q = career.quest, crew = SYNDICATES[career.syn][0], who = HANDLER[career.syn];
     const last = !Q.order && q.n === QUESTS[career.syn].length - 1;
-    q.n++; q.p = 0; q.o = null;
+    q.n++; q.p = 0; q.o = null; delete q.set;
     questTally++;
     S.cash += Q.cash;
     const xp = gainXp(Q.xp);
@@ -878,7 +1077,7 @@ const HAIRSTYLES = ['Crop', 'Mohawk', 'Long', 'Buzz', 'Bald'];
 const HAIRCOLS = [['Violet', '#2b1b3f'], ['Black', '#15131c'], ['Brown', '#4a2c1a'], ['Blonde', '#d9b45a'],
   ['Red', '#a8321f'], ['Silver', '#b9c0d0'], ['Teal', '#0f6f78']];
 const STREAKS = [['Magenta', '#ff4fd8'], ['Cyan', '#00e5ff'], ['Yellow', '#fcee0a'], ['Green', '#3dff9a'], ['None', null]];
-const SYN_COL = {ghost: '#00e5ff', ledger: '#ffd24a', null: '#3dff9a', red: '#ff3b5c'};
+const SYN_COL = {ghost: '#00e5ff', ledger: '#ffd24a', null: '#3dff9a', red: '#ff3b5c', x404: '#c77dff'};
 // Cyberware that appears on the avatar as you level up.
 const WARE = [[8, 'optic implant'], [9, 'wired forearm'], [20, 'aura'], [25, 'brighter aura'], [30, 'full aura and halo']];
 let avSeq = 0;
@@ -1138,6 +1337,10 @@ function figure(F) {
       `<path d="M88 75 Q100 101 112 75"/>${F.gold ? '<path d="M85 76 Q100 122 115 76"/>' : ''}</g>` +
       `<circle cx="100" cy="${F.gold ? 100 : 89}" r="${F.gold ? 5 : 3.4}" fill="${GOLD}" stroke="${INK}" stroke-width="1"/>` +
       `<rect x="143.5" y="190" width="14" height="5" rx="1.5" fill="${GOLD}" stroke="${INK}" stroke-width=".8"/>`;
+  }
+  if (F.syn === 'x404') {   // 404 Collective: a flickering error code on the chest
+    out += `<text class="av-eye" x="100" y="121" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" ` +
+      `fill="${SYN_COL.x404}" stroke="${INK}" stroke-width=".5" style="filter:drop-shadow(0 0 3px ${SYN_COL.x404})">404</text>`;
   }
   if (F.syn === 'red') {   // Red Team Zero: armband
     out += flip(`<path d="M48 120 L66.5 123 L65.5 135 L47 132 Z" fill="${SYN_COL.red}" stroke="${INK}" stroke-width="1"/>` +
@@ -1948,7 +2151,7 @@ function meter(label, value, max, text, color) {
 }
 const vitals = () => meter('Health', S.hp, 100, S.hp + '%') + meter('OpSec', S.opsec, 100, S.opsec + '%');
 const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
-const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn);
+const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && k !== HIDDEN_SYN);
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
 
 function addItems(name, qty, price) {
@@ -2429,6 +2632,7 @@ function render() {
   if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="gearmenu">Gear (${career.bag.length} in bag)</button>`;
+  acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
@@ -2471,7 +2675,7 @@ const ACTIONS = {
     removeItems(name, qty);
     addHeat(qty * price);
     const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
-    if (profit > 0) questEvent('profit', profit);
+    if (profit > 0) { tally('profit', profit); if (S.flags[name] === 'up') tally('spike'); }
     S.mood = profit > 0 ? 'grin' : profit < 0 ? 'ouch' : S.mood;
     log(`Sold ${num(qty)} ${name} for ${money(qty * price)} ` +
       `(<span class="${profit >= 0 ? 'green' : 'red'}">${profit >= 0 ? '+' : ''}${money(profit)}</span>).${xp}`);
@@ -2489,13 +2693,14 @@ const ACTIONS = {
       'Levels and proxies raise the chance; Heat lowers it.</p>', 'Run the job', 'Walk away')) return;
     removeItems(c.good, c.qty);
     S.contracts.splice(index, 1);
-    const quiet = inSyn('ghost');
+    const quiet = inSyn('ghost'), heatWas = S.heat;
     if (Math.random() * 100 < chance) {
       S.cash += pay;
       S.mood = 'grin';
       S.heat = Math.min(100, S.heat + (quiet ? 4 : 8));
       const xp = gainXp(40 + (100 - c.chance));
-      questEvent('jobs', 1);
+      tally('jobs');
+      if (heatWas < 30) tally('quietjob');
       log(`<span class="green">Freelance job done: ${c.client} paid ${money(pay)}.</span>${xp}`);
       await alertDlg('Job done', `<p>Clean work. ${c.client} pays <b>${money(pay)}</b>.</p>`);
     } else {
@@ -2632,7 +2837,8 @@ const ACTIONS = {
     if (!await confirmDlg('Sleep', '<p>Sleep in the Bunker and end the day? You recover 35% Health and 15% OpSec, and your Heat cools.</p>' +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
-    if (S.heat < 20) questEvent('cool', 1);
+    if (S.heat < 20) tally('cool');
+    if (S.heat <= 0) tally('zeroheat');
     nextDay();
     S.hp = Math.min(100, S.hp + 35);
     S.opsec = Math.min(100, S.opsec + 15);
@@ -2694,6 +2900,7 @@ const ACTIONS = {
   async fakeid() {
     if (!S.fakeid || S.heat <= 0) return;
     S.fakeid--;
+    tally('fakeid');
     S.heat = Math.max(0, S.heat - 40);
     log(`You burned a ${GADGETS.fakeid[0]}: Heat down to ${S.heat}%.`);
   },
@@ -2746,6 +2953,8 @@ const ACTIONS = {
       '<p class="dim">Cyberware shows on your avatar as you level: ' + WARE.map(([at, what]) =>
         `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>';
     const buttons = [['Close', null, 'primary']];
+    buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
+    if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
     if (career.syn) {
       html += `<div class="syn"><b>${SYNDICATES[career.syn][0]}</b><br>${SYNDICATES[career.syn][1]}</div>`;
       buttons.unshift(['Syndicate missions', 'quest']);
@@ -2758,6 +2967,25 @@ const ACTIONS = {
     const choice = await dialog('Your record', html, buttons);
     if (choice === 'join') await chooseSyndicate();
     else if (choice === 'quest') await ACTIONS.syndicate();
+    else if (choice === 'ach') await ACTIONS.achievements();
+    else if (choice === 'hidden') await hiddenInvite();
+  },
+
+  async achievements() {
+    const ids = Object.keys(ACH);
+    const html = `<p><b>${achCount()}</b> of ${ids.length} earned. Each one pays XP, and they belong to this save.</p>` +
+      ids.map(id => {
+        const [name, how, xp, , secret] = ACH[id], got = career.ach[id];
+        return `<div class="syn"><b style="color:var(--${got ? 'yellow' : 'dim'})">${got ? '&#10003; ' : ''}${secret && !got ? '???' : name}</b> ` +
+          `<span class="cyan">+${xp} XP</span><br><span class="${got ? '' : 'dim'}">${secret && !got ? 'A secret. Somebody is watching how you deal with the people who watch everyone.' : how}</span></div>`;
+      }).join('');
+    await dialog('Achievements', html, [['Close', null, 'primary']]);
+  },
+
+  // Back to the start menu, to switch to another save or start a new one.
+  async menu() {
+    save();
+    await startMenu();
   },
 
   // Your syndicate's mission: the briefing, how far along you are, and anything you do from here
@@ -2790,14 +3018,14 @@ const ACTIONS = {
     const choice = await dialog('Syndicate mission', html, buttons);
     if (choice === 'give' && (S.inv[Q.good] || 0) >= Q.t) {
       removeItems(Q.good, Q.t);
-      questEvent('deliver', Q.t);
+      tally('deliver', Q.t);
       log(`Handed ${Q.t} ${Q.good} to ${SYNDICATES[key][0]} at ${Q.place}.`);
     } else if (choice === 'boss') {
       S.raided = true;
       const E = {kind: 'raid', gang: foe, name: SYNDICATES[foe][0], n: 7, hit: 0.34, lo: 4, hi: 9,
         intro: `You are inside the ${SYNDICATES[foe][0]} core. 7 of their best operators are jacked in, and they were expecting someone.`};
       await fight(E);
-      if (E.result === 'won') questEvent('boss', 1);
+      if (E.result === 'won') tally('boss');
     }
   },
 
@@ -2860,6 +3088,7 @@ const ACTIONS = {
       } else {
         const xp = S.cleared ? '' : gainXp(50);
         S.cleared = true;
+        tally('debt');
         log(`<span class="green">You are clear with the Fixer!</span>${xp}`);
       }
     } else if (cmd === 'b') {
@@ -2899,7 +3128,9 @@ const ACTIONS = {
 function nextDay() {
   S.day += 1;
   S.debt = Math.ceil(S.debt * (1 + debtRate()));
+  const banked = S.wallet;
   S.wallet = Math.floor(S.wallet * (1 + walletRate()));
+  if (S.wallet > banked) tally('interest', S.wallet - banked);
   S.heat = Math.max(0, S.heat - HEAT_DECAY);
   S.raided = false;
   S.mood = '';
@@ -3023,6 +3254,7 @@ async function randomEvent() {
       const loss = Math.floor(S.cash * rnd(10, 25) / 100);
       S.cash -= loss;
       S.mood = 'ouch';
+      tally('phished');
       log(`<span class="red">Phished! Lost ${money(loss)} from your hot wallet.</span>`);
       await alertDlg('Phished', `<p>You clicked a link. YOU. Someone drained <b>${money(loss)}</b> from your hot wallet.</p>` +
         '<p class="dim">Cash in the cold wallet is safe from this.</p>', 'danger');
@@ -3150,6 +3382,7 @@ async function junkie() {
     o.take(o.price);
     offers.splice(offers.indexOf(o), 1);
     bought++;
+    tally('junk');
     log(`Bought ${o.name} from ${name} for ${money(o.price)}.`);
   }
   if (!bought) log(`You left ${name} to it.`);
@@ -3172,7 +3405,8 @@ function gangEncounter(key) {
 async function fight(E) {
   const total = E.n, law = E.kind === 'law', raid = E.kind === 'raid', quiet = inSyn('ghost');
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
-  let n = E.n, violent = false;
+  let n = E.n, violent = false, unhurt = true;
+  const gotAway = () => { tally('law'); tally('escape'); if (used() >= 50) tally('smuggle'); };
   let msg = law ? `${E.name[0].toUpperCase() + E.name.slice(1)} has a lock on you: ${plural(n, 'agent')}.`
     : raid ? `You breach a ${E.name} node. ${plural(n, 'operator')} are jacked in and they see you.`
     : `${E.name} crackers are inside your rig: ${plural(n, 'intruder')}.`;
@@ -3247,7 +3481,7 @@ async function fight(E) {
     } else if (cmd === 'smoke') {
       S.smoke--;
       log(`<span class="green">You vanished in a cloud of ${GADGETS.smoke[0]}.</span>` + gainXp(10));
-      if (law) questEvent('law', 1);
+      if (law) gotAway();
       E.result = 'fled';
       return alertDlg('Escaped', '<p>You pop the smoke and you are gone before it clears.</p>');
     } else if (cmd === 'hack') {
@@ -3270,7 +3504,7 @@ async function fight(E) {
           log(`You jacked out of the ${E.name} node empty-handed.`);
           return;
         }
-        if (law) { S.heat = Math.max(0, S.heat - 10); questEvent('law', 1); }
+        if (law) { S.heat = Math.max(0, S.heat - 10); gotAway(); }
         log('<span class="green">You hopped three networks and vanished.</span>' + gainXp(law ? 20 : 10));
         E.result = 'fled';
         return alertDlg('Escaped', '<p>You hop three networks and vanish.</p>');
@@ -3307,8 +3541,17 @@ async function fight(E) {
       }
       loot = Math.round(loot * (1 + bonus('luck') / 100));
       S.cash += loot;
-      if (law) questEvent('law', 1);
-      else { questEvent('kills', total); if (raid) questEvent('raid', 1); }
+      if (law) {
+        tally('law'); tally('lawwin');
+        if (!violent) tally('cleanwin');
+        if (E.tier >= 1) tally('fed');
+        if (E.tier === 2) tally('nsawin');
+      } else {
+        tally('kills', total);
+        if (raid) { tally('raid'); tally('loot', loot); questEvent('raidall', E.gang); } else tally('gangwin');
+      }
+      if (unhurt) tally('flawless');
+      if (total >= 4) tally('bigwin');
       S.mood = 'grin';
       const what = law ? `You shook off ${E.name} and sold their tooling`
         : raid ? `You cleaned out a ${E.name} node` : `You beat back ${E.name} and drained their wallets`;
@@ -3341,7 +3584,9 @@ async function fight(E) {
     }
 
     let dmg = 0;
-    for (let i = 0; i < n && !stunned; i++) if (Math.random() < E.hit) dmg += rnd(E.lo, E.hi);
+    const theirAim = E.hit * (inSyn(HIDDEN_SYN) ? 0.75 : 1);   // the 404 are hard to pin down
+    for (let i = 0; i < n && !stunned; i++) if (Math.random() < theirAim) dmg += rnd(E.lo, E.hi);
+    if (dmg) unhurt = false;
     if (dmg && physical) {
       // In the open they hurt you, not your rig. Armour soaks up part of it.
       dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100)));
@@ -3400,6 +3645,8 @@ async function lose(E) {
   S.opsec = Math.max(S.opsec, E.tier ? 50 : 60);
   S.hp = Math.max(S.hp, 50);
   S.heat = E.tier ? 20 : 10;
+  S.arrests = (S.arrests || 0) + 1;
+  tally('arrest');
   log(`<span class="red">Arrested by ${E.name}: goods seized, ${money(fine)} fine, ${served} day${served === 1 ? '' : 's'} inside.</span>`);
   S.mood = 'ouch';
   render();
@@ -3422,7 +3669,9 @@ async function finish() {
     return;
   }
   const score = S.cash + S.wallet - S.debt;
-  questEvent('score', score);
+  tally('runs');
+  if (!S.arrests) tally('cleanrun');
+  tally('score', score);
   gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / 5));
   const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
@@ -3463,15 +3712,15 @@ document.addEventListener('click', async e => {
 });
 
 // ---------- self test: open index.html#selftest to auto-play random games ----------
-async function selfTest() {
+async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
   let finished = 0, busted = 0, best = -Infinity, contractsSeen = 0, raids = 0;
   try {
-    for (let game = 0; game < 200; game++) {
-      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red']), gear: {}, bag: [], locker: [],
+    for (let game = 0; game < games; game++) {
+      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red', 'x404']), gear: {}, bag: [], locker: [],
         quest: pick([null, {n: rnd(0, 9), p: 0}])};
-      fixQuest();
+      fixCareer();
       for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
       if (game % 2) career.look = {skin: rnd(0, 5), hair: rnd(0, 4), col: rnd(0, 6), streak: rnd(0, 4)};
       newGame();
@@ -3482,7 +3731,7 @@ async function selfTest() {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
-          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore', 'outfitter', 'ammo']) : r < 0.97 ? 'gearmenu' : r < 0.98 ? 'syndicate' : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
+          : r < 0.93 ? 'raid' : r < 0.96 ? pick(['gear', 'dealer', 'gunstore', 'outfitter', 'ammo']) : r < 0.97 ? 'gearmenu' : r < 0.98 ? pick(['syndicate', 'syndicate', 'achievements']) : r < 0.99 ? pick(['medkit', 'fakeid']) : 'profile';
         if ((act === 'broker' || act === 'wallet') && S.loc !== HOME) continue;
         if ((act === 'gear' || act === 'dealer') && !GEAR_SPOTS.includes(S.loc)) continue;
         if ((act === 'gunstore' || act === 'outfitter') && S.loc !== GUN_SPOT) continue;
@@ -3526,78 +3775,85 @@ async function selfTest() {
       }
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally}`;
+    document.body.textContent = `SELFTEST OK finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
     document.body.textContent = 'SELFTEST FAIL ' + (err && err.stack || err);
   }
 }
 
-// ---------- boot ----------
-(async function boot() {
-  // Loading screen: plays for a moment, or tap to skip. The game sets itself up underneath.
-  const bootEl = $('#boot');
-  const endBoot = () => { bootEl.classList.add('gone'); setTimeout(() => bootEl.remove(), 400); };
-  if (location.hash === '#selftest') { bootEl.remove(); return selfTest(); }
-  bootEl.onclick = endBoot;
-  setTimeout(endBoot, 2600);
-  // Web version only: keep a copy for offline play.
-  if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  }
+// ---------- save files and the start menu ----------
+// Make save file n the one in use and load it. Returns true if it had a run in progress.
+function loadSave(n) {
+  slot = n;
+  career = newCareer();
+  pendingLevel = 0; logs = []; notes = [];
   const record = store.get('zdh-career');
   if (record && Number.isInteger(record.xp) && record.xp >= 0) {
     career = {xp: record.xp, syn: SYNDICATES[record.syn] ? record.syn : null, quest: record.quest,
       gear: record.gear && typeof record.gear === 'object' ? record.gear : {},
       bag: Array.isArray(record.bag) ? record.bag : [],
-      locker: Array.isArray(record.locker) ? record.locker : []};
+      locker: Array.isArray(record.locker) ? record.locker : [],
+      stats: record.stats, ach: record.ach};
     if (record.look && typeof record.look === 'object') career.look = record.look;
-    fixQuest();   // members from before the questlines start at mission 1
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
-    saveCareer();
   }
+  fixCareer();   // members from before the questlines start at mission 1
+  saveCareer();
   const saved = store.get('zdh-save');
-  if (saved && saved.prices && !saved.over) {
-    S = saved;
-    // Fill in anything a save from an older version lacks.
-    S.contracts = S.contracts || [];
-    S.hp = Number.isInteger(S.hp) ? S.hp : 100;
-    S.medkits = S.medkits || 0;
-    S.stash = S.stash || {};
-    S.markets = S.markets || {};
-    if (!Number.isInteger(S.trips)) S.trips = TRIPS_PER_DAY;
-    if (S.loc !== BUNKER && S.prices) S.markets[S.loc] = S.markets[S.loc] ||
-      {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
-    S.stashCost = S.stashCost || {};
-    starterGear();
-    S.shop = S.shop || [];
-    for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
-    if (S.armor && !career.gear.body) {
-      // The old vest becomes a gear item.
-      career.gear.body = {slot: 'body', rar: 1, name: 'Tuned Armoured Vest', stats: {armor: 15}};
-    }
-    delete S.armor;
-    S.weapon = S.weapon || 0;
-    for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
-    S.ammo = Object.assign(noAmmo(), S.ammo);
-    if (!AMMO[S.loaded]) S.loaded = 'std';
-    S.store = S.store || [];
-    S.grudge = Object.assign(noGrudges(), S.grudge);
-    S.raided = !!S.raided;
-    log('Run resumed.');
-    render();
-    return;
+  if (!(saved && saved.prices && !saved.over)) { newGame(); return false; }
+  S = saved;
+  // Fill in anything a save from an older version lacks.
+  S.contracts = S.contracts || [];
+  S.hp = Number.isInteger(S.hp) ? S.hp : 100;
+  S.medkits = S.medkits || 0;
+  S.stash = S.stash || {};
+  S.markets = S.markets || {};
+  if (!Number.isInteger(S.trips)) S.trips = TRIPS_PER_DAY;
+  if (S.loc !== BUNKER && S.prices) S.markets[S.loc] = S.markets[S.loc] ||
+    {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop};
+  S.stashCost = S.stashCost || {};
+  starterGear();
+  S.shop = S.shop || [];
+  for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
+  if (S.armor && !career.gear.body) {
+    // The old vest becomes a gear item.
+    career.gear.body = {slot: 'body', rar: 1, name: 'Tuned Armoured Vest', stats: {armor: 15}};
   }
-  newGame();
-  render();
-  busy = true;
-  await alertDlg('ZERO DAY HUSTLE',
-    `<p>You have <b>${DAYS} days</b>, ${money(S.cash)} and a ${money(START_DEBT)} debt to the Fixer ` +
+  delete S.armor;
+  S.weapon = S.weapon || 0;
+  for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
+  S.ammo = Object.assign(noAmmo(), S.ammo);
+  if (!AMMO[S.loaded]) S.loaded = 'std';
+  S.store = S.store || [];
+  S.grudge = Object.assign(noGrudges(), S.grudge);
+  S.raided = !!S.raided;
+  log('Run resumed.');
+  return true;
+}
+
+// One line about a save file, read straight from storage without loading it.
+function saveCard(n, meta) {
+  const c = store.get('zdh-career', n) || {}, r = store.get('zdh-save', n);
+  const lvl = levelInfo(Number.isInteger(c.xp) ? c.xp : 0).level;
+  const crew = c.syn && SYNDICATES[c.syn] ? ` &middot; ${SYNDICATES[c.syn][0]}` : '';
+  const run = r && r.prices && !r.over ? `Day ${r.day}/${DAYS} &middot; ${money((r.cash || 0) + (r.wallet || 0) - (r.debt || 0))} net`
+    : 'between runs';
+  const earned = c.ach && typeof c.ach === 'object' ? Object.keys(ACH).filter(id => c.ach[id]).length : 0;
+  const when = meta.t ? new Date(meta.t).toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : '';
+  return `<b>${esc(meta.name || 'anon')}</b> <span class="dim">save ${n}${n === slot ? ' &middot; in use' : ''}</span><br>` +
+    `<span class="lvl" style="color:var(--magenta)">LVL ${lvl}</span> ${titleFor(lvl)}${crew}<br>` +
+    `<span class="dim">${run} &middot; ${earned}/${Object.keys(ACH).length} achievements${when ? ` &middot; ${when}` : ''}</span>`;
+}
+
+function introText() {
+  return `<p>You have <b>${DAYS} days</b>, ${money(S.cash)} and a ${money(START_DEBT)} debt to the Fixer ` +
     `that grows ${pct(debtRate())}% a day.</p>` +
     '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
     'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
     '<p><span class="amber">Freelance jobs</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate, and its missions are the fastest way to level from there.</p>' +
+    '<p><span class="amber">Achievements</span> pay XP too. One of them is a secret, and it opens a door.</p>' +
     '<p>Now and then a junkie will be waiting where you surface, selling tools and gear far below shop prices.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
     'then the NSA. Rival syndicates will try to rob you too, and you can raid them back.</p>' +
@@ -3606,8 +3862,82 @@ async function selfTest() {
     '<p>Firearms need <span class="amber">ammo</span>, and better rounds hit more often.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
-    '<p class="dim">Only cash and your cold wallet count at the end.</p>');
-  if (!career.look) await ACTIONS.look();
+    '<p class="dim">Only cash and your cold wallet count at the end.</p>';
+}
+
+// The start menu: continue, start a new game, load a save or delete one. Returns once a save is in use.
+async function startMenu() {
+  for (;;) {
+    const list = saveList(), ids = Object.keys(list).map(Number).filter(n => n >= 1 && n <= MAX_SAVES).sort((a, b) => a - b);
+    const last = Number(store.get('zdh-last')), full = ids.length >= MAX_SAVES;
+    const html = '<p class="dim">// UNDERGROUND MARKET UPLINK</p>' +
+      (ids.length ? `<p class="dim">SAVES ${ids.length}/${MAX_SAVES}: tap one to load it</p>` +
+        ids.map(n => `<div class="syn pickable" data-pick="load:${n}">${saveCard(n, list[n])}</div>`).join('')
+        : '<p>No saves yet. Start a new game.</p>') +
+      (full ? `<p class="amber">All ${MAX_SAVES} save files are in use. Delete one to start a new game.</p>` : '');
+    const buttons = [];
+    if (slot && list[slot]) buttons.push(['Back to the game', 'back', 'primary']);
+    else if (ids.includes(last)) buttons.push([`Continue: ${list[last].name || 'anon'}`, `load:${last}`, 'primary']);
+    if (!full) buttons.push(['New game', 'new', buttons.length ? '' : 'primary']);
+    if (ids.length) buttons.push(['Delete a save', 'del', 'small']);
+    const choice = await dialog('ZERO DAY HUSTLE', html, buttons);
+    if (choice === 'back') return;
+    if (choice === 'new') {
+      const name = (await askText('New game', `<p>Your handle for this save (${ids.length + 1} of ${MAX_SAVES}):</p>`)) || 'anon';
+      slot = [1, 2, 3, 4, 5].find(n => !list[n]);
+      career = newCareer();
+      pendingLevel = 0; logs = []; notes = [];
+      newGame();
+      touchSave(name.slice(0, 16));
+      saveCareer();
+      save();
+      render();
+      await alertDlg('ZERO DAY HUSTLE', introText());
+      if (!career.look) await ACTIONS.look();
+      return;
+    }
+    if (choice === 'del') {
+      const pickOne = await dialog('Delete a save', '<p>Which save? Its levels, gear, achievements and run are gone for good.</p>' +
+        ids.map(n => `<div class="syn">${saveCard(n, list[n])}</div>`).join(''),
+        ids.map(n => [`Delete ${list[n].name || 'anon'} (save ${n})`, n, 'danger']).concat([['Cancel', null, 'primary']]), 'danger');
+      if (pickOne && await confirmDlg('Delete a save', `<p>Delete <b>${esc(list[pickOne].name || 'anon')}</b> (save ${pickOne})? This cannot be undone.</p>`,
+        'Delete it', 'Keep it')) {
+        store.del('zdh-career', pickOne);
+        store.del('zdh-save', pickOne);
+        delete list[pickOne];
+        store.set('zdh-slots', list);
+        if (pickOne === slot) slot = 0;   // the game behind the menu no longer exists: pick another or start one
+      }
+      continue;
+    }
+    if (String(choice).startsWith('load:')) {
+      const n = Number(choice.slice(5));
+      if (n !== slot) { if (slot) save(); loadSave(n); }
+      touchSave();
+      render();
+      return;
+    }
+  }
+}
+
+// ---------- boot ----------
+(async function boot() {
+  // Loading screen: plays for a moment, or tap to skip. The game sets itself up underneath.
+  const bootEl = $('#boot');
+  const endBoot = () => { bootEl.classList.add('gone'); setTimeout(() => bootEl.remove(), 400); };
+  // #selftest plays 200 random games; #selftest=30 plays 30.
+  if (location.hash.startsWith('#selftest')) { bootEl.remove(); return selfTest(Number(location.hash.split('=')[1]) || 200); }
+  bootEl.onclick = endBoot;
+  setTimeout(endBoot, 2600);
+  // Web version only: keep a copy for offline play.
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  adoptOldSave();
+  newGame();   // something to draw behind the menu; nothing is saved until a save file is chosen
+  render();
+  busy = true;
+  await startMenu();
   render();
   busy = false;
   save();
