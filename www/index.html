@@ -547,11 +547,13 @@ const ECON = {
   depthWeight: {'Zero-Days': 3, 'Rootkits': 2},   // per-good multiplier on depth: the big-ticket goods are where the late money is
   minDepth: 0.3,         // the thinnest a market gets: it takes one unit at the price shown and barely a second
   thin: 0.75,            // below this depth a market buys a good from you but has none of it for sale
+  streetDepth: 3, streetMax: 1000,   // goods with a mid price up to streetMax are never thinner than streetDepth units
   spikeDepth: 1,         // a market that is short of something (the amber up-arrow) takes this many times more
   floodStock: 2,         // a market that is flooded (the cyan down-arrow) has this many times the stock
   stock: 2,              // units on sale per day, as a multiple of the depth
   floor: 0.1,            // however much you dump, the price never falls below this share of the opening price
   recover: 0.5,          // share of yesterday's price move that is still there in the morning
+  tripRecover: 0.12,     // share of a market's move that comes back with each trip you make somewhere else (see easeMarkets)
   spikeOdds: 0.035, spikeMult: [2, 4],   // chance per good per market per day that it is scarce, and by how much
   crashOdds: 0.06, crashDiv: [3, 5],     // ...or flooded, and what the price is divided by
   // Freelance jobs pay goods' value x (jobBase + up to jobRisk for a risky job + up to jobLuck at random).
@@ -563,6 +565,8 @@ const ECON = {
   // Heat from dealing: one point for every heatDeal x the day's market size that changes hands in one deal
   // (never less than heatMin dollars a point), up to 10 points a deal.
   heatDeal: 0.25, heatMin: 1000,
+  // XP: a sale pays xpSale x sqrt(profit / the day's market size), up to 60; finishing a run pays 100 + sqrt(score) / xpScoreDiv, up to 500.
+  xpSale: 75, xpScoreDiv: 2,
   driveCurve: 2,         // drive upgrade number n+1 costs (1 + n) ^ driveCurve times the first one
   // Cash taken off beaten hostiles, as a multiple of what it was before 1.28.
   raidLoot: 0.35, lawLoot: 0.6, gangLoot: 0.6, thugLoot: 0.6,
@@ -787,7 +791,7 @@ const GEAR_SPOTS = ['Tor Bazaar', 'Datacenter Dock'];   // where the black marke
 const RIDE_SHOPS = {
   bike: ['404: Brakes Not Found', 'Campus Lab', 'bike shop',
     'A shed behind the bike racks, run by a student who has not been to a lecture since the second week. ' +
-    '"Welcome to 404: Brakes Not Found. Everything in here is powered by you, which is why it is cheap."'],
+    '"Welcome to 404: Brakes Not Found. Everything in here is powered by you, so once you have paid for it, you are done paying for it."'],
   auto: ['Grand Theft Otto\'s', 'Paste Alley', 'auto shop',
     'A lot at the end of the alley, under a sign with two letters out. "Grand Theft Otto\'s. I am Otto. The name is a ' +
     'coincidence. Every one of these has papers. Some of them have the right papers."'],
@@ -1508,7 +1512,7 @@ const QUESTS = {
     ['Audit trail', 'A firm of auditors has our name in a spreadsheet. Go in and correct the spreadsheet. A forced door is a line item I will have to explain.', 'heist', 1, 'ledger2'],
     ['Buy the rumour', 'Prices spike when the news breaks. Be holding the goods when it does, and sell into it.', 'spike', 3],
     ['Compound interest', 'Now let the money work. Earn it while you sleep.', 'interest', 25000],
-    ['Hostile takeover', 'Rival nodes are holding assets that should be on our books. Go and collect.', 'loot', 60000],
+    ['Hostile takeover', 'Rival nodes are holding assets that should be on our books. Go and collect.', 'loot', 20000],   // was $60,000 before raid loot was cut (ECON.raidLoot)
     ['Safe deposit', 'A bullion dealer at the Bazaar keeps a cage he believes is private. The firm would like its contents reclassified as ours.', 'heist', 1, 'ledger3'],
     ['Year-end close', 'Finish a run with a balance sheet worth showing the partners.', 'score', 500000],
     ['Seize the manifest', 'Null Sector moves cargo we should be taxing. Breach their core and take the manifest.', 'boss', 1],
@@ -1785,7 +1789,8 @@ function makeGig(name) {
   if (kind === 'deliver') {
     const [good, low, high] = GOODS[rnd(4, GOODS.length - 1)], avg = (low + high) / 2;
     G.good = good;
-    G.t = Math.max(3, Math.min(40, Math.floor(cap() / 2), Math.round((1500 + S.day * 300) / avg)));
+    // Never more than one market deals in that day (its depth), so the goods can be bought in one place without paying double.
+    G.t = Math.max(1, Math.min(40, Math.floor(cap() / 2), Math.floor(depthOf(good)), Math.max(3, Math.round((1500 + S.day * 300) / avg))));
     G.place = elsewhere();
     worth = avg * G.t * 1.5;
   } else if (kind === 'breakin') {
@@ -4299,7 +4304,8 @@ async function useCooler(key) {
 function rollContracts() {
   S.contracts = [];
   const count = pick([0, 1, 1, 2, 2, 3]);
-  const pool = GOODS.slice().sort(() => Math.random() - 0.5).slice(0, count);
+  // (Only goods the markets deal in yet: a job for Zero-Days in week one could not be done. See ECON.thin.)
+  const pool = GOODS.filter(g => !notDealtYet(g[0])).sort(() => Math.random() - 0.5).slice(0, count);
   for (const [name, low, high] of pool) {
     const mid = (low + high) / 2;
     const lot = mid >= 10000 ? 3 : mid >= 2000 ? 8 : mid >= 500 ? 15 : mid >= 100 ? 30 : 50;
@@ -4368,8 +4374,18 @@ const marketSize = () => ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(S.d
 function depthOf(name, flag) {
   const g = GOODS.find(x => x[0] === name), mid = (g[1] + g[2]) / 2;
   const units = marketSize() * (ECON.depthWeight[name] || 1) * (flag === 'up' ? ECON.spikeDepth : 1) / mid;
-  return Math.max(ECON.minDepth, Math.round(units * 10) / 10);
+  // Street-level goods are dealt everywhere from day one, so cheap deliveries and break-in devices can always be bought.
+  return Math.max(mid <= ECON.streetMax ? ECON.streetDepth : ECON.minDepth, Math.round(units * 10) / 10);
 }
+// The first day of the month a good is on sale at all (deep enough to be sold, see ECON.thin). For mission hints.
+function dealtFrom(name) {
+  const keep = S.day;
+  let day = 1;
+  for (; day < DAYS; day++) { S.day = day; if (depthOf(name) >= ECON.thin) break; }
+  S.day = keep;
+  return day;
+}
+const notDealtYet = name => depthOf(name) < ECON.thin;
 const newBook = (name, base) => {
   const depth = depthOf(name, S.flags[name]);
   // A market too thin to deal in something (ECON.thin) will take one off you but has none to sell.
@@ -4397,19 +4413,21 @@ function book(name) {
   return (m.book[name] = newBook(name, S.prices[name]));
 }
 // What one unit trades for when you have already sold x here today (x below zero: bought).
+// Where a book stands: units you sold here today (bought: below zero), less what has come back while you were elsewhere.
+const bookPos = b => b.x - (b.e || 0);
 const priceAt = (b, x) => Math.max(1, Math.round(b.base * Math.max(ECON.floor, Math.pow(0.5, x / b.depth))));
 // Cash for selling qty here now. cut: they carry the street doc's tag and go for less, unit by unit.
 function sellTotal(name, qty, cut) {
   const b = book(name);
   let sum = 0;
-  for (let i = 0; b && i < qty; i++) sum += cut ? tagPrice(priceAt(b, b.x + i)) : priceAt(b, b.x + i);
+  for (let i = 0, at = b ? bookPos(b) : 0; b && i < qty; i++) sum += cut ? tagPrice(priceAt(b, at + i)) : priceAt(b, at + i);
   return sum;
 }
 // What buying qty here costs now.
 function buyTotal(name, qty) {
   const b = book(name);
   let sum = 0;
-  for (let i = 1; b && i <= qty; i++) sum += priceAt(b, b.x - i);
+  for (let i = 1, at = b ? bookPos(b) : 0; b && i <= qty; i++) sum += priceAt(b, at - i);
   return sum;
 }
 // How many are left to buy here today (what you sold them is back on the shelf).
@@ -4418,7 +4436,7 @@ const buyRoom = name => { const b = book(name); return b ? Math.max(0, b.stock +
 function maxBuy(name) {
   const b = book(name), most = Math.min(free(), buyRoom(name));
   let q = 0, sum = 0;
-  while (b && q < most && (sum += priceAt(b, b.x - q - 1)) <= S.cash) q++;
+  while (b && q < most && (sum += priceAt(b, bookPos(b) - q - 1)) <= S.cash) q++;
   return q;
 }
 // A trade went through: sold > 0 units went into this market (below zero: came out of it).
@@ -4426,7 +4444,20 @@ function moveMarket(name, sold) {
   const b = book(name);
   if (!b) return;
   b.x += sold;
-  S.prices[name] = priceAt(b, b.x);
+  S.prices[name] = priceAt(b, bookPos(b));
+}
+// You made a trip: while you are across town, every OTHER market you dealt in today drifts part of the way back to
+// its opening price (ECON.tripRecover of what is left of the move, per trip). This is what makes extra trips, and
+// so rides, worth having: you can come back to a market later in the day and deal again. Stock does not come back.
+function easeMarkets() {
+  for (const [place, m] of Object.entries(S.markets || {})) {
+    if (place === S.loc || !m || !m.book || !m.prices) continue;
+    for (const [name, b] of Object.entries(m.book)) {
+      if (!b || !b.x || !(b.depth > 0)) continue;
+      b.e = Math.round(((b.e || 0) + ECON.tripRecover * (b.x - (b.e || 0))) * 100) / 100;
+      if (m.prices[name]) m.prices[name] = priceAt(b, bookPos(b));
+    }
+  }
 }
 // "It moved": for the log line and the pop-up after a trade.
 const movedText = (was, now) => (now === was ? '' : ` The price here ${now < was ? 'fell' : 'rose'} from ${money(was)} to ${money(now)}.`);
@@ -4448,7 +4479,7 @@ function settleMarkets() {
     for (const [name, b] of Object.entries((m && m.book) || {})) {
       if (!b || !b.x || !(b.depth > 0)) continue;
       const g = S.glut[place] = S.glut[place] || {};
-      g[name] = (g[name] || 0) + b.x / b.depth;
+      g[name] = (g[name] || 0) + bookPos(b) / b.depth;
     }
   }
   for (const [place, g] of Object.entries(S.glut)) {
@@ -5146,7 +5177,7 @@ function render() {
     const bk = book(name);
     if (bk) {
       const pc = Math.round((price / bk.base - 1) * 100);
-      sub += `<div class="sub dim">${bk.stock || buyRoom(name) ? `${num(buyRoom(name))} in stock` : 'none for sale yet: they will take one off you'}` +
+      sub += `<div class="sub dim">${bk.stock ? `${num(buyRoom(name))} in stock` : buyRoom(name) ? `${num(buyRoom(name))} in stock: the one${buyRoom(name) === 1 ? '' : 's'} you sold them` : 'none for sale yet: they will take one off you'}` +
         (pc <= -3 ? ` &middot; <span class="amber">&#9662; ${-pc}% after your sales</span>` : pc >= 3 ? ` &middot; <span class="amber">&#9652; ${pc}% after your buying</span>`
           : bk.soft ? ' &middot; <span class="amber">still soft from your last visit</span>' : '') + '</div>';
     }
@@ -5240,7 +5271,8 @@ const ACTIONS = {
     moveMarket(name, qty);
     if (cut) { tagSales += qty; tally('reasons', qty); }
     addHeat(got);
-    const xp = profit > 0 ? gainXp(Math.min(60, Math.sqrt(profit) / 4)) : '';
+    // XP for a sale is measured against what the markets move that day (ECON.xpSale), not in flat dollars.
+    const xp = profit > 0 ? gainXp(Math.min(60, ECON.xpSale * Math.sqrt(profit / marketSize()))) : '';
     if (profit > 0) { tally('profit', profit); if (S.flags[name] === 'up') tally('spike'); }
     S.mood = profit > 0 ? 'grin' : profit < 0 ? 'ouch' : S.mood;
     SND.play(profit >= 0 ? 'cash' : 'loss');
@@ -5362,7 +5394,7 @@ const ACTIONS = {
       const goodsHtml = goods.map(n => {
         const q = S.inv[n], price = S.prices[n], cost = S.cost[n] || 0;
         paid += q * cost;
-        if (price) worth += sellTotal(n, q - tagged(n)) + tagged(n) * tagPrice(priceAt(book(n), book(n).x + q - tagged(n)));
+        if (price) worth += sellTotal(n, q - tagged(n)) + tagged(n) * tagPrice(priceAt(book(n), bookPos(book(n)) + q - tagged(n)));
         const cls = !price ? 'dim' : price > cost ? 'green' : price < cost ? 'red' : '';
         // Tagged ones get a tile of their own, next to the clean ones of the same kind.
         const marked = tagged(n), glyph = `<b class="glyph ${cls}">${initials(n)}</b>`;
@@ -5460,7 +5492,7 @@ const ACTIONS = {
         const q = S.inv[arg], price = S.prices[arg], cost = S.cost[arg] || 0;
         const act = await dialog(arg, `<div class="syn"><b>${arg}</b> x${num(q)}<br>paid ${money(cost)} each, ${money(q * cost)} in all</div>` +
           (price ? `<p>Sells here from <b class="${price > cost ? 'green' : price < cost ? 'red' : ''}">${money(price)}</b> each, ` +
-            `about ${money(sellTotal(arg, q - tagged(arg)) + tagged(arg) * tagPrice(priceAt(book(arg), book(arg).x + q - tagged(arg))))} for the lot ` +
+            `about ${money(sellTotal(arg, q - tagged(arg)) + tagged(arg) * tagPrice(priceAt(book(arg), bookPos(book(arg)) + q - tagged(arg))))} for the lot ` +
             '(the price sags as you sell).</p>' : none('Nobody is buying these here.')) +
           (tagged(arg) ? `<div class="syn">${num(tagged(arg))} of them carry a tag: ${tagHtml}<br><span class="dim">Those sell for ${pct(TAG_CUT)}% less` +
             `${price ? `: ${money(tagPrice(price))} each here` : ''}. A street doc had to remove them. That is all anyone needs to know.</span></div>` : ''),
@@ -5827,7 +5859,9 @@ const ACTIONS = {
     if (Q.kind === 'deliver') {
       if (S.loc === Q.place && held >= Q.t) buttons.push([`Hand over ${Q.t} ${Q.good}`, 'give', 'primary']);
       else html += `<p class="dim">${S.loc === Q.place ? `You are at ${Q.place}, but you need ${Q.t} ${Q.good} on your drive.`
-        : `Carry ${Q.t} ${Q.good} to ${Q.place}, then open this briefing there to hand them over.`}</p>`;
+        : `Carry ${Q.t} ${Q.good} to ${Q.place}, then open this briefing there to hand them over.`}</p>` +
+        (notDealtYet(Q.good) ? `<p class="amber">Nobody sells ${Q.good} this early in the month: the markets start dealing in them around day ${dealtFrom(Q.good)}. ` +
+          'This one will keep until then.</p>' : '');
     } else if (Q.kind === 'boss') {
       html += `<p class="dim">A hacking fight against the ${SYNDICATES[foe][0]} core: 7 operators, and they hit harder than a normal node. ` +
         'Only hacking tools work (proxies, Logic Bombs, Zero-Days). It uses up today\'s raid, and you can try again another day.</p>';
@@ -5929,6 +5963,7 @@ const ACTIONS = {
     S.loc = dest;
     if (dest !== BUNKER) {
       S.trips--;
+      easeMarkets();   // economy 1.28: the markets you left behind recover a little with every trip (ECON.tripRecover)
       awayRaid(Math.min(0.08, S.heat / 1200));
     }
     rollMarket();
@@ -8239,7 +8274,7 @@ async function finish() {
   tally('runs');
   if (!S.arrests) tally('cleanrun');
   tally('score', score);
-  gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / 5));
+  gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / ECON.xpScoreDiv));
   const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
@@ -9283,8 +9318,8 @@ async function selfTest(games) {
           const [cash, held, marks, price] = sale, gone = held - (S.inv[sold] || 0), cut = marks - tagged(sold);
           // ...and with market depth each unit goes for less than the one before: the total is the sum of those prices.
           let due = 0;
-          for (let i = 0; i < gone; i++) due += cut ? Math.floor(priceAt(saleBook, saleBook.x - gone + i) * 0.8) : priceAt(saleBook, saleBook.x - gone + i);
-          if (gone && S.prices[sold] !== priceAt(saleBook, saleBook.x)) throw new Error(`sale of ${sold} left the wrong price`);
+          for (let i = 0; i < gone; i++) due += cut ? Math.floor(priceAt(saleBook, bookPos(saleBook) - gone + i) * 0.8) : priceAt(saleBook, bookPos(saleBook) - gone + i);
+          if (gone && S.prices[sold] !== priceAt(saleBook, bookPos(saleBook))) throw new Error(`sale of ${sold} left the wrong price`);
           if ((cut && cut !== gone) || S.cash - cash !== due) {
             throw new Error(`sale of ${sold} paid wrong: ` + JSON.stringify([sale, S.cash, gone, cut]));
           }
