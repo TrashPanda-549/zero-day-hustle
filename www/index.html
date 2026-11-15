@@ -11124,7 +11124,18 @@ async function finish() {
     `<p class="dim">You buy ${ending}.</p>`;
   const handle = (await askText('RETIRED', summary + '<p>The name they will remember:</p>')) || 'anon';
   const mine = hallAdd(handle, score, days);
-  await dialog('RETIRED', summary + hallHtml(mine), [['New career', true, 'primary']]);
+  // ENDLESS: on a handheld the send-off with every table in it is four screens of scrolling, so there the
+  // tables go behind an answer, the way every other long list on that screen does. On a screen with room
+  // for them they stay in front of you.
+  let seen = false;
+  for (;;) {
+    const tiny = tinyScreen();
+    const buttons = tiny && !seen ? [['Hall of fame', 'hall'], ['New career', true, 'primary']]
+      : [['New career', true, 'primary']];
+    if (await dialog('RETIRED', summary + (tiny ? '' : hallHtml(mine)), buttons) !== 'hall') return;
+    seen = true;
+    await alertDlg('Hall of fame', hallHtml(mine));
+  }
 }
 
 document.addEventListener('click', async e => {
