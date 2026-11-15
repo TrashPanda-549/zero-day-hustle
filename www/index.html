@@ -9079,11 +9079,13 @@ function nemKit(N, P) {
   const c = nemColour(N), g = clampN(N.g, 1, NEM.maxG);
   const dark = {ghost: '#12202b', ledger: '#2a2416', null: '#11261b', red: '#3a1018', x404: '#1d1430'}[N.gang] || '#15131c';
   const rar = Math.min(4, g);
-  const gear = {head: P(N.hat, c, null, rar), face: P(N.mask, c, null, Math.min(4, g - 1)),
-    body: P(3, c, dark, rar), legs: P(6, c), hands: P(3, c, null, Math.min(4, g - 1)),
-    feet: P(1, c), deck: P(7, c, null, Math.min(4, g - 1))};
+  // Dark clothes with their crew's colour as the trim, and the mask in the crew's colour on its own, so
+  // the face is the thing you recognise across a street.
+  const gear = {head: P(N.hat, c, dark, rar), face: P(N.mask, c, null, Math.min(4, g - 1)),
+    body: P(3, c, dark, rar), legs: P(6, c, dark), hands: P(3, c, dark, Math.min(4, g - 1)),
+    feet: P(1, c, dark), deck: P(7, c, dark, Math.min(4, g - 1))};
   if (g >= 3) gear.coat = P(6, c, dark, 3);
-  if ((N.took || []).some(t => t.k === 'gear')) gear.back = P(5, c, null, 3);
+  if ((N.took || []).some(t => t.k === 'gear')) gear.back = P(5, c, dark, 3);
   return gear;
 }
 const nemFig = N => ({look: N.look, syn: N.gang, level: 1, weapon: 0, hp: 100, mood: 'mean',
