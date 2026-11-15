@@ -1028,8 +1028,9 @@ const ENDLESS = {
   lateCap: 4.5,           // the most anything can be multiplied by, ever
   ramp: 120,              // days past the arc over which the pressure climbs to its maximum (day 150)
   // --- what rises with the pressure (all of these are the value added at FULL pressure) ---
-  heatFloor: 40,          // Heat settles back to this overnight and never cools below it: the law keeps the
-                          // file open, so a career at full pressure is permanently wanted by the FBI
+  heatFloor: 38,          // Heat settles back to this overnight and never cools below it: the law keeps the
+                          // file open. Deliberately two points under the FBI's threshold (40), so a long
+                          // career sits one deal away from it without the floor alone taking your agency.
   raidOdds: 0.06,         // added to the chance of a Bunker raid overnight (and its cap)
   lawOdds: 0.03,          // added to the chance of meeting the law on a trip (and its cap)
   gangOdds: 0.04,         // added to the chance a rival crew comes for you on a trip (and its cap)
