@@ -9014,7 +9014,9 @@ const NEM = {
   bounty: [5000, 7000],   // what their crew pays to be rid of them: flat, plus this much a grudge level
   tookMax: 3,        // how many of your things they carry at once
   goneMax: 12,       // how many finished stories the record keeps
-  arms: [13, 16, 14, 19, 20],   // what they carry at each grudge level (positions in WEAPONS)
+  // What they carry at each grudge level (positions in WEAPONS): a box cutter, a machete, a revolver,
+  // a sniper rifle, a rail gun. Each one hits harder and more often than the last.
+  arms: [13, 14, 17, 19, 20],
 };
 const NEM_TAGS = ['Switchblade', 'Mirrorshade', 'Deadhand', 'Nullroute', 'Half-Byte', 'Rustbucket', 'Gravedigger',
   'Cold Boot', 'Lowbat', 'Hexwound', 'Offline', 'Sawtooth', 'Dialtone', 'Pocket Change'];
