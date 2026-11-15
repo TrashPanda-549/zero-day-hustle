@@ -1216,7 +1216,15 @@ const SYNDICATES = {
   // Hidden: it only appears once you hold the achievement named in KEY_ACH. The other crews cannot find it,
   // so it is never a rival: it does not attack anyone and cannot be raided.
   x404: ['404 Collective', 'Crew not found. Hostiles hit you 25% less often, and everything you do earns 25% more XP.'],
+  // ===== SNEAK REAPERS: the sixth crew, also hidden, behind two achievements instead of one (see REAP). =====
+  reap: ['Sneak Reapers', 'Contract killers. Nobody ever gets the first swing on you, and you take 50% more cash off anyone you beat.'],
+  // ===== SNEAK REAPERS: END =====
 };
+// Crews that are not on the list until they come to you, and what each one wants first. The other crews
+// cannot find them, so a hidden crew is never a rival: it does not attack anyone and cannot be raided.
+// (KEY_ACH and REAP_GATE are set with the achievements, further down.)
+const HIDDEN_GATE = {x404: () => !!career.ach[KEY_ACH], reap: () => reapGate()};
+const hiddenSyn = key => !!HIDDEN_GATE[key];
 const TITLES = ['Script Kiddie', 'Lurker', 'Packet Monkey', 'Phreak', 'Cracker', 'Gray Hat', 'Exploit Dev',
   'Netrunner', 'Black Hat', 'Syndicate Operator'];
 const titleFor = l => l >= 30 ? 'Legend of the Wire' : l >= 25 ? 'Root' : l >= 20 ? 'Ghost in the Wire'
@@ -2927,9 +2935,11 @@ function gainXp(n) {
 }
 
 // The crews you can see: the hidden one only once you hold the achievement that reveals it.
-const openSyns = () => Object.keys(SYNDICATES).filter(k => k !== HIDDEN_SYN || career.ach[KEY_ACH]);
+const openSyns = () => Object.keys(SYNDICATES).filter(k => !hiddenSyn(k) || HIDDEN_GATE[k]());
 
 async function joinSyndicate(key) {
+  // SNEAK REAPERS: a contract belongs to the crew that handed it over. Leave them and the paperwork goes back.
+  if (S && S.hit && key !== REAP_SYN) { S.hit = null; log('The contract you were holding went back to the book.'); }
   career.syn = key;
   career.quest = null;
   fixQuest();
@@ -2942,8 +2952,9 @@ async function joinSyndicate(key) {
 
 async function chooseSyndicate() {
   const keys = openSyns();
-  const html = `<p>You are level 10. ${keys.length === 4 ? 'Four' : 'Five'} syndicates want you. The choice is permanent.</p>` +
-    keys.map(k => `<div class="syn"><b>${SYNDICATES[k][0]}</b>${k === HIDDEN_SYN ? ' <span class="amber">hidden</span>' : ''}<br>${SYNDICATES[k][1]}</div>`).join('');
+  // SNEAK REAPERS: there can be six of them on the list now, so the count is a word from a list.
+  const html = `<p>You are level 10. ${['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][keys.length] || keys.length} syndicates want you. The choice is permanent.</p>` +
+    keys.map(k => `<div class="syn"><b>${SYNDICATES[k][0]}</b>${hiddenSyn(k) ? ' <span class="amber">hidden</span>' : ''}<br>${SYNDICATES[k][1]}</div>`).join('');
   const buttons = keys.map(k => [SYNDICATES[k][0], k]);
   buttons.push(['Decide later', null, 'small']);
   const key = await dialog('Join a syndicate', html, buttons);
@@ -2976,6 +2987,7 @@ async function levelUpCheck() {
   await dunCheck();   // DUNGEONS: you cannot be inside a building and somewhere else
   await questCheck();
   await gigCheck();
+  await reapCheck();   // SNEAK REAPERS: a contract the client stopped waiting for
   if (pendingLevel) {
     const l = pendingLevel;
     pendingLevel = 0;
@@ -3294,6 +3306,12 @@ const stat = kind => career.stats[kind] || 0;
 const ownedGear = () => Object.values(career.gear).concat(career.bag, career.locker || []).filter(Boolean);
 // id: [name, how to earn it, XP, test, secret (shown as ??? until earned)]. They belong to the save file.
 const KEY_ACH = 'nsa', HIDDEN_SYN = 'x404';   // the achievement that reveals the hidden syndicate
+// ===== SNEAK REAPERS: blood and wire. The sixth crew wants both halves of the job proved before it will
+// talk to you: one achievement earned by finishing a named person, one by getting to the bottom of a
+// network nobody else could. Neither can be stumbled into, and one long career can hold both. =====
+const REAP_SYN = 'reap', REAP_GATE = ['nemdown', 'dunboth'];
+const reapGate = () => REAP_GATE.every(id => !!career.ach[id]);
+// ===== SNEAK REAPERS: END =====
 const DUN_FLOORS = 5;   // the deepest a deep run goes (DUN.floors reads it; see DUNGEONS, further down)
 const ACH = {
   sale: ['First Score', 'Sell something at a profit', 50, () => stat('profit') > 0],
@@ -3394,6 +3412,14 @@ const ACH = {
   boardbeat: ['Dead Operator\'s Record', 'Be worth more than the biggest retirement on your own board', 500, () => stat('beatrecord') >= 1],
   ends4: ['Several Ways Out', 'Reach four different endings', 1000, () => Object.keys(career.ends || {}).length >= 4],
   endcat: ['Nothing But the Cat', 'Retire with the cat and almost nothing else', 300, () => !!(career.ends && career.ends.cat)],
+  // --- SNEAK REAPERS (see REAP): the sixth crew, and the work it hands out ---
+  reapin: ['Blood and Wire', 'Sign with the Sneak Reapers', 500, () => career.syn === REAP_SYN, true],
+  reap1: ['Paperwork Filed', 'Close a contract: get in, find the mark, and leave', 200, () => stat('hit') >= 1],
+  reap10: ['Ten Names Crossed Off', 'Close 10 contracts', 600, () => stat('hit') >= 10],
+  reapghost: ['They Never Heard the Door', 'Close a contract with a quiet entry and a clean exit', 300, () => stat('hitclean') >= 1],
+  reapnem: ['Someone Else Wanted Them Too', 'Take a contract out on one of your own nemeses', 400, () => stat('hitnem') >= 1],
+  reapdone: ['Employee of the Month', "Finish the Sneak Reapers' whole line of missions", 1200,
+    () => career.syn === REAP_SYN && !!career.quest && career.quest.n >= QUESTS[REAP_SYN].length],
   // --- live news (see NEWS_EVENTS): reading the paper, and being read to ---
   evread: ['Read All About It', 'Buy goods the Intel Board warned you about, before the news broke', 150, () => stat('evahead') >= 1],
   evpro: ['Insider Trading (Unregulated)', 'Do it 25 times', 500, () => stat('evahead') >= 25],
@@ -3419,6 +3445,8 @@ async function achCheck() {
     await alertDlg('ACHIEVEMENT UNLOCKED', `<p><b class="amber">${name}</b><br>${how}</p><p>Reward:${got}</p>` +
       `<p class="dim">${achCount()} of ${Object.keys(ACH).length} earned.</p>`);
     if (id === KEY_ACH) await hiddenInvite();
+    // SNEAK REAPERS: the pair is the gate. Whichever half lands second brings the courier.
+    if (REAP_GATE.includes(id) && reapGate()) await reapInvite();
   }
 }
 
@@ -3426,8 +3454,10 @@ async function achCheck() {
 // Joining a crew starts its chain of missions. Progress belongs to the career (career.quest = {n: missions
 // done, p: progress on the current one, o: the current standing order}), so it carries over between runs.
 // When the chain is finished the crew keeps handing out repeatable standing orders.
-const HANDLER = {ghost: 'Wraith', ledger: 'the Accountant', null: 'Captain Nil', red: 'Sgt. Root', x404: 'nobody'};
-const NEMESIS = {ghost: 'ledger', ledger: 'null', null: 'red', red: 'ghost', x404: 'red'};   // whose core the last mission hits
+// SNEAK REAPERS: their handler is the woman who keeps the book of names, and the last job in their line is
+// the firm that brokers the contracts, because a client who keeps a list is a client who can sell one.
+const HANDLER = {ghost: 'Wraith', ledger: 'the Accountant', null: 'Captain Nil', red: 'Sgt. Root', x404: 'nobody', reap: 'Mrs Kettle'};
+const NEMESIS = {ghost: 'ledger', ledger: 'null', null: 'red', red: 'ghost', x404: 'red', reap: 'ledger'};   // whose core the last mission hits
 // Reward for each mission in the chain: [XP, cash, rarity of the gear you are handed (-1 for none)]
 const QUEST_PAY = [[500, 2000, -1], [700, 3000, -1], [900, 5000, 2], [1200, 8000, -1], [1500, 12000, 3],
   [1900, 18000, -1], [2400, 25000, 3], [3500, 50000, 4]];
@@ -3504,6 +3534,22 @@ const QUESTS = {
     ['Watch the watchers', 'You have beaten the NSA once. Once is luck.', 'nsawin', 1],
     ['Take back the list', 'Red Team Zero sold a list of our names. Breach their core and delete it.', 'boss', 1],
   ],
+  // ===== SNEAK REAPERS: contract work. Named people, in the order the book has them, and the firm that
+  // keeps the book at the end of it. Matter-of-fact: this is a job with paperwork. =====
+  reap: [
+    ['On the book', 'Two names to start. Both already paid for, both easy. Close them and we will talk about the rest.', 'hit', 2],
+    ['Arrears', 'Vance Okonkwo lets flats and collects on them with a bat. One of his tenants has friends with money. His office is over the chip shop and the lock on it is a joke.', 'heist', 1, 'reap1'],
+    ['Nothing heard', 'Noise doubles the price of everything. Go to bed with a cold trail, three nights.', 'cool', 3],
+    ['Six ways out', 'Nobody walks into a building with one way out of it. Six.', 'proxies', 6],
+    ['Waiting list', 'Dr Rask sells places in a queue people die in. She keeps a suite at the conference hotel and the door wants a card. Bring one, or bring a crowbar and a reason.', 'heist', 1, 'reap2'],
+    ['Four more', 'The book does not get shorter on its own. Four names.', 'hit', 4],
+    ['Loose ends', 'One of ours left somebody standing last year and they are still walking about. Put it right.', 'nemdown', 1],
+    ['Nobody left a note', 'Three contracts closed quiet in, clean out. Anybody can shoot a man in a car park.', 'hitclean', 3],
+    ['Audit', 'Auditor Petrova has a protection detail and a strongroom at the dock, and she has been reading our client list. The door is a maglock. The people inside have warrant cards.', 'heist', 1, 'reap3'],
+    ['The long way round', 'Somewhere there is a sub-basement with our file in it. Go down and come back up.', 'dundeep', 1],
+    ['Settle the account', 'Black Ledger broker our work and keep a ledger of who ordered what. A client who keeps a list is a client who can sell one. Breach their core and take the book.', 'boss', 1],
+  ],
+  // ===== SNEAK REAPERS: END =====
 };
 let questTally = 0, junkTally = 0;   // counted for the self-test
 
@@ -3605,6 +3651,11 @@ function questGoal(Q) {
     deliver: `Bring ${t} ${Q.good} to ${Q.place}`,
     score: `Finish a run worth ${money(t)} or more`,
     boss: `Breach the ${SYNDICATES[NEMESIS[career.syn]][0]} core and win`,
+    // SNEAK REAPERS: contract work, and the two hooks their line reaches for (see REAP)
+    hit: `Close ${t} contract${s}`,
+    hitclean: `Close ${t} contract${s} with a quiet entry and a clean exit`,
+    nemdown: `Put ${t} nemesis down for good`,
+    dundeep: `Clear a deep run ${DUN_FLOORS} floors deep`,
   };
   if (Q.kind === 'heist' || Q.kind === 'breakin') return heistGoal(Q);   // a break-in, in stages (see HEISTS)
   return text[Q.kind] || Q.kind;
@@ -3885,7 +3936,8 @@ const BREAKIN = {
   // --- time inside: moves you get after a [quiet, forced] entry; the careful way costs 2, everything else 1 ---
   moves: [3, 2],
   // --- the job inside: chance = job[kind] + its gear and proxy bonuses - tierDrop * (tier - 1); fast is -fastDrop ---
-  job: {hack: 60, rob: 75, plant: 75}, proxyEdge: 5, tierDrop: 5, fastDrop: 20, jobMin: 15, jobMax: 95,
+  // (SNEAK REAPERS: 'hit' is a contract. Its chance is the chance of reaching the mark before they hear you.)
+  job: {hack: 60, rob: 75, plant: 75, hit: 70}, proxyEdge: 5, tierDrop: 5, fastDrop: 20, jobMin: 15, jobMax: 95,
   // --- the way out ---
   cleanMin: 10, cleanMax: 95,   // slipping out clean: 100 - Alert + half your stealth bonus (+ casedEdge / 2)
   // --- Heat (before Ghost Shell's halving, stealth gear and a VPN) ---
@@ -3956,6 +4008,27 @@ const HEISTS = {
     inside: 'Open plan. Every desk has a framed photo of a boat.', prize: 'tape 3 Burner SIM phones where nobody dusts'},
   x4043: {site: 'the annex with no sign', at: 'Campus Lab', lock: 'maglock', job: 'hack', tier: 4, guard: 'law',
     inside: 'A room with no windows, and a file with your name spelled correctly, which is the worrying part.', prize: 'redact the file'},
+  // ===== SNEAK REAPERS: three contracts with the names written in, played like any other break-in except
+  // that what is at the bottom of them is a person (job 'hit'; see REAP and reapHitInside). =====
+  reap1: {site: 'the letting agent\'s office above the chip shop', at: 'Paste Alley', lock: 'padlock', job: 'hit', tier: 1, guard: 'sec',
+    room: 'the back office', inside: 'A desk, a safe nobody locks, and forty sets of keys on a board.',
+    prize: 'close the contract on Vance Okonkwo',
+    mark: {name: 'Vance Okonkwo', who: 'a letting agent who also collects debts', arm: 11, hat: 0,
+      look: {skin: 2, hair: 1, col: 2, streak: 4}, crew: '', nem: '',
+      say: '"If this is about the deposit, the deposit is gone."'}},
+  reap2: {site: 'the conference hotel\'s seventh floor', at: 'Con Hallway', lock: 'badge', job: 'hit', tier: 3, guard: 'sec',
+    room: 'suite 712', inside: 'A corridor of identical doors and a trolley of identical breakfasts.',
+    prize: 'close the contract on Dr Imelda Rask',
+    mark: {name: 'Dr Imelda Rask', who: 'a clinic director who sells the waiting list', arm: 13, hat: 'shades',
+      look: {skin: 0, hair: 3, col: 5, streak: 4}, crew: '', nem: '',
+      say: '"They told you I was dangerous. I signed forms. That was all I ever did."'}},
+  reap3: {site: 'the audit annex at the dock', at: 'Datacenter Dock', lock: 'maglock', job: 'hit', tier: 4, guard: 'law',
+    room: 'the strongroom', inside: 'Server noise, strip lights, and a desk with one lamp and a great many folders.',
+    prize: 'close the contract on Auditor Petrova',
+    mark: {name: 'Auditor Petrova', who: 'a district auditor nobody voted for, with a protection detail', arm: 19, hat: 1,
+      look: {skin: 4, hair: 0, col: 1, streak: 4}, crew: 'ledger', nem: '',
+      say: '"I have a file on you. It is thinner than I would like."'}},
+  // ===== SNEAK REAPERS: END =====
   // Street contacts (the gig brings the place and the lock).
   gig_mama: {site: 'the rival cart\'s lock-up', lock: 'padlock', job: 'rob', tier: 1, guard: 'sec',
     inside: 'Stock pots, a deep freeze, and a lockbox with a recipe card in it. The card has a soup stain. It is the same stain.', prize: 'take the recipe back'},
@@ -3981,13 +4054,13 @@ const HEISTS = {
     inside: 'Two rows of chairs facing each other, and a jug of water nobody trusts.', prize: 'tape the phones under the table'},
 };
 const PLANT_WHAT = {'USB Droppers': 'loaded drive', 'Rogue APs': 'access point', 'Burner SIMs': 'burner phone'};
-const JOB_WORD = {hack: 'Hack', rob: 'Rob', plant: 'Plant'};
+const JOB_WORD = {hack: 'Hack', rob: 'Rob', plant: 'Plant', hit: 'Contract'};   // SNEAK REAPERS: 'hit'
 const STAGES = ['the approach', 'the lock', 'inside', 'the way out'];
 const cap1 = s => s[0].toUpperCase() + s.slice(1);
 const clampN = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 // Counted for the self-test: every way each stage can go.
 const heistTally = {cased: 0, seen: 0, blind: 0, quiet: 0, forced: 0, miss: 0, snapped: 0, jammed: 0, alarm: 0, noshow: 0,
-  won: 0, fled: 0, lost: 0, hack: 0, rob: 0, plant: 0, botched: 0, grab: 0, noroom: 0, clean: 0, spotted: 0, fast: 0,
+  won: 0, fled: 0, lost: 0, hack: 0, rob: 0, plant: 0, hit: 0, botched: 0, grab: 0, noroom: 0, clean: 0, spotted: 0, fast: 0,
   done: 0, blown: 0, walked: 0, paid: 0, found: 0, drills: 0, bought: 0};
 
 // ----- the skill -----
@@ -4139,13 +4212,15 @@ async function lockDialog(lock, st, o) {
 // A syndicate break-in's state sits on the run (S.qh), a gig's on the gig, a BBS job's on its posting, and one
 // started with startHeist() on the run too (S.fh).
 function heistM(src, o) {
-  const id = src === 'job' ? o.heist : o.good, base = HEISTS[id];
+  // SNEAK REAPERS: a contract brings its own break-in (o.H), because its mark is made up on the spot.
+  const id = src === 'job' ? o.heist : o.good, base = src === 'hit' ? o.H : HEISTS[id];
   if (!base) return null;
   const H = Object.assign({id}, base);
   if (src === 'gig') { H.at = o.place; H.lock = LOCKS[o.lock] ? o.lock : base.lock; H.tier = LOCKS[H.lock][1]; }
   if (src === 'job') { H.at = o.at; H.lock = LOCKS[o.lock] ? o.lock : base.lock; H.tier = LOCKS[H.lock][1]; H.n = o.qty; H.dev = o.good; }
   if (src === 'free') H.at = o.at;
-  return {src, o, H, box: src === 'gig' || src === 'job' ? o : S, key: src === 'quest' ? 'qh' : src === 'free' ? 'fh' : 'h'};
+  return {src, o, H, box: src === 'gig' || src === 'job' || src === 'hit' ? o : S,
+    key: src === 'quest' ? 'qh' : src === 'free' ? 'fh' : 'h'};
 }
 // The state, without making one.
 const heistPeek = M => (M && M.box[M.key] && M.box[M.key].id === M.H.id ? M.box[M.key] : null);
@@ -4158,7 +4233,8 @@ function heistState(M) {
 // "Break into the records annex at Paste Alley and copy the file off their terminal"
 function heistGoal(Q) {
   const M = heistM(Q.kind === 'heist' ? 'quest' : 'gig', Q);
-  return M ? `Break into ${M.H.site} at ${M.H.at} and ${M.H.prize}` : 'Break in';
+  // SNEAK REAPERS: you do not break into a room to kill somebody. You get in.
+  return M ? `${M.H.job === 'hit' ? 'Get into' : 'Break into'} ${M.H.site} at ${M.H.at} and ${M.H.prize}` : 'Break in';
 }
 // The same in a few words, for the summary line of the folded mission section: "stage 2/4: the lock".
 function heistShort(Q) {
@@ -4302,6 +4378,8 @@ async function heistDone(M, st, clean) {
     M.o.p = M.o.t;   // gigCheck pays it out
     if (ghost) addTrust(M.o.who, B.ghostTrust);
     pay = `${M.o.who} will pay <b>${money(M.o.cash)}</b>` + (ghost ? ', with a bonus for leaving no trace, and trusts you a little more for it.' : st.entry === 'forced' ? ', less the price of a new door.' : '.');
+  } else if (M.src === 'hit') {   // SNEAK REAPERS: the contract pays on its own screen (see reapPaid)
+    pay = `${HANDLER[REAP_SYN]} will have the money with you tonight.`;
   } else if (M.src === 'job') {
     const cash = Math.round(payoutFor(M.o) * mult / 10) * 10, i = S.contracts.indexOf(M.o);
     if (i >= 0) S.contracts.splice(i, 1);
@@ -4324,6 +4402,8 @@ async function heistDone(M, st, clean) {
     `Exit: <b class="${clean ? 'green' : 'amber'}">${clean ? 'clean' : 'messy'}</b>` +
     (st.took ? `<br>Carried out: ${st.took}` : '') + (st.pts ? `<br>Lock picking: <span class="amber">+${st.pts}</span> this job` : '') + '</div>' +
     `<p>${pay}</p>`);
+  // SNEAK REAPERS: a contract settles up once you are out of the building, not before (see reapPaid).
+  if (M.src === 'hit' && S.hit === M.o) await reapPaid(M.o, st, clean);
 }
 
 // ----- the four stages -----
@@ -4405,7 +4485,9 @@ async function heistPlay(M) {
   // Stage 3, inside: the job, carefully or fast, and whatever else there is time for.
   if (st.stage === 2) {
     const verb = {hack: ['Hack it carefully', 'Smash and grab the data'], rob: ['Take only what will not be missed yet', 'Grab everything and go'],
-      plant: ['Hide it properly', 'Tape it under the nearest desk']}[H.job];
+      plant: ['Hide it properly', 'Tape it under the nearest desk'],
+      // SNEAK REAPERS: for a contract the choice is how you cross the building, not how you do the job.
+      hit: ['Work your way to them', 'Walk straight at them']}[H.job];
     while (st.moves > 0) {
       const odds = jobOddsIn(M, st), short = H.job === 'plant' && (S.inv[H.dev] || 0) < H.n;
       const html = stageHead(2, M) + (note ? `<p>${note}</p>` : '') + `<p>${H.inside}</p>` + alertMeter(st) +
@@ -4413,7 +4495,12 @@ async function heistPlay(M) {
         `<div class="syn"><b>${cap1(H.prize)}</b>: ${st.done ? '<span class="green">done</span>' : '<span class="amber">not yet</span>'}` +
         (st.took ? `<br><span class="dim">In your bag: ${st.took}</span>` : '') + '</div>' +
         (short && !st.done ? `<p class="red">You no longer have the ${H.n} ${H.dev} to leave behind.</p>` : '') +
-        (st.done ? '' : `<p class="dim">Carefully takes two moves and adds ${B.jobOk[0]} Alert. Fast takes one and adds ${B.jobOk[1]}` +
+        // ===== SNEAK REAPERS: a contract says who is in the building and what the two ways across it mean. =====
+        (H.job !== 'hit' || st.done ? '' : `<p class="dim">${esc(H.mark.name)} is in ${H.room}: ${H.mark.who}.</p>`) +
+        (st.done ? '' : H.job === 'hit'
+          ? `<p class="dim">Working your way to them takes two moves and gets you there unheard more often. Walking at them takes one. ` +
+            `Either way there is a fight: the difference is who sees whom first.</p>`
+          : `<p class="dim">Carefully takes two moves and adds ${B.jobOk[0]} Alert. Fast takes one and adds ${B.jobOk[1]}` +
           `${H.job === 'plant' ? ', and a taped-up device does not last as long' : ''}. A botched try adds ${B.jobMiss}.</p>`) +
         `<p class="dim">Helping yourself to what is lying around takes one move and adds ${B.grab} Alert. Drive: ${used()}/${cap()}.</p>`;
       const buttons = [];
@@ -4444,7 +4531,14 @@ async function heistPlay(M) {
       } else {
         const careful = act === 'careful';
         st.moves -= careful ? 2 : 1;
-        if (Math.random() * 100 < (careful ? odds.careful : odds.fast)) {
+        const made = Math.random() * 100 < (careful ? odds.careful : odds.fast);
+        // ===== SNEAK REAPERS: a contract has a person at the bottom of it, so the roll decides who sees whom
+        // first and the fight decides the rest (see reapHitInside). =====
+        if (H.job === 'hit') {
+          heistTally.hit++;
+          note = await reapHitInside(M, st, careful, made);
+          if (S.over) return heistBlown(M, st, '');
+        } else if (made) {
           st.done = true;
           st.careful = careful;
           heistTally[H.job]++;
@@ -4527,6 +4621,7 @@ function heistList() {
   if (Q && Q.kind === 'heist') list.push(heistM('quest', Q));
   if (G && G.kind === 'breakin') list.push(heistM('gig', G));
   if (S.fh && HEISTS[S.fh.id]) list.push(heistM('free', {good: S.fh.id, at: S.fh.loc}));
+  if (S.hit && S.hit.H) list.push(heistM('hit', S.hit));   // SNEAK REAPERS: the contract you are holding
   for (const c of new Set(Object.values(S.markets || {}).flatMap(m => m.contracts || []).concat(S.contracts || []))) if (c.heist) list.push(heistM('job', c));
   return list.filter(Boolean);
 }
@@ -4769,7 +4864,8 @@ const HAIRSTYLES = ['Crop', 'Mohawk', 'Long', 'Buzz', 'Bald'];
 const HAIRCOLS = [['Violet', '#2b1b3f'], ['Black', '#15131c'], ['Brown', '#4a2c1a'], ['Blonde', '#d9b45a'],
   ['Red', '#a8321f'], ['Silver', '#b9c0d0'], ['Teal', '#0f6f78']];
 const STREAKS = [['Magenta', '#ff4fd8'], ['Cyan', '#00e5ff'], ['Yellow', '#fcee0a'], ['Green', '#3dff9a'], ['None', null]];
-const SYN_COL = {ghost: '#00e5ff', ledger: '#ffd24a', null: '#3dff9a', red: '#ff3b5c', x404: '#c77dff'};
+const SYN_COL = {ghost: '#00e5ff', ledger: '#ffd24a', null: '#3dff9a', red: '#ff3b5c', x404: '#c77dff',
+  reap: '#cfc6a8'};   // SNEAK REAPERS: bone, so it is nobody else's colour on the fight screen
 // Cyberware that appears on the avatar as you level up.
 const WARE = [[8, 'optic implant'], [9, 'wired forearm'], [20, 'aura'], [25, 'brighter aura'], [30, 'full aura and halo']];
 let avSeq = 0;
@@ -5268,6 +5364,11 @@ function figure(F) {
   if (F.syn === 'x404') {   // 404 Collective: a flickering error code on the chest
     out += `<text class="av-eye" x="100" y="121" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" ` +
       `fill="${SYN_COL.x404}" stroke="${INK}" stroke-width=".5" style="filter:drop-shadow(0 0 3px ${SYN_COL.x404})">404</text>`;
+  }
+  // SNEAK REAPERS: four tally scratches on the chest and the fifth struck through them. Names, crossed off.
+  if (F.syn === 'reap') {
+    out += `<g fill="none" stroke="${SYN_COL.reap}" stroke-width="2" stroke-linecap="round" opacity=".9">` +
+      '<path d="M90 112 v16 M96 112 v16 M102 112 v16 M108 112 v16"/><path d="M86 128 L112 110"/></g>';
   }
   if (F.syn === 'red') {   // Red Team Zero: armband
     out += flip(`<path d="M48 120 L66.5 123 L65.5 135 L47 132 Z" fill="${SYN_COL.red}" stroke="${INK}" stroke-width="1"/>` +
@@ -6162,7 +6263,7 @@ function meter(label, value, max, text, color) {
 }
 const vitals = () => meter('Health', S.hp, 100, S.hp + '%') + meter('OpSec', S.opsec, 100, S.opsec + '%');
 const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
-const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && k !== HIDDEN_SYN);
+const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && !hiddenSyn(k));   // SNEAK REAPERS: every hidden crew, not just the 404
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
 
 // marked (optional): how many of them carry the "discount because reasons" tag. Leave it out for clean goods.
@@ -7224,6 +7325,7 @@ function newGame() {
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
   S.leads = [];                  // DUNGEONS: addresses for deep runs (S.dun holds a run in progress)
   S.hq = {};                     // BASE: what the stations have done today (the base itself belongs to the save)
+  S.hit = null;                  // SNEAK REAPERS: the contract you are holding, one at a time (see REAP)
   logs = [];
   starterGear();
   rollMarket();
@@ -7965,6 +8067,12 @@ function renderNow() {
     `<div class="sub">pays ${questReward(Q)}</div></div>` +
     '<button data-act="syndicate">Briefing</button></div></div>';
   $('#jobs').innerHTML =
+    // ===== SNEAK REAPERS: the contract you are holding sits above the street gig. =====
+    (!S.hit || !S.hit.H ? '' : `<h3>CONTRACT &middot; ${HANDLER[REAP_SYN].toUpperCase()}</h3>` +
+    `<div class="job quest"><div><div class="what">${esc(S.hit.mark.name)}</div><div class="sub">${reapGoal(S.hit)}</div>` +
+    `<div class="sub"><span class="amber">${reapStatus(S.hit)}</span> &middot; ${reapDue(S.hit)} &middot; pays ${questReward(S.hit)}</div></div>` +
+    '<button data-act="reap">Paperwork</button></div>') +
+    // ===== SNEAK REAPERS: END =====
     (!S.gig || !CONTACTS[S.gig.who] ? '' : `<h3>STREET GIG &middot; ${S.gig.who.toUpperCase()}</h3>` +
     `<div class="job gig"><div><div class="what">${S.gig.title}</div><div class="sub">${gigGoal(S.gig)}</div>` +
     `<div class="sub"><span class="amber">${gigStatus(S.gig)}</span> &middot; ${gigDue(S.gig)} &middot; pays ${questReward(S.gig)}</div></div>` +
@@ -8783,6 +8891,9 @@ const ACTIONS = {
     buttons.unshift([`Skill tree${skLeft() ? ` (${skLeft()} to spend)` : ` (${skCount()}/${skIds().length})`}`, 'skills',
       skLeft() ? 'primary' : '']);
     if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
+    // SNEAK REAPERS: the envelope is still in your pocket until you answer it.
+    if (reapGate() && !inSyn(REAP_SYN) && career.syn) buttons.unshift(['Call the number on the envelope', 'reapers']);
+    if (S.hit && S.hit.H) buttons.unshift(['Contract paperwork', 'reapjob']);
     if (career.syn) {
       html += `<div class="syn"><b>${SYNDICATES[career.syn][0]}</b><br>${SYNDICATES[career.syn][1]}</div>`;
       buttons.unshift(['Syndicate missions', 'quest']);
@@ -8804,6 +8915,8 @@ const ACTIONS = {
         'way onto the board. The ones who were taken down are listed anyway, because the street lists them.</p>');
     }
     else if (choice === 'hidden') await hiddenInvite();
+    else if (choice === 'reapers') await reapInvite();   // SNEAK REAPERS
+    else if (choice === 'reapjob') await reapScreen();
   },
 
   // SKILL TREE: the tree, from the record screen or straight off the main screen.
@@ -8902,6 +9015,9 @@ const ACTIONS = {
       if (E.result === 'won') tally('boss');
     } else if (choice === 'heist') await heistPlay(heistM('quest', Q));
   },
+
+  // SNEAK REAPERS: the contract you are holding (see reapScreen).
+  async reap() { await reapScreen(); },
 
   // The street gig you are holding: who gave it, how far along it is, and handing over a delivery.
   async gig() {
@@ -10202,6 +10318,8 @@ async function randomEvent() {
   if (S.loc !== BUNKER && Math.random() < JUNKIE_ODDS) return junkie();
   // DUNGEONS: somebody selling an address for a deep run.
   if (S.loc !== BUNKER && Math.random() < DUN.brokerOdds) return dunBroker();
+  // SNEAK REAPERS: a courier with a name and an address, most days, once you are in the crew (see REAP).
+  if (S.loc !== BUNKER && inSyn(REAP_SYN) && !S.hit && Math.random() < REAP.offer) return reapOffer();
   // A street contact with a gig: only when you are free to take one and there is time left to do it.
   if (S.loc !== BUNKER && !S.gig && Math.random() < CONTACT_ODDS) return contact();   // ENDLESS: there is always time left now
   if (Math.random() < 0.5) return;   // most trips are uneventful
@@ -10543,7 +10661,8 @@ function nemFix() {
 // better trim the longer the grudge has run, a coat once it is personal, and your bag on their back.
 function nemKit(N, P) {
   const c = nemColour(N), g = clampN(N.g, 1, NEM.maxG);
-  const dark = {ghost: '#12202b', ledger: '#2a2416', null: '#11261b', red: '#3a1018', x404: '#1d1430'}[N.gang] || '#15131c';
+  const dark = {ghost: '#12202b', ledger: '#2a2416', null: '#11261b', red: '#3a1018', x404: '#1d1430',
+    reap: '#20201a'}[N.gang] || '#15131c';   // SNEAK REAPERS
   const rar = Math.min(4, g);
   // Dark clothes with their crew's colour as the trim, and the mask in the crew's colour on its own, so
   // the face is the thing you recognise across a street.
@@ -10952,6 +11071,562 @@ async function nemSelfTest() {
 }
 // ====================== NEMESIS: the ones who got away: END ======================
 
+// ====================== SNEAK REAPERS: the sixth crew, and contract work: START ======================
+// The Sneak Reapers are hired killers who get in without being heard. They are the second hidden crew (the
+// 404 Collective is the first) and the only one with two locks on the door: REAP_GATE, one achievement
+// earned by finishing a named person for good and one by getting to the bottom of a network dive and a
+// building. Blood and wire. They find you; you never find them.
+//
+// What they add to the game is a CONTRACT: a kind of job the game did not have, which is a break-in with a
+// person at the bottom of it instead of a vault or a core. It is played on the existing break-in engine
+// (BREAKIN, HEISTS, heistPlay: the approach, the lock, inside, the way out) with a fourth job kind, 'hit'.
+// Inside, the roll that would have opened a safe decides instead whether you reach the mark before they
+// hear you; either way there is a fight on the battle screen against one named person drawn at boss scale,
+// the way a nemesis is drawn, with their own kit and their own line. Then you still have to get out.
+//
+// Contracts come from the handler most days once you are in, so the work does not run out when the line
+// does. They cost Heat, they cost the mark's crew a grudge, and the price is on the paperwork before you
+// sign. Refusing one costs nothing at all.
+//
+// Hooks into the rest of the game: a contract may name one of your OWN nemeses (the paperwork does not say
+// who filed it), in which case the existing nemesis fight, bounty and record all do their jobs; and a mark
+// is sometimes wearing a retired operator's gear, which the LEGACY code names.
+const REAP = {
+  offer: 0.3,        // chance a trip brings a contract, when you are in the crew and not holding one
+  days: 5,           // days to close one before the client goes elsewhere
+  pay: [2200, 700],  // cash: ([0] + [1] * day) * the mark's difficulty
+  xp: [140, 26],     // XP: ([0] + [1] * your level) * the mark's difficulty
+  gear: 0.45,        // chance a closed contract pays a piece of gear on top
+  heat: [10, 4],     // Heat for a body: [0] + [1] * difficulty (softened like any break-in Heat)
+  grudge: 1,         // what the mark's crew adds to its grudge, when the mark was somebody's
+  legacy: 0.25,      // chance the mark is wearing a retired operator's gear (see LEGACY)
+  nemOdds: 0.3,      // chance the name on the paperwork is one of your own nemeses
+  loot: 1.5,         // THE PERK: cash off anyone you beat, in any fight
+  markCol: '#cfc6a8',
+  drop: [0.6, 1],    // you reach them first: their aim is this share of it, and nobody is with them
+  seen: [1.3, 2],    // they heard the door: they hit this much harder, and the escort is in the room
+  alert: [10, 25],   // Alert for closing it [quietly, after they heard you]
+};
+// Marks are people: a first name, a surname, and a job that explains why somebody paid.
+const REAP_FIRST = ['Vance', 'Imelda', 'Teodor', 'Soraya', 'Gerhardt', 'Minh', 'Agnes', 'Dmitri', 'Perpetua',
+  'Rolf', 'Celestine', 'Boyd'];
+const REAP_ROLES = [
+  ['a letting agent who also collects debts', 11],
+  ['a compliance officer with two sets of books', 4],
+  ['a clinic director who sells the waiting list', 13],
+  ['a logistics manager who reroutes other people\'s cargo', 14],
+  ['an arbitration lawyer with a very short memory', 16],
+  ['a district auditor nobody voted for', 17],
+  ['a security consultant who wrote the gaps in himself', 18],
+  ['a records clerk who remembers too much of it', 11],
+];
+// Where people are: [the place, what is in it, what the room is called]
+const REAP_SITES = [
+  ['the serviced office on the fourth floor', 'Hot desks, a wall of lever-arch files, and a kettle nobody descales.', 'the fourth floor'],
+  ['the private dining room', 'Six chairs, one occupied. A dessert menu, face down.', 'the dining room'],
+  ['the gym above the pharmacy', 'Rubber flooring, one running machine still going, and a mirror along the whole wall.', 'the gym'],
+  ['the corner apartment', 'Rented furnished. Nothing on the walls, and a laptop open on the counter.', 'the apartment'],
+  ['the back of the showroom', 'Four cars nobody has bought and a desk with a nameplate on it.', 'the showroom'],
+  ['the night office at the depot', 'A kettle, a radio on low, and a wall of clipboards.', 'the depot office'],
+];
+// The crew that occasionally turns out to have been keeping the mark: a grudge, and the escort's colours.
+const reapMarkCrew = () => (Math.random() < 0.45 ? pick(rivals()) : '');
+// What a mark says when you reach them. Dry: nobody makes a speech.
+const REAP_LINES = ['"Whoever sent you, I can pay more. I cannot pay it today."',
+  '"You are not the first one they sent. The first one took the money."',
+  '"Do you know what I do? No. They never tell you."',
+  '"I always said that door was wrong."',
+  '"Give me a minute. Not for that. I just want a minute."',
+  '"If this is about the deposit, the deposit is gone."'];
+
+// ---------- the invitation ----------
+// Contract killers are blunt where ghosts are cryptic: no riddle, no headers, a courier and a photograph.
+async function reapInvite() {
+  const name = SYNDICATES[REAP_SYN][0];
+  if (inSyn(REAP_SYN)) return;
+  const card = `<div class="syn"><b>${name}</b><br>${SYNDICATES[REAP_SYN][1]}</div>`;
+  const found = '<p>A kid you have never seen walks up, hands you a brown envelope, and keeps walking. ' +
+    'Inside: a photograph of somebody you left on a floor, a photograph of a sub-basement nobody is supposed ' +
+    'to have seen, and one line of typing.</p>';
+  if (level() < 10) {
+    return alertDlg('A COURIER, NOT A MESSAGE', found +
+      '<p>"You finish what you start and you can get in anywhere. Come back when you are worth hiring."</p>' +
+      `<p class="dim">A hidden syndicate, the <b>${name}</b>, will be on the list when you choose a crew.</p>`);
+  }
+  if (!career.syn) {
+    await alertDlg('A COURIER, NOT A MESSAGE', found +
+      '<p>"You finish what you start and you can get in anywhere. We are hiring. The work is what you think it is."</p>' +
+      `<p class="dim">A hidden syndicate, the <b>${name}</b>, is now on the list.</p>`);
+    return chooseSyndicate();
+  }
+  const old = SYNDICATES[career.syn][0];
+  if (await confirmDlg('A COURIER, NOT A MESSAGE', found +
+    `<p>"You finish what you start and you can get in anywhere. ${old} have you running errands. ` +
+    'We pay for names. Yes or no, today."</p>' + card +
+    `<p class="dim">Leaving ${old} is permanent: you lose its perk and its missions, and start the ${name} line from the top. ` +
+    'You can also answer later, from your record.</p>', `Sign with the ${name}`, 'Not today')) await joinSyndicate(REAP_SYN);
+}
+
+// ---------- a contract ----------
+// {id, mark: {name, who, say, arm, hat, look, crew, nem (a nemesis id, or '')}, H (a break-in, job 'hit'),
+//  due, cash, xp, rar, hard, h (the break-in's own state, kept by heistState)}
+function makeContract() {
+  const [site, inside, room] = pick(REAP_SITES), [who, arm] = pick(REAP_ROLES);
+  const hard = clampN(1 + Math.floor(effDay() / 12), 1, 5);
+  const lock = S.day <= 8 ? 'padlock' : S.day <= 16 ? 'deadbolt' : S.day <= 26 ? 'badge' : pick(['cylinder', 'maglock']);
+  // The hook: now and then the name on the paperwork is one of your own, and nobody says who filed it.
+  const mine = nemList().filter(N => N.g >= 1);
+  const N = mine.length && Math.random() < REAP.nemOdds ? pick(mine) : null;
+  const mark = N
+    ? {name: N.name, who: `${nemCrew(N)}. ${NEM_MARKS[N.mk]}`, say: nemSay(N), arm: nemArm(N),
+      hat: N.hat, look: Object.assign({}, N.look), crew: N.gang, nem: N.id}
+    : {name: `${pick(REAP_FIRST)} ${pick(NEM_LAST)}`, who, say: pick(REAP_LINES), arm,
+      hat: pick([0, 1, 'shades', 'shades']), look: {skin: rnd(0, SKINS.length - 1), hair: rnd(0, HAIRSTYLES.length - 1),
+        col: rnd(0, HAIRCOLS.length - 1), streak: 4}, crew: reapMarkCrew(), nem: ''};
+  const C = {id: 'c' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36),
+    mark, hard, due: S.day + REAP.days,
+    cash: Math.round((REAP.pay[0] + REAP.pay[1] * effDay()) * hard / 10) * 10,
+    xp: Math.round((REAP.xp[0] + REAP.xp[1] * level()) * hard),
+    rar: Math.random() < REAP.gear ? clampN(rollRarity(effDay() * 0.3 + 10), 1, 4) : -1};
+  C.H = {id: C.id, site, at: pick(LOCATIONS.filter(l => l !== BUNKER && l !== S.loc)), lock, job: 'hit',
+    tier: LOCKS[lock][1], guard: mark.crew && SYNDICATES[mark.crew] ? mark.crew : 'sec', inside,
+    prize: `close the contract on ${mark.name}`, room, mark};
+  return C;
+}
+const reapM = () => (S.hit && S.hit.H ? heistM('hit', S.hit) : null);
+const reapDue = C => (C.due <= S.day ? '<span class="red">due today</span>'
+  : `${C.due - S.day} day${C.due - S.day === 1 ? '' : 's'} left`);
+const reapGoal = C => `Get into ${C.H.site} at ${C.H.at} and close the contract on ${C.mark.name}`;
+const reapStatus = C => heistStatus('hit', C);
+// What a body costs, in words, before you sign for one.
+const reapPrice = C => `<p class="dim">THE PRICE</p><p>Heat <b class="red">+${heatShown(REAP.heat[0] + REAP.heat[1] * C.hard)}%</b> ` +
+  'when it is done, on top of whatever the door costs you' +
+  (SYNDICATES[C.mark.crew] ? `, and <b>${SYNDICATES[C.mark.crew][0]}</b> kept them, so they will take it personally` : '') +
+  '. The law does not file these as burglaries.</p>';
+// The portrait: the mark, drawn out of the same figure parts as everybody else.
+function reapMarkSvg(mark) {
+  const c = REAP.markCol;
+  const F = {look: mark.look, level: 1, weapon: 0, hp: 100, mood: 'mean',
+    gear: {head: mark.hat === undefined ? null : {kind: mark.hat, c, rar: 0},
+      body: {kind: 'suit', c, rar: 2, fill: '#1a1a22'}, feet: {kind: 1, c, rar: 0}}};
+  return `<svg class="avatar foe" viewBox="${bustBox()}" role="img" aria-label="${esc(mark.name)}">` +
+    `<rect x="0" y="0" width="200" height="352" fill="${c}" opacity=".12"/><g${figClass()}>${sprite(figure(F), true)}</g></svg>`;
+}
+const reapHead = mark => `<div class="versus" style="grid-template-columns:86px"><div>${reapMarkSvg(mark)}` +
+  `<small>${esc(mark.name.toUpperCase())}</small></div></div>`;
+
+// The handler has something for you. Taking it or leaving it is the whole dialogue.
+async function reapOffer() {
+  const C = makeContract();
+  log(`A Sneak Reapers courier found you at ${S.loc}.`);
+  render();
+  const html = reapHead(C.mark) + `<p class="dim">${HANDLER[REAP_SYN]}, ${SYNDICATES[REAP_SYN][0]}:</p>` +
+    `<p>"One name. ${C.mark.name}, ${C.mark.who}. They will be at ${C.H.site}, ${C.H.at}, most evenings. ` +
+    'In, find them, out. The client is not interested in how."</p>' +
+    `<div class="syn"><b>${reapGoal(C)}</b><br>${LOCKS[C.H.lock][0]} on the door &middot; difficulty ${C.hard} of 5` +
+    `<br><span class="amber">By the end of day ${C.due}.</span></div>` +
+    `<p>Pays: ${questReward(C)}</p>` + reapPrice(C) +
+    '<p class="dim">One contract at a time. Turning one down costs you nothing: the book is long.</p>';
+  reapTally.offered++;
+  if (C.mark.nem) reapTally.nem++;
+  const took = await dialog('A name and an address', html, [['Sign for it', true, 'primary'], ['Not this one', false, 'small']]);
+  if (!took) { reapTally.refused++; return log('You handed the paperwork back.'); }
+  S.hit = C;
+  log(`<span class="amber">Contract signed: ${C.mark.name}.</span> ${reapGoal(C)} by the end of day ${C.due}.`);
+}
+
+// Inside, with the mark in the building. got: you reached them before they heard you.
+// Returns the line printed at the top of the next move. Sets st.done when the mark is down.
+async function reapHitInside(M, st, careful, got) {
+  const H = M.H, mark = H.mark, [aim, crew] = got ? REAP.drop : REAP.seen;
+  const N = mark.nem ? nemBy(mark.nem) : null;
+  reapTally[got ? 'drop' : 'seen']++;
+  const E = {kind: 'thug', mark, name: mark.name, n: crew, seed: rnd(0, 5), boss: true,
+    hit: clampN(0.34 * aim, 0.12, 0.85), lo: 3 + H.tier, hi: 7 + 2 * H.tier,
+    intro: got
+      ? `${mark.name} is in ${H.room} with their back to the door, and the door did not make a sound. ${mark.say}`
+      : `${mark.name} heard the door${crew > 1 ? ' and is not alone' : ''}. ${mark.say}`};
+  if (N) { E.nem = N; E.gang = N.gang; nemMeet(N, 'street'); }   // NEMESIS: their own code takes it from here
+  st.alert = Math.min(95, st.alert + REAP.alert[got ? 0 : 1]);
+  await fight(E);
+  if (S.over) return '';
+  if (E.result !== 'won') {
+    reapTally.walked++;
+    return `<span class="red">${mark.name} is through a fire door and into a car. The contract is still open, ` +
+      'and they know your face now.</span>';
+  }
+  st.done = true;
+  st.careful = careful && got;
+  reapTally.closed++;
+  tally('hit');   // tally() feeds questEvent, so the line's 'hit' missions count themselves
+  if (mark.nem) tally('hitnem');
+  const heat = heistHeat(REAP.heat[0] + REAP.heat[1] * H.tier);
+  st.took = (st.took ? st.took + ', ' : '') + 'the paperwork';
+  // LEGACY: now and then the mark is wearing something a career of yours did not come home in.
+  const ghost = Math.random() < REAP.legacy ? legacyTake('gear') : null;
+  if (ghost) { reapTally.legacy++; await dropLoot(mark.name, 0, legacyItem(ghost, 0), true); }
+  return `<span class="green">It is done, and it took about as long as it sounds like it took.</span> ` +
+    `Heat +${heat}%.${ghost ? ` ${legacyGearNote(ghost)}` : ''}`;
+}
+
+// The contract is closed and you are out of the building: pay it. Called from heistDone.
+async function reapPaid(C, st, clean) {
+  const ghost = st.entry === 'quiet' && clean;
+  S.hit = null;
+  if (ghost) { tally('hitclean'); reapTally.clean++; }   // tally() feeds questEvent for the line's 'hitclean' mission
+  S.cash += C.cash;
+  const xp = gainXp(Math.round(C.xp * (ghost ? 1.2 : 1)));
+  if (SYNDICATES[C.mark.crew]) S.grudge[C.mark.crew] = (S.grudge[C.mark.crew] || 0) + REAP.grudge;
+  SND.play('cash');
+  log(`<span class="green">Contract closed: ${C.mark.name}.</span> Paid ${money(C.cash)}.${xp}`);
+  render();
+  await alertDlg('CONTRACT CLOSED', reapHead(C.mark) +
+    `<p><b>${C.mark.name}</b> &middot; ${C.mark.who}</p>` +
+    `<p>${HANDLER[REAP_SYN]} wires you <b>${money(C.cash)}</b>:${xp}.</p>` +
+    (ghost ? '<p class="green">Quiet in, clean out, and nobody in the building knows anything happened. The crew pays a fifth over for that.</p>' : '') +
+    (SYNDICATES[C.mark.crew] ? `<p class="amber">${SYNDICATES[C.mark.crew][0]} kept them. They will work out who did it.</p>` : ''));
+  if (C.rar >= 0) await dropLoot(HANDLER[REAP_SYN], 0, makeItem(C.rar));
+}
+
+// The contract you are holding, from the main screen: the paperwork, the price, and the way in.
+async function reapScreen() {
+  const C = S.hit;
+  if (!C || !C.H) return;
+  const M = reapM();
+  let html = reapHead(C.mark) + `<p class="dim">${SYNDICATES[REAP_SYN][0].toUpperCase()} &middot; handler: ${HANDLER[REAP_SYN]}</p>` +
+    `<div class="syn"><b>${C.mark.name}</b><br>${C.mark.who}</div>` +
+    `<p><b>${reapGoal(C)}</b><br><span class="amber">${reapStatus(C)}</span> &middot; ${reapDue(C)} (end of day ${C.due})</p>` +
+    `<p>Pays: ${questReward(C)}</p>` + reapPrice(C) + heistBrief(M);
+  const buttons = [];
+  if (heistReady(M)) buttons.push([heistButton(M), 'go', 'primary']);
+  buttons.push(['Hand it back', 'drop', 'small'], ['Close', null, buttons.length ? '' : 'primary']);
+  const choice = await dialog('Contract', html, buttons);
+  if (choice === 'go' && S.hit === C) await heistPlay(reapM());
+  else if (choice === 'drop' && S.hit === C && await confirmDlg('Hand it back',
+    `<p>Give the paperwork on <b>${C.mark.name}</b> back? It costs you nothing but the contract.</p>`, 'Hand it back', 'Keep it')) {
+    S.hit = null;
+    log('You handed the contract back. Somebody else will take it.');
+  }
+}
+
+// The client does not wait for ever. Nothing else happens: an unsigned name is not a debt.
+async function reapCheck() {
+  const C = S.hit;
+  if (!C) return;
+  if (!C.H || !C.mark || !(C.cash > 0) || !inSyn(REAP_SYN)) { S.hit = null; return; }
+  if (S.day > C.due) {
+    S.hit = null;
+    reapTally.expired++;
+    log(`<span class="amber">The contract on ${C.mark.name} has gone to somebody else.</span>`);
+    render();
+    await alertDlg('Contract withdrawn', `<p>The client has stopped waiting. ${C.mark.name} is somebody else's paperwork now.</p>` +
+      '<p class="dim">It costs you nothing. The book is long.</p>');
+  }
+}
+
+// ---------- the perk ----------
+// Half of it. Their whole trade is arriving before anybody is ready, and it cuts both ways: an ambush never
+// lands on a Reaper, wherever it came from (the street, the Bunker stairs, a nemesis, a deep run).
+// The other half is one multiplier in fightRounds: REAP.loot on everything off anyone you beat.
+// Returns true when it voided an ambush.
+function reapNoFirstSwing(E) {
+  if (!E || !E.ambush || !inSyn(REAP_SYN)) return false;
+  E.ambush = false;
+  reapTally.noambush++;
+  return true;
+}
+
+// ---------- the debug menu's way in ----------
+// grantReapGate() hands over both halves of the gate without earning them; reapInvite() forces the courier;
+// reapSend() puts a contract in your hands where you stand. (Nothing in the game calls these.)
+function grantReapGate() {
+  for (const id of REAP_GATE) career.ach[id] = career.ach[id] || Date.now();
+  saveCareer();
+  return reapGate();
+}
+function reapSend() {
+  if (!S) return null;
+  S.hit = makeContract();
+  if (S.loc !== BUNKER) S.hit.H.at = S.loc;   // nobody is contracted at your own hideout
+  return S.hit;
+}
+let reapTally = {offered: 0, closed: 0, clean: 0, drop: 0, seen: 0, walked: 0, expired: 0, legacy: 0,
+  nem: 0, noambush: 0, refused: 0};
+// ---------- the step-by-step test ----------
+// The gate holds until both halves are earned and does not open early; the crew is on no list it should not
+// be on and is never a rival; the invitation plays at every level; the line is eleven missions with its three
+// break-ins; a contract is offered, refused for nothing, signed, played through all four stages with the
+// mark reached and with the mark hearing the door, paid, expired; the perk does what it says; and the whole
+// line can be played to the end.
+async function reapSelfTest() {
+  const run = S, mine = career, keep = slot, random = Math.random, realFight = fight;
+  const fail = (what, ...more) => { throw new Error(`Sneak Reapers test: ${what} ` + JSON.stringify(more)); };
+  const steer = list => {
+    const q = list.slice();
+    autoPick = all => {
+      if (all.length === 1 || !q.length) return all.includes(true) ? true : all[0];
+      const want = q.shift();
+      if (!all.includes(want)) fail('choice not on offer', want, all);
+      return want;
+    };
+  };
+  const fixed = async (value, fn) => { Math.random = () => value; try { return await fn(); } finally { Math.random = random; } };
+  const won = result => { fight = async E => { E.result = result; }; };
+  const fresh = o => {
+    career = newCareer(); fixCareer(); newGame(); setLockSkill(LOCK_MAX);
+    for (const k of Object.keys(TOOLS)) if (k !== 'clip') S[k] = GADGETS[k][2];
+    Object.assign(S, o || {});
+  };
+  try {
+    // ----- the tables -----
+    if (!SYNDICATES[REAP_SYN] || !SYN_COL[REAP_SYN] || !HANDLER[REAP_SYN] || !NEMESIS[REAP_SYN] ||
+      !SYNDICATES[NEMESIS[REAP_SYN]] || !QUESTS[REAP_SYN] || !HIDDEN_GATE[REAP_SYN] ||
+      !hiddenSyn(REAP_SYN) || !hiddenSyn(HIDDEN_SYN)) fail('the crew is half defined');
+    if (REAP_GATE.length !== 2 || REAP_GATE.some(id => !ACH[id])) fail('the gate is not two achievements', REAP_GATE);
+    if (REAP_GATE.includes(KEY_ACH)) fail('the gate reuses the 404 key');
+    if (!REAP_SITES.length || REAP_SITES.some(s => s.length !== 3 || s.some(x => !x)) ||
+      !REAP_ROLES.length || REAP_ROLES.some(r => !r[0] || !WEAPONS[r[1]]) ||
+      !REAP_FIRST.length || !REAP_LINES.length) fail('the contract tables are half defined');
+    // Every Reaper break-in is a contract with a named mark, and only the Reaper line uses them.
+    for (const id of ['reap1', 'reap2', 'reap3']) {
+      const H = HEISTS[id];
+      if (!H || H.job !== 'hit' || !H.mark || !H.mark.name || !H.mark.say || !H.room ||
+        !WEAPONS[H.mark.arm] || !H.prize.includes(H.mark.name)) fail('a line contract is half defined', id);
+    }
+    for (const [id, H] of Object.entries(HEISTS)) {
+      if ((H.job === 'hit') !== ['reap1', 'reap2', 'reap3'].includes(id)) fail('a hit outside the Reaper line', id);
+    }
+
+    // ----- the gate -----
+    fresh();
+    career.xp = 50 * 22 * 21;   // well past level 10
+    if (reapGate()) fail('the gate was open on a new career');
+    for (const id of REAP_GATE) {
+      career.ach = {};
+      career.ach[id] = Date.now();
+      if (reapGate()) fail('one half opened the gate', id);
+      if (openSyns().includes(REAP_SYN)) fail('the crew was on the list with half the gate', id);
+      if (rivals().includes(REAP_SYN)) fail('the crew is a rival');
+    }
+    career.ach = {};
+    if (openSyns().length !== 4 || openSyns().includes(HIDDEN_SYN)) fail('the open list is wrong', openSyns());
+    if (!grantReapGate() || !reapGate()) fail('grantReapGate did not open it', career.ach);
+    if (!openSyns().includes(REAP_SYN) || openSyns().includes(HIDDEN_SYN)) fail('the crew did not appear', openSyns());
+    career.ach[KEY_ACH] = Date.now();
+    if (openSyns().length !== 6) fail('both hidden crews should be on the list', openSyns());
+    if (rivals().includes(REAP_SYN) || rivals().includes(HIDDEN_SYN) ||
+      Object.keys(noGrudges()).includes(REAP_SYN) || S.grudge[REAP_SYN] !== undefined) fail('the crew can be raided', rivals());
+    if (nemBorn(REAP_SYN)) fail('a nemesis was born to the Reapers');
+
+    // ----- the invitation -----
+    // Below level 10 it only tells you it exists; with no crew it goes straight to the list; with one it asks.
+    fresh();
+    grantReapGate();
+    steer([]);
+    await reapInvite();
+    if (career.syn) fail('the invitation signed a level-1 career up', career.syn);
+    career.xp = 50 * 22 * 21;
+    steer([REAP_SYN]);
+    await reapInvite();
+    if (career.syn !== REAP_SYN || !career.quest || career.quest.n !== 0) fail('joining from no crew failed', career.syn, career.quest);
+    if (!career.ach.reapin) { await achCheck(); }
+    if (!career.ach.reapin) fail('joining did not earn its achievement', career.ach);
+    fresh();
+    career.xp = 50 * 22 * 21; career.syn = 'red'; fixQuest();
+    grantReapGate();
+    steer([false]);
+    await reapInvite();
+    if (career.syn !== 'red') fail('"not today" moved you', career.syn);
+    steer([true]);
+    await reapInvite();
+    if (career.syn !== REAP_SYN || career.quest.n !== 0) fail('leaving a crew for them failed', career.syn, career.quest);
+    // ...and the pair landing in play brings the courier by itself.
+    fresh();
+    career.xp = 50 * 22 * 21;
+    career.stats = {nemdown: 1, dunwin: 1, dunsite: 1, dundive: 1};
+    steer([REAP_SYN]);
+    await achCheck();
+    if (!reapGate() || career.syn !== REAP_SYN) fail('the pair did not bring the courier', career.ach, career.syn);
+
+    // ----- the line -----
+    const chain = QUESTS[REAP_SYN];
+    if (chain.length !== 11 || chain.filter(m => m[2] === 'heist').length !== 3 ||
+      [1, 4, 8].some(i => chain[i][2] !== 'heist')) fail('the line is the wrong shape', chain.length);
+    fresh();
+    career.syn = REAP_SYN;
+    chain.forEach((m, n) => {
+      career.quest = {n, p: 0, v: 3};
+      const Q = quest();
+      if (!(Q.xp > 0 && Q.cash > 0) || Q.title !== m[0] || !questGoal(Q) || questGoal(Q) === Q.kind) fail('mission', n, Q.kind);
+    });
+    for (const kind of ['hit', 'hitclean', 'nemdown', 'dundeep']) {
+      career.quest = {n: chain.findIndex(m => m[2] === kind), p: 0, v: 3};
+      if (career.quest.n < 0) continue;
+      const Q = quest(), before = career.quest.p;
+      tally(kind, 1);   // tally() feeds questEvent: the mission has to notice
+      if (career.quest.p !== before + 1) fail('a mission kind does not count itself', kind, Q);
+    }
+    // The whole line, paid out mission by mission, to the standing orders at the end.
+    fresh();
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; career.quest = {n: 0, p: 0, v: 3};
+    steer([]);
+    won('won');
+    for (let guard = 0; guard < 40 && career.quest.n < chain.length; guard++) {
+      const Q = quest(), at = career.quest.n;
+      career.quest.p = Q.t + 1;
+      if (Q.kind === 'proxies') S.proxies = Q.t;   // this one reads where you stand, not a count (see QUEST_NOW)
+      if (Q.kind === 'heist') { S.qh = {id: Q.good, stage: 3, day: S.day, alert: 0, done: true, entry: 'quiet'}; }
+      await questCheck();
+      if (career.quest.n <= at) fail('the line stalled', at, Q.kind);
+    }
+    if (career.quest.n < chain.length) fail('the line never finished', career.quest.n);
+    if (!quest().order) fail('no standing orders after the line', quest());
+    await achCheck();
+    if (!career.ach.reapdone) fail('finishing the line earned nothing', career.ach);
+    // A standing order can be one of their own contracts again.
+    for (let i = 0; i < 60; i++) {
+      const o = newOrder();
+      if (o.kind === 'heist' && !HEISTS[o.good]) fail('a standing order points at nothing', o);
+    }
+
+    // ----- a contract, end to end -----
+    fresh({loc: LOCATIONS[1]});
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; fixQuest();
+    // Turning one down costs nothing but the contract.
+    const refused = reapTally.refused;
+    steer([false]);
+    await reapOffer();
+    if (S.hit || reapTally.refused !== refused + 1) fail('refusing a contract cost something', S.hit);
+    // Signing for one: a mark with a name, a place, a lock, a price and a deadline.
+    steer([true]);
+    await reapOffer();
+    const C = S.hit;
+    if (!C || !C.mark.name || !C.H || C.H.job !== 'hit' || !LOCKS[C.H.lock] || !LOCATIONS.includes(C.H.at) ||
+      C.H.at === BUNKER || !(C.cash > 0 && C.xp > 0) || C.due !== S.day + REAP.days ||
+      !reapGoal(C).includes(C.mark.name) || !reapPrice(C).includes('Heat')) fail('the contract is half made', C);
+    if (!reapStatus(C) || !reapDue(C) || !reapMarkSvg(C.mark).includes('<svg')) fail('the contract does not show itself', C);
+    const M = reapM();
+    if (!M || M.src !== 'hit' || M.H.id !== C.id || M.box !== C ||
+      heistList().filter(x => x.src === 'hit').length !== 1) fail('the contract is not a break-in', M.src, M.H.id);
+    // It is only playable where the mark is.
+    if (heistReady(M)) fail('a contract was playable from the wrong side of town');
+    S.hit.H.at = S.loc;
+    if (!heistReady(reapM())) fail('a contract was not playable at the door');
+    // All four stages, reaching the mark first: cased, picked, in, down, out clean, paid.
+    const closed = reapTally.closed, drops = reapTally.drop, cash = S.cash;
+    won('won');
+    steer(['case', 'picks', 'careful', null, 'clean']);
+    await fixed(0.01, () => heistPlay(reapM()));
+    if (reapTally.closed !== closed + 1 || reapTally.drop !== drops + 1) fail('the mark was not reached', reapTally);
+    if (S.hit || S.cash <= cash || stat('hit') < 1 || stat('hitclean') < 1) fail('the contract did not pay', S.hit, S.cash, cash);
+    await achCheck();
+    if (!career.ach.reap1 || !career.ach.reapghost) fail('a closed contract earned nothing', career.ach);
+    // ...and with the mark hearing the door: the escort is in the room and the Alert is higher.
+    fresh({loc: LOCATIONS[1]});
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; fixQuest();
+    steer([true]);
+    await reapOffer();
+    // (a hard door and a hard building, so that one roll of the dice opens the lock and still misses the mark:
+    //  a maglock with a cloner is 80%, and crossing a tier 5 building fast is 30%)
+    Object.assign(S.hit.H, {at: S.loc, lock: 'maglock', tier: 5});
+    S.cloner = GADGETS.cloner[2];
+    const seen = reapTally.seen, clean2 = stat('hitclean'), closed2 = reapTally.closed;
+    won('won');
+    steer(['blind', 'cloner', 'fast', null, 'fast']);
+    await fixed(0.6, () => heistPlay(reapM()));
+    // Heard at the door, and the job still done: it closes, but it does not pay the quiet bonus.
+    if (reapTally.seen !== seen + 1 || reapTally.closed !== closed2 + 1) fail('the mark should have heard the door', reapTally);
+    if (S.hit || stat('hitclean') !== clean2) fail('a noisy contract paid the quiet bonus', S.hit, career.stats);
+    // The mark getting away leaves the contract open and nothing paid.
+    fresh({loc: LOCATIONS[1]});
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; fixQuest();
+    steer([true]);
+    await reapOffer();
+    S.hit.H.at = S.loc;
+    const walked = reapTally.walked, kept = S.hit, money0 = S.cash;
+    won('fled');
+    steer(['blind', 'picks', 'careful', null, 'fast']);
+    await fixed(0.01, () => heistPlay(reapM()));
+    if (reapTally.walked < walked + 1 || S.hit !== kept || S.cash !== money0) fail('a mark who got away still paid', reapTally, S.cash);
+    // Handing it back, and the client giving up on it.
+    steer(['drop', true]);
+    await reapScreen();
+    if (S.hit) fail('handing the contract back did not take', S.hit);
+    steer([true]);
+    await reapOffer();
+    const gone = reapTally.expired;
+    S.day = S.hit.due + 1;
+    steer([]);
+    await reapCheck();
+    if (S.hit || reapTally.expired !== gone + 1) fail('the contract never expired', S.hit, reapTally);
+
+    // ----- the hooks -----
+    // A contract can name one of your own nemeses, and then the nemesis code runs the fight.
+    fresh({loc: LOCATIONS[1]});
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; fixQuest();
+    S.grudge.red = 2;
+    const N = nemBorn('red');
+    if (!N) fail('the test could not make a nemesis');
+    let mine2 = null;
+    for (let i = 0; i < 200 && !mine2; i++) { const t = makeContract(); if (t.mark.nem === N.id) mine2 = t; }
+    if (!mine2 || mine2.mark.name !== N.name || mine2.mark.crew !== N.gang) fail('a contract never named a nemesis of mine', mine2);
+    // ...and a stranger's contract names nobody's nemesis.
+    career.nem = [];
+    for (let i = 0; i < 50; i++) if (makeContract().mark.nem) fail('a nemesis was named with none out there');
+
+    // ----- the perk -----
+    // Half of it is reapNoFirstSwing, which the fight engine asks on every encounter; half of it is one
+    // multiplier on everything off a beaten enemy. Both are checked, and so is the engine still asking.
+    fresh();
+    career.syn = REAP_SYN;
+    const noamb = reapTally.noambush;
+    const E = {kind: 'thug', name: 'Test', n: 1, ambush: true};
+    if (!reapNoFirstSwing(E) || E.ambush || reapTally.noambush !== noamb + 1) fail('the perk let them swing first', E, reapTally);
+    if (reapNoFirstSwing(E)) fail('the perk fired twice on one fight', E);
+    career.syn = 'red';
+    const E2 = {kind: 'thug', name: 'Test', n: 1, ambush: true};
+    if (reapNoFirstSwing(E2) || !E2.ambush) fail('somebody else got the perk', E2);
+    career.syn = null;
+    if (reapNoFirstSwing({kind: 'thug', n: 1, ambush: true})) fail('a crewless career got the perk');
+    const engine = String(fightRounds);
+    if (!engine.includes('reapNoFirstSwing(E)') || !engine.includes('REAP.loot')) fail('the fight engine stopped asking for the perk');
+    if (REAP.loot <= 1 || !SYNDICATES[REAP_SYN][1].includes('50%') ||
+      !SYNDICATES[REAP_SYN][1].toLowerCase().includes('first swing')) fail('the perk is not what the card says', SYNDICATES[REAP_SYN][1]);
+
+    // ----- the debug handles -----
+    fresh({loc: LOCATIONS[1]});
+    if (!grantReapGate() || !reapGate()) fail('grantReapGate');
+    career.syn = REAP_SYN; fixQuest();
+    const sent = reapSend();
+    if (!sent || S.hit !== sent || sent.H.at !== S.loc || !heistReady(reapM())) fail('reapSend', sent);
+    S.loc = BUNKER;
+    if (reapSend().H.at === BUNKER) fail('a contract was set at the Bunker');
+    S.hit = null;
+
+    // ----- the screens draw -----
+    fresh({loc: LOCATIONS[1]});
+    career.xp = 50 * 22 * 21; career.syn = REAP_SYN; fixQuest();
+    reapSend();
+    render();
+    if (!$('#jobs').innerHTML.includes('data-act="reap"') || !$('#jobs').innerHTML.includes(esc(S.hit.mark.name))) {
+      fail('the contract is not on the main screen');
+    }
+    autoPick = () => null;
+    try {
+      await ACTIONS.reap();
+      await ACTIONS.profile();
+      await ACTIONS.syndicate();
+      S.hit = null;
+      render();
+      await ACTIONS.achievements();
+    } finally { autoPick = null; }
+  } finally {
+    Math.random = random; autoPick = null; fight = realFight;
+    slot = keep; S = run; career = mine; logs = []; notes.length = 0; pendingLevel = 0;
+  }
+}
+// ====================== SNEAK REAPERS: the sixth crew, and contract work: END ======================
+
 // ---------- the prison pocket, in use ----------
 // E.pocket holds what went in during this encounter: [{name, qty, cost, tag}]. It only lasts as long as the
 // fight does; pocketOut() empties it again when the fight is over, however it ended.
@@ -11280,6 +11955,19 @@ const BTL = (() => {
         syn = N.gang;
         deco = enc.kind === 'raid' ? 'holo' : 'nem';
         boss = true;
+      } else if (enc.mark && i === 0) {
+        // ===== SNEAK REAPERS: the mark on a contract. One named person, drawn at boss scale out of the same
+        // parts as everybody else, the way a nemesis is (see reapHitInside). The crew's bone colour is only
+        // the palette the paperwork comes in: the mark is nobody's operator. =====
+        const M = enc.mark, c = REAP.markCol;
+        name = M.name;
+        look = Object.assign({streak: 4}, M.look);
+        gear = {head: M.hat === undefined || M.hat === null ? null : P(M.hat, c), body: P('suit', c, '#1a1a22', 2),
+          hands: P(0, c), legs: P(6, c), feet: P(1, c)};
+        weapon = WEAPONS[M.arm] ? M.arm : 11;
+        syn = REAP_SYN;
+        boss = true;
+        deco = 'boss';
       } else if (enc.kind === 'thug' && enc.guard) {
         // Site security, answering the alarm on a break-in (see heistAlarm): a cap, a uniform, and no mask.
         const c = nemC || '#ff9d2e';   // NEMESIS: their colours when one of them brought them
@@ -11310,7 +11998,8 @@ const BTL = (() => {
         ][enc.tier || 0];
         look.streak = 4;
       } else {
-        const key = SYN_COL[enc.gang] ? enc.gang : 'ghost', c = SYN_COL[key], crew = {ghost: 'Ghost', ledger: 'Ledger', null: 'Null', red: 'Red Team', x404: '404'}[key];
+        const key = SYN_COL[enc.gang] ? enc.gang : 'ghost', c = SYN_COL[key],
+          crew = {ghost: 'Ghost', ledger: 'Ledger', null: 'Null', red: 'Red Team', x404: '404', reap: 'Reaper'}[key];   // SNEAK REAPERS
         const kits = {
           ghost: [['Ghost Runner', {skin: 0, hair: 3}, {head: P(1, c), body: P(1, c), hands: P(0, c), deck: P(1, c)}, 15],
             ['Ghost Phreak', {skin: 1, hair: 4}, {head: P(1, c), face: P(7, c), body: P(2, c, '#12202b'), hands: P(1, c), deck: P(5, c)}, 40]],
@@ -11322,12 +12011,15 @@ const BTL = (() => {
             ['Red Team Breacher', {skin: 5, hair: 4}, {head: P(5, c), face: P(6, c), body: P(4, c), legs: P(3, c), hands: P(2, c), feet: P(6, c)}, 29]],
           x404: [['404 Drifter', {skin: 2, hair: 2}, {head: P(1, c), body: P(1, c), hands: P(0, c), deck: P(1, c)}, 15],
             ['404 Phantom', {skin: 0, hair: 4}, {head: P(4, c), face: P(7, c), coat: P(3, c), deck: P(3, c)}, 40]],
+          // SNEAK REAPERS: never a rival crew, like the 404, but the kit exists so nothing can draw a blank.
+          reap: [['Reaper Contractor', {skin: 3, hair: 0}, {head: P(1, c), face: P(2, c), body: P(3, c, '#20201a'), hands: P(2, c), feet: P(1, c)}, 13],
+            ['Reaper Closer', {skin: 1, hair: 4}, {head: P(5, c), face: P(6, c), coat: P(6, c, '#20201a'), legs: P(6, c), deck: P(1, c)}, 19]],
         };
         syn = key;
         if (core && i === 0) {
           boss = true;
           name = crew + ' Core Admin';
-          look = {skin: {ghost: 0, ledger: 4, null: 2, red: 1, x404: 3}[key], hair: 4};
+          look = {skin: {ghost: 0, ledger: 4, null: 2, red: 1, x404: 3, reap: 5}[key], hair: 4};   // SNEAK REAPERS
           gear = {head: P(2, c, null, 3), face: P(7, c, null, 3), body: P(3, c, '#15131c', 3), coat: P(6, c, '#15131c', 3), hands: P(3, c, null, 3),
             legs: P(6, c), feet: P(1, c), deck: P(7, c, null, 3)};
           deco = 'boss';
@@ -12834,8 +13526,10 @@ async function gunFallout(E) {
   log('<span class="red">Shots fired, and somebody called them in.</span>');
   gunBusy = true;
   try {
-    await lawEncounter('You are three streets away when the light goes blue behind you. ' +
-      'Somebody gave them a description, and it was a good one.');
+    // Deliberately not tied to a street: a gunfight can finish in an alley, in a stairwell or three
+    // floors inside a building, and this line has to read in all of them.
+    await lawEncounter('Somebody heard the shooting and stayed on the line long enough to give them a ' +
+      'description. It was a good one.');
   } finally { gunBusy = false; }
 }
 
@@ -13031,6 +13725,7 @@ async function fightRounds(E) {
   };
 
   BTL.open(E, title, hint);
+  reapNoFirstSwing(E);   // SNEAK REAPERS: THE PERK. Nobody ever gets the first swing on a Reaper.
   if (E.ambush) {
     // Caught flat-footed: they swing before you can do anything.
     await BTL.note('AMBUSH!', '#ff3b5c');
@@ -13241,7 +13936,9 @@ async function fightRounds(E) {
         xp = gainXp(30 * total);
       }
       // SKILL TREE: Fence Contacts turns their tooling into a little more cash.
-      loot = Math.round(loot * (1 + bonus('luck') / 100) * skLoot() * (law ? ECON.lawLoot : raid ? ECON.raidLoot : thug ? ECON.thugLoot : ECON.gangLoot));
+      // SNEAK REAPERS: THE PERK, the other half: the wet work pays. Everything off a beaten enemy is worth more.
+      loot = Math.round(loot * (1 + bonus('luck') / 100) * skLoot() * (inSyn(REAP_SYN) ? REAP.loot : 1) *
+        (law ? ECON.lawLoot : raid ? ECON.raidLoot : thug ? ECON.thugLoot : ECON.gangLoot));
       S.cash += loot;
       if (law) {
         tally('law'); tally('lawwin');
@@ -17469,6 +18166,7 @@ async function selfTest(games) {
   let dunWas = {}, dunUses = 0;   // DUNGEONS
   let evWas = {};   // LIVE NEWS: what the step-by-step test did does not count below
   let nemWas = {};   // NEMESIS: what the step-by-step test did does not count towards the random games
+  let reapWas = {};  // SNEAK REAPERS: the same
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -17482,7 +18180,8 @@ async function selfTest(games) {
       }));
     }
     for (let game = 0; game < games; game++) {
-      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red', 'x404']), gear: {}, bag: [], locker: [],
+      // SNEAK REAPERS: the sixth crew takes its turn like the rest, so its line and its contracts get played.
+      career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red', 'x404', REAP_SYN]), gear: {}, bag: [], locker: [],
         quest: pick([null, {n: rnd(0, 9), p: 0}])};
       fixCareer();
       // SKILL TREE: half the careers are well along, and most of them have a build: points spent in order
@@ -17542,6 +18241,7 @@ async function selfTest(games) {
           await facesSelfTest();   // FACES
           await legacySelfTest();    // LEGACY: old careers in new ones, and the endings
           await nemSelfTest();    // NEMESIS
+          await reapSelfTest();   // SNEAK REAPERS
           await gunSelfTest();    // GUNFIRE
         } finally { evOff--; }
         await newsSelfTest();   // LIVE NEWS
@@ -17554,6 +18254,7 @@ async function selfTest(games) {
       if (game === 0) dunWas = Object.assign({}, dunTally);   // DUNGEONS
       if (game === 0) evWas = Object.assign({}, evTally);     // LIVE NEWS
       if (game === 0) nemWas = Object.assign({}, nemTally);   // NEMESIS
+      if (game === 0) reapWas = Object.assign({}, reapTally);   // SNEAK REAPERS
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -17725,6 +18426,24 @@ async function selfTest(games) {
           const still = nemBy(id);
           if (still && still.met < met) throw new Error('a meeting was not counted: ' + JSON.stringify([met, still.met]));
         }
+        // ===== SNEAK REAPERS: when the bot is in the crew it gets handed a contract now and then and plays it
+        // where it stands, so every way a contract can go gets walked: reached, heard, closed, blown, left.
+        // Whatever happens, there is never more than one contract and it is always a real one. =====
+        if (inSyn(REAP_SYN) && S.loc !== BUNKER && Math.random() < 0.18) {
+          if (!S.hit) reapSend();
+          if (S.hit) {
+            S.hit.H.at = S.loc;
+            const held = S.hit;
+            await ACTIONS.reap();
+            if (S.over) break;
+            if (S.hit && S.hit !== held && S.hit.id === held.id) throw new Error('the contract was replaced mid-job');
+          }
+        }
+        if (S.hit && (!S.hit.H || !S.hit.mark || !(S.hit.cash > 0 && S.hit.xp > 0 && S.hit.due > 0) ||
+          !LOCKS[S.hit.H.lock] || S.hit.H.job !== 'hit' || !LOCATIONS.includes(S.hit.H.at))) {
+          throw new Error('the contract went wrong: ' + JSON.stringify(S.hit));
+        }
+        // ===== SNEAK REAPERS: END =====
         // Rides: every so often the bot turns up at one of the three shops, usually with the price of something in
         // its pocket, and buys, trades in or sells whatever it taps; at the Bunker it swaps rides in the garage.
         // However many deals that was, today's trips must have moved by exactly the change in hops.
@@ -17909,6 +18628,13 @@ async function selfTest(games) {
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || !!career.syn !== !!quest() || (career.quest && !(career.quest.p >= 0)) || !Number.isInteger(S.drive) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
           (S.gig && !(CONTACTS[S.gig.who] && S.gig.t > 0 && S.gig.p >= 0 && S.gig.cash > 0 && S.gig.xp > 0 && S.gig.due > 0 && S.gig.due < S.day + 30)) ||
+          // SNEAK REAPERS: a contract only exists for a Reaper, there is never more than one, it is a real
+          // break-in with a person in it, and the crew is on no list it should not be on.
+          (S.hit && !(inSyn(REAP_SYN) && S.hit.H && S.hit.H.job === 'hit' && S.hit.mark && S.hit.mark.name &&
+            LOCKS[S.hit.H.lock] && LOCATIONS.includes(S.hit.H.at) && S.hit.H.at !== BUNKER &&
+            S.hit.cash > 0 && S.hit.xp > 0 && S.hit.due >= 1 && S.hit.due < S.day + 30)) ||
+          rivals().includes(REAP_SYN) || S.grudge[REAP_SYN] !== undefined ||
+          (openSyns().includes(REAP_SYN) && !reapGate()) ||
           Object.values(career.rep || {}).some(n => !(n >= 0 && n <= TRUST_MAX)) ||
           // FACES: standing is a whole number inside its range for somebody who exists, memory is a short
           // line from a day that has happened, every district's two numbers are on their scales, and the
@@ -18008,8 +18734,14 @@ async function selfTest(games) {
             ['depth lever', !(distDepthMult(S.loc) >= 1 - FACES.distDepth && distDepthMult(S.loc) <= 1)],
             ['a market gone', S.loc !== BUNKER && (Object.keys(S.prices).length < 4 || GOODS.some(([g, lo, hi]) => depthOf(g) < ((lo + hi) / 2 <= ECON.streetMax ? ECON.streetDepth : ECON.minDepth)))],
             ['kept back', !!(S.kept && !(S.kept.day === S.day && LOCATIONS.includes(S.kept.at) && S.kept.it && RARITY[S.kept.it.rar]))],
+            // SNEAK REAPERS: the same service for the contract and the sixth crew.
+            ['the contract', !!(S.hit && !(inSyn(REAP_SYN) && S.hit.H && S.hit.H.job === 'hit' && S.hit.mark && S.hit.mark.name &&
+              LOCKS[S.hit.H.lock] && LOCATIONS.includes(S.hit.H.at) && S.hit.H.at !== BUNKER &&
+              S.hit.cash > 0 && S.hit.xp > 0 && S.hit.due >= 1 && S.hit.due < S.day + 30))],
+            ['the Reapers are a rival', rivals().includes(REAP_SYN) || S.grudge[REAP_SYN] !== undefined],
+            ['the Reapers opened early', openSyns().includes(REAP_SYN) && !reapGate()],
           ].filter(([, v]) => v).map(([k]) => k);
-          throw new Error(`invariant broken${why.length ? ' (faces: ' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
+          throw new Error(`invariant broken${why.length ? ' (' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
             ' career=' + JSON.stringify({stand: career.stand, memo: career.memo}));
         }
       }
@@ -18088,6 +18820,17 @@ async function selfTest(games) {
       nemTally.won && nemTally.lost && nemTally.took && nemTally.back && nemTally.down && nemTally.retired)) {
       throw new Error('nemeses were not exercised: ' + JSON.stringify([nemTally, nemWas]));
     }
+    // SNEAK REAPERS: ...and contracts must have been offered, turned down, played both ways (reaching the
+    // mark and being heard), closed, closed quiet in and clean out, lost when a mark got away, and run out
+    // of time. The gate, the invitation, the perk and the whole line are walked in reapSelfTest.
+    const rd = {};
+    for (const k of Object.keys(reapTally)) rd[k] = reapTally[k] - (reapWas[k] || 0);
+    if (games >= 20 && !(rd.offered && rd.refused && rd.closed && rd.drop && rd.seen && rd.clean && rd.walked && rd.expired)) {
+      throw new Error('contracts were not exercised: ' + JSON.stringify(rd));
+    }
+    const rsum = ` hitsoffered=${rd.offered} hitssigned=${rd.offered - rd.refused} hitsclosed=${rd.closed}` +
+      ` quietclosed=${rd.clean} gotthedrop=${rd.drop} heardthedoor=${rd.seen} marksgotaway=${rd.walked}` +
+      ` contractsexpired=${rd.expired} marksofmyown=${rd.nem} legacygearonmarks=${rd.legacy} firstswingdenied=${rd.noambush}`;
     const nsum = ` nemeses=${nemTally.born} nemmeetings=${nemTally.met} nembeaten=${nemTally.won}` +
       ` nemlosses=${nemTally.lost} nemtook=${nemTally.took} nemtookback=${nemTally.back}` +
       ` nemdown=${nemTally.down} nemwentcold=${nemTally.retired}`;
@@ -18127,7 +18870,7 @@ async function selfTest(games) {
       throw new Error('the self-test was not silent: ' + JSON.stringify(snd));
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum}${lsum}${fsum}${wsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum}${rsum}${lsum}${fsum}${wsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -18287,7 +19030,8 @@ function introText() {
     'Engines want fuel every day you ride them.</p>' +
     '<p><span class="amber">Freelance jobs</span> use up your goods on a job. If it works it pays more than selling.</p>' +
     '<p>You earn <span class="cyan">XP</span> across runs. At level 10 you can join a syndicate, and its missions are the fastest way to level from there.</p>' +
-    '<p><span class="amber">Achievements</span> pay XP too. One of them is a secret, and it opens a door.</p>' +
+    '<p><span class="amber">Achievements</span> pay XP too. Some of them are secret, and two doors in this game ' +
+    'only open for people who have already earned something.</p>' +
     '<p>Now and then a junkie will be waiting where you surface, selling tools and gear far below shop prices. ' +
     'Street contacts turn up the same way with <span class="amber">gigs</span>: side jobs with a deadline that pay cash and XP, and more as they come to trust you.</p>' +
     '<p>Big deals raise your <span class="amber">Heat</span>, and Heat decides who hunts you: police, then the FBI, ' +
