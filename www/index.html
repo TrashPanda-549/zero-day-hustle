@@ -6281,7 +6281,16 @@ const FACES = {
   // fast your own selling pushes a price down, and stock is a multiple of depth (see newBook), so this one
   // number hardens the prices AND thins the shelves, through the measured depth economy rather than beside
   // it. The floors in depthOf() still hold underneath, so no district can ever become untradeable.
-  distDepth: 0.3,
+  //
+  // MEASURED, v1.37 (the harness in D:\dev-tools\zdh-economy, 20 runs a cell, on the merged page with the
+  // news events and the legacy work in it; the numbers are in D:\dev-tools\zdh-news-measure\RESULTS-stack.md).
+  // Three features had each reached into market depth and nobody had measured them together: at 0.30 the
+  // sensible trader finished day 30 on $1.2M against the $1.6M the economy is documented at, about 25% under.
+  // At 0.20 the trader is back inside the band at $1.5M, with ECON and NEWS untouched. It is worth keeping
+  // because it is what makes "where" a decision: the same trader camping in two districts clears 805k against
+  // 1.2M for working all nine, and the district tax takes that camper to 521k on top -- so rotating is worth
+  // about 2.3x camping at 0.30, and 0.20 keeps about two thirds of that gap. Re-measure before moving it.
+  distDepth: 0.2,
   workSec: 12, alarmSec: 20,   // security a break-in or a deep run leaves behind, and an alarm on top of it
   distLaw: 0.05,      // the most a locked-down district adds to the chance the law stops you when you surface
   coolTrade: 12, coolTradeHere: 4,   // pressure a night sheds when you stayed away, and when you did not
@@ -16801,11 +16810,17 @@ async function facesSelfTest() {
     // --- districts: they heat with dealing, and the depth lever is exactly what it says ---
     fresh({loc: 'Tor Bazaar', cash: 50000000, day: 12});
     if (distTrade(S.loc) || distSec(S.loc) || distTag(S.loc) !== '' || !distLine(S.loc).includes('quiet and open')) fail('a fresh district is not quiet');
-    const name = Object.keys(S.prices)[0];
+    // The lever's size, measured on a good that is nowhere near its floor, so the floors in depthOf() cannot
+    // hide a wrong answer. It follows FACES.distDepth rather than a number written here, because that dial
+    // has been moved once already (0.30 -> 0.20, see FACES) and will be moved again.
+    const name = Object.keys(S.prices).find(g => depthOf(g) > ECON.streetDepth * 4) || Object.keys(S.prices)[0];
     const d0 = depthOf(name);
     setDistrict(S.loc, 100, 0);
     if (distTrade(S.loc) !== 100 || distWord(S.loc) !== TRADE_WORD[TRADE_WORD.length - 1]) fail('setDistrict', distTrade(S.loc));
-    if (Math.abs(depthOf(name) / d0 - (1 - FACES.distDepth)) > 0.05 && depthOf(name) !== d0) fail('the depth lever is the wrong size', d0, depthOf(name));
+    if (Math.abs(depthOf(name) / d0 - (1 - FACES.distDepth)) > 0.02) fail('the depth lever is the wrong size', name, d0, depthOf(name), FACES.distDepth);
+    if (Math.abs(distDepthMult(S.loc) - (1 - FACES.distDepth)) > 1e-9) fail('the depth multiplier is the wrong size', distDepthMult(S.loc));
+    // ...and the line the player reads has to agree with the dial, whatever it is set to.
+    if (!distLine(S.loc).includes(`${Math.round(FACES.distDepth * 100)}% thinner`)) fail('the district line does not match the dial', distLine(S.loc));
     if (!distTag(S.loc) || !distLine(S.loc).includes('thinner')) fail('a burnt district does not say so');
     faceTally.hot++;
     // ...and however hot it gets, it is still a market: deep enough to deal, something on the shelf, and
