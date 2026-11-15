@@ -190,6 +190,7 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .hall td{padding:2px 4px}.hall td:last-child{text-align:right}
 .syn{margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-left:2px solid var(--accent);background:rgba(23,20,46,.6)}
 .keyhelp{display:none}   /* the handheld's key list: see TINY SCREENS at the end of this style sheet */
+#tiny{display:none}      /* the handheld's screens, built only at that size (renderTiny) */
 .syn b{color:var(--cyan)}
 
 /* gear screen */
@@ -612,89 +613,105 @@ button .ico.room{width:44px;height:26px}
   #colme:focus,#news:focus,#log:focus,#market:focus,#jobs:focus,#dialog:focus{
     outline:2px dashed var(--yellow);outline-offset:-2px;box-shadow:none}
 
-  /* --- the play screen --- */
-  #app{position:fixed;inset:0;max-width:none;margin:0;display:grid;gap:0 5px;
-    padding:2px calc(3px + env(safe-area-inset-right)) 2px calc(3px + env(safe-area-inset-left));
-    grid-template-columns:minmax(0,1fr) 140px;
-    grid-template-rows:auto minmax(0,1fr) auto minmax(24px,.4fr);
-    grid-template-areas:"head head" "trade me" "trade news" "trade log"}
-  #app>header{grid-area:head;gap:4px;margin-bottom:2px}
-  h1{font-size:10px;letter-spacing:1px;padding:2px 12px 2px 5px;white-space:nowrap;
-    clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
-  .hbtns{gap:3px}
-  button{min-height:20px;padding:2px 6px;font-size:10px;text-shadow:none}
-  button.small{min-height:16px;padding:1px 4px;font-size:9px}
-  h2{margin:0 0 4px;font-size:11px;letter-spacing:1px}
+  /* ===== the handheld's screens =====
+     Two inches of glass will not hold the whole desktop at a size anyone can read, so here the game is
+     dealt out over five screens with one job each - the market, you, the jobs, the log, and what you can
+     do - and the number keys work whatever is in front of you. Every screen is the same three parts: a
+     line saying where you are, the screen itself, and a line of the keys that work on it. The screens are
+     built out of what the ordinary layout has already drawn (renderTiny, in the script), so the game has
+     only one set of code and only the shape changes here.
+     Nothing on a screen is smaller than 11px, and the figures the player acts on are 17px. */
+  #app{display:none}
+  button{min-height:0;padding:2px 6px;font-size:13px;text-shadow:none}
+  button.small{min-height:0;padding:1px 5px;font-size:11px}
+  h2{margin:0 0 4px;font-size:13px;letter-spacing:1px}
 
-  #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
-  #hud{margin-top:0;gap:4px;grid-template-columns:36px minmax(0,1fr)}
-  #ava{min-height:46px;max-height:58px}
-  #ava .ico.ride{width:18px;height:11px}
-  #career{gap:3px;padding:2px 4px;font-size:9px;border-left-width:2px;flex-wrap:wrap}
-  #career .lvl{text-shadow:none;white-space:normal}
-  #career .bar{height:5px;min-width:20px}
-  #dayloc{margin:2px 0 0;font-size:9.5px;letter-spacing:0;overflow-wrap:anywhere}
-  .meter{grid-template-columns:28px 1fr 32px;gap:3px;font-size:9px;margin:2px 0}
-  .meter span:first-child{font-size:8px;letter-spacing:0}
-  .meter .track{height:6px}
-  .meter .track i{box-shadow:none}
-  /* the chips become one compact strip: label and figure on the same line, two to a row */
-  #stats{gap:2px;margin-top:3px;grid-template-columns:repeat(auto-fit,minmax(44px,1fr))}
-  .chip{display:flex;gap:3px;align-items:baseline;justify-content:space-between;
-    padding:1px 3px;border-left-width:2px;clip-path:none}
-  .chip small{display:inline;font-size:8px;letter-spacing:0}
-  .chip b{font-size:9px;white-space:normal;overflow-wrap:anywhere;text-align:right}
-  #news{grid-area:news;margin:2px 0 0;min-width:0;max-height:2.6em;overflow-y:auto;font-size:9.5px}
-  #news:empty{margin:0}
-  #log{grid-area:log;margin:2px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:9px;padding-top:3px}
-  #log div{padding:0}
+  #tiny{position:fixed;inset:0;display:flex;flex-direction:column;gap:1px;font-size:13px;line-height:1.2;
+    padding:2px calc(3px + env(safe-area-inset-right)) 2px calc(3px + env(safe-area-inset-left))}
+  .thead{flex:none;display:flex;align-items:baseline;gap:6px;font-size:11.5px;letter-spacing:.5px;
+    color:var(--dim);text-transform:uppercase;white-space:nowrap;overflow:hidden}
+  .thead b{flex:none;color:#000;background:var(--yellow);font-weight:bold;padding:0 6px 0 4px;letter-spacing:1px}
+  .thead .where{color:var(--cyan);overflow:hidden;text-overflow:ellipsis}
+  .thead .trips{margin-left:auto;flex:none}
+  .tsum{flex:none;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line)}
+  .tsum b{font-size:17px;color:var(--green);letter-spacing:.5px}
+  .tsum span{font-size:11px;color:var(--dim);white-space:nowrap}
+  .tsum .debt{margin-left:auto}
+  .tbody{flex:1 1 auto;min-height:0;overflow-y:auto;counter-reset:n}
+  .tkeys{flex:none;border-top:1px solid var(--line);font-size:12px;color:var(--dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tkeys b{color:var(--yellow);font-weight:bold;margin:0 2px 0 7px}
+  .tkeys b:first-child{margin-left:0}
+  .tnone{color:var(--dim);font-size:12px;padding:5px 3px}
 
-  #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
-  #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:0}
-  #quest{flex:none}
-  #quest .fold,#jobs .fold{margin:0 0 3px;border-top-width:1px}
-  #market{margin-top:0;flex:1 1 auto;min-height:48px;overflow-y:auto;border-top-width:1px}
-  #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
-  /* the market-depth note is the same four lines every day: at this size the prices come first */
-  #market .mnote{display:none}
-  .fold>summary{gap:4px;padding:3px 5px;font-size:10px;letter-spacing:1px}
-  .fold>summary small{font-size:9px}
-  /* a product row is two lines in the narrow pane: the name (and what you hold) down the left, the price
-     over its buttons on the right, so a name like Zero-Days is not squeezed into three letters a line */
-  .row{padding:2px 4px;column-gap:4px;row-gap:1px;
-    grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto}
-  .row>:first-child{grid-area:1/1/3/2}
-  .row .price{grid-area:1/2/2/3}
-  .row .btns{grid-area:2/2/3/3}
-  .row .name{overflow-wrap:anywhere}
-  .job .what{overflow-wrap:anywhere}
-  .row .sub{font-size:9px}
-  .row .btns{gap:3px}
-  .row .btns button{padding:1px 4px;min-width:24px;min-height:18px}
-  #jobs{flex:0 1 auto;margin:2px 0 0;min-height:0;max-height:46%;overflow-y:auto}
-  #jobs h3{margin:0 0 2px;font-size:9px;letter-spacing:1px}
-  #jobs .fold .none{padding:3px 5px;font-size:9px}
-  .job{gap:4px;padding:3px 4px;margin-bottom:3px;border-left-width:2px}
-  .job .sub{font-size:9px}
-  .job:last-child{margin-bottom:0}
-  /* the products are the point of the screen, so the actions keep a strip at the foot of the pane and
-     scroll inside it; Tab walks them and brings each one into view */
-  #actions{flex:0 1 auto;gap:2px;margin-top:3px;max-height:54px;overflow-y:auto;
-    grid-template-columns:repeat(auto-fit,minmax(62px,1fr));align-content:start}
-  #actions button{min-height:18px;padding:1px 3px;font-size:9px;line-height:1.08;
-    white-space:normal;overflow-wrap:anywhere;text-align:center}
+  /* the market (and, at home, the stash): one line to a product, the one you are on opened up */
+  #tiny .fold{border:0;background:none;margin:0}
+  #tiny summary{display:block;padding:0 3px 1px;font-size:11px;letter-spacing:1px;border:0;list-style:none}
+  #tiny summary::before{content:none}
+  #tiny .mnote,#tiny .basewrap{display:none}
+  #tiny .baseline{padding:1px 3px;font-size:11px;border:0}
+  #tiny .row{display:grid;grid-template-columns:15px minmax(0,1fr) auto;grid-template-rows:auto;
+    gap:0 6px;align-items:baseline;padding:1px 3px;border:0;font-size:13px}
+  #tiny .row>*{grid-area:auto;min-width:0}
+  #tiny .row::before{counter-increment:n;content:counter(n);color:var(--dim);font-size:11px;text-align:right}
+  #tiny .row .name{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .row .price{text-align:right;white-space:nowrap}
+  #tiny .row .sub,#tiny .row .btns{display:none}
+  /* what you are holding of it is the one line worth keeping on every row (the market's own notes are
+     dimmed, and they wait until the row is the one you are on) */
+  #tiny .row .name+.sub:not(.dim){display:block;font-size:11px;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .row.sel{background:rgba(252,238,10,.16);box-shadow:inset 3px 0 0 var(--yellow)}
+  #tiny .row.sel .name{color:#fff;font-weight:600}
+  #tiny .row.sel .sub{display:block;font-size:11px;line-height:1.2;color:var(--dim);white-space:normal}
+
+  /* you: the figures you act on, big, then the kit in a line each */
+  #tiny .meter{grid-template-columns:36px 1fr 40px;gap:5px;font-size:12px;margin:3px 0}
+  #tiny .meter span:first-child{font-size:10px;letter-spacing:.5px}
+  #tiny .meter .track{height:9px}
+  #tiny .meter .track i{box-shadow:none}
+  #tiny .figs{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-top:4px}
+  #tiny .chip{display:block;padding:0 0 0 5px;border:0;border-left:2px solid var(--accent);
+    background:none;clip-path:none}
+  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px}
+  #tiny .chip b{display:block;font-size:17px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .figs .chip:nth-child(n+7){display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+  #tiny .figs .chip:nth-child(n+7) b{font-size:12px}
+
+  /* the jobs, and the things you can do: a numbered list, one key each */
+  #tiny .job{display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:0 6px;align-items:baseline;
+    padding:2px 3px;margin:0 0 3px;font-size:13px;border-left-width:3px}
+  #tiny .job::before{counter-increment:n;content:counter(n);color:var(--yellow);font-size:11px;
+    font-weight:bold;text-align:right}
+  #tiny .job .what{overflow-wrap:anywhere}
+  #tiny .job .sub{font-size:11px}
+  #tiny .job button{font-size:11px;padding:1px 5px}
+  #tiny .jobs h3{margin:2px 0;font-size:11px;letter-spacing:1px}
+  #tiny .jobs .none{padding:3px;font-size:11px;color:var(--dim)}
+  #tiny .acts button{display:block;width:100%;margin:0 0 2px;padding:1px 5px;text-align:left;
+    font-size:12.5px;line-height:1.35;clip-path:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts button::before{counter-increment:n;content:counter(n) "  ";color:var(--yellow);font-weight:bold}
+  #tiny .acts button:disabled{opacity:.4}
+  #tiny .acts button.primary::before{color:#000}
+
+  /* the log and the news, read a page at a time */
+  #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
+  #tiny .logs div{padding:1px 0}
+  #tiny .logs .news div{color:var(--yellow)}
 
   /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
   #overlay{padding:2px}
-  #dialog{max-width:none;max-height:100%;padding:4px 6px;border-top-width:2px;clip-path:none;animation:none}
-  #dialog p{margin:0 0 4px}
+  #dialog{max-width:none;max-height:100%;padding:4px 6px;border-top-width:2px;clip-path:none;animation:none;
+    font-size:12.5px;line-height:1.3;counter-reset:dbtn}
+  #dialog p{margin:0 0 5px}
   /* the keys are the only way in here, so the list of them is shown and the buttons wear their numbers */
   .keyhelp{display:block;margin-top:6px;border-top:1px solid var(--line);padding-top:4px}
-  #dialog{counter-reset:dbtn}
-  .dbtns button::before{counter-increment:dbtn;content:counter(dbtn) " ";opacity:.65;font-weight:bold}
-  #actions{counter-reset:act}
-  #actions button::before{counter-increment:act;content:counter(act) " ";opacity:.65;font-weight:bold}
-  .dbtns{gap:3px;margin-top:5px;grid-template-columns:repeat(auto-fit,minmax(68px,1fr))}
+  /* a dialogue's answers are a numbered list, one to a line, like every other list on this screen */
+  .dbtns button::before{counter-increment:dbtn;content:counter(dbtn) "  ";opacity:.7;font-weight:bold}
+  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr}
+  .dbtns button{text-align:left;padding:2px 6px;line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .qty{gap:4px;margin-top:3px}
   input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
   input[type=range]{height:18px}
@@ -702,16 +719,16 @@ button .ico.room{width:44px;height:26px}
   .total{margin-top:5px}
   .syn{margin:0 0 5px;padding:3px 5px;border-left-width:2px}
   .hall td{padding:1px 3px}
-  .req{font-size:9.5px;padding:1px 0}
-  .slotline{font-size:9px;margin-bottom:4px;gap:5px}
+  .req{font-size:11.5px;padding:1px 0}
+  .slotline{font-size:11.5px;margin-bottom:4px;gap:5px}
   .slotline .ico{width:22px;height:22px}
-  .slotline .dim{font-size:8px}
-  .invhead{margin:5px 0 3px;font-size:9px;letter-spacing:1px}
-  .tiles{grid-template-columns:repeat(6,1fr);gap:3px;margin-bottom:4px}
-  .tile{padding:2px 2px 9px}
-  .tile .glyph{font-size:13px;letter-spacing:0}
-  .tile i{top:0;right:2px;font-size:8px}
-  .tile small{left:1px;right:1px;bottom:1px;font-size:7px;letter-spacing:0}
+  .slotline .dim{font-size:10px}
+  .invhead{margin:5px 0 3px;font-size:11px;letter-spacing:1px}
+  .tiles{grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:4px}
+  .tile{padding:2px 2px 11px}
+  .tile .glyph{font-size:15px;letter-spacing:0}
+  .tile i{top:0;right:2px;font-size:10px}
+  .tile small{left:1px;right:1px;bottom:1px;font-size:9px;letter-spacing:0}
   .tile.r4,.tile.on{box-shadow:none}
   .ico{width:26px;height:26px}
   .ico.wide{width:56px;height:24px}
@@ -726,20 +743,22 @@ button .ico.room{width:44px;height:26px}
   .posebox.wide{max-width:64px}
   .versus{grid-template-columns:48px auto 48px;gap:6px;margin-bottom:5px}
   .versus b{font-size:13px;text-shadow:none}
-  .versus small{font-size:8px;letter-spacing:0;margin-top:1px}
+  .versus small{font-size:10px;letter-spacing:0;margin-top:1px}
   .stage{margin:0 auto 4px}
-  .stage .avatar{width:32%}
-  .slottag{width:32%;padding:2px 3px;font-size:8px;line-height:1.15}
-  .slottag small{font-size:7px}
-  .slottag i{font-size:7px}
+  .stage .avatar{width:30%}
+  .slottag{width:33%;padding:2px 3px;font-size:10px;line-height:1.15}
+  .slottag small{font-size:9px}
+  .slottag i{font-size:9px}
   .slottag.has{box-shadow:none}
-  .zoomable small{bottom:2px;font-size:8px;letter-spacing:0}
+  .zoomable small{bottom:2px;font-size:10px;letter-spacing:0}
 
-  /* --- the Bunker's cutaway: kept at its own 1:1 size and panned, rather than shrunk to 4px lettering --- */
+  /* --- the Bunker's cutaway: a 364px drawing with 8px lettering is no use on a two-inch screen, so the
+         rooms are a numbered list in the Base dialog instead (M opens it); the drawing stays in the
+         dialog for a station, where it has the room to itself --- */
+  #tiny .basewrap{display:none}
   .basewrap{max-height:96px;overflow:auto}
-  /* the street over the Bunker is scenery: it is scrolled off so the window opens on the rooms */
   .basemap{width:364px;height:286px;max-width:none;aspect-ratio:auto;margin:-26px 0 0}
-  .baseline{padding:2px 5px;font-size:9px}
+  .baseline{padding:2px 5px;font-size:11px}
   .rangebox{width:auto;height:112px;max-width:100%;margin:0 auto 4px}
 
   /* --- the loading screen and the travel wipe --- */
@@ -765,38 +784,38 @@ button .ico.room{width:44px;height:26px}
   .bwrap{position:relative;max-width:none;height:100%;min-height:0;gap:0;
     display:grid;grid-template-columns:100%;grid-template-rows:100%}
   .bfield{grid-area:1/1;width:100%;height:100%;min-height:0;border:0}
-  .bw{padding:11px 4px 3px;font-size:10px;border-bottom-width:1px;box-shadow:inset 0 0 0 1px #06050d}
-  .bw[data-t]::before{left:4px;font-size:8px;line-height:9px;letter-spacing:1px;padding:0 6px 0 4px}
+  .bw{padding:11px 4px 3px;font-size:11.5px;border-bottom-width:1px;box-shadow:inset 0 0 0 1px #06050d}
+  .bw[data-t]::before{left:4px;font-size:9px;line-height:10px;letter-spacing:1px;padding:0 6px 0 4px}
   .bw::after{content:none}
-  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 42px);height:36px;min-height:0;
-    overflow-y:auto;line-height:1.2;padding-top:10px}
-  .bspd{z-index:7;right:2px;top:2px;min-height:15px;padding:1px 5px;font-size:9px}
-  .bban{top:auto;bottom:68px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:10px;letter-spacing:0}
-  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:66px;gap:2px;
-    grid-template-columns:80px 88px minmax(0,1fr)}
+  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 46px);height:38px;min-height:0;
+    overflow-y:auto;line-height:1.2;padding-top:11px}
+  .bspd{z-index:7;right:2px;top:2px;min-height:15px;padding:1px 5px;font-size:10px}
+  .bban{top:auto;bottom:74px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:11px;letter-spacing:0}
+  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:72px;gap:2px;
+    grid-template-columns:78px 88px minmax(0,1fr)}
   .bfoes{order:0;grid-area:1/1;overflow-y:auto}
   .bstat{order:0;grid-area:1/2;overflow-y:auto}
   .bcmd{order:0;grid-area:1/3;overflow-y:auto}
-  .bfoes .row{padding:0 2px;border:0;font-size:9px}
-  .bstat .who{font-size:9px;letter-spacing:0;margin-bottom:1px}
-  .bbar{grid-template-columns:22px 1fr auto;gap:4px;margin:1px 0;font-size:9px}
-  .bbar .lbl{font-size:8px;letter-spacing:0}
-  .bbar .track{height:6px}
-  .bgear{margin-top:2px;font-size:8px}
-  .bturn{gap:3px;margin-top:2px;font-size:8px;letter-spacing:0}
+  .bfoes .row{padding:0 2px;border:0;font-size:11px}
+  .bstat .who{font-size:11px;letter-spacing:0;margin-bottom:1px}
+  .bbar{grid-template-columns:24px 1fr auto;gap:4px;margin:2px 0;font-size:11px}
+  .bbar .lbl{font-size:9.5px;letter-spacing:0}
+  .bbar .track{height:7px}
+  .bgear{margin-top:2px;font-size:9.5px}
+  .bturn{gap:3px;margin-top:2px;font-size:9.5px;letter-spacing:0}
   .bturn b{padding:0 3px}
   .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
   /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
      instead of squeezing the label down to one letter a row */
-  .bopt{min-height:15px;padding:1px 3px 1px 12px;font-size:9.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
-  .bopt small{flex:1 1 auto;min-width:0;font-size:8px;white-space:normal;text-align:right;overflow-wrap:anywhere}
+  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
+  .bopt small{flex:1 1 auto;min-width:0;font-size:9.5px;white-space:normal;text-align:right;overflow-wrap:anywhere}
   .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
   .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
   .bsub .bopt{min-height:16px}
   .bnote{margin:0 1px 4px;font-size:9px;line-height:1.25}
   /* the results sit against the top of the stage, so a long list cannot hang off the bottom of the screen */
   .bres{z-index:8;top:3px;transform:translateX(-50%);width:calc(100% - 12px);max-height:calc(100% - 6px);
-    font-size:9px;box-shadow:0 0 0 2px #04030b}
+    font-size:11px;box-shadow:0 0 0 2px #04030b}
   .bres p{margin:0 0 3px;line-height:1.2}
   .bres .line{padding:1px;animation:none}
   .bres .foot{margin:3px 0 2px;font-size:8px}
@@ -846,6 +865,7 @@ button .ico.room{width:44px;height:26px}
   </div>
   <section id="log" tabindex="0" role="group" aria-label="Log"></section>
 </div>
+<div id="tiny"></div>
 <div id="overlay" hidden><div id="dialog" tabindex="0"></div></div>
 <div id="travel" hidden></div>
 <div id="battle" hidden></div>
@@ -6053,8 +6073,9 @@ async function swapSlot(slot) {
 }
 
 // ---------- rendering ----------
-// Redrawing throws the focused button away, so on a handheld the focus is put back (see keepFocus).
-function render() { keepFocus(renderNow); }
+// Redrawing throws the focused button away, so on a handheld the focus is put back (see keepFocus); on a
+// handheld the screens built from this drawing are redrawn with it (see renderTiny).
+function render() { keepFocus(renderNow); renderTiny(); }
 function renderNow() {
   SND.sync();
   fixTags();
@@ -7654,7 +7675,9 @@ function focusFirst() {
     const root = focusRoot();
     if (!root) return;
     const pick = (!overlay.hidden && dlg.querySelector('.dbtns button.primary:not(:disabled)')) || focusList(root)[0];
-    if (pick) pick.focus();
+    if (!pick) return;
+    pick.focus({preventScroll: true});   // (taking the focus must not scroll the title off the top)
+    if (!overlay.hidden && dlg.scrollTop < 2) dlg.scrollTop = 0;
   }, 0);
 }
 document.addEventListener('keydown', e => {
@@ -7663,6 +7686,7 @@ document.addEventListener('keydown', e => {
   if (!on || typing(document.activeElement)) return;
   const battle = $('#battle');
   if (overlay.hidden && battle && !battle.hidden) return;   // the fight screen is steering
+  if (overlay.hidden && tinyLive()) return;                 // ...and so are the handheld's screens
   const root = focusRoot(), all = root ? focusList(root) : [];
   if (!all.length) return;
   // A long notice with one button: the arrows read it, because there is nowhere else for the ring to go.
@@ -7708,6 +7732,8 @@ const press = el => { if (el && !el.disabled) el.dispatchEvent(new MouseEvent('c
 document.addEventListener('keydown', e => {
   if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey || typing(document.activeElement)) return;
   const battle = $('#battle'), fight = !!battle && !battle.hidden, open = !overlay.hidden, k = e.key;
+  // The handheld's own screens take their keys first (see tinyKey): the numbers, the arrows and Escape.
+  if (!open && !fight && tinyLive() && tinyKey(e)) { e.preventDefault(); return; }
   // Escape, tapped, backs out of a dialogue. (Held down it quits the game on the handheld, so nothing here
   // waits on it.) It never answers a dialogue with something that spends or destroys anything.
   if (k === 'Escape') {
@@ -7763,12 +7789,136 @@ document.addEventListener('keydown', e => {
   box.open = !box.open;
 }, true);
 
+// ---------- the handheld's screens ----------
+// Five screens with one job each. Each is built from what render() has already drawn into the ordinary
+// layout (which is not shown at this size), so the game has one set of code and only the shape changes.
+// The number keys work whatever is in front of you; left and right change screen; Escape comes back here.
+const TINY_VIEWS = ['MARKET', 'YOU', 'JOBS', 'LOG', 'DO'];
+let tinyAt = 0, tinyRow = 0;
+const tinyEl = () => $('#tiny');
+const tinyLive = () => tinyScreen() && !!tinyEl() && !!tinyEl().firstChild;
+// What the number keys pick on this screen: a product, a job, or something to do.
+function tinyItems() {
+  const el = tinyEl(), view = TINY_VIEWS[tinyAt];
+  if (!el) return [];
+  if (view === 'MARKET') return [...el.querySelectorAll('.tbody .row')];
+  if (view === 'JOBS') return [...el.querySelectorAll('.tbody .job')];
+  if (view === 'DO') return [...el.querySelectorAll('.tbody .acts button')];
+  return [];
+}
+// The line of keys along the foot: on the market it says what the buttons of the row you are on would do,
+// so "buy" or "store" or "dump" is never a guess.
+function tinyStrip() {
+  const view = TINY_VIEWS[tinyAt], move = '<b>&larr;&rarr;</b>screen';
+  if (view === 'MARKET') {
+    const bs = [...(tinyItems()[tinyRow] || document.createElement('i')).querySelectorAll('.btns button')];
+    const say = (b, key) => (b && !b.disabled ? `<b>${key}</b>${b.textContent.trim().toLowerCase()}` : '');
+    return `<b>1-0</b>pick${say(bs[0], 'ENT')}${say(bs[1], 'S')}<b>T</b>go ${move}`;
+  }
+  const upto = tinyItems().length > 9 ? '1-0' : '1-9';
+  if (view === 'YOU') return `<b>G</b>gear <b>I</b>kit <b>T</b>go <b>ESC</b>market ${move}`;
+  if (view === 'JOBS') return `<b>${upto}</b>take it <b>ESC</b>market ${move}`;
+  if (view === 'LOG') return `<b>&uarr;&darr;</b>read <b>ESC</b>market ${move}`;
+  return `<b>${upto}</b>do it <b>ESC</b>market ${move}`;
+}
+function tinyMark() {
+  const items = tinyItems(), el = tinyEl();
+  if (!el) return;
+  tinyRow = items.length ? Math.max(0, Math.min(tinyRow, items.length - 1)) : 0;
+  if (TINY_VIEWS[tinyAt] === 'MARKET') {
+    items.forEach((r, i) => r.classList.toggle('sel', i === tinyRow));
+    const on = items[tinyRow];
+    if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest'});
+  }
+  const strip = el.querySelector('.tkeys');
+  if (strip) strip.innerHTML = tinyStrip();
+}
+function renderTiny() {
+  const el = tinyEl();
+  if (!el) return;
+  if (!tinyScreen()) { if (el.firstChild) el.textContent = ''; return; }
+  const view = TINY_VIEWS[tinyAt], home = S.loc === BUNKER;
+  // A fold is no use when the screen is the thing it folds: it is taken apart, keeping its heading only
+  // where the screen holds more than one list. (Taking it apart also leaves the fold on the ordinary
+  // layout alone, and saves the device building a fold it would never open.)
+  const open = (html, heads) => {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    box.querySelectorAll('.basewrap').forEach(d => d.remove());   // the cutaway is not worth building here
+    box.querySelectorAll('details').forEach(d => {
+      const flat = document.createElement('div');
+      flat.className = 'fold';
+      for (const node of [...d.childNodes]) {
+        if (node.nodeName === 'SUMMARY' && !heads) continue;
+        flat.appendChild(node);
+      }
+      d.replaceWith(flat);
+    });
+    return box;
+  };
+  let body = '';
+  if (view === 'MARKET') {
+    body = open($('#market').innerHTML).innerHTML;
+  } else if (view === 'YOU') {
+    body = $('#vitals').innerHTML + `<div class="figs">${$('#stats').innerHTML}</div>`;
+  } else if (view === 'JOBS') {
+    const box = open($('#quest').innerHTML + $('#jobs').innerHTML, true);
+    body = box.textContent.trim() ? `<div class="jobs">${box.innerHTML}</div>`
+      : '<div class="tnone">No work on offer here. Jobs turn up as the days go on, and the Local BBS posts them.</div>';
+  } else if (view === 'LOG') {
+    const news = $('#news').innerHTML;
+    body = `<div class="logs">${news ? `<div class="news">${news}</div>` : ''}${$('#log').innerHTML}</div>`;
+  } else {
+    // everything you can do here, ending with the buttons that live in the title bar of the wider layout
+    body = `<div class="acts">${$('#actions').innerHTML}${$('.hbtns').innerHTML}</div>`;
+  }
+  el.innerHTML =
+    `<div class="thead"><b>${view === 'MARKET' && home ? 'STASH' : view}</b>` +
+    `<span>Day ${S.day}/${DAYS}</span><span>L${levelInfo().level}</span>` +
+    `<span class="where">${esc(S.loc)}</span><span class="trips">${S.trips} trips</span></div>` +
+    `<div class="tsum"><b>${money(S.cash)}</b><span>drive ${num(used())}/${num(cap())}</span>` +
+    `<span class="debt">debt ${money(S.debt)}</span></div>` +
+    `<div class="tbody">${body}</div><div class="tkeys">${tinyStrip()}</div>`;
+  tinyMark();
+}
+// Every key on these screens. Returns true when it has taken the key.
+function tinyKey(e) {
+  const k = e.key, view = TINY_VIEWS[tinyAt], items = tinyItems();
+  if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    tinyAt = (tinyAt + (k === 'ArrowRight' ? 1 : -1) + TINY_VIEWS.length) % TINY_VIEWS.length;
+    tinyRow = 0;
+    renderTiny();
+    return true;
+  }
+  if (k === 'Escape') { if (tinyAt) { tinyAt = 0; tinyRow = 0; renderTiny(); } return true; }
+  if (k === 'ArrowUp' || k === 'ArrowDown') {
+    const by = k === 'ArrowDown' ? 1 : -1;
+    if (view === 'MARKET' && items.length) { tinyRow = (tinyRow + by + items.length) % items.length; tinyMark(); }
+    else { const box = tinyEl().querySelector('.tbody'); if (box) box.scrollTop += by * 30; }
+    return true;
+  }
+  if (k >= '0' && k <= '9') {
+    const on = items[k === '0' ? 9 : +k - 1];
+    if (on) {
+      if (view === 'MARKET') { tinyRow = items.indexOf(on); tinyMark(); }
+      else press(view === 'JOBS' ? on.querySelector('button') : on);
+    }
+    return true;
+  }
+  if (view === 'MARKET' && (k === 'Enter' || k === ' ' || k.toLowerCase() === 'b' || k.toLowerCase() === 's')) {
+    const bs = [...(items[tinyRow] || document.createElement('i')).querySelectorAll('.btns button')];
+    press(k.toLowerCase() === 's' ? bs[1] : bs[0]);
+    return true;
+  }
+  return false;
+}
+
 // When a dialog or the fight screen closes, the screen behind it is what you are looking at now: if the
 // focus went with the thing that closed, put it on the first control of the screen, so Enter and the arrow
 // keys always have something to work on. (A redraw usually gets there first and keeps your place; this is
 // for the times nothing redraws.)
 function backToScreen() {
-  if (!tinyScreen()) return;
+  if (!tinyScreen() || tinyLive()) return;
   setTimeout(() => {
     const app = $('#app'), battle = $('#battle');
     if (!overlay.hidden || (battle && !battle.hidden) || !app) return;
@@ -7786,7 +7936,7 @@ for (const el of [overlay, $('#battle')]) {
 // still there (the same action and argument), on whatever took its place if it is not, and on the first
 // control if the screen has changed under you.
 function keepFocus(run) {
-  if (!tinyScreen() || !overlay.hidden) return run();
+  if (!tinyScreen() || !overlay.hidden || tinyLive()) return run();   // (the screens keep their own place)
   const was = document.activeElement, app = $('#app');
   const inside = was && app && app.contains(was) && was !== app;
   const key = inside && was.dataset ? `${was.dataset.act || ''}|${was.dataset.arg || ''}|${was.dataset.pick || ''}` : '';
@@ -11694,15 +11844,16 @@ function introText() {
     '<p class="dim">Only cash and your cold wallet count at the end.</p>' +
     // Shown only on a handheld (the TINY SCREENS layout), where there is no pointer at all.
     '<div class="keyhelp"><p><b class="cyan">KEYS</b></p>' +
-    '<p><b>Arrows</b> move the white ring from one control to the next, and down the product rows. ' +
-    '<b>Tab</b> does the same. <b>Enter</b> or <b>Space</b> works the one you are on.</p>' +
-    '<p><b>1-9</b> picks the numbered button in front of you: an answer in a dialogue, somewhere to tunnel to, ' +
-    'a move in a fight, or one of the actions at the foot of the screen.</p>' +
-    '<p><b>B</b> buys and <b>S</b> sells the product your ring is on. <b>T</b> tunnels out, <b>I</b> opens your ' +
-    'inventory, <b>G</b> your gear, <b>M</b> the Bunker\'s rooms.</p>' +
-    '<p><b>Esc</b> backs out of a dialogue. <b>PgUp</b> and <b>PgDn</b> read through a long one like this, ' +
-    'and through the panes on the main screen. In a fight the arrows pick a move, Enter takes it, 1-9 take ' +
-    'one outright and Esc goes back a step.</p></div>';
+    '<p>The game is on five screens: <b>MARKET</b>, <b>YOU</b>, <b>JOBS</b>, <b>LOG</b> and <b>DO</b>. ' +
+    '<b>&larr;</b> and <b>&rarr;</b> change screen and <b>Esc</b> comes back to the market. The name of the ' +
+    'screen is top left, and the keys that work on it are along the bottom.</p>' +
+    '<p><b>1</b> to <b>9</b> (and <b>0</b> for the tenth) pick the numbered thing in front of you: a product, ' +
+    'a job, something to do, or a button in a dialogue.</p>' +
+    '<p>On the market, <b>&uarr;</b> and <b>&darr;</b> move from product to product and the one you are on ' +
+    'opens up. <b>Enter</b> buys it, <b>S</b> sells it. At the Bunker the same keys store and take.</p>' +
+    '<p><b>T</b> tunnels out, <b>I</b> opens your inventory, <b>G</b> your gear, <b>M</b> the Bunker\'s rooms.</p>' +
+    '<p>In a dialogue <b>Esc</b> backs out and <b>PgUp</b>/<b>PgDn</b> read a long one like this. In a fight ' +
+    'the arrows pick a move, Enter takes it, 1-9 take one outright and Esc goes back a step.</p></div>';
 }
 
 // The start menu: continue, start a new game, load a save or delete one. Returns once a save is in use.
