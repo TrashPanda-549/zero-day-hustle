@@ -165,6 +165,9 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .job.quest button:active:not(:disabled){background:var(--cyan);color:#000}
 #actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
 #actions button{min-height:46px}
+/* SHOP TILES: an action button's tile is small enough to leave the label its room */
+#actions button.hasico{gap:5px;padding:4px 6px}
+#actions button.hasico .ico.room{width:34px;height:20px}
 #log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
 #log div{padding:1px 0}
 #log div:first-child{color:var(--fg)}
@@ -736,6 +739,10 @@ button .ico.room{width:44px;height:26px}
   #tiny .acts button::before{counter-increment:n;content:counter(n) "  ";color:var(--yellow);font-weight:bold}
   #tiny .acts button:disabled{opacity:.4}
   #tiny .acts button.primary::before{color:#000}
+  /* SHOP TILES: a tile on an action button stays on the line here, at the height of the line */
+  #tiny .acts button.hasico{display:flex;align-items:center;gap:4px;padding:0 5px}
+  #tiny .acts button.hasico .ico.room{width:26px;height:15px}
+  #tiny .acts button.hasico > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 
   /* the log and the news, read a page at a time */
   #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
@@ -2802,10 +2809,13 @@ const skRow = id => {
 async function skillTree() {
   for (;;) {
     const p = skPoints();
-    const html = `<p><b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
-      `${skCount()} of ${skIds().length} routines running</p>` +
-      // Kept to one line: on a 320x170 screen everything above the branch buttons has to be scrolled past.
-      `<p class="dim">${SKILL.perLevel} point a level. A branch is a line, and no career can afford every branch.</p>` +
+    // SHOP TILES: the tree gets a picture, folded into the two lines that were already here rather than
+    // added above them. Kept to one row: on a 320x170 screen everything above the branch buttons has to be
+    // scrolled past.
+    const html = `<div class="syn">${withIcon(shopIcon('skills'),
+      `<b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
+      `${skCount()} of ${skIds().length} routines running<br>` +
+      `<span class="dim">${SKILL.perLevel} point a level. A branch is a line, and no career can afford every branch.</span>`)}</div>` +
       Object.entries(SK_BRANCHES).map(([b, [name, what]]) => {
         const ids = skBranch(b), on = ids.filter(skHas).length;
         return `<div class="syn skbr"><b class="${on === ids.length ? 'green' : on ? 'cyan' : ''}">${name}</b> ` +
@@ -6205,6 +6215,13 @@ const MISC_ART = {
   medkit: '<rect x="3" y="7" width="18" height="13" rx="2" fill="#e9e9f0" stroke="#0b0a19"/><rect x="9" y="4" width="6" height="4" rx="1" fill="none" stroke="#e9e9f0" stroke-width="1.4"/><path d="M12 10 v7 M8.5 13.5 h7" stroke="#ff3b5c" stroke-width="2.4"/>',
   proxy: '<g fill="none" stroke="#00e5ff" stroke-width="2"><rect x="2.5" y="9" width="8" height="6" rx="3"/><rect x="13.5" y="9" width="8" height="6" rx="3"/></g><rect x="8" y="10.5" width="8" height="3" rx="1.5" fill="none" stroke="#ff4fd8" stroke-width="2"/>',
   doc: '<circle cx="12" cy="12" r="9" fill="#0f6644" stroke="#3dff9a"/><path d="M12 6.5 v11 M6.5 12 h11" stroke="#fff" stroke-width="3"/>',
+  // SHOP TILES: patrols on the Intel Board used to borrow the Decoy Swarm's picture. A cruiser is a cruiser.
+  patrol: '<rect x="2" y="12" width="20" height="7" rx="1.5" fill="#1c2f5e" stroke="#4da3ff"/>' +
+    '<path d="M6 12 l2.6 -4.5 h6.8 l2.6 4.5 z" fill="#0b1c2a" stroke="#4da3ff" stroke-width=".8"/>' +
+    '<rect x="8" y="3.6" width="8" height="3.6" rx="1" fill="#2a2f45" stroke="#c9d1d5" stroke-width=".7"/>' +
+    '<rect x="8.7" y="4.3" width="3" height="2.2" fill="#ff3b5c"/><rect x="12.3" y="4.3" width="3" height="2.2" fill="#4da3ff"/>' +
+    '<circle cx="7" cy="19.2" r="2.2" fill="#0b0a19" stroke="#c9d1d5" stroke-width=".8"/>' +
+    '<circle cx="17" cy="19.2" r="2.2" fill="#0b0a19" stroke="#c9d1d5" stroke-width=".8"/>',
   // --- Heat items ---
   burner: '<rect x="7" y="2.5" width="10" height="19" rx="2" fill="#2a2f45" stroke="#3dff9a"/><rect x="9" y="5" width="6" height="6.5" fill="#3dff9a" opacity=".85"/><path d="M9.5 14 h1 M11.5 14 h1 M13.5 14 h1 M9.5 16.2 h1 M11.5 16.2 h1 M13.5 16.2 h1 M9.5 18.4 h1 M11.5 18.4 h1 M13.5 18.4 h1" stroke="#c9d1d5" stroke-width="1.1"/>',
   acid: '<path d="M10 2.5 h4 v4 l3 4 v9.5 a1.5 1.5 0 0 1 -1.5 1.5 h-7 a1.5 1.5 0 0 1 -1.5 -1.5 v-9.5 l3 -4 z" fill="#14351f" stroke="#3dff9a"/><path d="M7.6 13 h8.8 v6.6 a1 1 0 0 1 -1 1 h-6.8 a1 1 0 0 1 -1 -1 z" fill="#3dff9a" opacity=".8"/><path d="M9.5 16 q2.5 -2.6 5 0 M10.4 18 q1.6 -1.7 3.2 0 M11.4 19.6 q.6 -.6 1.2 0" stroke="#0b0a19" stroke-width="1" fill="none"/>',
@@ -6294,6 +6311,86 @@ const RIDE_ART = (() => {
   };
 })();
 const rideIcon = id => (RIDE_ART[id] ? `<svg class="ico ride" viewBox="0 0 40 24" aria-hidden="true">${RIDE_ART[id]}</svg>` : '');
+
+// ---------- SHOP TILES ----------
+// Places you go into that are not rooms of the Bunker: the three ride shops, and the few screens that are a
+// place in their own right (a deep run, the Heat kit on the bench, the skill tree). Drawn in the same 88 x 50
+// cutaway box as ROOM_ART, with the same primitives and the same palette, so a shop tile and a room tile sit
+// beside each other without an argument. Built once at load; nothing here is drawn per frame.
+const SHOP_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', STEEL = '#8a8fa8', DARK = '#2a2f45';
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 1}"${o || ''}/>`;
+  const c = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const sk = col => ` stroke="${col}"`;
+  const sh = (d, f, st, o) => `<path d="${d}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  const ell = (x, y, rx, ry, f, st, o) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  // a wheel seen side-on, hub and two spokes: the bike shop is nothing but these
+  const wheel = (x, y, rad, col) => c(x, y, rad, 'none', sk(col || GREY) + ' stroke-width="1.4"') + c(x, y, 1.1, col || GREY) +
+    p(`M${x - rad} ${y} h${rad * 2} M${x} ${y - rad} v${rad * 2}`, col || GREY, 0.5, ' opacity=".6"');
+  // the only lettering any tile needs, as blocks: a hand-painted 404 over a bike shed door
+  const GLYPH = {0: [[0, 0, 4, 1], [0, 6, 4, 1], [0, 1, 1, 5], [3, 1, 1, 5]], 4: [[0, 0, 1, 4], [0, 4, 4, 1], [3, 0, 1, 7]]};
+  const digits = (txt, x, y, s, col) => [...txt].map((ch, i) =>
+    GLYPH[ch].map(([dx, dy, w, h]) => r(x + i * 5 * s + dx * s, y + dy * s, w * s, h * s, col)).join('')).join('');
+  const crate = (x, y, s) => r(x, y, s, s, '#6b4a2a', sk('#c98f6b')) + p(`M${x} ${y} l${s} ${s} M${x + s} ${y} l${-s} ${s}`, '#c98f6b', 0.7);
+  return {
+    // 404: Brakes Not Found. A pegboard of wheels, a hand-painted sign, a workstand with a frame up on it,
+    // and more wheels on the floor. Nothing in the shop has a brake on it, which is the joke.
+    bike: r(2, 4, 46, 26, '#17142e', sk('#3dff9a')) +
+      p('M5 9 h40 M5 15 h40 M5 21 h40 M5 27 h40', '#3dff9a', 0.5, ' stroke-dasharray=".8 3.2" opacity=".5"') +
+      wheel(14, 17, 8) + wheel(32, 17, 8) + wheel(44, 11, 4.5, '#ff4fd8') +
+      r(54, 2, 32, 13, '#0b0a19', sk('#fcee0a')) + digits('404', 60, 5, 1.3, '#fcee0a') +
+      r(56, 19, 28, 8, '#17142e', sk('#c98f6b')) + r(59, 21, 5, 4, '#0c4270') + r(66, 21, 5, 4, '#fcee0a') + r(73, 21, 7, 4, '#4a5068') +
+      p('M62 50 v-18 M54 50 h16 M62 33 h-7', STEEL, 1.6) +
+      p('M55 43 L65 33 L75 41 L55 43 M65 33 v9', '#00e5ff', 1.8) + wheel(79, 42, 6, '#00e5ff') +
+      wheel(12, 43, 6.5) + wheel(27, 45, 4.5, '#ff4fd8'),
+    // Grand Theft Otto's. A car up on the lift, a sign with two letters out, and an oil stain older than the lot.
+    auto: r(2, 2, 40, 13, '#0b0a19', sk('#ff8a1e')) +
+      [0, 1, 2, 3, 4].map(i => r(5 + i * 7.6, 5, 5, 7, i === 1 || i === 3 ? DARK : '#ff8a1e')).join('') +
+      ell(46, 46, 21, 4, INK) + ell(41, 45, 8, 1.6, '#c77dff', '', ' opacity=".35"') +
+      r(16, 20, 4, 30, STEEL) + r(68, 20, 4, 30, STEEL) + p('M20 28 h15 M53 28 h15', STEEL, 2.4) +
+      sh('M18 26 v-5 l7 -1 l5 -6 h18 l6 6 l10 1 v5 z', '#ff3b5c', INK) +
+      sh('M31 15 h7 v4.5 h-11 z M41 15 h5 l4 4.5 h-9 z', '#0b1c2a', '#ff3b5c') +
+      c(28, 26, 3.4, INK, sk(GREY) + ' stroke-width="1.2"') + c(60, 26, 3.4, INK, sk(GREY) + ' stroke-width="1.2"') +
+      r(74, 34, 12, 16, '#ff3b5c', sk(INK)) + p('M75 39 h10 M75 44 h10', INK, 0.8) + c(84, 36.5, 1, '#fcee0a'),
+    // Get to the Choppa! The roof: a painted pad, a windsock, a fuel bowser, and a rotor somewhere overhead.
+    heli: p('M6 4 h76', GREY, 1.6) + p('M44 4 v5', GREY, 1.8) +
+      r(2, 28, 84, 3, '#4a5068') + r(2, 31, 84, 19, '#17142e') +
+      p('M2 38 h84 M2 44 h84 M22 31 v19 M44 31 v19 M66 31 v19', '#2b2752', 0.7) +
+      ell(40, 41, 20, 7, 'none', '#fcee0a', ' stroke-width="1.5"') + p('M34 37 v8 M46 37 v8 M34 41 h12', '#fcee0a', 2) +
+      p('M72 40 v-26', STEEL, 1.4) + sh('M72 14 l-16 3.5 v7 l16 3.5 z', '#ff8a1e', INK) +
+      p('M61 15.6 v10.8 M66 14.8 v12.4', '#e9e9f0', 1.4) +
+      r(3, 32, 14, 11, '#ffd24a', sk(INK)) + r(5, 34, 6, 4, '#0b1c2a') + p('M17 36 q8 2 6 8', '#4a5068', 1.4) +
+      c(6, 44, 1.5, INK) + c(14, 44, 1.5, INK),
+    // A deep run. Four levels of somebody else's building, a way down the side, and the reason at the bottom.
+    deep: p('M4 6 v44 M84 6 v44', '#2b2752', 1) +
+      [8, 21, 34, 47].map(y => r(4, y, 80, 3, y === 47 ? '#4a5068' : STEEL)).join('') +
+      p('M60 11 h8 v5 h8 M60 24 h8 v5 h8 M60 37 h8 v5 h8', '#fcee0a', 1.8) +
+      crate(10, 14, 7) + r(22, 13, 9, 8, '#101426', sk('#00e5ff')) + c(27, 16, 1, '#3dff9a') +
+      r(10, 25, 12, 9, '#17142e', sk('#ff3b5c')) + c(16, 29, 1.6, '#ff3b5c') +
+      r(36, 25, 13, 9, '#101426', sk('#00e5ff')) + p('M38 29 h3 l1.5 -3 2 6 1.5 -3 h2', '#00e5ff', 0.9) +
+      c(20, 42, 4.5, '#fcee0a', sk(INK)) + c(20, 42, 12, '#fcee0a', ' opacity=".16"') +
+      sh('M40 37 l15 5 l-15 5 z', '#fcee0a', '', ' opacity=".16"'),
+    // Lowering the Heat. The gauge coming down, a fan pointed at it, a burner in two pieces and a bucket of ice.
+    cool: c(22, 22, 13, '#101426', sk(GREY)) + p('M11 18 a13 13 0 0 1 22 0', '#ff3b5c', 2.4) +
+      p('M22 22 L13 29', '#fcee0a', 1.8) + c(22, 22, 2, GREY) +
+      p('M42 14 v18 M37 27 l5 5 5 -5', '#00e5ff', 2) +
+      r(56, 8, 24, 24, '#17142e', sk('#00e5ff')) + p('M58 13 q10 -3.5 20 0 M58 20 q10 -3.5 20 0 M58 27 q10 -3.5 20 0', '#00e5ff', 0.9) +
+      c(68, 20, 3, '#00e5ff') +
+      sh('M8 38 h18 l-2 12 h-14 z', '#0c4270', '#00e5ff') + c(12, 40, 2, '#e9e9f0') + c(18, 39.4, 2.4, '#e9e9f0') + c(23, 41, 1.8, '#e9e9f0') +
+      sh('M56 38 h8 l-1 11 h-7 z', DARK, GREY) + sh('M70 40 h8 l1 9 h-8 z', DARK, GREY) + p('M64 39 l6 2', '#ff3b5c', 1.2),
+    // The skill tree. Five traces off one trunk, a pad on the end of each, and one more above the middle.
+    skills: c(44, 24, 21, '#00e5ff', ' opacity=".07"') +
+      p('M44 50 v-10 M44 40 h-28 v-9 M44 40 h-14 v-15 M44 40 v-24 M44 40 h14 v-15 M44 40 h28 v-9', '#00e5ff', 1.2) +
+      c(44, 40, 2, '#00e5ff') +
+      [[16, 31, '#00e5ff'], [30, 25, '#fcee0a'], [44, 16, '#3dff9a'], [58, 25, '#4da3ff'], [72, 31, '#ff3b5c']]
+        .map(([x, y, col]) => c(x, y, 4, '#101426', sk(col) + ' stroke-width="1.3"') + c(x, y, 1.6, col)).join('') +
+      p('M44 12 v-5', '#c77dff', 1.2) + c(44, 6, 3.4, '#101426', sk('#c77dff') + ' stroke-width="1.3"') + c(44, 6, 1.3, '#c77dff'),
+  };
+})();
+// A shop tile for a list, a card or a button. Same box and the same CSS sizes as a Bunker room, by design.
+const shopIcon = key => (SHOP_ART[key]
+  ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key]}</svg>` : '');
 
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
@@ -6437,7 +6534,9 @@ async function rideShop(key) {
     const mine = VEHICLES[S.ride], tradeIn = mine ? rideValue(S.ride) : 0, full = S.rides.length >= garageSize();
     const priceOf = id => VEHICLES[id][1];   // the table is the price: it does not rise with the day
     const least = id => (mine ? Math.max(0, priceOf(id) - tradeIn) : priceOf(id));   // the cheapest way to leave on it
-    let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
+    // SHOP TILES: the shop's own picture at the head of its screen, the way a Bunker station shows its room.
+    let html = `<div class="syn">${withIcon(shopIcon(key), `<b>${title}</b><br><span class="dim">${RIDE_SHOPS[key][2]} at ${spot}</span>`)}</div>` +
+      `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
       `Garage ${S.rides.length}/${garageSize()}.</p>` +
       (mine ? `<p class="dim">YOU CAME ON</p><div class="syn">${rideCard(S.ride, `<span class="dim">worth ${money(tradeIn)} as a trade-in</span>`)}</div>`
         : '<p class="dim">You walked here.</p>') +
@@ -6511,7 +6610,10 @@ async function garage() {
   if (S.loc !== BUNKER) return;
   for (;;) {
     const spots = Object.values(RIDE_SHOPS).map(([name, spot, what]) => `${name} at ${spot} (${what})`).join(', ');
-    let html = `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
+    // SHOP TILES: the Garage has had a drawing since it was built; it just never showed it on its own screen.
+    let html = `<div class="syn">${withIcon(roomIcon('garage'), `<b>${BASE.garage.name}</b> <span class="dim">level ${lvl('garage')} of ${topLv('garage')}</span><br>` +
+      `<span class="dim">room for ${garageSize()}, ${S.rides.length} in</span>`)}</div>` +
+      `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
       `<div class="syn${S.ride ? ' pickable" data-pick="foot' : ''}"><b>On foot</b>${S.ride ? '' : ' <span class="green">&larr; today</span>'}<br>` +
       `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span></div>`;
     for (const id of S.rides) {
@@ -6770,17 +6872,18 @@ function renderNow() {
     if (!retireBlock()) acts += '<button class="danger" data-act="retire">Retire (end the career)</button>';
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
-    if (S.loc === spot) acts += `<button data-act="${key}shop">${name} (${what})</button>`;
+    // SHOP TILES: each shop's own picture on its button (and so on the handheld DO screen, which copies these)
+    if (S.loc === spot) acts += `<button class="hasico" data-act="${key}shop">${shopIcon(key)}<span>${name} (${what})</span></button>`;
   }
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
-  acts += `<button data-act="dungeon">${dunButton()}</button>`;   // DUNGEONS: deep runs
+  acts += `<button class="hasico" data-act="dungeon">${shopIcon('deep')}<span>${dunButton()}</span></button>`;   // DUNGEONS: deep runs
   acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
   // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
-  if (skLeft()) acts += `<button data-act="skills">Skill tree (${skLeft()} to spend)</button>`;
+  if (skLeft()) acts += `<button class="hasico" data-act="skills">${shopIcon('skills')}<span>Skill tree (${skLeft()} to spend)</span></button>`;
   acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= heatFloor() ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
-  if (coolCount()) acts += `<button data-act="cooloff">Lower Heat (${coolCount()})</button>`;
+  if (coolCount()) acts += `<button class="hasico" data-act="cooloff">${shopIcon('cool')}<span>Lower Heat (${coolCount()})</span></button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
   if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
   if (S.loc === GUN_SPOT) {
@@ -7202,7 +7305,10 @@ const ACTIONS = {
     if (S.loc !== BUNKER) return;
     for (;;) {
       const left = drillsMax() - (S.drills || 0), capped = lockInfo().level >= practiceCap();
-      const html = '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
+      // SHOP TILES: the Lock Board's own drawing, which only the cutaway used to show.
+      const html = `<div class="syn">${withIcon(roomIcon('locks'), `<b>${BASE.locks.name}</b> <span class="dim">level ${lvl('locks')} of ${topLv('locks')}</span><br>` +
+        '<span class="dim">a job lot from a locksmith who retired suddenly</span>')}</div>` +
+        '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
         `<div class="syn">${lockLine()}${lockMeter()}</div>` +
         `<p>Tries left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${drillsMax()}.</p>` +
         (capped ? `<p class="amber">You have learned what a workbench can teach (level ${practiceCap()}). The rest is behind real doors.</p>`
@@ -7311,7 +7417,9 @@ const ACTIONS = {
       const keys = Object.keys(COOL).filter(k => S[k]);
       if (S.fakeid) keys.unshift('fakeid');
       if (!keys.length) return;
-      const html = meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
+      // SHOP TILES: the Heat kit gets a tile of its own, above the gauge it is there to bring down.
+      const html = `<div class="syn">${withIcon(shopIcon('cool'), `<b>Lower Heat</b><br><span class="dim">${coolCount()} in the kit</span>`)}</div>` +
+        meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
         `<p>Wanted by: <b>${LAW[lawTier()].short}</b>.${coverText() ? ` Running: <span class="cyan">${coverText()}</span>.` : ''}</p>` +
         keys.map(k => {
           const ok = k === 'fakeid' ? S.heat > heatFloor() : !coolBlock(k);
@@ -8243,7 +8351,7 @@ async function intelDlg() {
     const html = `<div class="syn">${withIcon(roomIcon('intel'), `<b>${l ? I.n : 'Dark'}</b><br>${l ? BASE.intel.say(I, l) : 'The power is out. The string is still there.'}`)}</div>` +
       (l ? `<p class="dim">TODAY, DAY ${S.day}</p>` + (tips.length ? tips.map(t => `<div class="syn"><b>${t.good}</b> ${t.up ? '<span class="amber">&#9650; selling high</span>' : '<span class="cyan">&#9660; going cheap</span>'} ` +
         `at <b>${t.loc}</b><br><span class="dim">about ${money(t.price)} each, they say</span></div>`).join('') : '<p class="dim">Nobody is talking today.</p>') +
-        (I.law ? `<p>${withIcon(miscIcon('decoy'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
+        (I.law ? `<p>${withIcon(miscIcon('patrol'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
         `<p class="dim">Rumours are right about ${Math.round(I.right * 100)}% of the time. A wrong one sends you to the wrong place, and there is no telling which is which. New ones every morning.</p>` : '');
     const choice = await dialog('Intel Board', html, [...stationBtn('intel'), ['Done', null, 'primary']]);
     if (choice === 'base') { await stationDlg('intel', true); continue; }
@@ -11939,6 +12047,12 @@ async function rideSelfTest() {
         (t.cargo && !rideCard(id).includes(`carries ${t.cargo}`)) || (t.loud && (!t.fuel || !rideCard(id).includes(`+${t.loud}% Heat`)))) fail('row does not say what it does', id);
     }
     if (Object.keys(RIDE_ART).some(id => !VEHICLES[id])) fail('a picture with no ride');
+    // SHOP TILES: no shop or action tile is a duplicate of another, and none borrows a room's drawing.
+    const tiles = Object.entries(SHOP_ART).map(([k, art]) => [k, art]).concat(BASE_IDS.map(id => [id, roomArt(id, 1)]));
+    for (let i = 0; i < tiles.length; i++) {
+      for (let j = i + 1; j < tiles.length; j++) if (tiles[i][1] === tiles[j][1]) fail('two things share one drawing', tiles[i][0], tiles[j][0]);
+    }
+    for (const k of ['deep', 'cool', 'skills']) if (!SHOP_ART[k] || !shopIcon(k)) fail('no tile', k);
     for (let h = 1; h <= MAX_HOPS; h++) if (!ids.some(id => VEHICLES[id][2] === h)) fail('nothing adds this many hops', h);
     const byPrice = ids.slice().sort((a, b) => VEHICLES[a][1] - VEHICLES[b][1]);
     if (byPrice.some((id, i) => i && VEHICLES[id][2] < VEHICLES[byPrice[i - 1]][2])) fail('a dearer ride adds fewer hops');
@@ -11947,7 +12061,9 @@ async function rideSelfTest() {
     const spots = Object.values(RIDE_SHOPS).map(s => s[1]);
     if (new Set(spots).size !== 3 || spots.some(s => !LOCATIONS.includes(s) || s === BUNKER || !rideSpot(s))) fail('shops are nowhere', spots);
     for (const key of Object.keys(RIDE_SHOPS)) {
-      if (ids.filter(id => VEHICLES[id][3] === key).length < 3 || typeof ACTIONS[key + 'shop'] !== 'function') fail('thin shop', key);
+      // SHOP TILES: every shop has its own drawing, and it is not a copy of another shop's
+      if (ids.filter(id => VEHICLES[id][3] === key).length < 3 || typeof ACTIONS[key + 'shop'] !== 'function' ||
+        !SHOP_ART[key] || !shopIcon(key)) fail('thin shop', key);
     }
     if (VEHICLES[byPrice[1]][1] > START_CASH) fail('nothing a new player can afford');
     // --- a new run is on foot ---
@@ -13546,7 +13662,9 @@ Object.assign(ACTIONS, {
     for (;;) {
       const list = dunLeads().filter(L => DUN_TH[L.th]);
       const here = list.filter(dunHere), away = list.filter(L => !dunHere(L));
-      const html = '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
+      // SHOP TILES: a deep run gets a tile of its own (it was a bare button before)
+      const html = `<div class="syn">${withIcon(shopIcon('deep'), '<b>Deep run</b><br><span class="dim">rooms, then a floor down, then the same again</span>')}</div>` +
+        '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
         'having at the bottom. A trip to go in and one for each floor down; you can walk out at any room with ' +
         'what you are holding.</p>' +
         (here.length ? '<p class="dim">READY HERE &middot; tap one to go in</p>' +
