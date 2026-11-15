@@ -2209,37 +2209,141 @@ document.addEventListener('toggle', e => {
 // ---------- sound: music and effects are synthesised; the only recording is the "I'm in." voice ----------
 const VOICE_IM_IN = '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';
 
-// One 16-step bar per mood. Drums: x = hit. Bass: 0 = root, 1 = octave up. Arp: 0-3 = chord note.
-// prog: one chord per bar as [semitones above the key, size of its third]. parts: which layers play
-// (p pad, a arp, b bass, d drums), one entry per four bars, so a theme builds up and thins out again.
-const MOODS = {
-  bunker: {bpm: 68, key: 45, prog: [[0, 3], [5, 3], [8, 4], [7, 3]], parts: ['pa'],
-    kick: '', snare: '', hat: '', bass: '', arp: '0.......2.....1.', wave: 'sine'},
-  calm: {bpm: 92, key: 45, prog: [[0, 3], [8, 4], [3, 4], [10, 4], [0, 3], [8, 4], [5, 3], [7, 4]],
-    parts: ['pa', 'pab', 'pabd', 'pabd', 'pbd', 'pab'],
-    kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xx',
-    bass: '0..0..0.0..0..1.', arp: '0.2.1.2.3.2.1.2.', wave: 'triangle'},
-  tense: {bpm: 106, key: 43, prog: [[0, 3], [1, 4], [0, 3], [10, 3]], parts: ['pabd'],
-    kick: 'x...x...x...x...', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx',
-    bass: '0.0.0.0.0.0.0.01', arp: '0.1.0.2.0.1.0.3.', wave: 'square'},
-  raid: {bpm: 124, key: 38, prog: [[0, 3], [0, 3], [3, 4], [1, 4]], parts: ['abd'],
-    kick: 'x..x..x.x..x..x.', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx',
-    bass: '0.01.0.00.01.0.1', arp: '0.3.2.3.1.3.2.3.', wave: 'square'},
-  fight: {bpm: 138, key: 40, prog: [[0, 3], [0, 3], [8, 4], [7, 4]], parts: ['abd'],
-    kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...xx',
-    bass: '0000000000000011', arp: '0321032103210321', wave: 'sawtooth'},
+/* ===== SOUNDTRACK: BEGIN =====
+   The music is one small graph of voices built once and left running: a four-note pad, a low drone,
+   a bass pulse, a kick, an arpeggio and two noise voices (hat and snare). Nothing is ever created or
+   thrown away while the game plays. A state (see SCORE below) is nothing but a set of target levels
+   for those voices plus a tempo, a key and some patterns, so changing state is a cross-fade of gains
+   and a glide of pitches -- the bed itself never stops, never restarts and never loses its place.
+
+   A chord is [semitones above the key, its third (3 minor, 4 major), its top note (7 a fifth, 6 a
+   tritone, 10 a flat seventh, 11 a major seventh)]. The pad holds all three and the octave.
+   Patterns are 16 steps of sixteenths: in the drums x is a hit and anything else a rest; in bass and
+   arp a digit picks a note and . is a rest. Every pattern slot takes a list, and one is drawn per
+   bar by the engine's own slow random walk, so a state wanders instead of looping every four bars.
+   mix: where each voice sits in this state, 0 to 1. These are the numbers that cross-fade. */
+const SCORE = {
+  // Home. Almost nothing: a slow pad and a note every other bar. Deliberately the quietest thing here.
+  bunker: {bpm: 54, key: 45, bars: 4, wave: 'sine', echo: 0.45, padCut: 560, padDet: 3, bassCut: 300,
+    chords: [[0, 3, 7], [5, 3, 7], [8, 4, 7], [7, 3, 10], [0, 3, 7], [3, 4, 11]],
+    mix: {pad: 0.62, drone: 0.08, bass: 0, kick: 0, snare: 0, hat: 0, arp: 0.14},
+    kick: [''], snare: [''], hat: [''], bass: [''], arp: ['0...............', '................', '....2.......0...']},
+  // Broke and quiet: a pad, a breath of bass, one note at a time. Room to be nervous in.
+  broke: {bpm: 76, key: 45, bars: 2, wave: 'triangle', echo: 0.4, padCut: 700, padDet: 5, bassCut: 420,
+    chords: [[0, 3, 7], [8, 4, 7], [5, 3, 10], [3, 4, 7], [10, 4, 7], [0, 3, 11], [7, 3, 10]],
+    mix: {pad: 0.7, drone: 0.1, bass: 0.3, kick: 0, snare: 0, hat: 0.08, arp: 0.3},
+    kick: [''], snare: [''], hat: ['..............x.', '........x.......', ''],
+    bass: ['0.......0.......', '0...............'], arp: ['0.......2.......', '0...2.......1...', '....1.......2...']},
+  // Working the markets: a pulse, a shaker, the arpeggio moving. The default sound of the game.
+  street: {bpm: 92, key: 45, bars: 2, wave: 'triangle', echo: 0.35, padCut: 900, padDet: 6, bassCut: 520,
+    chords: [[0, 3, 7], [8, 4, 7], [3, 4, 7], [10, 4, 7], [0, 3, 7], [5, 3, 10], [7, 4, 7], [8, 4, 11]],
+    mix: {pad: 0.62, drone: 0.06, bass: 0.55, kick: 0.3, snare: 0.12, hat: 0.3, arp: 0.5},
+    kick: ['x.......x.x.....', 'x.......x.......', 'x.....x.x.......'],
+    snare: ['....x.......x...', '....x.......x..x', '............x...'],
+    hat: ['x.x.x.x.x.x.x.xx', '..x...x...x...x.', 'x.x.x.x.x.x.x.x.'],
+    bass: ['0..0..0.0..0..1.', '0..0..0.0...0...', '0.....0.0..0..0.'],
+    arp: ['0.2.1.2.3.2.1.2.', '0...2...1...2...', '0.2.3.2.1.2.3.2.', '..2...1...3...2.']},
+  // Established: the same room, more of it. Brighter pad, a real kit, the bass walking.
+  flush: {bpm: 96, key: 45, bars: 2, wave: 'triangle', echo: 0.3, padCut: 1400, padDet: 7, bassCut: 700,
+    chords: [[0, 3, 7], [8, 4, 11], [3, 4, 7], [10, 4, 7], [5, 4, 7], [0, 3, 10], [7, 4, 7], [8, 4, 7]],
+    mix: {pad: 0.6, drone: 0.05, bass: 0.7, kick: 0.6, snare: 0.4, hat: 0.45, arp: 0.62},
+    kick: ['x.......x.x.....', 'x...x...x.x.....', 'x..x....x.x...x.'],
+    snare: ['....x.......x...', '....x.....x.x...', '....x.......x..x'],
+    hat: ['x.x.x.x.x.x.x.xx', 'x.xxx.x.x.xxx.x.', '..x...x...x...xx'],
+    bass: ['0..0..0.0..0..1.', '0.0...0.1..0..0.', '0..0.1..0..0..1.'],
+    arp: ['0.2.1.2.3.2.1.2.', '012321203.2.1.2.', '0.2.3.2.1.2.0.2.', '0...3...2...1...']},
+  // Heat climbing towards the law. A minor second leaning on the root, hats all the way through.
+  tense: {bpm: 104, key: 43, bars: 2, wave: 'square', echo: 0.3, padCut: 780, padDet: 11, bassCut: 460,
+    chords: [[0, 3, 7], [1, 4, 7], [0, 3, 10], [10, 3, 7], [0, 3, 6], [1, 4, 11], [8, 3, 7]],
+    mix: {pad: 0.66, drone: 0.22, bass: 0.6, kick: 0.5, snare: 0.35, hat: 0.5, arp: 0.42},
+    kick: ['x...x...x...x...', 'x...x...x..x..x.', 'x...x...x...x..x'],
+    snare: ['....x.......x...', '....x.......x..x', '....x...x...x..x'],
+    hat: ['xxxxxxxxxxxxxxxx', 'x.xxx.xxx.xxx.xx', 'xxxxxxxxxxxxxxx.'],
+    bass: ['0.0.0.0.0.0.0.01', '0.0.0.0.0.0.0.0.', '0.0.0.010.0.0.0.'],
+    arp: ['0.1.0.2.0.1.0.3.', '0.1.0.1.0.1.0.2.', '..1...0...1...3.']},
+  // Feds and the NSA. Everything a semitone wrong, the drone up front, no comfort anywhere in it.
+  hunted: {bpm: 112, key: 42, bars: 1, wave: 'square', echo: 0.26, padCut: 620, padDet: 16, bassCut: 400,
+    chords: [[0, 3, 6], [1, 3, 7], [0, 3, 6], [11, 4, 6], [0, 3, 10], [6, 3, 7]],
+    mix: {pad: 0.6, drone: 0.4, bass: 0.72, kick: 0.62, snare: 0.5, hat: 0.55, arp: 0.4},
+    kick: ['x...x...x...x...', 'x..x..x.x..x..x.', 'x...x...x..xx...'],
+    snare: ['....x.......x..x', '....x...x...x..x', '..x.x.......x.xx'],
+    hat: ['xxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxx.', 'x.xxx.xxx.xxx.xx'],
+    bass: ['0.0.0.0.0.0.0.01', '00.0.0.000.0.0.0', '0.0.0.010.0.0.01'],
+    arp: ['0.1.0.2.0.1.0.3.', '0.1.0.1.0.1.0.1.', '0...1...0...2...']},
+  // A deep run through a building. Close and percussive: a thump in a corridor, almost no echo,
+  // the pad shut down to a hum so the footsteps are the tune.
+  site: {bpm: 88, key: 41, bars: 2, wave: 'square', echo: 0.06, padCut: 420, padDet: 4, bassCut: 340,
+    chords: [[0, 3, 7], [0, 3, 10], [5, 3, 7], [3, 4, 7], [0, 3, 7], [10, 3, 7]],
+    mix: {pad: 0.3, drone: 0.2, bass: 0.78, kick: 0.85, snare: 0.55, hat: 0.3, arp: 0.2},
+    kick: ['x.......x.......', 'x.....x.x.......', 'x.......x.....x.', 'x..x....x.......'],
+    snare: ['....x.......x...', '............x...', '....x..x....x...'],
+    hat: ['....x.......x...', '..x.....x.......', '', '......x.......x.'],
+    bass: ['0.......0.......', '0.....0.0.......', '0.......0.....1.'],
+    arp: ['', '0...............', '........2.......']},
+  // A network dive. Cold, wide and wrong: no kick at all, a tritone pad, long echo, ticks instead
+  // of a beat. Nothing in here is standing next to you.
+  dive: {bpm: 80, key: 47, bars: 4, wave: 'sine', echo: 0.8, padCut: 2200, padDet: 24, bassCut: 900,
+    chords: [[0, 3, 6], [6, 3, 6], [0, 4, 6], [11, 3, 6], [5, 3, 6], [1, 4, 6]],
+    mix: {pad: 0.72, drone: 0.4, bass: 0.34, kick: 0, snare: 0.1, hat: 0.3, arp: 0.52},
+    kick: [''], snare: ['', '..............x.', '.......x........'],
+    hat: ['x...x...x...x...', 'x.......x.......', '..x...x...x...x.', 'x..x..x..x..x..x'],
+    bass: ['0...............', '0.......0.......', '........0.......'],
+    arp: ['0...2...1...3...', '0.2.1.3.0.2.1.3.', '3...1...2...0...', '0.......3.......']},
+  // A fight. Harder, faster, sixteenths under it, and the arp hammering one shape.
+  fight: {bpm: 136, key: 40, bars: 1, wave: 'sawtooth', echo: 0.2, padCut: 900, padDet: 9, bassCut: 620,
+    chords: [[0, 3, 7], [0, 3, 10], [8, 4, 7], [7, 4, 7], [0, 3, 7], [3, 4, 7]],
+    mix: {pad: 0.4, drone: 0.2, bass: 0.9, kick: 0.9, snare: 0.6, hat: 0.5, arp: 0.5},
+    kick: ['x...x...x...x...', 'x...x...x..x.x..', 'x.x.x...x...x...'],
+    snare: ['....x.......x...', '....x.......x..x', '....x...x...x.xx'],
+    hat: ['..x...x...x...xx', 'x.x.x.x.x.x.x.xx', '..x...x...x...x.'],
+    bass: ['0000000000000011', '00000000000000.1', '0000000011110000'],
+    arp: ['0321032103210321', '0321032103213210', '0.2.1.3.0.2.1.3.']},
+  // A raid: the law at the door. Fastest, two chords a semitone apart, like a siren that cannot settle.
+  raid: {bpm: 126, key: 38, bars: 1, wave: 'square', echo: 0.24, padCut: 700, padDet: 14, bassCut: 500,
+    chords: [[0, 3, 7], [1, 4, 7], [0, 3, 6], [3, 4, 7], [0, 3, 7], [1, 4, 10]],
+    mix: {pad: 0.46, drone: 0.3, bass: 0.88, kick: 0.88, snare: 0.62, hat: 0.6, arp: 0.52},
+    kick: ['x..x..x.x..x..x.', 'x..x..x.x...x...', 'x..x..x.x..xx...'],
+    snare: ['....x.......x...', '....x.......x.xx', '..x.x.....x.x...'],
+    hat: ['xxxxxxxxxxxxxxxx', 'x.xxx.xxx.xxx.xx', 'xxxxxxxxxxxxxx.x'],
+    bass: ['0.01.0.00.01.0.1', '0.01.0.00.0.0.0.', '0001.0.00.01.0.1'],
+    arp: ['0.3.2.3.1.3.2.3.', '0.3.2.3.0.3.1.3.', '0123012301230123']},
+  // Won. Held for a few seconds on the way out: the drums go, the chord turns major, the arp walks down.
+  resolve: {bpm: 96, key: 45, bars: 2, wave: 'triangle', echo: 0.5, padCut: 1800, padDet: 4, bassCut: 600,
+    chords: [[0, 4, 7], [5, 4, 11], [0, 4, 7], [7, 4, 7]],
+    mix: {pad: 0.8, drone: 0.04, bass: 0.35, kick: 0, snare: 0, hat: 0.1, arp: 0.5},
+    kick: [''], snare: [''], hat: ['..............x.', ''],
+    bass: ['0.......0.......', '0...............'],
+    arp: ['3...2...1...0...', '3.2.1.0.........', '0...1...2...3...']},
 };
+// Which cues are loud enough that the bed should get out of their way, and by how much (0 to 1).
+const DUCKS = {
+  bstart: 0.75, bambush: 0.8, bwin: 0.7, bfall: 0.8, bflee: 0.5, bdown: 0.45, bbeam: 0.5, emp: 0.6,
+  bomb: 0.7, alarm: 0.7, gone: 0.85, lose: 0.7, win: 0.6, level: 0.6, imin: 0.75, travel: 0.5,
+  sleep: 0.6, hurt: 0.35, shoot: 0.3, thud: 0.3, bbonk: 0.3, bslash: 0.25, bzap: 0.3, hack: 0.35,
+};
+/* ===== SOUNDTRACK: END ===== */
 
 const SND = (() => {
-  const prefs = Object.assign({music: true, sfx: true}, store.get('zdh-sound') || {});
-  const MUSIC_VOL = 0.2, SFX_VOL = 0.55;   // the music sits well under the effects
+  // SOUNDTRACK: the music has its own setting, off / quiet / full, remembered with the rest.
+  // Somebody who has asked for less movement on screen gets no music until they ask for it; the
+  // sound effects, which answer a tap, are left alone.
+  const LEVELS = {off: 0, quiet: 0.13, full: 0.24};
+  const SILENT = location.hash.startsWith('#selftest');   // the self-test is deaf: see wake()
+  const saved = store.get('zdh-sound') || {};
+  const shy = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const prefs = Object.assign({music: true, sfx: true, level: shy ? 'off' : 'quiet'}, saved);
+  if (!LEVELS[prefs.level]) prefs.level = prefs.level === 'off' ? 'off' : 'quiet';
+  if (saved.music === false) prefs.level = 'off';          // a 1.37 save that had the music switched off
+  prefs.music = prefs.level !== 'off';                     // kept in step, for anything that reads it
+  const musicVol = () => (prefs.music ? LEVELS[prefs.level] : 0);
+  const SFX_VOL = 0.55;   // the music sits well under the effects
   let ctx = null, musicBus, sfxBus, echo, noiseBuf, voiceBuf = null;
-  let mood = 'calm', step = 0, nextAt = 0;
+  let step = 0, nextAt = 0;
   const hz = note => 440 * Math.pow(2, (note - 69) / 12);
 
   // Browsers only allow sound after a tap or a key press, so this runs on the first one.
   function wake() {
-    if (AUTO) return false;
+    if (AUTO || SILENT) return false;
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
@@ -2247,14 +2351,17 @@ const SND = (() => {
       const out = ctx.createDynamicsCompressor();
       out.connect(ctx.destination);
       musicBus = ctx.createGain(); sfxBus = ctx.createGain();
-      musicBus.gain.value = prefs.music ? MUSIC_VOL : 0;
+      musicBus.gain.value = musicVol();
       sfxBus.gain.value = prefs.sfx ? SFX_VOL : 0;
       musicBus.connect(out); sfxBus.connect(out);
       // A dark echo for the arpeggios.
       echo = ctx.createDelay(1); echo.delayTime.value = 0.3;
       const damp = ctx.createBiquadFilter(), back = ctx.createGain();
       damp.type = 'lowpass'; damp.frequency.value = 1800; back.gain.value = 0.4;
-      echo.connect(damp); damp.connect(back); back.connect(echo); damp.connect(musicBus);
+      // SOUNDTRACK: the return goes straight out, not through the music bus, so turning the music
+      // down no longer takes the echo off the effects with it. The music has an echo of its own.
+      const wet = ctx.createGain(); wet.gain.value = 0.2; wet.connect(out);   // as loud as it was
+      echo.connect(damp); damp.connect(back); back.connect(echo); damp.connect(wet);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = noiseBuf.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -2263,7 +2370,9 @@ const SND = (() => {
         for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
         ctx.decodeAudioData(bytes.buffer, buf => { voiceBuf = buf; }, () => {});
       } catch (e) {}
-      setInterval(tick, 50);
+      // SOUNDTRACK: 8 Hz is plenty with a third of a second of lookahead, and it is a third of the
+      // work the old 20 Hz clock did. The music graph itself is only built when music is wanted.
+      setInterval(tick, 120);
     }
     if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
     return true;
@@ -2308,44 +2417,211 @@ const SND = (() => {
     src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
   }
 
-  // ----- music: a step sequencer that schedules a little ahead of the clock -----
+  /* ===== SOUNDTRACK: BEGIN =====
+     One graph, built once by voices() and never rebuilt. Everything after that is parameter changes:
+     layer gains glide to the levels the state asks for (that is the cross-fade), pad and drone slide
+     to the new chord, and the tempo is walked towards its target a few per cent a step instead of
+     jumped. step is never reset, so a re-render or a state change cannot restart the bed. */
+  let V = null;                                  // the voices, once they exist
+  let state = 'street', forced = null;           // what is playing, and what the debug menu pinned
+  let bpm = 92, chordAt = 0, chordI = 0, bar = 0, lastSync = 0, resolveUntil = 0;
+  let duckTo = 1, duckUntil = 0, tension = 0, tensionAt = 0;
+  let tier = 0, heard = 0;   // how settled and how hunted the bed thinks you are, with hysteresis
+  let seed = 0x2f6e2b1 >>> 0;
+  const roll = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);   // the music's own
+  const pick = list => list[Math.floor(roll() * list.length) % list.length];      // dice, so the
+  const chords = () => SCORE[state].chords;                                       // self-test's
+  let chord = [0, 3, 7];                                                          // Math.random is
+                                                                                  // left untouched
+  // The whole music graph: 8 oscillators, 1 looping noise source, and the gains and filters they
+  // need. Made the first time music is actually wanted, so a silent game never pays for it.
+  function voices() {
+    if (V) return V;
+    let n = 0;   // every node the music owns is counted here, for api.music()
+    const G = (to, v) => { n++; const g = ctx.createGain(); g.gain.value = v === undefined ? 0 : v; g.connect(to); return g; };
+    const F = (to, type, f, q) => {
+      n++;
+      const b = ctx.createBiquadFilter();
+      b.type = type; b.frequency.value = f; if (q) b.Q.value = q;
+      b.connect(to); return b;
+    };
+    const O = (to, type, f, det) => {
+      n++;
+      const o = ctx.createOscillator();
+      o.type = type; o.frequency.value = f; o.detune.value = det || 0;
+      o.connect(to); o.start(); return o;
+    };
+    const duck = G(musicBus, 1), bed = G(duck, 1);
+    // the music's own echo, inside the bed, so the level setting and the ducking reach it too
+    n++; const del = ctx.createDelay(1); del.delayTime.value = 0.3;
+    const delDamp = F(bed, 'lowpass', 1700), back = G(del, 0.38);
+    del.connect(delDamp); delDamp.connect(back);
+    // pad: four detuned saws on one filter, held open for ever and retuned at every chord
+    const padGain = G(bed), padCut = F(padGain, 'lowpass', 800);
+    const pad = [0, 1, 2, 3].map(i => O(padCut, 'sawtooth', 110, [-7, 5, -4, 8][i]));
+    // drone: one low voice for dread, a fifth below the pad
+    const droneGain = G(bed), drone = O(droneGain, 'triangle', 55);
+    // bass pulse: its own envelope, so the layer gain is free to cross-fade underneath it
+    const bassGain = G(bed), bassEnv = G(bassGain, 0), bassCut = F(bassEnv, 'lowpass', 520);
+    const bass = O(bassCut, 'sawtooth', 55);
+    // kick: a sine dropped on every hit
+    const kickGain = G(bed), kickEnv = G(kickGain, 0), kick = O(kickEnv, 'sine', 150);
+    // arp: one voice, with a send into the existing dark echo
+    const arpGain = G(bed), arpEnv = G(arpGain, 0), arpCut = F(arpEnv, 'lowpass', 2600);
+    const arp = O(arpCut, 'square', 440), arpWet = G(del, 0.3);
+    arpEnv.connect(arpWet);
+    // one loop of noise feeds both the hat and the snare
+    n++; const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf; noise.loop = true;
+    const hatGain = G(bed), hatEnv = G(hatGain, 0), hatF = F(hatEnv, 'highpass', 8000);
+    const snGain = G(bed), snEnv = G(snGain, 0), snF = F(snEnv, 'bandpass', 1900, 0.8);
+    noise.connect(hatF); noise.connect(snF);
+    noise.start();
+    V = {duck, bed, pad, padGain, padCut, drone, droneGain, bass, bassEnv, bassGain, bassCut,
+      kick, kickEnv, kickGain, arp, arpEnv, arpGain, arpCut, arpWet, hatEnv, hatGain, snEnv, snGain,
+      pat: {kick: '', snare: '', hat: '', bass: '', arp: ''}, nodes: n, osc: 8};
+    return V;
+  }
+
+  // A short envelope on a voice that is already running. Always scheduled forwards, so a new note
+  // simply takes over from the one before it.
+  function env(g, t, peak, dur, attack) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + (attack || 0.004));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  // Move the pad and the drone onto a chord, over the better part of a second.
+  function voice(t, M) {
+    const base = M.key + chord[0], s = 0.45;
+    const notes = [base + 12, base + 12 + chord[1], base + 12 + chord[2], base + 24];
+    V.pad.forEach((o, i) => o.frequency.setTargetAtTime(hz(notes[i]), t, s));
+    V.drone.frequency.setTargetAtTime(hz(base - 12), t, s * 2);
+  }
+  // The levels this state wants, with the slow swings on top: how settled you are, how much heat is
+  // on you, and how close a lock is to screaming. These are what cross-fade.
+  function mixTo(t, M, warm) {
+    const m = M.mix, tau = 1.4, fast = 0.5;
+    const lift = 0.8 + 0.2 * warm, bite = 1 + 0.45 * tension;
+    const set = (g, v, k) => g.gain.setTargetAtTime(Math.max(0, v), t, k);
+    set(V.padGain, m.pad * 0.07 * lift, tau);
+    set(V.droneGain, (m.drone + 0.12 * tension) * 0.05, tau);
+    set(V.bassGain, m.bass * 0.3, fast);
+    set(V.kickGain, m.kick * 0.55, fast);
+    set(V.snGain, m.snare * 0.3, fast);
+    set(V.hatGain, m.hat * 0.1 * bite, fast);
+    set(V.arpGain, m.arp * (M.wave === 'sine' ? 0.17 : 0.08), tau);
+    set(V.arpWet, M.echo, tau);
+    V.padCut.frequency.setTargetAtTime(M.padCut * (1 - 0.3 * tension), t, tau);
+    V.bassCut.frequency.setTargetAtTime(M.bassCut, t, tau);
+    V.pad.forEach((o, i) => o.detune.setTargetAtTime([-1, 1, -1, 1][i] * M.padDet * (1 + tension), t, tau));
+  }
+
   function playStep(t) {
-    const M = MOODS[mood], i = step % 16, bar = Math.floor(step / 16), len = 60 / M.bpm / 4;
-    const [root, third] = M.prog[bar % M.prog.length];
-    const parts = M.parts[Math.floor(bar / 4) % M.parts.length];
-    const base = M.key + root;
-    if (parts.includes('d')) {
-      if (M.kick[i] === 'x') tone(musicBus, t, 150, 0.2, {type: 'sine', to: 42, vol: 0.6});
-      if (M.snare[i] === 'x') {
-        hiss(musicBus, t, 0.13, {type: 'bandpass', f: 1900, q: 0.8, vol: 0.28});
-        tone(musicBus, t, 190, 0.08, {type: 'triangle', to: 110, vol: 0.18});
+    const M = SCORE[state], i = step % 16;
+    if (i === 0) {
+      // A new bar: pick this bar's patterns, and every M.bars bars walk on to the next chord. The
+      // walk is almost always forwards and now and then skips one, so the progression never settles
+      // into a four-bar loop.
+      if (bar >= chordAt) {
+        chordI = (chordI + (roll() < 0.17 ? 2 : 1)) % chords().length;
+        chord = chords()[chordI];
+        chordAt = bar + M.bars;
+        voice(t, M);
       }
-      if (M.hat[i] === 'x') hiss(musicBus, t, 0.03, {f: 8000, vol: i % 4 === 2 ? 0.1 : 0.05});
+      V.pat = {
+        kick: pick(M.kick), snare: pick(M.snare), hat: pick(M.hat),
+        bass: pick(M.bass), arp: roll() < 0.14 ? '' : pick(M.arp),   // sometimes the arp takes a bar off
+        hush: roll() < 0.08,                                          // and sometimes the kit does
+      };
+      bar++;
+      mixTo(t, M, V.warm === undefined ? 0 : V.warm);
     }
-    if (parts.includes('b') && M.bass[i] >= '0') {
-      tone(musicBus, t, hz(base + 12 * M.bass[i]), len * 1.8, {type: 'sawtooth', cut: 520, cutTo: 160, vol: 0.3});
-    }
-    if (parts.includes('a') && M.arp[i] >= '0') {
-      tone(musicBus, t, hz(base + 24 + [0, third, 7, 12][M.arp[i]]), len * 1.6,
-        {type: M.wave, vol: M.wave === 'sine' ? 0.16 : 0.055, cut: 2600, echo: true});
-    }
-    if (parts.includes('p') && i === 0) {
-      for (const n of [0, third, 7]) {
-        for (const detune of [-7, 7]) {
-          tone(musicBus, t, hz(base + 12 + n), len * 17, {type: 'sawtooth', detune, cut: 700, vol: 0.035, attack: len * 5});
-        }
+    const P = V.pat, len = 60 / bpm / 4, base = M.key + chord[0];
+    if (!P.hush) {
+      if (P.kick[i] === 'x') {
+        V.kick.frequency.setValueAtTime(150, t);
+        V.kick.frequency.exponentialRampToValueAtTime(42, t + 0.17);
+        env(V.kickEnv, t, 1, 0.19);
       }
+      if (P.snare[i] === 'x') env(V.snEnv, t, 1, 0.13);
+      if (P.hat[i] === 'x') env(V.hatEnv, t, i % 4 === 2 ? 1 : 0.5, 0.035);
+    }
+    if (P.bass[i] >= '0') {
+      V.bass.frequency.setValueAtTime(hz(base + 12 * +P.bass[i]), t);
+      env(V.bassEnv, t, 1, Math.min(len * 1.8, 0.5));
+    }
+    if (P.arp[i] >= '0') {
+      V.arp.type = M.wave;
+      V.arp.frequency.setValueAtTime(hz(base + 24 + [0, chord[1], chord[2], 12][+P.arp[i]]), t);
+      V.arpCut.frequency.setValueAtTime(2600, t);
+      env(V.arpEnv, t, 1, Math.min(len * 1.7, 0.6), 0.01);
     }
   }
-  function tick() {
-    if (!ctx || ctx.state !== 'running' || !prefs.music) return;
-    if (nextAt < ctx.currentTime) nextAt = ctx.currentTime + 0.05;
-    while (nextAt < ctx.currentTime + 0.25) {
+  function tick() { try { beat(); } catch (e) {} }   // a blocked or broken context is never fatal
+  function beat() {
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (duckUntil && now > duckUntil) { duckUntil = 0; duckTo = 1; if (V) V.duck.gain.setTargetAtTime(1, now, 0.22); }
+    if (tension && now - tensionAt > 8) tension = 0;   // nobody has touched a lock for a while
+    if (now - lastSync > 0.5) { lastSync = now; api.sync(); }
+    if (!prefs.music || musicVol() <= 0) return;
+    voices();
+    if (nextAt < now) nextAt = now + 0.05;
+    const want = SCORE[state].bpm;
+    while (nextAt < now + 0.33) {
       playStep(nextAt);
-      nextAt += 60 / MOODS[mood].bpm / 4;
+      bpm += (want - bpm) * 0.05;       // the tempo slides between states instead of jumping
+      nextAt += 60 / bpm / 4;
       step++;
     }
   }
+  // What should be playing, given everything the run knows. The only place the game's state is read.
+  function pickState() {
+    const D = dunRun();
+    const pressed = press01();
+    // How settled you are: what is in your hands against the $2,000 you started with, and never less
+    // than the career you have built, so a day spent all-in on goods does not sound like day one.
+    const worth = (S.cash || 0) + (S.wallet || 0);
+    const warm = Math.max(clampN(Math.log10(Math.max(1, worth) / 2000) / 2.2, 0, 1),
+      clampN((level() - 1) / 12, 0, 0.7));
+    // Heat and money both wander about, and a bed that flipped every time they crossed a line would
+    // be worse than no bed at all, so each step up has to be taken further than the step back down.
+    tier = warm > [0.24, 0.58, 1][tier] ? tier + 1 : warm < [0, 0.14, 0.48][tier] ? tier - 1 : tier;
+    const hot = S.heat, law = hot >= (heard >= 2 ? 78 : 85) ? 2 : hot >= (heard >= 1 ? 48 : 55) ? 1 : 0;
+    heard = law;
+    let want = forced;
+    if (!want) {
+      if (api.battle) want = api.battle;
+      else if (ctx && resolveUntil > ctx.currentTime) want = 'resolve';
+      else if (D) want = dunSkin(D) === 'dive' ? 'dive' : 'site';
+      else if (S.loc === BUNKER) want = 'bunker';
+      // ENDLESS: there is no last day to go tense on, so Heat and a long career's pressure do it.
+      else if (law >= 2 || pressed >= 0.85) want = 'hunted';
+      else if (law >= 1 || pressed >= 0.6 || tension > 0.5) want = 'tense';
+      else want = ['broke', 'street', 'flush'][tier];
+    }
+    if (V) V.warm = warm;
+    if (want === state) return;
+    // Walking out of a fight on your feet gets a few seconds of resolution on the way back.
+    if ((state === 'fight' || state === 'raid') && ctx && !forced &&
+        want !== 'fight' && want !== 'raid' && !S.over && !S.busted && !S.dead && (S.hp || 0) > 0) {
+      resolveUntil = ctx.currentTime + 7;
+      want = 'resolve';
+    }
+    state = want;
+    chordAt = bar;   // the next bar draws from the new state's chords, not the old state's
+    // Cross-fade now rather than at the next bar: a fight should not have to wait for one.
+    if (V && ctx) { mixTo(ctx.currentTime, SCORE[state], warm); voice(ctx.currentTime, SCORE[state]); }
+  }
+  // Get out of the way of a loud cue, then come back.
+  function duckFor(amount, dur) {
+    if (!V || !amount) return;
+    const now = ctx.currentTime, to = 1 - amount;
+    duckTo = now > duckUntil ? to : Math.min(duckTo, to);
+    duckUntil = Math.max(duckUntil, now + dur);
+    V.duck.gain.setTargetAtTime(duckTo, now, 0.03);
+  }
+  /* ===== SOUNDTRACK: END ===== */
 
   // ----- effects -----
   const run = (t, notes, gap, dur, o) => notes.forEach((f, i) => tone(sfxBus, t + i * gap, f, dur, o));
@@ -2472,24 +2748,62 @@ const SND = (() => {
   const api = {
     prefs,
     battle: null,   // 'fight' or 'raid' while a confrontation is on
-    state: () => ({audio: ctx ? ctx.state : 'off', mood, step, voice: !!voiceBuf}),   // for testing
+    state: () => ({audio: ctx ? ctx.state : 'off', mood: state, step, voice: !!voiceBuf}),   // for testing
     play(name, delay) {
-      if (AUTO || !ctx || !prefs.sfx || ctx.state !== 'running') return;
+      if (AUTO || SILENT || !ctx || !prefs.sfx || ctx.state !== 'running') return;
       FX[name](ctx.currentTime + (delay || 0));
+      if (DUCKS[name]) duckFor(DUCKS[name], (delay || 0) + 0.45 + 0.9 * DUCKS[name]);   // SOUNDTRACK
     },
-    // Pick the music for what is going on right now.
+    /* SOUNDTRACK: a break-in can tell the bed how close the Alert is to screaming, 0 to 1. It fades
+       by itself after a few seconds, so nothing has to remember to put it back. */
+    set tension(n) { tension = clampN(n || 0, 0, 1); tensionAt = ctx ? ctx.currentTime : 0; },
+    get tension() { return tension; },
+    // SOUNDTRACK: pick the music for what is going on right now. Called on every render and, so that
+    // the screens that do not re-render are covered too, twice a second by the engine's own clock.
     sync() {
-      if (AUTO) return;
-      // ENDLESS: there is no last day to go tense on, so Heat and the pressure of a long career do it instead.
-      const want = api.battle || (S.loc === BUNKER ? 'bunker' : S.heat >= 60 || press01() >= 0.66 ? 'tense' : 'calm');
-      if (want !== mood) { mood = want; step = 0; }
+      if (AUTO || SILENT || !S) return;
+      try { pickState(); } catch (e) {}   // the music is never worth an exception
     },
+    // SOUNDTRACK: debug handles. force('dive') pins a state, force(null) lets go; music() reports.
+    force(name) {
+      forced = name && SCORE[name] ? name : null;
+      resolveUntil = 0;
+      api.sync();
+      return forced || 'free';
+    },
+    music() {
+      const gain = g => (g ? Math.round(g.gain.value * 1e4) / 1e4 : 0);
+      return {
+        state, forced, level: prefs.level, on: prefs.music, sfx: prefs.sfx, silent: SILENT || AUTO,
+        ctx: ctx ? ctx.state : 'off', built: !!V, nodes: V ? V.nodes : 0, oscillators: V ? V.osc : 0,
+        bpm: Math.round(bpm), chord: chord.slice(), bar, step, tension,
+        duck: gain(V && V.duck), bed: gain(V && V.bed), bus: gain(musicBus),
+        layers: V ? {pad: gain(V.padGain), drone: gain(V.droneGain), bass: gain(V.bassGain),
+          kick: gain(V.kickGain), snare: gain(V.snGain), hat: gain(V.hatGain), arp: gain(V.arpGain),
+          echo: gain(V.arpWet)} : null,
+      };
+    },
+    // SOUNDTRACK: off / quiet / full, remembered. The Sound button still flips the music on and off.
+    setLevel(level) {
+      if (!LEVELS[level] && level !== 'off') return prefs.level;
+      prefs.level = level;
+      prefs.music = level !== 'off';
+      if (prefs.music) prefs.last = level;   // so the Sound button's OFF can be undone
+      store.set('zdh-sound', prefs);
+      if (wake()) {
+        musicBus.gain.setTargetAtTime(musicVol(), ctx.currentTime, 0.4);
+        if (prefs.music) { voices().bed.gain.setTargetAtTime(1, ctx.currentTime, 0.3); api.sync(); }
+        else if (V) V.bed.gain.setTargetAtTime(0, ctx.currentTime, 0.3);   // and the clock stops scheduling
+      }
+      return prefs.level;
+    },
+    cycleLevel: () => api.setLevel({off: 'quiet', quiet: 'full', full: 'off'}[prefs.level] || 'quiet'),
     toggle(key) {
+      if (key === 'music') return api.setLevel(prefs.music ? 'off' : (prefs.last || 'quiet'));
       prefs[key] = !prefs[key];
       store.set('zdh-sound', prefs);
       if (!wake()) return;
-      const bus = key === 'music' ? musicBus : sfxBus, vol = key === 'music' ? MUSIC_VOL : SFX_VOL;
-      bus.gain.setTargetAtTime(prefs[key] ? vol : 0, ctx.currentTime, 0.05);
+      sfxBus.gain.setTargetAtTime(prefs[key] ? SFX_VOL : 0, ctx.currentTime, 0.05);
     },
   };
   return api;
@@ -3683,6 +3997,7 @@ async function lockDialog(lock, st, o) {
     const usable = drills > 0 ? toolsFor(lock, st) : [];
     const buttons = usable.map(k => [`${toolName(k)} (${lockOdds(k, lock, o.edge).open}%)`, k, TOOLS[k].loud ? 'danger' : '', miscIcon(k)]);
     buttons.push([o.practice ? 'Step away' : 'Back off', null, usable.length ? 'small' : 'primary']);
+    if (st) SND.tension = st.alert / 100;   // SOUNDTRACK: the bed leans in as the Alert climbs
     const key = await dialog(o.practice ? `Practice: ${name}` : `The lock: ${name}`, html, buttons, st && st.alert >= 70 ? 'danger' : '');
     if (!key || !TOOLS[key] || toolBlock(key, lock, st)) return {res: 'back', last};
     const T = TOOLS[key], r = lockTry(key, lock, o.edge, o.practice);
@@ -8094,12 +8409,15 @@ const ACTIONS = {
   async sound() {
     for (;;) {
       const p = SND.prefs;
-      const key = await dialog('Sound', '<p>The music follows what is going on: quiet in the Bunker, steady at the markets, ' +
-        'uneasy when your Heat is high, and fast when you are in a fight or a raid.</p>',
-        [[`Music: ${p.music ? 'ON' : 'OFF'}`, 'music'], [`Sound effects and voice: ${p.sfx ? 'ON' : 'OFF'}`, 'sfx'],
-          ['Close', null, 'primary']]);
+      // SOUNDTRACK: the music has three settings of its own, and they are remembered.
+      const key = await dialog('Sound', '<p>The music follows what is going on: all but silent in the Bunker, ' +
+        'thin while you are broke and fuller once you are established, uneasy as your Heat climbs towards the ' +
+        'Feds, close and percussive inside a building, cold and wide in a network dive, and harder in a fight. ' +
+        'It never cuts: it fades from one into the next.</p>',
+        [[`Music: ${{off: 'OFF', quiet: 'QUIET', full: 'FULL'}[p.level] || 'QUIET'}`, 'level'],
+          [`Sound effects and voice: ${p.sfx ? 'ON' : 'OFF'}`, 'sfx'], ['Close', null, 'primary']]);
       if (!key) return;
-      SND.toggle(key);
+      if (key === 'level') SND.cycleLevel(); else SND.toggle(key);
     }
   },
 
@@ -15418,8 +15736,14 @@ async function selfTest(games) {
       ` keptback=${faceTally.kept} refused=${faceTally.refused} hotdistricts=${faceTally.hot} lockeddown=${faceTally.locked} districtscooled=${faceTally.cool}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
+    // SOUNDTRACK: nothing in all of that was allowed to make a sound. The engine reports on itself:
+    // no audio context, no music graph, not one node, and the bed never left its first step.
+    const snd = SND.music();
+    if (!snd.silent || snd.built || snd.nodes || snd.step || snd.ctx !== 'off') {
+      throw new Error('the self-test was not silent: ' + JSON.stringify(snd));
+    }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum}${fsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${fsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
