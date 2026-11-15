@@ -11161,11 +11161,11 @@ function dunFoes(D, boss, answered) {
 
 // ---------- a dive's crypto gate (no picks in cyberspace) ----------
 // Returns 'open', 'forced', 'back' or 'alarm'.
-async function dunGate(D, room) {
+async function dunGate(D, room, head) {
   const have = {zero: S.inv['Zero-Days'] || 0, proxy: S.proxies, bomb: S.bomb};
   const odds = clampN(50 + 8 * S.proxies + bonus('hack') / 2 - 10 * D.floor, 10, 95);
   for (;;) {
-    const html = `<p>${room.line}</p>` + dunMeter(D) + (D.note ? `<p>${D.note}</p>` : '') +
+    const html = (head || '') + `<p>${room.line}</p>` + dunMeter(D) + (D.note ? `<p>${D.note}</p>` : '') +
       `<p class="dim">A Zero-Day always opens it. A Logic Bomb always opens it. Your proxy chains give ${odds}% ` +
       `for nothing. Brute force always works and adds ${DUN.brute} Trace.</p>`;
     const buttons = [];
@@ -11213,13 +11213,15 @@ async function dunGate(D, room) {
 // 'blown' (it went wrong) or 'over' (the whole game ended).
 async function dunRoom(D, room) {
   const skin = dunSkin(D), T = DUN_TH[D.th];
-  const head = `<p class="dim">${T.word.toUpperCase()} ${D.floor} OF ${D.lead.deep} &middot; ` +
-    `${D.room + 1}/${D.rooms.length} &middot; ${T.n.toUpperCase()}</p>`;
+  // Short enough to read in a small box: one line of where you are, one of what just happened, one of what
+  // is in front of you, the two meters, and one line of what you are holding.
+  const head = `<p class="dim">${T.n.toUpperCase()} &middot; ${T.word.toUpperCase()} ${D.floor}/${D.lead.deep} ` +
+    `&middot; ROOM ${D.room + 1}/${D.rooms.length}</p>`;
   const body = () => head + (D.note ? `<p>${D.note}</p>` : '') + `<p>${room.line}</p>` + dunMeter(D) +
     (skin === 'dive' ? meter('OpSec', S.opsec, 100, S.opsec + '%') : meter('Health', S.hp, 100, S.hp + '%'));
   const foot = skin === 'dive'
-    ? `<p class="dim">Haul so far: ${dunHaul(D)}. Jacking out keeps it.</p>`
-    : `<p class="dim">Drive ${used()}/${cap()}. Taken: ${dunHaul(D)}.</p>`;
+    ? `<p class="dim">Haul: ${dunHaul(D)}</p>`
+    : `<p class="dim">Drive ${used()}/${cap()} &middot; taken: ${dunHaul(D)}</p>`;
   const out = ['Get out', 'bail', 'small'];
 
   if (room.t === 'loot') {
@@ -11314,7 +11316,7 @@ async function dunRoom(D, room) {
     dunTally.lock++;
     if (skin === 'dive') {
       dunTally.gate++;
-      const res = await dunGate(D, room);
+      const res = await dunGate(D, room, head);
       if (res === 'back') return 'bail';
       if (res === 'alarm') {
         const r = await dunAlarm(D);
@@ -11713,9 +11715,9 @@ Object.assign(ACTIONS, {
     for (;;) {
       const list = dunLeads().filter(L => DUN_TH[L.th]);
       const here = list.filter(dunHere), away = list.filter(L => !dunHere(L));
-      const html = '<p>A deep run is a dungeon: rooms, then a floor down, then the same again, and something ' +
-        'worth having at the bottom. Going in costs a trip and so does each floor down. You can walk out at ' +
-        'any room with what you are holding.</p>' +
+      const html = '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
+        'having at the bottom. A trip to go in and one for each floor down; you can walk out at any room with ' +
+        'what you are holding.</p>' +
         (here.length ? '<p class="dim">READY HERE &middot; tap one to go in</p>' +
           here.map(L => `<div class="syn pickable dunlead" data-pick="go:${list.indexOf(L)}">${dunTip(L)}</div>`).join('') : '') +
         (away.length ? '<p class="dim">ADDRESSES YOU HOLD</p>' +
