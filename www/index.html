@@ -1456,8 +1456,8 @@ function rideFacts(id) {
 const rideCard = (id, lead) => withIcon(rideIcon(id), `${lead ? lead + ' &middot; ' : ''}<b>${VEHICLES[id][0]}</b><br>` +
   `${rideFacts(id)}<br><span class="dim">${VEHICLES[id][5]}</span>`);
 // The honest line on a ride in a shop: what it adds over the one you are on, what that is worth a day once its
-// fuel is paid, and whether it can earn that back in the days you have left. cost is the cash it takes to leave on
-// it (price less your trade-in); a shop buys it back for RIDE_TRADE of its price at the end, so that comes off.
+// fuel is paid, and how many days it takes to earn that back. cost is the cash it takes to leave on
+// it (price less your trade-in); a shop buys it back for RIDE_TRADE of its price, so that comes off.
 // cost 0 is the Garage, where you already own it and only the hops and the fuel are in question.
 function rideWorth(id, cost) {
   const v = VEHICLES[id], now = VEHICLES[S.ride], hops = v[2] - (now ? now[2] : 0);
