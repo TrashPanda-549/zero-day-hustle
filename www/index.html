@@ -889,6 +889,13 @@ button .ico.room{width:44px;height:26px}
   .bpop{font-size:13px;text-shadow:1px 1px 0 #000,-1px -1px 0 #000}
   .bpop small{font-size:8px}
 }
+/* ===== NEMESIS: the record page for the ones who got away (see NEM): START ===== */
+.nemrow{border-left-width:3px}
+.nemrow .versus{float:right;margin:0 0 4px 8px}
+.nemrow .nempip{letter-spacing:2px;color:var(--red)}
+.nemrow .nempip .off{color:var(--dim)}
+.nemgone b{color:var(--dim)}
+/* ===== NEMESIS: END ===== */
 </style>
 </head>
 <body class="ident">
@@ -2216,37 +2223,141 @@ document.addEventListener('toggle', e => {
 // ---------- sound: music and effects are synthesised; the only recording is the "I'm in." voice ----------
 const VOICE_IM_IN = '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';
 
-// One 16-step bar per mood. Drums: x = hit. Bass: 0 = root, 1 = octave up. Arp: 0-3 = chord note.
-// prog: one chord per bar as [semitones above the key, size of its third]. parts: which layers play
-// (p pad, a arp, b bass, d drums), one entry per four bars, so a theme builds up and thins out again.
-const MOODS = {
-  bunker: {bpm: 68, key: 45, prog: [[0, 3], [5, 3], [8, 4], [7, 3]], parts: ['pa'],
-    kick: '', snare: '', hat: '', bass: '', arp: '0.......2.....1.', wave: 'sine'},
-  calm: {bpm: 92, key: 45, prog: [[0, 3], [8, 4], [3, 4], [10, 4], [0, 3], [8, 4], [5, 3], [7, 4]],
-    parts: ['pa', 'pab', 'pabd', 'pabd', 'pbd', 'pab'],
-    kick: 'x.......x.x.....', snare: '....x.......x...', hat: 'x.x.x.x.x.x.x.xx',
-    bass: '0..0..0.0..0..1.', arp: '0.2.1.2.3.2.1.2.', wave: 'triangle'},
-  tense: {bpm: 106, key: 43, prog: [[0, 3], [1, 4], [0, 3], [10, 3]], parts: ['pabd'],
-    kick: 'x...x...x...x...', snare: '....x.......x..x', hat: 'xxxxxxxxxxxxxxxx',
-    bass: '0.0.0.0.0.0.0.01', arp: '0.1.0.2.0.1.0.3.', wave: 'square'},
-  raid: {bpm: 124, key: 38, prog: [[0, 3], [0, 3], [3, 4], [1, 4]], parts: ['abd'],
-    kick: 'x..x..x.x..x..x.', snare: '....x.......x...', hat: 'xxxxxxxxxxxxxxxx',
-    bass: '0.01.0.00.01.0.1', arp: '0.3.2.3.1.3.2.3.', wave: 'square'},
-  fight: {bpm: 138, key: 40, prog: [[0, 3], [0, 3], [8, 4], [7, 4]], parts: ['abd'],
-    kick: 'x...x...x...x...', snare: '....x.......x...', hat: '..x...x...x...xx',
-    bass: '0000000000000011', arp: '0321032103210321', wave: 'sawtooth'},
+/* ===== SOUNDTRACK: BEGIN =====
+   The music is one small graph of voices built once and left running: a four-note pad, a low drone,
+   a bass pulse, a kick, an arpeggio and two noise voices (hat and snare). Nothing is ever created or
+   thrown away while the game plays. A state (see SCORE below) is nothing but a set of target levels
+   for those voices plus a tempo, a key and some patterns, so changing state is a cross-fade of gains
+   and a glide of pitches -- the bed itself never stops, never restarts and never loses its place.
+
+   A chord is [semitones above the key, its third (3 minor, 4 major), its top note (7 a fifth, 6 a
+   tritone, 10 a flat seventh, 11 a major seventh)]. The pad holds all three and the octave.
+   Patterns are 16 steps of sixteenths: in the drums x is a hit and anything else a rest; in bass and
+   arp a digit picks a note and . is a rest. Every pattern slot takes a list, and one is drawn per
+   bar by the engine's own slow random walk, so a state wanders instead of looping every four bars.
+   mix: where each voice sits in this state, 0 to 1. These are the numbers that cross-fade. */
+const SCORE = {
+  // Home. Almost nothing: a slow pad and a note every other bar. Deliberately the quietest thing here.
+  bunker: {bpm: 54, key: 45, bars: 4, wave: 'sine', echo: 0.45, padCut: 560, padDet: 3, bassCut: 300,
+    chords: [[0, 3, 7], [5, 3, 7], [8, 4, 7], [7, 3, 10], [0, 3, 7], [3, 4, 11]],
+    mix: {pad: 0.62, drone: 0.08, bass: 0, kick: 0, snare: 0, hat: 0, arp: 0.14},
+    kick: [''], snare: [''], hat: [''], bass: [''], arp: ['0...............', '................', '....2.......0...']},
+  // Broke and quiet: a pad, a breath of bass, one note at a time. Room to be nervous in.
+  broke: {bpm: 76, key: 45, bars: 2, wave: 'triangle', echo: 0.4, padCut: 700, padDet: 5, bassCut: 420,
+    chords: [[0, 3, 7], [8, 4, 7], [5, 3, 10], [3, 4, 7], [10, 4, 7], [0, 3, 11], [7, 3, 10]],
+    mix: {pad: 0.7, drone: 0.1, bass: 0.3, kick: 0, snare: 0, hat: 0.08, arp: 0.3},
+    kick: [''], snare: [''], hat: ['..............x.', '........x.......', ''],
+    bass: ['0.......0.......', '0...............'], arp: ['0.......2.......', '0...2.......1...', '....1.......2...']},
+  // Working the markets: a pulse, a shaker, the arpeggio moving. The default sound of the game.
+  street: {bpm: 92, key: 45, bars: 2, wave: 'triangle', echo: 0.35, padCut: 900, padDet: 6, bassCut: 520,
+    chords: [[0, 3, 7], [8, 4, 7], [3, 4, 7], [10, 4, 7], [0, 3, 7], [5, 3, 10], [7, 4, 7], [8, 4, 11]],
+    mix: {pad: 0.62, drone: 0.06, bass: 0.55, kick: 0.3, snare: 0.12, hat: 0.3, arp: 0.5},
+    kick: ['x.......x.x.....', 'x.......x.......', 'x.....x.x.......'],
+    snare: ['....x.......x...', '....x.......x..x', '............x...'],
+    hat: ['x.x.x.x.x.x.x.xx', '..x...x...x...x.', 'x.x.x.x.x.x.x.x.'],
+    bass: ['0..0..0.0..0..1.', '0..0..0.0...0...', '0.....0.0..0..0.'],
+    arp: ['0.2.1.2.3.2.1.2.', '0...2...1...2...', '0.2.3.2.1.2.3.2.', '..2...1...3...2.']},
+  // Established: the same room, more of it. Brighter pad, a real kit, the bass walking.
+  flush: {bpm: 96, key: 45, bars: 2, wave: 'triangle', echo: 0.3, padCut: 1400, padDet: 7, bassCut: 700,
+    chords: [[0, 3, 7], [8, 4, 11], [3, 4, 7], [10, 4, 7], [5, 4, 7], [0, 3, 10], [7, 4, 7], [8, 4, 7]],
+    mix: {pad: 0.6, drone: 0.05, bass: 0.7, kick: 0.6, snare: 0.4, hat: 0.45, arp: 0.62},
+    kick: ['x.......x.x.....', 'x...x...x.x.....', 'x..x....x.x...x.'],
+    snare: ['....x.......x...', '....x.....x.x...', '....x.......x..x'],
+    hat: ['x.x.x.x.x.x.x.xx', 'x.xxx.x.x.xxx.x.', '..x...x...x...xx'],
+    bass: ['0..0..0.0..0..1.', '0.0...0.1..0..0.', '0..0.1..0..0..1.'],
+    arp: ['0.2.1.2.3.2.1.2.', '012321203.2.1.2.', '0.2.3.2.1.2.0.2.', '0...3...2...1...']},
+  // Heat climbing towards the law. A minor second leaning on the root, hats all the way through.
+  tense: {bpm: 104, key: 43, bars: 2, wave: 'square', echo: 0.3, padCut: 780, padDet: 11, bassCut: 460,
+    chords: [[0, 3, 7], [1, 4, 7], [0, 3, 10], [10, 3, 7], [0, 3, 6], [1, 4, 11], [8, 3, 7]],
+    mix: {pad: 0.66, drone: 0.22, bass: 0.6, kick: 0.5, snare: 0.35, hat: 0.5, arp: 0.42},
+    kick: ['x...x...x...x...', 'x...x...x..x..x.', 'x...x...x...x..x'],
+    snare: ['....x.......x...', '....x.......x..x', '....x...x...x..x'],
+    hat: ['xxxxxxxxxxxxxxxx', 'x.xxx.xxx.xxx.xx', 'xxxxxxxxxxxxxxx.'],
+    bass: ['0.0.0.0.0.0.0.01', '0.0.0.0.0.0.0.0.', '0.0.0.010.0.0.0.'],
+    arp: ['0.1.0.2.0.1.0.3.', '0.1.0.1.0.1.0.2.', '..1...0...1...3.']},
+  // Feds and the NSA. Everything a semitone wrong, the drone up front, no comfort anywhere in it.
+  hunted: {bpm: 112, key: 42, bars: 1, wave: 'square', echo: 0.26, padCut: 620, padDet: 16, bassCut: 400,
+    chords: [[0, 3, 6], [1, 3, 7], [0, 3, 6], [11, 4, 6], [0, 3, 10], [6, 3, 7]],
+    mix: {pad: 0.6, drone: 0.4, bass: 0.72, kick: 0.62, snare: 0.5, hat: 0.55, arp: 0.4},
+    kick: ['x...x...x...x...', 'x..x..x.x..x..x.', 'x...x...x..xx...'],
+    snare: ['....x.......x..x', '....x...x...x..x', '..x.x.......x.xx'],
+    hat: ['xxxxxxxxxxxxxxxx', 'xxxxxxxxxxxxxxx.', 'x.xxx.xxx.xxx.xx'],
+    bass: ['0.0.0.0.0.0.0.01', '00.0.0.000.0.0.0', '0.0.0.010.0.0.01'],
+    arp: ['0.1.0.2.0.1.0.3.', '0.1.0.1.0.1.0.1.', '0...1...0...2...']},
+  // A deep run through a building. Close and percussive: a thump in a corridor, almost no echo,
+  // the pad shut down to a hum so the footsteps are the tune.
+  site: {bpm: 88, key: 41, bars: 2, wave: 'square', echo: 0.06, padCut: 420, padDet: 4, bassCut: 340,
+    chords: [[0, 3, 7], [0, 3, 10], [5, 3, 7], [3, 4, 7], [0, 3, 7], [10, 3, 7]],
+    mix: {pad: 0.3, drone: 0.2, bass: 0.78, kick: 0.85, snare: 0.55, hat: 0.3, arp: 0.2},
+    kick: ['x.......x.......', 'x.....x.x.......', 'x.......x.....x.', 'x..x....x.......'],
+    snare: ['....x.......x...', '............x...', '....x..x....x...'],
+    hat: ['....x.......x...', '..x.....x.......', '', '......x.......x.'],
+    bass: ['0.......0.......', '0.....0.0.......', '0.......0.....1.'],
+    arp: ['', '0...............', '........2.......']},
+  // A network dive. Cold, wide and wrong: no kick at all, a tritone pad, long echo, ticks instead
+  // of a beat. Nothing in here is standing next to you.
+  dive: {bpm: 80, key: 47, bars: 4, wave: 'sine', echo: 0.8, padCut: 2200, padDet: 24, bassCut: 900,
+    chords: [[0, 3, 6], [6, 3, 6], [0, 4, 6], [11, 3, 6], [5, 3, 6], [1, 4, 6]],
+    mix: {pad: 0.72, drone: 0.4, bass: 0.34, kick: 0, snare: 0.1, hat: 0.3, arp: 0.52},
+    kick: [''], snare: ['', '..............x.', '.......x........'],
+    hat: ['x...x...x...x...', 'x.......x.......', '..x...x...x...x.', 'x..x..x..x..x..x'],
+    bass: ['0...............', '0.......0.......', '........0.......'],
+    arp: ['0...2...1...3...', '0.2.1.3.0.2.1.3.', '3...1...2...0...', '0.......3.......']},
+  // A fight. Harder, faster, sixteenths under it, and the arp hammering one shape.
+  fight: {bpm: 136, key: 40, bars: 1, wave: 'sawtooth', echo: 0.2, padCut: 900, padDet: 9, bassCut: 620,
+    chords: [[0, 3, 7], [0, 3, 10], [8, 4, 7], [7, 4, 7], [0, 3, 7], [3, 4, 7]],
+    mix: {pad: 0.4, drone: 0.2, bass: 0.9, kick: 0.9, snare: 0.6, hat: 0.5, arp: 0.5},
+    kick: ['x...x...x...x...', 'x...x...x..x.x..', 'x.x.x...x...x...'],
+    snare: ['....x.......x...', '....x.......x..x', '....x...x...x.xx'],
+    hat: ['..x...x...x...xx', 'x.x.x.x.x.x.x.xx', '..x...x...x...x.'],
+    bass: ['0000000000000011', '00000000000000.1', '0000000011110000'],
+    arp: ['0321032103210321', '0321032103213210', '0.2.1.3.0.2.1.3.']},
+  // A raid: the law at the door. Fastest, two chords a semitone apart, like a siren that cannot settle.
+  raid: {bpm: 126, key: 38, bars: 1, wave: 'square', echo: 0.24, padCut: 700, padDet: 14, bassCut: 500,
+    chords: [[0, 3, 7], [1, 4, 7], [0, 3, 6], [3, 4, 7], [0, 3, 7], [1, 4, 10]],
+    mix: {pad: 0.46, drone: 0.3, bass: 0.88, kick: 0.88, snare: 0.62, hat: 0.6, arp: 0.52},
+    kick: ['x..x..x.x..x..x.', 'x..x..x.x...x...', 'x..x..x.x..xx...'],
+    snare: ['....x.......x...', '....x.......x.xx', '..x.x.....x.x...'],
+    hat: ['xxxxxxxxxxxxxxxx', 'x.xxx.xxx.xxx.xx', 'xxxxxxxxxxxxxx.x'],
+    bass: ['0.01.0.00.01.0.1', '0.01.0.00.0.0.0.', '0001.0.00.01.0.1'],
+    arp: ['0.3.2.3.1.3.2.3.', '0.3.2.3.0.3.1.3.', '0123012301230123']},
+  // Won. Held for a few seconds on the way out: the drums go, the chord turns major, the arp walks down.
+  resolve: {bpm: 96, key: 45, bars: 2, wave: 'triangle', echo: 0.5, padCut: 1800, padDet: 4, bassCut: 600,
+    chords: [[0, 4, 7], [5, 4, 11], [0, 4, 7], [7, 4, 7]],
+    mix: {pad: 0.8, drone: 0.04, bass: 0.35, kick: 0, snare: 0, hat: 0.1, arp: 0.5},
+    kick: [''], snare: [''], hat: ['..............x.', ''],
+    bass: ['0.......0.......', '0...............'],
+    arp: ['3...2...1...0...', '3.2.1.0.........', '0...1...2...3...']},
 };
+// Which cues are loud enough that the bed should get out of their way, and by how much (0 to 1).
+const DUCKS = {
+  bstart: 0.75, bambush: 0.8, bwin: 0.7, bfall: 0.8, bflee: 0.5, bdown: 0.45, bbeam: 0.5, emp: 0.6,
+  bomb: 0.7, alarm: 0.7, gone: 0.85, lose: 0.7, win: 0.6, level: 0.6, imin: 0.75, travel: 0.5,
+  sleep: 0.6, hurt: 0.35, shoot: 0.3, thud: 0.3, bbonk: 0.3, bslash: 0.25, bzap: 0.3, hack: 0.35,
+};
+/* ===== SOUNDTRACK: END ===== */
 
 const SND = (() => {
-  const prefs = Object.assign({music: true, sfx: true}, store.get('zdh-sound') || {});
-  const MUSIC_VOL = 0.2, SFX_VOL = 0.55;   // the music sits well under the effects
+  // SOUNDTRACK: the music has its own setting, off / quiet / full, remembered with the rest.
+  // Somebody who has asked for less movement on screen gets no music until they ask for it; the
+  // sound effects, which answer a tap, are left alone.
+  const LEVELS = {off: 0, quiet: 0.13, full: 0.24};
+  const SILENT = location.hash.startsWith('#selftest');   // the self-test is deaf: see wake()
+  const saved = store.get('zdh-sound') || {};
+  const shy = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const prefs = Object.assign({music: true, sfx: true, level: shy ? 'off' : 'quiet'}, saved);
+  if (!LEVELS[prefs.level]) prefs.level = prefs.level === 'off' ? 'off' : 'quiet';
+  if (saved.music === false) prefs.level = 'off';          // a 1.37 save that had the music switched off
+  prefs.music = prefs.level !== 'off';                     // kept in step, for anything that reads it
+  const musicVol = () => (prefs.music ? LEVELS[prefs.level] : 0);
+  const SFX_VOL = 0.55;   // the music sits well under the effects
   let ctx = null, musicBus, sfxBus, echo, noiseBuf, voiceBuf = null;
-  let mood = 'calm', step = 0, nextAt = 0;
+  let step = 0, nextAt = 0;
   const hz = note => 440 * Math.pow(2, (note - 69) / 12);
 
   // Browsers only allow sound after a tap or a key press, so this runs on the first one.
   function wake() {
-    if (AUTO) return false;
+    if (AUTO || SILENT) return false;
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
@@ -2254,14 +2365,17 @@ const SND = (() => {
       const out = ctx.createDynamicsCompressor();
       out.connect(ctx.destination);
       musicBus = ctx.createGain(); sfxBus = ctx.createGain();
-      musicBus.gain.value = prefs.music ? MUSIC_VOL : 0;
+      musicBus.gain.value = musicVol();
       sfxBus.gain.value = prefs.sfx ? SFX_VOL : 0;
       musicBus.connect(out); sfxBus.connect(out);
       // A dark echo for the arpeggios.
       echo = ctx.createDelay(1); echo.delayTime.value = 0.3;
       const damp = ctx.createBiquadFilter(), back = ctx.createGain();
       damp.type = 'lowpass'; damp.frequency.value = 1800; back.gain.value = 0.4;
-      echo.connect(damp); damp.connect(back); back.connect(echo); damp.connect(musicBus);
+      // SOUNDTRACK: the return goes straight out, not through the music bus, so turning the music
+      // down no longer takes the echo off the effects with it. The music has an echo of its own.
+      const wet = ctx.createGain(); wet.gain.value = 0.2; wet.connect(out);   // as loud as it was
+      echo.connect(damp); damp.connect(back); back.connect(echo); damp.connect(wet);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = noiseBuf.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -2270,7 +2384,9 @@ const SND = (() => {
         for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
         ctx.decodeAudioData(bytes.buffer, buf => { voiceBuf = buf; }, () => {});
       } catch (e) {}
-      setInterval(tick, 50);
+      // SOUNDTRACK: 8 Hz is plenty with a third of a second of lookahead, and it is a third of the
+      // work the old 20 Hz clock did. The music graph itself is only built when music is wanted.
+      setInterval(tick, 120);
     }
     if (ctx.state === 'suspended' && !document.hidden) ctx.resume();
     return true;
@@ -2315,44 +2431,211 @@ const SND = (() => {
     src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
   }
 
-  // ----- music: a step sequencer that schedules a little ahead of the clock -----
+  /* ===== SOUNDTRACK: BEGIN =====
+     One graph, built once by voices() and never rebuilt. Everything after that is parameter changes:
+     layer gains glide to the levels the state asks for (that is the cross-fade), pad and drone slide
+     to the new chord, and the tempo is walked towards its target a few per cent a step instead of
+     jumped. step is never reset, so a re-render or a state change cannot restart the bed. */
+  let V = null;                                  // the voices, once they exist
+  let state = 'street', forced = null;           // what is playing, and what the debug menu pinned
+  let bpm = 92, chordAt = 0, chordI = 0, bar = 0, lastSync = 0, resolveUntil = 0;
+  let duckTo = 1, duckUntil = 0, tension = 0, tensionAt = 0;
+  let tier = 0, heard = 0;   // how settled and how hunted the bed thinks you are, with hysteresis
+  let seed = 0x2f6e2b1 >>> 0;
+  const roll = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);   // the music's own
+  const pick = list => list[Math.floor(roll() * list.length) % list.length];      // dice, so the
+  const chords = () => SCORE[state].chords;                                       // self-test's
+  let chord = [0, 3, 7];                                                          // Math.random is
+                                                                                  // left untouched
+  // The whole music graph: 8 oscillators, 1 looping noise source, and the gains and filters they
+  // need. Made the first time music is actually wanted, so a silent game never pays for it.
+  function voices() {
+    if (V) return V;
+    let n = 0;   // every node the music owns is counted here, for api.music()
+    const G = (to, v) => { n++; const g = ctx.createGain(); g.gain.value = v === undefined ? 0 : v; g.connect(to); return g; };
+    const F = (to, type, f, q) => {
+      n++;
+      const b = ctx.createBiquadFilter();
+      b.type = type; b.frequency.value = f; if (q) b.Q.value = q;
+      b.connect(to); return b;
+    };
+    const O = (to, type, f, det) => {
+      n++;
+      const o = ctx.createOscillator();
+      o.type = type; o.frequency.value = f; o.detune.value = det || 0;
+      o.connect(to); o.start(); return o;
+    };
+    const duck = G(musicBus, 1), bed = G(duck, 1);
+    // the music's own echo, inside the bed, so the level setting and the ducking reach it too
+    n++; const del = ctx.createDelay(1); del.delayTime.value = 0.3;
+    const delDamp = F(bed, 'lowpass', 1700), back = G(del, 0.38);
+    del.connect(delDamp); delDamp.connect(back);
+    // pad: four detuned saws on one filter, held open for ever and retuned at every chord
+    const padGain = G(bed), padCut = F(padGain, 'lowpass', 800);
+    const pad = [0, 1, 2, 3].map(i => O(padCut, 'sawtooth', 110, [-7, 5, -4, 8][i]));
+    // drone: one low voice for dread, a fifth below the pad
+    const droneGain = G(bed), drone = O(droneGain, 'triangle', 55);
+    // bass pulse: its own envelope, so the layer gain is free to cross-fade underneath it
+    const bassGain = G(bed), bassEnv = G(bassGain, 0), bassCut = F(bassEnv, 'lowpass', 520);
+    const bass = O(bassCut, 'sawtooth', 55);
+    // kick: a sine dropped on every hit
+    const kickGain = G(bed), kickEnv = G(kickGain, 0), kick = O(kickEnv, 'sine', 150);
+    // arp: one voice, with a send into the existing dark echo
+    const arpGain = G(bed), arpEnv = G(arpGain, 0), arpCut = F(arpEnv, 'lowpass', 2600);
+    const arp = O(arpCut, 'square', 440), arpWet = G(del, 0.3);
+    arpEnv.connect(arpWet);
+    // one loop of noise feeds both the hat and the snare
+    n++; const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf; noise.loop = true;
+    const hatGain = G(bed), hatEnv = G(hatGain, 0), hatF = F(hatEnv, 'highpass', 8000);
+    const snGain = G(bed), snEnv = G(snGain, 0), snF = F(snEnv, 'bandpass', 1900, 0.8);
+    noise.connect(hatF); noise.connect(snF);
+    noise.start();
+    V = {duck, bed, pad, padGain, padCut, drone, droneGain, bass, bassEnv, bassGain, bassCut,
+      kick, kickEnv, kickGain, arp, arpEnv, arpGain, arpCut, arpWet, hatEnv, hatGain, snEnv, snGain,
+      pat: {kick: '', snare: '', hat: '', bass: '', arp: ''}, nodes: n, osc: 8};
+    return V;
+  }
+
+  // A short envelope on a voice that is already running. Always scheduled forwards, so a new note
+  // simply takes over from the one before it.
+  function env(g, t, peak, dur, attack) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(peak, t + (attack || 0.004));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  // Move the pad and the drone onto a chord, over the better part of a second.
+  function voice(t, M) {
+    const base = M.key + chord[0], s = 0.45;
+    const notes = [base + 12, base + 12 + chord[1], base + 12 + chord[2], base + 24];
+    V.pad.forEach((o, i) => o.frequency.setTargetAtTime(hz(notes[i]), t, s));
+    V.drone.frequency.setTargetAtTime(hz(base - 12), t, s * 2);
+  }
+  // The levels this state wants, with the slow swings on top: how settled you are, how much heat is
+  // on you, and how close a lock is to screaming. These are what cross-fade.
+  function mixTo(t, M, warm) {
+    const m = M.mix, tau = 1.4, fast = 0.5;
+    const lift = 0.8 + 0.2 * warm, bite = 1 + 0.45 * tension;
+    const set = (g, v, k) => g.gain.setTargetAtTime(Math.max(0, v), t, k);
+    set(V.padGain, m.pad * 0.07 * lift, tau);
+    set(V.droneGain, (m.drone + 0.12 * tension) * 0.05, tau);
+    set(V.bassGain, m.bass * 0.3, fast);
+    set(V.kickGain, m.kick * 0.55, fast);
+    set(V.snGain, m.snare * 0.3, fast);
+    set(V.hatGain, m.hat * 0.1 * bite, fast);
+    set(V.arpGain, m.arp * (M.wave === 'sine' ? 0.17 : 0.08), tau);
+    set(V.arpWet, M.echo, tau);
+    V.padCut.frequency.setTargetAtTime(M.padCut * (1 - 0.3 * tension), t, tau);
+    V.bassCut.frequency.setTargetAtTime(M.bassCut, t, tau);
+    V.pad.forEach((o, i) => o.detune.setTargetAtTime([-1, 1, -1, 1][i] * M.padDet * (1 + tension), t, tau));
+  }
+
   function playStep(t) {
-    const M = MOODS[mood], i = step % 16, bar = Math.floor(step / 16), len = 60 / M.bpm / 4;
-    const [root, third] = M.prog[bar % M.prog.length];
-    const parts = M.parts[Math.floor(bar / 4) % M.parts.length];
-    const base = M.key + root;
-    if (parts.includes('d')) {
-      if (M.kick[i] === 'x') tone(musicBus, t, 150, 0.2, {type: 'sine', to: 42, vol: 0.6});
-      if (M.snare[i] === 'x') {
-        hiss(musicBus, t, 0.13, {type: 'bandpass', f: 1900, q: 0.8, vol: 0.28});
-        tone(musicBus, t, 190, 0.08, {type: 'triangle', to: 110, vol: 0.18});
+    const M = SCORE[state], i = step % 16;
+    if (i === 0) {
+      // A new bar: pick this bar's patterns, and every M.bars bars walk on to the next chord. The
+      // walk is almost always forwards and now and then skips one, so the progression never settles
+      // into a four-bar loop.
+      if (bar >= chordAt) {
+        chordI = (chordI + (roll() < 0.17 ? 2 : 1)) % chords().length;
+        chord = chords()[chordI];
+        chordAt = bar + M.bars;
+        voice(t, M);
       }
-      if (M.hat[i] === 'x') hiss(musicBus, t, 0.03, {f: 8000, vol: i % 4 === 2 ? 0.1 : 0.05});
+      V.pat = {
+        kick: pick(M.kick), snare: pick(M.snare), hat: pick(M.hat),
+        bass: pick(M.bass), arp: roll() < 0.14 ? '' : pick(M.arp),   // sometimes the arp takes a bar off
+        hush: roll() < 0.08,                                          // and sometimes the kit does
+      };
+      bar++;
+      mixTo(t, M, V.warm === undefined ? 0 : V.warm);
     }
-    if (parts.includes('b') && M.bass[i] >= '0') {
-      tone(musicBus, t, hz(base + 12 * M.bass[i]), len * 1.8, {type: 'sawtooth', cut: 520, cutTo: 160, vol: 0.3});
-    }
-    if (parts.includes('a') && M.arp[i] >= '0') {
-      tone(musicBus, t, hz(base + 24 + [0, third, 7, 12][M.arp[i]]), len * 1.6,
-        {type: M.wave, vol: M.wave === 'sine' ? 0.16 : 0.055, cut: 2600, echo: true});
-    }
-    if (parts.includes('p') && i === 0) {
-      for (const n of [0, third, 7]) {
-        for (const detune of [-7, 7]) {
-          tone(musicBus, t, hz(base + 12 + n), len * 17, {type: 'sawtooth', detune, cut: 700, vol: 0.035, attack: len * 5});
-        }
+    const P = V.pat, len = 60 / bpm / 4, base = M.key + chord[0];
+    if (!P.hush) {
+      if (P.kick[i] === 'x') {
+        V.kick.frequency.setValueAtTime(150, t);
+        V.kick.frequency.exponentialRampToValueAtTime(42, t + 0.17);
+        env(V.kickEnv, t, 1, 0.19);
       }
+      if (P.snare[i] === 'x') env(V.snEnv, t, 1, 0.13);
+      if (P.hat[i] === 'x') env(V.hatEnv, t, i % 4 === 2 ? 1 : 0.5, 0.035);
+    }
+    if (P.bass[i] >= '0') {
+      V.bass.frequency.setValueAtTime(hz(base + 12 * +P.bass[i]), t);
+      env(V.bassEnv, t, 1, Math.min(len * 1.8, 0.5));
+    }
+    if (P.arp[i] >= '0') {
+      V.arp.type = M.wave;
+      V.arp.frequency.setValueAtTime(hz(base + 24 + [0, chord[1], chord[2], 12][+P.arp[i]]), t);
+      V.arpCut.frequency.setValueAtTime(2600, t);
+      env(V.arpEnv, t, 1, Math.min(len * 1.7, 0.6), 0.01);
     }
   }
-  function tick() {
-    if (!ctx || ctx.state !== 'running' || !prefs.music) return;
-    if (nextAt < ctx.currentTime) nextAt = ctx.currentTime + 0.05;
-    while (nextAt < ctx.currentTime + 0.25) {
+  function tick() { try { beat(); } catch (e) {} }   // a blocked or broken context is never fatal
+  function beat() {
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    if (duckUntil && now > duckUntil) { duckUntil = 0; duckTo = 1; if (V) V.duck.gain.setTargetAtTime(1, now, 0.22); }
+    if (tension && now - tensionAt > 8) tension = 0;   // nobody has touched a lock for a while
+    if (now - lastSync > 0.5) { lastSync = now; api.sync(); }
+    if (!prefs.music || musicVol() <= 0) return;
+    voices();
+    if (nextAt < now) nextAt = now + 0.05;
+    const want = SCORE[state].bpm;
+    while (nextAt < now + 0.33) {
       playStep(nextAt);
-      nextAt += 60 / MOODS[mood].bpm / 4;
+      bpm += (want - bpm) * 0.05;       // the tempo slides between states instead of jumping
+      nextAt += 60 / bpm / 4;
       step++;
     }
   }
+  // What should be playing, given everything the run knows. The only place the game's state is read.
+  function pickState() {
+    const D = dunRun();
+    const pressed = press01();
+    // How settled you are: what is in your hands against the $2,000 you started with, and never less
+    // than the career you have built, so a day spent all-in on goods does not sound like day one.
+    const worth = (S.cash || 0) + (S.wallet || 0);
+    const warm = Math.max(clampN(Math.log10(Math.max(1, worth) / 2000) / 2.2, 0, 1),
+      clampN((level() - 1) / 12, 0, 0.7));
+    // Heat and money both wander about, and a bed that flipped every time they crossed a line would
+    // be worse than no bed at all, so each step up has to be taken further than the step back down.
+    tier = warm > [0.24, 0.58, 1][tier] ? tier + 1 : warm < [0, 0.14, 0.48][tier] ? tier - 1 : tier;
+    const hot = S.heat, law = hot >= (heard >= 2 ? 78 : 85) ? 2 : hot >= (heard >= 1 ? 48 : 55) ? 1 : 0;
+    heard = law;
+    let want = forced;
+    if (!want) {
+      if (api.battle) want = api.battle;
+      else if (ctx && resolveUntil > ctx.currentTime) want = 'resolve';
+      else if (D) want = dunSkin(D) === 'dive' ? 'dive' : 'site';
+      else if (S.loc === BUNKER) want = 'bunker';
+      // ENDLESS: there is no last day to go tense on, so Heat and a long career's pressure do it.
+      else if (law >= 2 || pressed >= 0.85) want = 'hunted';
+      else if (law >= 1 || pressed >= 0.6 || tension > 0.5) want = 'tense';
+      else want = ['broke', 'street', 'flush'][tier];
+    }
+    if (V) V.warm = warm;
+    if (want === state) return;
+    // Walking out of a fight on your feet gets a few seconds of resolution on the way back.
+    if ((state === 'fight' || state === 'raid') && ctx && !forced &&
+        want !== 'fight' && want !== 'raid' && !S.over && !S.busted && !S.dead && (S.hp || 0) > 0) {
+      resolveUntil = ctx.currentTime + 7;
+      want = 'resolve';
+    }
+    state = want;
+    chordAt = bar;   // the next bar draws from the new state's chords, not the old state's
+    // Cross-fade now rather than at the next bar: a fight should not have to wait for one.
+    if (V && ctx) { mixTo(ctx.currentTime, SCORE[state], warm); voice(ctx.currentTime, SCORE[state]); }
+  }
+  // Get out of the way of a loud cue, then come back.
+  function duckFor(amount, dur) {
+    if (!V || !amount) return;
+    const now = ctx.currentTime, to = 1 - amount;
+    duckTo = now > duckUntil ? to : Math.min(duckTo, to);
+    duckUntil = Math.max(duckUntil, now + dur);
+    V.duck.gain.setTargetAtTime(duckTo, now, 0.03);
+  }
+  /* ===== SOUNDTRACK: END ===== */
 
   // ----- effects -----
   const run = (t, notes, gap, dur, o) => notes.forEach((f, i) => tone(sfxBus, t + i * gap, f, dur, o));
@@ -2479,24 +2762,62 @@ const SND = (() => {
   const api = {
     prefs,
     battle: null,   // 'fight' or 'raid' while a confrontation is on
-    state: () => ({audio: ctx ? ctx.state : 'off', mood, step, voice: !!voiceBuf}),   // for testing
+    state: () => ({audio: ctx ? ctx.state : 'off', mood: state, step, voice: !!voiceBuf}),   // for testing
     play(name, delay) {
-      if (AUTO || !ctx || !prefs.sfx || ctx.state !== 'running') return;
+      if (AUTO || SILENT || !ctx || !prefs.sfx || ctx.state !== 'running') return;
       FX[name](ctx.currentTime + (delay || 0));
+      if (DUCKS[name]) duckFor(DUCKS[name], (delay || 0) + 0.45 + 0.9 * DUCKS[name]);   // SOUNDTRACK
     },
-    // Pick the music for what is going on right now.
+    /* SOUNDTRACK: a break-in can tell the bed how close the Alert is to screaming, 0 to 1. It fades
+       by itself after a few seconds, so nothing has to remember to put it back. */
+    set tension(n) { tension = clampN(n || 0, 0, 1); tensionAt = ctx ? ctx.currentTime : 0; },
+    get tension() { return tension; },
+    // SOUNDTRACK: pick the music for what is going on right now. Called on every render and, so that
+    // the screens that do not re-render are covered too, twice a second by the engine's own clock.
     sync() {
-      if (AUTO) return;
-      // ENDLESS: there is no last day to go tense on, so Heat and the pressure of a long career do it instead.
-      const want = api.battle || (S.loc === BUNKER ? 'bunker' : S.heat >= 60 || press01() >= 0.66 ? 'tense' : 'calm');
-      if (want !== mood) { mood = want; step = 0; }
+      if (AUTO || SILENT || !S) return;
+      try { pickState(); } catch (e) {}   // the music is never worth an exception
     },
+    // SOUNDTRACK: debug handles. force('dive') pins a state, force(null) lets go; music() reports.
+    force(name) {
+      forced = name && SCORE[name] ? name : null;
+      resolveUntil = 0;
+      api.sync();
+      return forced || 'free';
+    },
+    music() {
+      const gain = g => (g ? Math.round(g.gain.value * 1e4) / 1e4 : 0);
+      return {
+        state, forced, level: prefs.level, on: prefs.music, sfx: prefs.sfx, silent: SILENT || AUTO,
+        ctx: ctx ? ctx.state : 'off', built: !!V, nodes: V ? V.nodes : 0, oscillators: V ? V.osc : 0,
+        bpm: Math.round(bpm), chord: chord.slice(), bar, step, tension,
+        duck: gain(V && V.duck), bed: gain(V && V.bed), bus: gain(musicBus),
+        layers: V ? {pad: gain(V.padGain), drone: gain(V.droneGain), bass: gain(V.bassGain),
+          kick: gain(V.kickGain), snare: gain(V.snGain), hat: gain(V.hatGain), arp: gain(V.arpGain),
+          echo: gain(V.arpWet)} : null,
+      };
+    },
+    // SOUNDTRACK: off / quiet / full, remembered. The Sound button still flips the music on and off.
+    setLevel(level) {
+      if (!LEVELS[level] && level !== 'off') return prefs.level;
+      prefs.level = level;
+      prefs.music = level !== 'off';
+      if (prefs.music) prefs.last = level;   // so the Sound button's OFF can be undone
+      store.set('zdh-sound', prefs);
+      if (wake()) {
+        musicBus.gain.setTargetAtTime(musicVol(), ctx.currentTime, 0.4);
+        if (prefs.music) { voices().bed.gain.setTargetAtTime(1, ctx.currentTime, 0.3); api.sync(); }
+        else if (V) V.bed.gain.setTargetAtTime(0, ctx.currentTime, 0.3);   // and the clock stops scheduling
+      }
+      return prefs.level;
+    },
+    cycleLevel: () => api.setLevel({off: 'quiet', quiet: 'full', full: 'off'}[prefs.level] || 'quiet'),
     toggle(key) {
+      if (key === 'music') return api.setLevel(prefs.music ? 'off' : (prefs.last || 'quiet'));
       prefs[key] = !prefs[key];
       store.set('zdh-sound', prefs);
       if (!wake()) return;
-      const bus = key === 'music' ? musicBus : sfxBus, vol = key === 'music' ? MUSIC_VOL : SFX_VOL;
-      bus.gain.setTargetAtTime(prefs[key] ? vol : 0, ctx.currentTime, 0.05);
+      sfxBus.gain.setTargetAtTime(prefs[key] ? SFX_VOL : 0, ctx.currentTime, 0.05);
     },
   };
   return api;
@@ -2507,6 +2828,7 @@ const SND = (() => {
 // lockpick: lock picking skill points (see lockInfo()).
 const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0,
   base: newBase(), marks: newMarks(),   // BASE: the Bunker's stations and the weapon skills
+  nem: [], nemGone: [],   // NEMESIS: the survivors still out there, and the stories that are finished
   skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
@@ -2972,6 +3294,13 @@ const ACH = {
   dunboth: ['Body and Wire', 'Clear a building and a network dive', 300, () => stat('dunsite') >= 1 && stat('dundive') >= 1],
   dundeep: ['Sub-Basement', `Clear a deep run ${DUN_FLOORS} floors deep`, 500, () => stat('dundeep') >= 1],
   dunbail: ['Knowing When to Stop', 'Walk out of a deep run carrying 10 goods or more', 150, () => stat('dunbail') >= 1],
+  // --- nemeses (see NEM): the ones who got away. "three" is NEM.cap, which is set with the rest of that code ---
+  nem1: ['Someone Got Away', 'Beat a rival crew and leave a survivor behind', 100, () => stat('nemborn') >= 1],
+  nemmet: ['Long Memory', 'Have a survivor come back and find you', 150, () => stat('nemmet') >= 1],
+  nemfull: ['Popular', 'Have three nemeses out there at once', 300, () => stat('nemfull') >= 1],
+  nemback: ['It Was Sentimental', 'Take back something a nemesis was carrying', 200, () => stat('nemback') >= 1],
+  nemdown: ['No Loose Ends', 'Put a nemesis down for good', 400, () => stat('nemdown') >= 1],
+  nemdown3: ['Closure', 'Put down three nemeses in one career', 800, () => stat('nemdown') >= 3],
   // --- endless careers (see ENDLESS): staying in, and walking out ---
   day50: ['Overstayed', 'Still working on day 50', 150, () => S.day >= 50],
   day100: ['Lifer', 'Still working on day 100', 400, () => S.day >= 100],
@@ -3109,6 +3438,7 @@ function fixCareer() {
   if (!(Number.isInteger(career.lockpick) && career.lockpick >= 0)) career.lockpick = 0;   // from before lock picking: the starting skill
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
+  nemFix();      // NEMESIS: from before the nemeses, nobody is out there; a damaged list is tidied, not trusted
   fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
@@ -3654,6 +3984,7 @@ async function lockDialog(lock, st, o) {
     const usable = drills > 0 ? toolsFor(lock, st) : [];
     const buttons = usable.map(k => [`${toolName(k)} (${lockOdds(k, lock, o.edge).open}%)`, k, TOOLS[k].loud ? 'danger' : '', miscIcon(k)]);
     buttons.push([o.practice ? 'Step away' : 'Back off', null, usable.length ? 'small' : 'primary']);
+    if (st) SND.tension = st.alert / 100;   // SOUNDTRACK: the bed leans in as the Alert climbs
     const key = await dialog(o.practice ? `Practice: ${name}` : `The lock: ${name}`, html, buttons, st && st.alert >= 70 ? 'danger' : '');
     if (!key || !TOOLS[key] || toolBlock(key, lock, st)) return {res: 'back', last};
     const T = TOOLS[key], r = lockTry(key, lock, o.edge, o.practice);
@@ -7272,6 +7603,7 @@ const ACTIONS = {
     if (ill) await sickNight(ill);
     if (S.over) return;
     if (Math.random() < raidOdds()) await homeRaid(true);
+    if (!S.over) await nemCheck('bunker');   // NEMESIS: or it was not the law on the stairs at all
   },
 
   // Gear you are not carrying can wait in the Bunker's locker.
@@ -7510,6 +7842,8 @@ const ACTIONS = {
     const buttons = [['Close', null, 'primary']];
     buttons.unshift(['Hall of fame', 'hall']);   // ENDLESS: retired careers can be looked at any time
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
+    // NEMESIS: who is out there, and what they are carrying that used to be yours
+    buttons.unshift([`Nemeses (${nemList().length}/${NEM.cap})`, 'nem', nemList().length ? 'danger' : '']);
     buttons.unshift([`Skill tree${skLeft() ? ` (${skLeft()} to spend)` : ` (${skCount()}/${skIds().length})`}`, 'skills',
       skLeft() ? 'primary' : '']);
     if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
@@ -7527,6 +7861,7 @@ const ACTIONS = {
     else if (choice === 'skills') await skillTree();   // SKILL TREE
     else if (choice === 'quest') await ACTIONS.syndicate();
     else if (choice === 'ach') await ACTIONS.achievements();
+    else if (choice === 'nem') await ACTIONS.nemeses();   // NEMESIS
     else if (choice === 'hall') {
       await alertDlg('Hall of fame', hallHtml() +
         '<p class="dim">Careers that walked away. A career you lose pays nothing: retiring from the Bunker is the only ' +
@@ -7549,6 +7884,34 @@ const ACTIONS = {
           `<span class="cyan">+${xp} XP</span><br><span class="${got ? '' : 'dim'}">${secret && !got ? 'A secret. Somebody is watching how you deal with the people who watch everyone.' : how}</span></div>`;
       }).join('');
     await dialog('Achievements', html, [['Close', null, 'primary']]);
+  },
+
+  // ===== NEMESIS: the page in your record for the people who are still looking for you (see NEM). =====
+  async nemeses() {
+    const live = nemList(), gone = nemGoneList();
+    const pips = N => `<span class="nempip">${'&#9679;'.repeat(N.g)}` +
+      `<span class="off">${'&#9675;'.repeat(Math.max(0, NEM.maxG - N.g))}</span></span>`;
+    const html = `<p><b>${live.length}</b> of ${NEM.cap} still out there.</p>` +
+      (live.length ? live.map(N => `<div class="syn nemrow" style="border-left-color:${nemColour(N)}">` +
+        `<div class="versus" style="grid-template-columns:86px"><div>${nemSvg(N)}` +
+        `<small>${esc(N.tag).toUpperCase()}</small></div></div>` +
+        `<b style="color:${nemColour(N)}">${esc(N.name)}</b> ${pips(N)}<br>` +
+        `<span class="dim">${nemLine(N)}</span><br>` +
+        `<span class="dim">Met ${N.met} time${N.met === 1 ? '' : 's'}, and beat you ${N.won}. ` +
+        `Last seen at ${esc(N.at)} on day ${N.day}. Carrying a ${esc(WEAPONS[nemArm(N)][0])}.</span><br>` +
+        (N.took.length ? `<span class="red">Took from you: ${N.took.map(t => esc(nemTookText(t))).join(', ')}.</span>`
+          : '<span class="dim">Has taken nothing off you. Yet.</span>') + '</div>').join('')
+        : '<p class="dim">Nobody is looking for you right now. Beat a rival crew and sooner or later one of ' +
+          'them walks away from it.</p>') +
+      (gone.length ? '<p class="dim">SETTLED</p>' + gone.slice().reverse().map(g =>
+        `<div class="syn nemgone"><b>${esc(g.name)}</b> <span class="dim">&middot; ` +
+        `${g.how === 'down' ? 'put down for good' : 'left the field'} on day ${g.day}, after ` +
+        `${g.met} meeting${g.met === 1 ? '' : 's'}${g.won ? ` and ${g.won} of them yours to regret` : ''}` +
+        '</span></div>').join('') : '') +
+      `<p class="dim">They come back better armed every time, and a win at grudge ${NEM.maxG} is the last ` +
+      'time you see them. Whatever they took is on them, so beating them is how you get it back. ' +
+      `Leave one alone for ${NEM.cold} days and they give it up and go.</p>`;
+    await dialog('Who is looking for you', html, [['Close', null, 'primary']]);
   },
 
   // Back to the start menu, to switch to another save or start a new one.
@@ -7765,12 +8128,15 @@ const ACTIONS = {
   async sound() {
     for (;;) {
       const p = SND.prefs;
-      const key = await dialog('Sound', '<p>The music follows what is going on: quiet in the Bunker, steady at the markets, ' +
-        'uneasy when your Heat is high, and fast when you are in a fight or a raid.</p>',
-        [[`Music: ${p.music ? 'ON' : 'OFF'}`, 'music'], [`Sound effects and voice: ${p.sfx ? 'ON' : 'OFF'}`, 'sfx'],
-          ['Close', null, 'primary']]);
+      // SOUNDTRACK: the music has three settings of its own, and they are remembered.
+      const key = await dialog('Sound', '<p>The music follows what is going on: all but silent in the Bunker, ' +
+        'thin while you are broke and fuller once you are established, uneasy as your Heat climbs towards the ' +
+        'Feds, close and percussive inside a building, cold and wide in a network dive, and harder in a fight. ' +
+        'It never cuts: it fades from one into the next.</p>',
+        [[`Music: ${{off: 'OFF', quiet: 'QUIET', full: 'FULL'}[p.level] || 'QUIET'}`, 'level'],
+          [`Sound effects and voice: ${p.sfx ? 'ON' : 'OFF'}`, 'sfx'], ['Close', null, 'primary']]);
       if (!key) return;
-      SND.toggle(key);
+      if (key === 'level') SND.cycleLevel(); else SND.toggle(key);
     }
   },
 
@@ -8726,6 +9092,7 @@ function nextDay(inside) {
   plantsTick();      // devices left behind on break-ins send their money home
   baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
   dunNight();        // DUNGEONS: addresses go cold, and the Intel Board may have turned one up
+  nemNight();        // NEMESIS: a grudge nobody has fed in a while goes cold too
   // ENDLESS: past the arc the rival crews stop waiting to be crossed. One of them takes an interest in you
   // on its own, now and then, up to ENDLESS.grudgeMax (so the odds it feeds stay inside their own caps).
   if (S.day > ENDLESS.arc && Math.random() < ENDLESS.grudgeNight * press01()) {
@@ -8824,6 +9191,9 @@ async function homeRaid(asleep) {
 
 // ---------- events ----------
 async function randomEvent() {
+  // NEMESIS: before anything else, one of the survivors may be standing where you came up: on the street,
+  // or waiting at the market you keep coming back to. At most one of them a day (see nemDue).
+  if (await nemCheck('street')) return;
   // These odds are per trip. There are several trips in a day, so each one is fairly small.
   // ENDLESS: the law and the crews both press harder the longer you stay in (ENDLESS.lawOdds, gangOdds).
   const push = press01();
@@ -9041,6 +9411,508 @@ function jumped() {
     ambush: Math.random() < Math.max(0.15, 0.5 - bonus('speed') / 100),
     intro: `You surface at ${S.loc} and walk straight into it. ${name}: ${n} of them, stepping out of the dark.`});
 }
+
+// ====================== NEMESIS: the ones who got away: START ======================
+// Beat a rival crew and sometimes one of them does not go down with the rest. They get a name, a face, a
+// mark from the meeting, and their crew's colours. Every time they come back they are better armed and
+// angrier; when they beat you they take something and carry it where you can see it next time; when you
+// beat them their crew pays to be rid of them and you take your things back off the body.
+//
+// They live on the CAREER, not the run (career.nem, career.nemGone), so one of them can haunt a whole
+// career across several runs, which is the only length at which a grudge is worth anything. The run keeps
+// only what belongs to today: S.nemDay (one meeting a day, no more) and S.visits (which market you wear out).
+//
+// A story ends one of two ways: you put them down at the top of the grudge, or you leave them alone long
+// enough that they give it up. There are never more than NEM.cap of them, and never more than one a day,
+// so they stay a thing that happens to you and not a toll on every trip.
+const NEM = {
+  cap: 3,            // how many can be out there at once (see the "Popular" achievement)
+  maxG: 4,           // grudge levels; a win at the top is the last time you see them
+  born: 0.4,         // chance a rival crew you beat leaves a survivor
+  rest: 2,           // days before one of them turns up again
+  street: 0.22,      // chance a due one is waiting where you surface
+  fav: 0.45,         // ...or at a market you keep coming back to
+  favNeed: 4,        // visits that make a market one you use a lot
+  bunker: 0.3,       // chance a due one is behind the night's noise on the Bunker stairs
+  deep: 0.4,         // chance a due one is holding the bottom of a deep run
+  cold: 25,          // days without a meeting after which they leave the field
+  cut: 0.18,         // share of the cash you have left that they take when they win
+  bounty: [5000, 7000],   // what their crew pays to be rid of them: flat, plus this much a grudge level
+  tookMax: 3,        // how many of your things they carry at once
+  goneMax: 12,       // how many finished stories the record keeps
+  // What they carry at each grudge level (positions in WEAPONS): a box cutter, a machete, a revolver,
+  // a sniper rifle, a rail gun. Each one hits harder and more often than the last.
+  arms: [13, 14, 17, 19, 20],
+};
+const NEM_TAGS = ['Switchblade', 'Mirrorshade', 'Deadhand', 'Nullroute', 'Half-Byte', 'Rustbucket', 'Gravedigger',
+  'Cold Boot', 'Lowbat', 'Hexwound', 'Offline', 'Sawtooth', 'Dialtone', 'Pocket Change'];
+const NEM_LAST = ['Marisol', 'Oyelaran', 'Vuk', 'Brannigan', 'Sparrow', 'Okonkwo', 'Delgado', 'Rask', 'Yusuf',
+  'Calloway', 'Petrova', 'Nakamura', 'Ferreira', 'Quill'];
+// What the first meeting left on them. This is the thing that says it is the same person.
+const NEM_MARKS = ['a burn down one cheek', 'an eye that does not track any more', 'a jaw wired shut',
+  'two fingers short on the left hand', 'a plate in the skull and the shaved patch to prove it',
+  'a scar where your last meeting went in'];
+const NEM_HATS = [0, 1, 2, 3, 5];    // what they wear on the head (positions in SLOTS.head)
+const NEM_MASKS = [0, 2, 6, 7, 8];   // ...and over the face (SLOTS.face)
+const NEM_TOOK = {cash: 1, weapon: 1, gear: 1};   // what a loss to one of them can cost you
+let nemTally = {born: 0, met: 0, won: 0, lost: 0, down: 0, retired: 0, took: 0, back: 0};   // counted for the self-test
+
+const nemList = () => (Array.isArray(career.nem) ? career.nem : (career.nem = []));
+const nemGoneList = () => (Array.isArray(career.nemGone) ? career.nemGone : (career.nemGone = []));
+const nemBy = id => nemList().find(N => N.id === id) || null;
+const nemColour = N => SYN_COL[N.gang] || '#ff4fd8';
+const nemCrew = N => (SYNDICATES[N.gang] ? SYNDICATES[N.gang][0] : 'a crew with no name');
+// What they are holding: their own gear at this grudge level, unless they took a weapon off you. Then it is yours.
+const nemArm = N => {
+  const t = (N.took || []).find(x => x.k === 'weapon' && WEAPONS[x.n]);
+  return t ? t.n : NEM.arms[clampN(N.g, 0, NEM.arms.length - 1)];
+};
+const nemTookText = t => (t.k === 'cash' ? money(t.n) : t.k === 'weapon'
+  ? (WEAPONS[t.n] ? WEAPONS[t.n][0] : 'a weapon of yours') : (t.it ? t.it.name : 'something of yours'));
+
+// A damaged or ancient record is put right, not trusted: no ghosts, no duplicates, nothing over the cap.
+function nemFix() {
+  const ok = N => !!N && typeof N === 'object' && typeof N.id === 'string' && typeof N.name === 'string' &&
+    typeof N.gang === 'string' && !!SYN_COL[N.gang] && Number.isInteger(N.g) && Array.isArray(N.took) &&
+    !!N.look && typeof N.look === 'object';
+  const seen = {};
+  career.nemGone = (Array.isArray(career.nemGone) ? career.nemGone : [])
+    .filter(g => g && typeof g === 'object' && typeof g.name === 'string').slice(-NEM.goneMax);
+  const dead = {};
+  for (const g of career.nemGone) dead[g.name] = 1;
+  career.nem = (Array.isArray(career.nem) ? career.nem : []).filter(N => {
+    if (!ok(N) || seen[N.id] || seen[N.name] || dead[N.name]) return false;
+    seen[N.id] = seen[N.name] = 1;
+    N.g = clampN(N.g, 1, NEM.maxG);
+    N.met = Number.isInteger(N.met) && N.met > 0 ? N.met : 0;
+    N.won = Number.isInteger(N.won) && N.won > 0 ? N.won : 0;
+    N.day = Number.isInteger(N.day) && N.day >= 1 ? N.day : 1;
+    N.born = Number.isInteger(N.born) && N.born >= 1 ? N.born : 1;
+    N.at = LOCATIONS.includes(N.at) ? N.at : LOCATIONS[0];
+    N.mk = NEM_MARKS[N.mk] ? N.mk : 0;
+    N.hat = NEM_HATS.includes(N.hat) ? N.hat : NEM_HATS[0];
+    N.mask = NEM_MASKS.includes(N.mask) ? N.mask : NEM_MASKS[0];
+    N.tag = typeof N.tag === 'string' ? N.tag : String(N.name).split(' ')[0];
+    N.took = N.took.filter(t => t && typeof t === 'object' && NEM_TOOK[t.k] &&
+      (t.k !== 'cash' || t.n > 0) && (t.k !== 'weapon' || !!WEAPONS[t.n]) &&
+      (t.k !== 'gear' || !!(t.it && RARITY[t.it.rar]))).slice(-NEM.tookMax);
+    return true;
+  }).slice(0, NEM.cap);
+}
+
+// ---------- how they look ----------
+// Built out of the same figure and gear drawings as everybody else: their crew's colour on every piece,
+// better trim the longer the grudge has run, a coat once it is personal, and your bag on their back.
+function nemKit(N, P) {
+  const c = nemColour(N), g = clampN(N.g, 1, NEM.maxG);
+  const dark = {ghost: '#12202b', ledger: '#2a2416', null: '#11261b', red: '#3a1018', x404: '#1d1430'}[N.gang] || '#15131c';
+  const rar = Math.min(4, g);
+  // Dark clothes with their crew's colour as the trim, and the mask in the crew's colour on its own, so
+  // the face is the thing you recognise across a street.
+  const gear = {head: P(N.hat, c, dark, rar), face: P(N.mask, c, null, Math.min(4, g - 1)),
+    body: P(3, c, dark, rar), legs: P(6, c, dark), hands: P(3, c, dark, Math.min(4, g - 1)),
+    feet: P(1, c, dark), deck: P(7, c, dark, Math.min(4, g - 1))};
+  if (g >= 3) gear.coat = P(6, c, dark, 3);
+  if ((N.took || []).some(t => t.k === 'gear')) gear.back = P(5, c, dark, 3);
+  return gear;
+}
+const nemFig = N => ({look: N.look, syn: N.gang, level: 1, weapon: 0, hp: 100, mood: 'mean',
+  gear: nemKit(N, (kind, c, fill, rar) => ({kind, c, rar: rar || 0, fill}))});
+function nemSvg(N) {
+  return `<svg class="avatar foe" viewBox="${bustBox()}" role="img" aria-label="${esc(N.name)}">` +
+    `<rect x="0" y="0" width="200" height="352" fill="${nemColour(N)}" opacity=".13"/>` +
+    `<g${figClass()}>${sprite(figure(nemFig(N)), true)}</g></svg>`;
+}
+
+// ---------- what they say ----------
+// Short, flat, and about the last time. Nobody makes a speech in an alley.
+function nemSay(N) {
+  const took = (N.took || []).length ? nemTookText(N.took[N.took.length - 1]) : '';
+  if (N.g >= NEM.maxG) return `"${N.met} times now. One of us is staying here."`;
+  if (took && N.won) return `"I still have ${took}. I came back for the rest of it."`;
+  if (N.met >= 2) return `"${N.at}, and the time before that. You do not even remember, do you."`;
+  return `"You left me on the floor at ${N.at}. I got up."`;
+}
+const nemLine = N => `${nemCrew(N)} &middot; ${NEM_MARKS[N.mk]}`;
+
+// ---------- born ----------
+// One survivor, named once per career: no two of them share a handle, and nobody who is already finished
+// comes back under a new face.
+function nemBorn(gang) {
+  // (typeof, because the crew called 'null' is a real one and a lookup would take null for it)
+  if (typeof gang !== 'string' || !SYN_COL[gang] || !S || !S.grudge || S.grudge[gang] === undefined) return null;
+  nemFix();
+  if (nemList().length >= NEM.cap) return null;
+  const used = {};
+  for (const x of nemList().concat(nemGoneList())) used[x.name] = 1;
+  const tags = NEM_TAGS.filter(t => !nemList().some(N => N.tag === t));
+  const tag = pick(tags.length ? tags : NEM_TAGS);
+  let name = '';
+  for (const last of NEM_LAST.slice().sort(() => Math.random() - 0.5)) {
+    if (!used[`${tag} ${last}`]) { name = `${tag} ${last}`; break; }
+  }
+  if (!name) return null;
+  const N = {id: 'n' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36),
+    tag, name, gang, g: 1, met: 0, won: 0,
+    mk: rnd(0, NEM_MARKS.length - 1), hat: pick(NEM_HATS), mask: pick(NEM_MASKS),
+    look: {skin: rnd(0, SKINS.length - 1), hair: rnd(0, HAIRSTYLES.length - 1), col: rnd(0, HAIRCOLS.length - 1),
+      streak: rnd(0, STREAKS.length - 1)},
+    took: [], at: LOCATIONS.includes(S.loc) ? S.loc : LOCATIONS[0], day: S.day, born: S.day};
+  nemList().push(N);
+  nemTally.born++;
+  tally('nemborn');
+  if (nemList().length >= NEM.cap) tally('nemfull');
+  log(`<span class="amber">One of them walked away: ${N.name} of ${nemCrew(N)}, ${NEM_MARKS[N.mk]}.</span>`);
+  return N;
+}
+// Called from a won fight: the line that goes on the results panel.
+function nemBirth(E) {
+  const N = nemBorn(E.gang);
+  return N ? `One of them is not on the floor. ${N.name} went over the wall, and had a good look at you first.` : '';
+}
+
+// ---------- coming back ----------
+// Who is due: one of them, at most one a day, and never the day after the last meeting. A save carried
+// into a shorter run has dates in the future; that counts as due rather than as a nemesis who never comes.
+function nemDue(odds) {
+  if (!S || S.over || S.nemDay === S.day) return null;
+  const ready = nemList().filter(N => (N.day > S.day ? NEM.rest : S.day - N.day) >= NEM.rest);
+  if (!ready.length || Math.random() >= odds) return null;
+  return ready[rnd(0, ready.length - 1)];
+}
+function nemMeet(N, where) {
+  S.nemDay = S.day;
+  N.met++;
+  N.day = S.day;
+  N.at = where === 'bunker' ? BUNKER : (LOCATIONS.includes(S.loc) ? S.loc : N.at);
+  nemTally.met++;
+  tally('nemmet');
+  return N;
+}
+// A street ambush or the Bunker stairs: in person, so it all lands on your Health, like any other jumping.
+function nemEnc(N, where) {
+  const crew = clampN(Math.round(N.g * 0.8 + effDay() / 16), 0, 4), arm = WEAPONS[nemArm(N)];
+  const lead = where === 'bunker'
+    ? `Somebody is on the Bunker stairs, and it is not the law. ${N.name}, ${arm[0]} in hand`
+    : `${N.name} is waiting where you surface at ${S.loc}, ${arm[0]} in hand`;
+  return {kind: 'thug', nem: N, gang: N.gang, name: N.name, n: 1 + crew, seed: rnd(0, 5),
+    hit: clampN(0.36 + 0.04 * N.g, 0.2, 0.85), lo: 4 + N.g, hi: 9 + 2 * N.g,
+    ambush: where === 'bunker' || Math.random() < 0.35,
+    intro: `${lead}${crew ? `, with ${crew} of ${nemCrew(N)} behind them` : ', alone'}. ${nemSay(N)}`};
+}
+// The hook the encounter paths call: true if one of them took the trip over. where: 'street' or 'bunker'.
+async function nemCheck(where) {
+  if (!S || S.over) return false;
+  if (where !== 'bunker') {
+    if (S.loc === BUNKER) return false;   // crews still cannot reach you at home in daylight
+    S.visits = S.visits && typeof S.visits === 'object' ? S.visits : {};
+    S.visits[S.loc] = (S.visits[S.loc] || 0) + 1;
+  }
+  const fav = where !== 'bunker' && (S.visits[S.loc] || 0) >= NEM.favNeed;
+  const N = nemDue(where === 'bunker' ? NEM.bunker : fav ? NEM.fav : NEM.street);
+  if (!N) return false;
+  nemMeet(N, where);
+  log(`<span class="red">${N.name} found you${where === 'bunker' ? ' at the Bunker' : fav ? ` at ${S.loc}. Again.` : ` at ${S.loc}.`}</span>`);
+  await fight(nemEnc(N, where));
+  return true;
+}
+// A deep run's own hostiles, with one of them in front of the rest. The encounter keeps its kind, so a
+// network dive stays a fight over the wire and a building stays a fight in a corridor.
+function nemDress(E, where) {
+  if (!E || E.nem || E.kind === 'law') return E;
+  const N = nemDue(NEM.deep);
+  if (!N) return E;
+  nemMeet(N, where);
+  E.nem = N;
+  E.name = N.name;
+  E.gang = N.gang;
+  E.boss = true;
+  E.hit = clampN((E.hit || 0.3) + 0.04 * N.g, 0.2, 0.85);
+  E.hi = (E.hi || 8) + 2 * N.g;
+  E.intro = `The bottom of the run is not holding what the lead said it was. ${N.name} is. ${nemSay(N)}`;
+  return E;
+}
+
+// ---------- what it costs and what it pays ----------
+// They take one thing and keep it. Gear only when losing it still leaves you able to carry what you hold.
+function nemSteal(N) {
+  const opts = [];
+  if (S.cash > 200) opts.push('cash');
+  if (S.weapon > 0) opts.push('weapon');
+  const slots = Object.keys(career.gear).filter(k => career.gear[k] && used() <= cap() - carries(career.gear[k]));
+  if (slots.length) opts.push('gear');
+  if (!opts.length) return 'a long look at everything you are not carrying any more';
+  const k = pick(opts);
+  let t;
+  if (k === 'cash') { const n = Math.max(1, Math.floor(S.cash * NEM.cut)); S.cash -= n; t = {k: 'cash', n}; }
+  else if (k === 'weapon') { t = {k: 'weapon', n: S.weapon}; S.weapon = 0; }
+  else { const slot = pick(slots); t = {k: 'gear', it: career.gear[slot]}; delete career.gear[slot]; }
+  N.took.push(t);
+  while (N.took.length > NEM.tookMax) N.took.shift();
+  nemTally.took++;
+  tally('nemtook');
+  return k === 'cash' ? `${money(t.n)} out of your pocket` : k === 'weapon' ? `your ${WEAPONS[t.n][0]}` : `your ${t.it.name}`;
+}
+// Called from lose(): they are angrier and they are carrying something of yours now.
+function nemLoss(E) {
+  const N = E.nem;
+  if (!N) return '';
+  nemTally.lost++;
+  tally('nemlost');
+  N.won++;
+  const got = nemSteal(N);
+  if (N.g < NEM.maxG) N.g++;
+  N.day = S.day;
+  saveCareer();
+  return `<p class="red">${N.name} takes ${got}, and makes sure you watch them do it.</p>`;
+}
+// Called from a won fight: the bounty, the crew easing off, your things back, and either a worse one
+// next time or the end of the story. Pushes its own rows onto the results panel.
+function nemWin(E, gains) {
+  const N = E.nem;
+  if (!N) return '';
+  nemTally.won++;
+  tally('nemwin');
+  const bounty = Math.round((NEM.bounty[0] + NEM.bounty[1] * N.g) * (1 + Math.floor(effDay() / 10)));
+  S.cash += bounty;
+  gains.push(['Bounty', `+${money(bounty)}`, 'green']);
+  if (S.grudge && S.grudge[N.gang] > 0) {
+    S.grudge[N.gang] = Math.max(0, S.grudge[N.gang] - 1);
+    gains.push([`${nemCrew(N)} grudge`, '-1', 'green']);
+  }
+  let back = 0;
+  for (const t of N.took.splice(0)) {
+    if (t.k === 'cash') { S.cash += t.n; gains.push(['Your cash', `+${money(t.n)}`, 'green']); back++; }
+    else if (t.k === 'weapon' && WEAPONS[t.n]) {
+      if (!WEAPONS[S.weapon] || WEAPONS[t.n][1] > WEAPONS[S.weapon][1]) S.weapon = t.n;
+      gains.push([WEAPONS[t.n][0], 'back']);
+      back++;
+    } else if (t.k === 'gear' && t.it) { stash(t.it); gains.push([t.it.name, 'back']); back++; }
+  }
+  if (back) { nemTally.back += back; tally('nemback', back); }
+  if (N.g >= NEM.maxG) {
+    nemFinish(N, 'down');
+    return `${N.name} does not get up this time.`;
+  }
+  N.g++;
+  N.day = S.day;
+  saveCareer();
+  return `${N.name} goes down, and is gone by the time you have counted the money. Worse next time.`;
+}
+// A story closes: put down for good, or given up on. how: 'down' or 'gone'.
+function nemFinish(N, how) {
+  const i = nemList().indexOf(N);
+  if (i >= 0) nemList().splice(i, 1);
+  nemGoneList().push({name: N.name, gang: N.gang, how, g: N.g, met: N.met, won: N.won, day: S.day});
+  while (nemGoneList().length > NEM.goneMax) nemGoneList().shift();
+  if (how === 'down') { nemTally.down++; tally('nemdown'); } else { nemTally.retired++; tally('nemgone'); }
+  saveCareer();
+  log(how === 'down' ? `<span class="green">${N.name} is finished. ${nemCrew(N)} will have to find somebody else.</span>`
+    : `<span class="dim">${N.name} has stopped looking. Word is they took the money and left the field.</span>`);
+}
+// Overnight: a grudge nobody feeds goes cold. This is what keeps them from becoming a toll on every trip.
+function nemNight() {
+  for (const N of nemList().slice()) {
+    const since = N.day > S.day ? 0 : S.day - N.day;
+    if (since < NEM.cold) continue;
+    nemFinish(N, 'gone');
+    notes.push(['A grudge goes cold', `<p>${N.name} has not been seen in ${NEM.cold} days.</p>` +
+      `<p>${nemCrew(N)} say they took what they were owed and went somewhere with fewer stairs. ` +
+      'Whatever they were carrying went with them.</p>', '']);
+  }
+}
+
+// ---------- the debug menu's way in ----------
+// nemSpawn(gang) makes one, nemSend(which, where) brings one to you now, nemClear() takes them all off the
+// board. The table is NEM; the list is career.nem and the finished ones are career.nemGone.
+function nemSpawn(gang) {
+  return nemBorn(gang && SYN_COL[gang] ? gang : pick(Object.keys(noGrudges())));
+}
+function nemSend(which, where) {
+  const N = typeof which === 'object' && which ? which : nemBy(which) || nemList()[Number(which) || 0] || nemSpawn();
+  if (!N) return null;
+  N.day = Math.max(1, S.day - NEM.rest);
+  delete S.nemDay;
+  if (where === 'deep') return nemDress({kind: 'gang', gang: N.gang, name: nemCrew(N), n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+  nemMeet(N, where === 'bunker' ? 'bunker' : 'street');
+  return fight(nemEnc(N, where === 'bunker' ? 'bunker' : 'street'));
+}
+function nemClear() {
+  const n = nemList().length;
+  career.nem = [];
+  career.nemGone = [];
+  saveCareer();
+  return n;
+}
+// ---------- the self-test, step by step ----------
+// Makes nemeses, meets them, loses to them, beats them, puts one down for good, lets one go cold, and
+// drags the whole lot through a save and a reload. It watches for duplicates, ghosts, state lost over a
+// reload, the cap being broken, and a theft that would leave you holding more than you can carry.
+async function nemSelfTest() {
+  const fail = (why, ...rest) => { throw new Error('NEMESIS: ' + why + (rest.length ? ' ' + JSON.stringify(rest) : '')); };
+  const keepCareer = career, keepRun = S, keepNotes = notes.slice();
+  try {
+    career = JSON.parse(JSON.stringify(career));
+    S = JSON.parse(JSON.stringify(S));
+    career.nem = []; career.nemGone = [];
+    S.loc = 'Tor Bazaar'; S.day = 10; S.over = false; delete S.nemDay;
+    const crews = Object.keys(noGrudges());
+
+    // Nobody is born to a crew that has no grudge against you, or to nothing at all.
+    if (nemBorn('x404') || nemBorn('nobody') || nemBorn(undefined) || nemBorn(null)) fail('a nemesis was born to nobody', career.nem);
+
+    // Born: every crew you can cross leaves one, each a person of their own, and never past the cap.
+    for (let i = 0; i < 12; i++) nemBorn(crews[i % crews.length]);
+    if (nemList().length !== NEM.cap) fail('the cap was not held', nemList().length, NEM.cap);
+    if (new Set(nemList().map(N => N.id)).size !== NEM.cap ||
+      new Set(nemList().map(N => N.name)).size !== NEM.cap) fail('two of them are the same person', nemList().map(N => N.name));
+    if (nemList().some(N => !SYN_COL[N.gang] || S.grudge[N.gang] === undefined || N.g !== 1 || N.took.length ||
+      !NEM_MARKS[N.mk] || !WEAPONS[nemArm(N)] || !LOCATIONS.includes(N.at))) fail('a new nemesis starts wrong', nemList());
+    if (nemBorn(crews[0])) fail('a nemesis was born over the cap', nemList().length);
+
+    // A damaged record is put right, not trusted: ghosts, duplicates, overflow and the already-finished all go.
+    const good = JSON.parse(JSON.stringify(nemList()[0]));
+    career.nemGone = [{name: 'Gone Already', gang: 'red', how: 'down', g: 4, met: 3, won: 0, day: 2}];
+    career.nem = [null, 7, {id: 'x'}, good, JSON.parse(JSON.stringify(good)),
+      Object.assign({}, good, {id: 'n-two', name: 'Other One', g: 99, mk: 99, took: [{k: 'junk'}, {k: 'cash', n: 0}]}),
+      Object.assign({}, good, {id: 'n-dead', name: 'Gone Already'})];
+    nemFix();
+    if (nemList().length !== 2 || nemList()[0].name !== good.name || nemList()[1].g !== NEM.maxG ||
+      nemList()[1].took.length || !NEM_MARKS[nemList()[1].mk] ||
+      nemList().some(N => N.name === 'Gone Already')) fail('nemFix did not tidy the list', career.nem);
+
+    // One meeting a day, never two days running, and a date from a longer run is not a ghost.
+    career.nem = []; career.nemGone = [];
+    const D = nemBorn('null');
+    const due = () => { delete S.nemDay; D.day = S.day - NEM.rest; };
+    due();
+    if (!nemDue(1)) fail('a nemesis that was due did not come');
+    S.nemDay = S.day;
+    if (nemDue(1)) fail('a second nemesis came the same day');
+    delete S.nemDay;
+    D.day = S.day;
+    if (nemDue(1)) fail('a nemesis came back the day you beat them');
+    D.day = S.day + 50;
+    if (!nemDue(1)) fail('a nemesis carried into a shorter run never comes back');
+
+    // The battle screen: one of them at the front, with their name, their crew's colour and their mark.
+    due();
+    const E = nemEnc(D, 'street');
+    if (E.nem !== D || !(E.n >= 1) || !E.intro.includes(D.name) || !E.intro.includes('"')) fail('the encounter does not carry them', E);
+    const line = BTL.roster(E);
+    if (line.length !== E.n || !line[0].boss || line[0].name !== D.name || line[0].col !== nemColour(D) ||
+      line[0].deco !== 'nem' || !line[0].mk || !line[0].wmk) fail('no nemesis at the front of the line-up', line.map(f => [f.name, f.deco, f.col]));
+    if (line.slice(1).some(f => f.boss)) fail('more than one boss on the stage');
+    if (new Set(line.map(f => f.name)).size !== line.length) fail('two hostiles share a name', line.map(f => f.name));
+    if (line.slice(1).some(f => f.col !== nemColour(D))) fail('the crew behind them is in the wrong colours');
+    if (!nemSvg(D).includes('<svg') || !figure(nemFig(D))) fail('a nemesis has no picture');
+    // ...and over the wire they are jacked in, not armed. The law never brings one with them.
+    let raid = null;
+    for (let i = 0; i < 300 && !(raid && raid.nem); i++) {
+      due();
+      raid = nemDress({kind: 'raid', gang: D.gang, name: 'ICE', n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+    }
+    if (!raid.nem) fail('a deep run never put a nemesis at the bottom');
+    const wire = BTL.roster(raid);
+    if (!wire[0].boss || wire[0].weapon !== 0 || wire[0].name !== D.name) fail('a nemesis over the wire is wrong', wire.map(f => [f.name, f.weapon]));
+    due();
+    if (nemDress({kind: 'law', tier: 0, name: LAW[0].name, n: 1, hit: 0.3, lo: 3, hi: 8}, 'deep').nem) fail('a nemesis turned up in a police raid');
+
+    // Losing: they take one thing, carry no more than they can, and never leave you overloaded. The drive is
+    // filled right up to the line first, so a bag they could take would break it and must be left alone.
+    S.cash = 100000; S.weapon = 15;
+    career.gear = {back: makeItem(4, 'back'), head: makeItem(2, 'head')};
+    if (free() > 0) addItems('Warez', free(), 10);
+    const kinds = {};
+    for (let i = 0; i < 20; i++) {
+      if (!career.gear.head) career.gear.head = makeItem(2, 'head');
+      if (!career.gear.back) fail('they took the bag off a full drive');
+      if (!S.weapon) S.weapon = 15;
+      if (S.cash < 5000) S.cash = 100000;
+      const fits = used() <= cap(), had = D.took.length, won = D.won;
+      const said = nemLoss({nem: D});
+      if (!said.includes(D.name)) fail('a loss said nothing', said);
+      if (D.won !== won + 1) fail('a loss was not counted', D.won);
+      if (D.took.length !== Math.min(NEM.tookMax, had + 1)) fail('a loss took the wrong number of things', D.took);
+      if (fits && used() > cap()) fail('a loss left you carrying more than you can', used(), cap());
+      kinds[D.took[D.took.length - 1].k] = 1;
+      D.g = 1;   // hold them at one level so every kind of theft gets a turn
+    }
+    for (const k of Object.keys(NEM_TOOK)) if (!kinds[k]) fail('a nemesis never took ' + k, Object.keys(kinds));
+    if (D.took.some(t => !NEM_TOOK[t.k])) fail('they are carrying something the game does not have', D.took);
+    // A weapon they took is the weapon they turn up holding next time.
+    D.took = [{k: 'weapon', n: 19}];
+    if (nemArm(D) !== 19) fail('a stolen weapon is not the one they carry', nemArm(D));
+    D.took = [{k: 'cash', n: 500}, {k: 'weapon', n: 19}, {k: 'gear', it: makeItem(3, 'head')}];
+
+    // ...and all of it survives a save and a reload.
+    const before = JSON.stringify(career.nem), goneBefore = JSON.stringify(career.nemGone);
+    const rec = JSON.parse(JSON.stringify(career)), run = JSON.parse(JSON.stringify(S));
+    const get = store.get, keep = slot;
+    store.get = key => (key === 'zdh-save' ? run : key === 'zdh-career' ? rec : null);
+    try { loadSave(0); } finally { store.get = get; slot = keep; }
+    if (JSON.stringify(career.nem) !== before || JSON.stringify(career.nemGone) !== goneBefore) {
+      fail('a nemesis did not survive a save and a reload', career.nem, JSON.parse(before));
+    }
+    const M = nemBy(JSON.parse(before)[0].id);
+    if (!M || M.took.length !== 3) fail('the nemesis went missing over the reload', career.nem);
+
+    // Beating them: a bounty, their crew easing off, your things back, and a worse one next time.
+    M.g = 2; S.grudge[M.gang] = 3; S.cash = 0; S.weapon = 0; career.gear = {}; career.bag = [];
+    const gains = [], note = nemWin({nem: M}, gains);
+    if (M.took.length) fail('a win did not take the trophies back', M.took);
+    if (!(S.cash > 500)) fail('a win paid no bounty', S.cash);
+    if (S.weapon !== 19) fail('a win did not hand your weapon back', S.weapon);
+    if (!career.bag.length) fail('a win did not hand your gear back', career.bag);
+    if (S.grudge[M.gang] !== 2) fail('a win did not ease the crew off', S.grudge);
+    if (M.g !== 3 || !note.includes(M.name)) fail('a win did not make them angrier', M.g, note);
+    if (!gains.length) fail('a win put nothing on the results panel');
+    if (stat('nemback') < 1) fail('taking your things back was not counted', career.stats);
+    // ...and a win at the top of the grudge is the last time.
+    M.g = NEM.maxG;
+    const last = nemWin({nem: M}, []);
+    if (nemBy(M.id) || !last.includes(M.name)) fail('a nemesis who went down is still out there', career.nem);
+    if (!nemGoneList().some(g => g.name === M.name && g.how === 'down')) fail('the record does not say they went down', career.nemGone);
+    for (let i = 0; i < 20; i++) nemBorn(M.gang);
+    if (nemList().some(x => x.name === M.name)) fail('somebody who is finished came back', career.nem);
+
+    // A grudge nobody feeds goes cold on its own: that is what stops them taxing every trip.
+    career.nem = []; career.nemGone = []; notes.length = 0;
+    const C = nemBorn('ghost');
+    C.day = 1; S.day = 1 + NEM.cold;
+    nemNight();
+    if (nemBy(C.id)) fail('a cold grudge did not go', career.nem);
+    if (!nemGoneList().some(g => g.name === C.name && g.how === 'gone')) fail('the record does not say they left', career.nemGone);
+    if (!notes.length) fail('nothing said a grudge had gone cold');
+    notes.length = 0;
+    // ...and one that is still being fed does not.
+    const K = nemBorn('red');
+    K.day = S.day;
+    nemNight();
+    if (!nemBy(K.id)) fail('a live grudge went cold early');
+
+    // The record page draws with somebody out there, with finished stories on it, and with nobody at all.
+    autoPick = () => null;
+    try {
+      await ACTIONS.nemeses();
+      await ACTIONS.profile();
+      career.nem = []; career.nemGone = [];
+      await ACTIONS.nemeses();
+    } finally { autoPick = null; }
+
+    // The debug menu's handles do what they say.
+    career.nem = []; career.nemGone = [];
+    if (!nemSpawn('red') || nemList().length !== 1) fail('nemSpawn made nothing', career.nem);
+    nemSpawn();
+    if (nemClear() !== 2 || nemList().length || nemGoneList().length) fail('nemClear left something behind', career.nem);
+  } finally {
+    career = keepCareer;
+    S = keepRun;
+    notes.length = 0;
+    notes.push(...keepNotes);
+  }
+}
+// ====================== NEMESIS: the ones who got away: END ======================
 
 // ---------- the prison pocket, in use ----------
 // E.pocket holds what went in during this encounter: [{name, qty, cost, tag}]. It only lasts as long as the
@@ -9356,17 +10228,30 @@ const BTL = (() => {
     const P = (kind, c, fill, rar) => ({kind, c, rar: rar || 0, fill});
     const out = [];
     const core = enc.kind === 'raid' && (enc.boss || enc.hit >= 0.34);
+    // NEMESIS: one of them leads whatever turned up, and everyone behind them wears their crew's colours.
+    const nemC = enc.nem ? (SYN_COL[enc.nem.gang] || '#ff4fd8') : '';
     for (let i = 0; i < enc.n; i++) {
       let name, look, gear, weapon = 0, syn, deco = '', boss = false;
-      if (enc.kind === 'thug' && enc.guard) {
+      if (enc.nem && i === 0) {
+        // NEMESIS: the same person every time: their mark, their crew's colour, and your things on them.
+        const N = enc.nem;
+        name = N.name;
+        look = Object.assign({}, N.look);
+        gear = nemKit(N, P);
+        weapon = enc.kind === 'raid' ? 0 : nemArm(N);
+        syn = N.gang;
+        deco = enc.kind === 'raid' ? 'holo' : 'nem';
+        boss = true;
+      } else if (enc.kind === 'thug' && enc.guard) {
         // Site security, answering the alarm on a break-in (see heistAlarm): a cap, a uniform, and no mask.
-        const c = '#ff9d2e';
+        const c = nemC || '#ff9d2e';   // NEMESIS: their colours when one of them brought them
         [name, look, gear, weapon] = i % 2
           ? ['Night Watchman', {skin: 3, hair: 3, col: 2, streak: 4}, {head: P('cap', c), coat: P(5, c), legs: P(3, c), feet: P(1, c)}, 11]
           : ['Security Guard', {skin: 1, hair: 0, col: 1, streak: 4}, {head: P('cap', c), body: P(3, c, '#2a2f45'), legs: P(3, c), feet: P(1, c)}, 4];
       } else if (enc.kind === 'thug') {
         // [skin, hair, hair colour, hat, jacket, mask, weapon]
-        const [skin, hair, col, hat, coat, mask, arm] = THUG_LOOKS[(i + (enc.seed || 0)) % THUG_LOOKS.length], c = '#ff9d2e';
+        const [skin, hair, col, hat, coat, mask, arm] = THUG_LOOKS[(i + (enc.seed || 0)) % THUG_LOOKS.length],
+          c = nemC || '#ff9d2e';   // NEMESIS: their colours when one of them brought them
         name = arm === 11 ? 'Bruiser' : arm === 13 ? 'Cutter' : 'Chopper';
         look = {skin, hair, col, streak: 4};
         gear = {head: hat < 0 ? null : P(hat, c), body: P(coat, c), face: mask < 0 ? null : P(mask, c), hands: P(2, c), feet: P(1, c),
@@ -9416,7 +10301,7 @@ const BTL = (() => {
         if (enc.kind === 'raid') { weapon = 0; deco = boss ? 'boss' : 'holo'; }   // jacked in: a deck, not a weapon
       }
       const F = {look, gear, syn, level: 1, weapon: 0, hp: 100, mood: 'mean'};
-      out.push({name, boss, deco, weapon, col: enc.kind === 'law' ? ['#4da3ff', '#c9d1d5', '#ff3b5c'][enc.tier || 0] : enc.kind === 'thug' ? '#ff9d2e' : SYN_COL[syn] || '#ff4fd8',
+      out.push({name, boss, deco, weapon, col: nemC || (enc.kind === 'law' ? ['#4da3ff', '#c9d1d5', '#ff3b5c'][enc.tier || 0] : enc.kind === 'thug' ? '#ff9d2e' : SYN_COL[syn] || '#ff4fd8'),
         ghost: syn === 'ghost', mk: figure(F), wmk: weapon ? figure(Object.assign({}, F, {weapon, only: 'weapon'})) : '',
         wk: weapon ? WEAPONS[weapon][4] : 'deck'});
     }
@@ -9715,6 +10600,13 @@ const BTL = (() => {
       g.globalAlpha *= 0.55; P(-15, -33, 7, 9, a.col); g.globalAlpha /= 0.55;
       P(-14, -32, 5, 7, '#06050d');
       for (let k = 0; k < 3; k++) P(-14, -32 + (Math.floor(t / 140) + k * 2) % 7, 2 + (k * 2 + Math.floor(t / 400)) % 4, 1, a.col);
+    } else if (a.deco === 'nem') {
+      // NEMESIS: the mark of the last meeting, lit from below, and their crew's colour turning over their head.
+      P(-6, -44, 2, 1, '#ff3b5c'); P(-5, -43, 2, 1, '#ff3b5c'); P(-4, -42, 2, 1, '#ff3b5c');
+      for (let k = 0; k < 2; k++) {
+        const an = t / 520 + k * Math.PI, x = Math.round(Math.cos(an) * 11);
+        if (Math.sin(an) > 0) P(x, -52, 2, 2, a.col);
+      }
     } else if (a.deco === 'boss') {
       for (let k = 0; k < 3; k++) { const an = t / 600 + k * TAU / 3, x = Math.round(Math.cos(an) * 13), y = Math.round(Math.sin(an) * 4); if (Math.sin(an) > 0) P(x, -30 + y, 2, 2, a.col); }
       P(-4, -57, 1, 2, '#ffd24a'); P(0, -58, 1, 3, '#ffd24a'); P(4, -57, 1, 2, '#ffd24a'); P(-4, -55, 9, 1, '#ffd24a');
@@ -10372,6 +11264,7 @@ const BTL = (() => {
 
   const api = {
     live: on,
+    roster,   // NEMESIS: the self-test and the debug menu read a line-up without opening the screen
     open(enc, head, hint) {
       if (AUTO) return;
       api.close();
@@ -10867,7 +11760,8 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
-  SND.battle = E.kind === 'raid' ? 'raid' : 'fight';
+  // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
+  SND.battle = E.kind === 'raid' || E.nem ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
   try {
     const result = await fightRounds(E);
@@ -11178,7 +12072,10 @@ async function fightRounds(E) {
         gear = Math.random() < (raid ? 0.85 : 0.6);
       }
       if (S.heat !== heatWas) gains.push(['Heat', `${heatWas}% &rarr; ${S.heat}%`, S.heat > heatWas ? 'red' : 'green']);
-      const grudge = law || thug ? '' : `${E.name} will remember this.`;
+      // ===== NEMESIS: either this was one of them, or one of the crew you just beat walks away. =====
+      const nemNote = E.nem ? nemWin(E, gains)
+        : (E.gang && (E.kind === 'gang' || E.kind === 'raid') && total >= 2 && Math.random() < NEM.born ? nemBirth(E) : '');
+      const grudge = nemNote || (law || thug ? '' : `${E.name} will remember this.`);
       if (!await BTL.results(raid ? 'Node looted' : 'You won', `${what}.`, gains, grudge)) {
         await alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
           (grudge ? `<p class="dim">${grudge}</p>` : ''));
@@ -11211,6 +12108,8 @@ async function lose(E) {
       removeItems(name, take);
     }
     S.opsec = Math.max(S.opsec, 40);
+    // ===== NEMESIS: if this was one of them they take one thing more, and carry it where you can see it. =====
+    const nemNote = E.nem ? nemLoss(E) : '';
     let clinic = '';
     if (hurt) {
       // Beaten unconscious: a day in a back-room clinic.
@@ -11223,7 +12122,7 @@ async function lose(E) {
     render();
     return alertDlg(hurt ? 'Beaten and robbed' : 'Robbed',
       (hurt ? `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` : '') + `<p>${E.name} ${hurt ? 'leave you on the floor' : 'own your rig'}. They take <b>${money(cash)}</b> and ` +
-      `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${clinic}`, 'danger');
+      `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${nemNote}${clinic}`, 'danger');
   }
   if (E.tier === 2) {
     S.busted = S.over = true;
@@ -13414,7 +14313,7 @@ async function dunRoom(D, room) {
       [['Go in', 'go', 'primary'], ['Not today', 'bail', 'small']]);
     if (how !== 'go') return 'bail';
     dunTally.boss++;
-    const E = dunFoes(D, true, false);
+    const E = nemDress(dunFoes(D, true, false), 'deep');   // NEMESIS: one of them may be holding the bottom
     await fight(E);
     if (S.over) return 'over';
     if (E.result === 'lost') return 'blown';
@@ -14208,6 +15107,7 @@ async function selfTest(games) {
   let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   let skWas = {spent: 0, fired: 0};   // SKILL TREE: what the step-by-step test did does not count below
   let dunWas = {}, dunUses = 0;   // DUNGEONS
+  let nemWas = {};   // NEMESIS: what the step-by-step test did does not count towards the random games
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -14273,6 +15173,7 @@ async function selfTest(games) {
         await skillSelfTest();   // SKILL TREE
         await dunSelfTest();    // DUNGEONS
         await endlessSelfTest();   // ENDLESS CAREERS
+        await nemSelfTest();    // NEMESIS
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
@@ -14280,6 +15181,7 @@ async function selfTest(games) {
       if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
       if (game === 0) skWas = {spent: skTally.spent, fired: skTally.fired};   // SKILL TREE
       if (game === 0) dunWas = Object.assign({}, dunTally);   // DUNGEONS
+      if (game === 0) nemWas = Object.assign({}, nemTally);   // NEMESIS
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -14427,6 +15329,28 @@ async function selfTest(games) {
           if (stashTotal() > stashCap()) throw new Error('a deep run overfilled the stash: ' + stashTotal());
           if (career.lockpick < lock) throw new Error('a deep run took lock picking away');
           if (S.over) break;
+        }
+        // NEMESIS: now and then a rival crew leaves a survivor behind, and now and then one of the
+        // survivors turns up: on the street, at the Bunker, or holding the bottom of a deep run. However
+        // it goes, the list stays inside its cap, nobody is on it twice, and nobody who is finished returns.
+        if (Math.random() < 0.06) {
+          const was = nemList().length;
+          nemBorn(pick(Object.keys(noGrudges())));
+          if (nemList().length > NEM.cap || nemList().length < was) throw new Error('the nemesis list went wrong: ' + JSON.stringify(career.nem));
+        }
+        if (nemList().length && Math.random() < 0.12) {
+          const N = pick(nemList()), id = N.id, met = N.met;
+          N.day = Math.max(1, S.day - NEM.rest);
+          delete S.nemDay;
+          if (Math.random() < 0.2) {
+            const E = nemDress({kind: 'gang', gang: N.gang, name: SYNDICATES[N.gang][0], n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+            if (E.nem && (E.name !== E.nem.name || !E.boss || !E.intro)) throw new Error('a deep run dressed a nemesis in wrong: ' + JSON.stringify([E.name, E.boss]));
+            if (E.nem) await fight(E);
+          } else if (S.loc === BUNKER || Math.random() < 0.3) await nemCheck('bunker');
+          else await nemCheck('street');
+          if (S.over) break;
+          const still = nemBy(id);
+          if (still && still.met < met) throw new Error('a meeting was not counted: ' + JSON.stringify([met, still.met]));
         }
         // Rides: every so often the bot turns up at one of the three shops, usually with the price of something in
         // its pocket, and buys, trades in or sells whatever it taps; at the Bunker it swaps rides in the garage.
@@ -14614,6 +15538,23 @@ async function selfTest(games) {
           skCount() > skIds().length || skSpent() > skTotal() || skLeft() !== skTotal() - skSpent() ||
           skTotal() !== (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus() || skSpent() > skTreeCost() ||
           (skFight !== null) ||
+          // NEMESIS: never more of them than the cap, never the same person twice, each one in a crew that
+          // has a grudge against you, with a grudge level on the scale, a mark, a weapon the game has and
+          // only things the game has in their pockets; nobody who is finished is still on the list; and at
+          // most one meeting a day, on a day this run has had.
+          !Array.isArray(career.nem) || career.nem.length > NEM.cap || !Array.isArray(career.nemGone) ||
+          career.nemGone.length > NEM.goneMax ||
+          new Set(career.nem.map(N => N.id)).size !== career.nem.length ||
+          new Set(career.nem.map(N => N.name)).size !== career.nem.length ||
+          career.nem.some(N => typeof N.gang !== 'string' || !SYN_COL[N.gang] || S.grudge[N.gang] === undefined ||
+            !Number.isInteger(N.g) || N.g < 1 || N.g > NEM.maxG || !Number.isInteger(N.met) || N.met < 0 ||
+            !Number.isInteger(N.won) || N.won < 0 || !Number.isInteger(N.day) || N.day < 1 ||
+            !LOCATIONS.includes(N.at) || !NEM_MARKS[N.mk] || !WEAPONS[nemArm(N)] || !N.look ||
+            !Array.isArray(N.took) || N.took.length > NEM.tookMax ||
+            N.took.some(t => !NEM_TOOK[t.k] || (t.k === 'cash' && !(t.n > 0)) ||
+              (t.k === 'weapon' && !WEAPONS[t.n]) || (t.k === 'gear' && !(t.it && RARITY[t.it.rar]))) ||
+            career.nemGone.some(g => g.name === N.name)) ||
+          (S.nemDay !== undefined && !(Number.isInteger(S.nemDay) && S.nemDay >= 1 && S.nemDay <= S.day)) ||
           // DUNGEONS: never more addresses than the limit, each one a real theme at a real place at a real
           // depth; and a run in progress is on a floor that exists, at a room in its own list, with its meter
           // on the scale and whole numbers of goods taken.
@@ -14695,11 +15636,27 @@ async function selfTest(games) {
     if (games >= 20 && !(endlessTally.retired >= 2 && endlessTally.botDay >= 120 && endlessTally.nights >= 150)) {
       throw new Error('endless careers were not exercised: ' + JSON.stringify(endlessTally));
     }
+    // NEMESIS: ...and rival crews must have left survivors in real play, and the survivors must have come
+    // back for the bot. Beating one, losing to one, putting one down for good, letting one go cold and
+    // taking your own things back off one are all played step by step in nemSelfTest as well.
+    if (games >= 20 && !(nemTally.born > (nemWas.born || 0) && nemTally.met > (nemWas.met || 0) &&
+      nemTally.won && nemTally.lost && nemTally.took && nemTally.back && nemTally.down && nemTally.retired)) {
+      throw new Error('nemeses were not exercised: ' + JSON.stringify([nemTally, nemWas]));
+    }
+    const nsum = ` nemeses=${nemTally.born} nemmeetings=${nemTally.met} nembeaten=${nemTally.won}` +
+      ` nemlosses=${nemTally.lost} nemtook=${nemTally.took} nemtookback=${nemTally.back}` +
+      ` nemdown=${nemTally.down} nemwentcold=${nemTally.retired}`;
     const esum = ` retirements=${endlessTally.retired} longestcareer=${endlessTally.longest} longestbotcareer=${endlessTally.botDay} latenights=${endlessTally.nights}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
+    // SOUNDTRACK: nothing in all of that was allowed to make a sound. The engine reports on itself:
+    // no audio context, no music graph, not one node, and the bed never left its first step.
+    const snd = SND.music();
+    if (!snd.silent || snd.built || snd.nodes || snd.step || snd.ctx !== 'off') {
+      throw new Error('the self-test was not silent: ' + JSON.stringify(snd));
+    }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -14723,6 +15680,7 @@ function loadSave(n) {
       rep: record.rep && typeof record.rep === 'object' ? record.rep : {},
       lockpick: record.lockpick,   // fixCareer() starts it at 0 for a save from before lock picking
       base: record.base, marks: record.marks,   // BASE: fixCareer() fills these in for a save from before the base
+      nem: record.nem, nemGone: record.nemGone,   // NEMESIS: nemFix() tidies these (see fixCareer)
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
@@ -14789,6 +15747,9 @@ function loadSave(n) {
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
   S.grudge = Object.assign(noGrudges(), S.grudge);
+  // NEMESIS: a run from before the nemeses has met nobody today and worn out no market.
+  S.visits = S.visits && typeof S.visits === 'object' ? S.visits : {};
+  if (!(Number.isInteger(S.nemDay) && S.nemDay >= 1 && S.nemDay <= S.day)) delete S.nemDay;
   S.raided = !!S.raided;
   log('Run resumed.');
   return true;
