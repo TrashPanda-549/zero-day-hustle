@@ -13800,7 +13800,6 @@ async function endlessSelfTest() {
         if (n.some(v => clampN(v, 1, ENDLESS.foeMax) > ENDLESS.foeMax)) fail('too many hostiles', day, n);
       }
       // ...and fight() itself caps whatever it is handed, so no caller can get round it.
-      // ...and fight() itself caps whatever it is handed, so no caller can get round it.
       const E = {kind: 'law', tier: 0, name: 'the test', n: 999, hit: 0, lo: 0, hi: 0};
       const realRounds = fightRounds;
       fightRounds = async F => { F.result = 'won'; return 'won'; };
