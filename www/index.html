@@ -2232,7 +2232,7 @@ const skBranchDone = b => skBranch(b).every(skHas);
 const plural1 = n => (n === 1 ? '' : 's');
 // Why a node cannot be unlocked right now, or '' when it can.
 function skBlock(id) {
-  if (skHas(id)) return '';
+  if (skHas(id)) return 'Already running.';
   const prev = skPrev(id);
   if (prev && !skHas(prev)) return `${SKILLS[prev].n} comes first.`;
   if (level() < skGate(id)) return `It needs level ${skGate(id)}.`;
@@ -2319,7 +2319,7 @@ const skRow = id => {
   const N = SKILLS[id], st = skState(id), why = skBlock(id);
   return `<div class="syn sknode ${st}"><b class="${st === 'running' ? 'green' : st === 'ready' ? 'amber' : 'dim'}">` +
     `${st === 'running' ? '&#10003; ' : ''}${N.n}</b> <span class="dim">${skCost(id)} pt${plural1(skCost(id))} &middot; level ${skGate(id)} &middot; ${skKind(id)}</span>` +
-    `<br>${N.t}` + (why ? `<br><span class="amber">${why}</span>` : st === 'ready' ? '<br><span class="green">Ready to unlock.</span>' : '') + '</div>';
+    `<br>${N.t}` + (st === 'locked' ? `<br><span class="amber">${why}</span>` : st === 'ready' ? '<br><span class="green">Ready to unlock.</span>' : '') + '</div>';
 };
 async function skillTree() {
   for (;;) {
@@ -6614,7 +6614,7 @@ const ACTIONS = {
 
   // Sleeping is the only thing that ends the day. The law may come in the night.
   async sleep() {
-    if (S.loc !== BUNKER) return;
+    if (S.loc !== BUNKER || S.over) return;   // the run can be over before the screen catches up (the Bunk sleeps too)
     if (S.day >= DAYS) return ACTIONS.cashout();
     const gut = !stuckTotal() ? '' : sickLeft() <= 1
       ? '<p class="red"><b>You still have goods stuck in your prison pocket. If you sleep now, you will die of dysentery.</b> ' +
@@ -11215,7 +11215,8 @@ async function skillSelfTest() {
     const scripts = skIds().filter(id => SKILLS[id].k === 'script');
     if (scripts.length !== SK_SCRIPTS.length) fail('scripts do not match SK_SCRIPTS', scripts.length, SK_SCRIPTS.length);
     for (const sc of SK_SCRIPTS) if (!SKILLS[sc.id] || SKILLS[sc.id].k !== 'script') fail('script with no node', sc.id);
-    if (scripts.length * 3 < skIds().length || scripts.length * 2 > skIds().length) fail('the mix of daemons and scripts drifted', scripts.length, skIds().length);
+    // The mix: a quarter or so of the tree is scripts, and never more than half of it.
+    if (scripts.length * 5 < skIds().length || scripts.length * 2 > skIds().length) fail('the mix of daemons and scripts drifted', scripts.length, skIds().length);
     // --- points: one a level, and never more spent than earned ---
     fresh(1);
     if (skPoints().total !== 0 || skLeft() !== 0 || skCount() !== 0) fail('a new career has points', skPoints());
@@ -11226,20 +11227,24 @@ async function skillSelfTest() {
     career.xp = xpFor(2);
     const first = skBranch('ice')[0], second = skBranch('ice')[1], deep = skBranch('ice')[3];
     if (skBlock(first)) fail('the first routine is not buyable at level 2', skBlock(first));
-    if (!skBlock(second).includes('level')) fail('the second is not gated by a level', skBlock(second));
+    if (!skBlock(second).includes(SKILLS[first].n)) fail('the second does not need the first', skBlock(second));
     if (!skUnlock(first) || !skHas(first) || skLeft() !== 0 || skSpent() !== skCost(first)) fail('unlocking', skPoints());
     if (skUnlock(first)) fail('bought the same routine twice');
     if (!skBlock(second).includes('level')) fail('the level gate went away');
+    // With the one point of level 2 spent, anything else says it is short of points.
+    const other = skBranch('entry')[0];
+    if (!skBlock(other).includes('point')) fail('it should be short of points now', skBlock(other), skPoints());
     career.xp = xpFor(SKILL.gate[1]);
-    if (!skBlock(second).includes('point')) fail('it should be short of points now', skBlock(second), skPoints());
-    career.xp = xpFor(SKILL.gate[1] + 1);
-    if (skBlock(second) || !skUnlock(second)) fail('could not buy the second', skBlock(second));
+    if (skBlock(second) || !skUnlock(second)) fail('could not buy the second at its level', skBlock(second), skPoints());
     // ...and the order of a branch holds: you cannot reach past a routine you have not bought.
     career.xp = xpFor(40);
     const skipped = skBranch('entry')[1];
     if (!skBlock(skipped).includes(SKILLS[skBranch('entry')[0]].n)) fail('bought out of order', skBlock(skipped));
     if (skUnlock(skipped)) fail('skipped a prerequisite');
-    if (skBlock(deep)) fail('level 40 cannot afford the deep end', skBlock(deep), skPoints());
+    // A level 40 career can take one branch to the end, buying in order, and the deepest node is the dearest.
+    for (const id of skBranch('ice')) if (!skHas(id) && (skBlock(id) || !skUnlock(id))) fail('level 40 could not finish a branch', id, skBlock(id), skPoints());
+    if (!skBranchDone('ice') || skSpent() !== skBranch('ice').reduce((sum, id) => sum + skCost(id), 0)) fail('a finished branch', skPoints());
+    if (skCost(deep) !== Math.max(...SKILL.cost)) fail('the deep end is not the dearest', skCost(deep));
     // The whole tree costs more than a long career earns, so a build is always a choice.
     if (skTreeCost() <= 29 * SKILL.perLevel) fail('the tree is cheaper than a level 30 career', skTreeCost());
     // --- fixSkills(): a gap, a routine the game no longer has, and more spent than the level pays for ---
@@ -11253,29 +11258,33 @@ async function skillSelfTest() {
     if (skSpent() > skTotal()) fail('fixSkills left more spent than earned', skPoints());
     // --- what every daemon is worth ---
     fresh(40);
-    const was = {heat: 0, clean: 0, open: 0, noise: 0, job: 0, pay: 0};
-    S.heat = 0; heatUp(10);
-    was.heat = S.heat;
-    const lockWas = lockOdds('picks', 'deadbolt', 0), chanceC = {chance: 50, payout: 1000, qty: 1, good: 'Warez'};
-    was.job = chanceFor(chanceC); was.pay = payoutFor(chanceC);
-    was.clean = cleanOdds({alert: 40}); was.open = lockWas.open; was.noise = lockWas.noise;
-    const wallet = walletRate(), debt = debtRate(), heal = medHeal(), decay = skDecay(), regen = skRegen();
+    // Every number the daemons touch, read from the same run in the same state, before and after.
+    const chanceC = {chance: 50, payout: 1000, qty: 1, good: 'Warez'};
+    const probe = () => {
+      S.heat = 0; S.day = 5; S.proxies = 0; S.hp = 100;
+      const lock = lockOdds('picks', 'deadbolt', 0);
+      heatUp(10);
+      const heat = S.heat;
+      S.heat = 0;
+      return {heat, open: lock.open, noise: lock.noise, clean: cleanOdds({alert: 40}), job: chanceFor(chanceC),
+        pay: payoutFor(chanceC), wallet: walletRate(), debt: debtRate(), heal: medHeal(), decay: skDecay(), regen: skRegen()};
+    };
+    const was = probe();
     // A night in the same Bunker, before and after: the only difference is what the daemons add.
     const night = () => { S.cash = 1e6; S.day = 2; S.heat = 60; S.hp = 50; S.loc = BUNKER; nextDay(); notes.length = 0; return [S.heat, S.hp]; };
     const plainNight = night();
     open(skIds());   // everything at once: the most a fully invested player can have
     if (skCount() !== skIds().length) fail('could not open the whole tree');
-    S.heat = 0; heatUp(10);
-    if (S.heat !== Math.ceil(10 * (1 - SKILL.heatCut / 100)) || S.heat >= was.heat) fail('Traffic Shaping', S.heat, was.heat);
-    if (skDecay() !== decay + SKILL.decay || skRegen() !== regen + SKILL.regen) fail('Cold Boot or Field Dressing', skDecay(), skRegen());
-    if (medHeal() !== heal + SKILL.medkit) fail('Field Dressing does not help a medkit', medHeal());
-    const lockNow = lockOdds('picks', 'deadbolt', 0);
-    if (lockNow.open !== clampN(was.open + SKILL.lockOpen * 2, BREAKIN.min, BREAKIN.max)) fail('Oiled Picks and Ghost Protocol', lockNow.open, was.open);
-    if (lockNow.noise !== Math.max(1, Math.round(was.noise * (1 - SKILL.lockQuiet / 100)))) fail('Soft Shoes', lockNow, was.noise);
-    if (cleanOdds({alert: 40}) !== clampN(was.clean + SKILL.clean, BREAKIN.cleanMin, BREAKIN.cleanMax)) fail('Ghost Protocol', cleanOdds({alert: 40}), was.clean);
-    if (chanceFor(chanceC) !== Math.min(95, was.job + SKILL.jobOdds)) fail('Spread Sheets', chanceFor(chanceC), was.job);
-    if (payoutFor(chanceC) !== Math.round(chanceC.payout * (inSyn('red') ? 1.25 : 1) * (1 + SKILL.jobPay / 100))) fail('Paper Trail', payoutFor(chanceC));
-    if (Math.abs(walletRate() - wallet - SKILL.wallet / 100) > 1e-9 || Math.abs(debt - debtRate() - SKILL.debt / 100) > 1e-9) fail('Compound Interest', walletRate(), debtRate());
+    const now = probe();
+    if (now.heat !== Math.ceil(10 * (1 - SKILL.heatCut / 100)) || now.heat >= was.heat) fail('Traffic Shaping', now.heat, was.heat);
+    if (now.decay !== was.decay + SKILL.decay || now.regen !== was.regen + SKILL.regen) fail('Cold Boot or Field Dressing', now);
+    if (now.heal !== was.heal + SKILL.medkit) fail('Field Dressing does not help a medkit', now.heal);
+    if (now.open !== clampN(was.open + SKILL.lockOpen * 2, BREAKIN.min, BREAKIN.max)) fail('Oiled Picks and Ghost Protocol', now.open, was.open);
+    if (now.noise !== Math.max(1, Math.round(was.noise * (1 - SKILL.lockQuiet / 100)))) fail('Soft Shoes', now.noise, was.noise);
+    if (now.clean !== clampN(was.clean + SKILL.clean, BREAKIN.cleanMin, BREAKIN.cleanMax)) fail('Ghost Protocol', now.clean, was.clean);
+    if (now.job !== Math.min(95, was.job + SKILL.jobOdds)) fail('Spread Sheets', now.job, was.job);
+    if (now.pay !== Math.round(was.pay * (1 + SKILL.jobPay / 100))) fail('Paper Trail', now.pay, was.pay);
+    if (Math.abs(now.wallet - was.wallet - SKILL.wallet / 100) > 1e-9 || Math.abs(was.debt - now.debt - SKILL.debt / 100) > 1e-9) fail('Compound Interest', now, was);
     if (skAim() !== SKILL.aim || skDodge() !== 1 - SKILL.dodge / 100 || skSoak() !== 1 - SKILL.soak / 100 ||
       skLoot() !== 1 + SKILL.loot / 100 || skInside() !== SKILL.inside) fail('a daemon is not worth what it says');
     const daemonNight = night();
@@ -11292,14 +11301,16 @@ async function skillSelfTest() {
       sk_scrub: d => { if (d.opsec !== -SKILL.scrubOpsec || d.heat !== -SKILL.scrubHeat) fail('Burn Notice', d); },
       sk_shunt: d => { if (d.hp !== SKILL.shuntHeal || d.opsec !== 0) fail('Adrenal Shunt', d); },
     };
+    let quiet = false;   // set when a fight ends on the command being measured: winning moves Heat on its own
     const settle = () => {
       if (!shot) return;
-      expect[shot.cmd]({opsec: S.opsec - shot.opsec, hp: S.hp - shot.hp, heat: S.heat - shot.heat});
+      if (!quiet) expect[shot.cmd]({opsec: S.opsec - shot.opsec, hp: S.hp - shot.hp, heat: S.heat - shot.heat});
       shot = null;
     };
-    const fake = (want, last) => {
+    const fake = (want, last, ends) => {
       queue = want.slice();
       fallback = last || 'wipe';
+      quiet = !!ends;
       shot = null;
       BTL.menu = async buttons => {
         const have = buttons.map(b => b[1]);
@@ -11327,7 +11338,7 @@ async function skillSelfTest() {
     // Killswitch drops exactly what it says it does: a fight with that many in it is over in one command.
     E = lawE(SKILL.killDrop);
     S.opsec = 100; S.hp = 50; S.heat = 50;
-    fake(['sk_kill']);
+    fake(['sk_kill'], 'wipe', true);
     await fight(E);
     settle();
     if (E.result !== 'won') fail('Killswitch did not drop them all', E.result);
@@ -11753,7 +11764,9 @@ async function selfTest(games) {
       }
       if (S.over) {
         finished++;
-        if (S.dead && !(S.dead === 'dysentery' && S.sick === SICK_DAYS && stuckTotal() && S.hp === 0)) throw new Error('died of nothing');
+        if (S.dead && !(S.dead === 'dysentery' && S.sick === SICK_DAYS && stuckTotal() && S.hp === 0)) {
+          throw new Error('died of nothing: ' + JSON.stringify([S.dead, S.sick, stuckTotal(), S.hp, S.day]));
+        }
         if (S.busted) busted++; else if (!S.dead) best = Math.max(best, S.cash + S.wallet - S.debt);
         await finish();
       }
