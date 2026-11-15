@@ -654,7 +654,11 @@ button .ico.room{width:44px;height:26px}
 
   /* the market (and, at home, the stash): one line to a product, the one you are on opened up */
   #tiny .fold{border:0;background:none;margin:0}
-  #tiny summary{display:block;padding:0 3px 1px;font-size:11px;letter-spacing:1px;border:0;list-style:none}
+  /* a fold's heading keeps the row it lays itself out in: the name on the left and the count on the right,
+     the same as the mission's heading, or the two run together when the fold is flattened into a screen */
+  #tiny summary{display:flex;align-items:center;gap:6px;padding:0 3px 1px;
+    font-size:11px;letter-spacing:1px;border:0;list-style:none}
+  #tiny summary small{margin-left:auto;font-size:11px;letter-spacing:0;color:var(--dim)}
   #tiny summary::before{content:none}
   #tiny .mnote,#tiny .basewrap{display:none}
   #tiny .baseline{padding:1px 3px;font-size:11px;border:0}
@@ -694,7 +698,7 @@ button .ico.room{width:44px;height:26px}
   #tiny .job .what{overflow-wrap:anywhere}
   #tiny .job .sub{font-size:11px}
   #tiny .job button{font-size:11px;padding:1px 5px}
-  #tiny .jobs h3{margin:2px 0;font-size:11px;letter-spacing:1px}
+  #tiny .jobs h3{margin:2px 0;padding:0 3px;font-size:11px;letter-spacing:1px}
   #tiny .lead{font-size:12px;padding:1px 4px;margin-bottom:2px;border-left:3px solid var(--amber);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tiny .jobs .none{padding:3px;font-size:11px;color:var(--dim)}
