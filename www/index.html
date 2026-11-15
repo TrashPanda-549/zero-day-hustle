@@ -1035,8 +1035,15 @@ const ENDLESS = {
   lawOdds: 0.03,          // added to the chance of meeting the law on a trip (and its cap)
   gangOdds: 0.04,         // added to the chance a rival crew comes for you on a trip (and its cap)
   grudgeNight: 0.25,      // chance a night past the arc that one rival crew's grudge goes up by one
-  grudgeMax: 8,           // ...but never past this, so the odds stay inside their own caps
+  grudgeMax: 8,           // ...and the creep stops there. (Raiding a crew and beating one still add to it
+                          // on top, as they always did; the odds they feed have caps of their own.)
   debtRate: 0.06,         // added to the Fixer's daily rate: 8% a day becomes up to 14%
+  // Over 30 days compounding interest could not run away. Over a career it can: $5,500 left alone for 140
+  // days at these rates is nearly four billion, a number nobody can read, and you cannot retire owing the
+  // Fixer anything, so the career could only end by being taken down. He stops counting at this many times
+  // what a strong player clears in a day: a real debt you have to clear, never an impossible one. (Day 30:
+  // $1.6M, which no 30-day run can reach from the $25,000 borrowing limit, so the measured arc is untouched.)
+  debtCap: 8,
   foeMax: 8,              // the most hostiles any street or Bunker fight can field, however late it is
   // --- retiring ---
   retireDay: 7,           // the earliest day you can walk away
@@ -1064,6 +1071,9 @@ const pressName = () => (S.day <= ENDLESS.arc ? '' : PRESS_WORDS[Math.min(PRESS_
 const heatFloor = () => Math.round(ENDLESS.heatFloor * press01());
 // Everything that cools Heat goes through here, so the floor holds. A floor never RAISES your Heat.
 function heatDown(n) { S.heat = Math.max(Math.min(S.heat, heatFloor()), S.heat - n); }
+// The most the Fixer's interest will ever take a debt to (see ENDLESS.debtCap). Borrowing is capped
+// separately, by DEBT_LIMIT; this is the ceiling on what the interest alone can build.
+const debtCeiling = () => Math.round(dayTake(S.day) * ENDLESS.debtCap);
 // ---------- ENDLESS CAREERS: END ----------
 
 // Crews you can join at level 10. The choice is permanent and applies to every run.
@@ -7473,7 +7483,12 @@ const ACTIONS = {
 
   async broker() {
     const cmd = await dialog('The Fixer',
-      `<p>You owe <span class="red">${money(S.debt)}</span>, growing ${pct(debtRate())}% a day.</p>`,
+      // ENDLESS: his rate climbs with the career, and his patience runs out at the ceiling (ENDLESS.debtCap).
+      (S.debt >= debtCeiling() ? `<p>You owe <span class="red">${money(S.debt)}</span>. ` +
+        '"I have stopped adding to it. That is not good news."</p>'
+        : `<p>You owe <span class="red">${money(S.debt)}</span>, growing ${pct(debtRate())}% a day` +
+          (S.debt > 0 ? `, and he stops counting at ${money(debtCeiling())}` : '') + '.</p>') +
+      '<p class="dim">You cannot retire owing him anything.</p>',
       [['Pay down', 'p', 'primary'], ['Borrow', 'b'], ['Leave', null, 'small']]);
     if (cmd === 'p') {
       const most = Math.min(S.cash, S.debt);
@@ -8469,7 +8484,8 @@ function keepFocus(run) {
 
 function nextDay(inside) {
   S.day += 1;
-  S.debt = Math.ceil(S.debt * (1 + debtRate()));
+  // ENDLESS: the interest stops at the ceiling, so a career cannot end up owing a number nobody can read.
+  S.debt = Math.min(Math.max(S.debt, debtCeiling()), Math.ceil(S.debt * (1 + debtRate())));
   const banked = S.wallet;
   S.wallet += walletGain(S.wallet);   // economy 1.28: full rate on the first slice only (ECON)
   if (S.wallet > banked) tally('interest', S.wallet - banked);
@@ -13803,6 +13819,17 @@ async function endlessSelfTest() {
     if (!PRESS_WORDS.includes(pressName())) fail('no word for the pressure', pressName());
     const rate1 = (S.day = 1, debtRate()), rateLate = (S.day = ENDLESS.arc + ENDLESS.ramp, debtRate());
     if (!(rateLate > rate1) || !(rateLate <= DEBT_RATE + ENDLESS.debtRate + 0.0001)) fail('the Fixer\'s rate', rate1, rateLate);
+    // The Fixer stops counting: a debt left alone for a whole career is a number you can still read, and one
+    // you could still clear, so retiring is never locked away for good. Inside the arc he never stops.
+    {
+      S.day = 1; S.debt = DEBT_LIMIT; S.wallet = 0; S.cash = 0;
+      for (let i = 0; i < ENDLESS.arc - 1; i++) nextDay();
+      if (S.debt >= debtCeiling() || !(S.debt > DEBT_LIMIT)) fail('the ceiling bit inside the arc', S.debt, debtCeiling());
+      for (let i = 0; i < 400; i++) nextDay();
+      if (S.debt !== debtCeiling() || !Number.isFinite(S.debt) || S.debt > 1e8) fail('the debt did not stop at the ceiling', S.debt, debtCeiling());
+      S.debt = 0; nextDay();
+      if (S.debt !== 0) fail('nothing owed grew into something', S.debt);
+    }
     // Nothing takes Heat below the floor, and nothing a bag holds is wasted silently.
     S.day = ENDLESS.arc + ENDLESS.ramp; S.heat = 100; S.fx = {vpn: 0, decoy: 0}; S.tricks = 0;
     heatDown(100);
@@ -13842,7 +13869,10 @@ async function endlessSelfTest() {
       if (!Number.isInteger(S.debt) || !Number.isInteger(S.wallet)) fail('money stopped being whole', S.debt, S.wallet);
       if (S.gig && !(S.gig.due > 0 && S.gig.due < S.day + 30)) fail('a gig lost its deadline', S.gig, S.day);
       if (S.leads.some(L => !(L.day >= 1 && L.day <= S.day) || S.day - L.day > DUN.leadDays)) fail('a cold lead was kept', S.leads, S.day);
-      if (Object.values(S.grudge).some(g => !(g >= 0 && g <= ENDLESS.grudgeMax))) fail('a grudge ran away', S.grudge);
+      // (only the nightly creep runs in this loop, and it stops at grudgeMax; raids and fights add on top of
+      //  that in a real career, which is why the main invariant only asks for a whole number at or above zero)
+      if (Object.values(S.grudge).some(g => !(Number.isInteger(g) && g >= 0 && g <= ENDLESS.grudgeMax))) fail('the nightly grudge creep ran away', S.grudge);
+      if (!Number.isInteger(S.debt) || S.debt > Math.max(DEBT_LIMIT, debtCeiling())) fail('the debt ran away', S.debt, debtCeiling());
       if (S.plants.some(p => !(p.pay > 0 && p.left > 0))) fail('a planted device went wrong', S.plants);
     }
     if (S.day < 150) fail('150 nights did not get to day 150', S.day);
