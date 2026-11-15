@@ -6568,10 +6568,7 @@ function renderNow() {
   ];
   // ENDLESS: how hard the street is pressing, shown only once the month is over (and on the handheld too,
   // which builds its VITALS screen from these chips).
-  if (word) {
-    chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%` + (heatFloor() ? ` &middot; Heat floor ${heatFloor()}%` : ''),
-      press01() >= 0.66 ? 'red' : 'amber']);
-  }
+  if (word) chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%`, press01() >= 0.66 ? 'red' : 'amber']);
   // SKILL TREE: points waiting to be spent, shown only while there are any.
   if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan']);
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
@@ -7017,7 +7014,9 @@ const ACTIONS = {
     // BASE: the Bunk sets what a night heals, the Jammer cuts the odds of a raid (and, built up, tells you them).
     // ENDLESS: the longer the career, the more often the door gets kicked in (ENDLESS.raidOdds).
     const raidOdds = () => Math.min(0.5 + ENDLESS.raidOdds * press01(), 0.03 + ENDLESS.raidOdds * press01() + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult();
-    if (!await confirmDlg('Sleep', gut + `<p>Sleep in the Bunker and end the day? You recover ${BV('bed', 'heal')}% Health and ${BV('bed', 'opsec')}% OpSec, and your Heat cools.</p>` + tank +
+    if (!await confirmDlg('Sleep', gut + `<p>Sleep in the Bunker and end the day? You recover ${BV('bed', 'heal')}% Health and ${BV('bed', 'opsec')}% OpSec, and your Heat cools` +
+      // ENDLESS: past the arc the law keeps a file open, and the night can only take you back down to the floor.
+      (heatFloor() ? ` &mdash; but only as far as <b class="amber">${heatFloor()}%</b>. A career this long never goes off the books.</p>` : '.</p>') + tank +
       baseSleepNote(Math.min(0.5 + ENDLESS.raidOdds * press01(), 0.03 + ENDLESS.raidOdds * press01() + Math.max(0, S.heat - HEAT_DECAY - 20 - BV('jam', 'cool')) / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult()) +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
@@ -14026,8 +14025,8 @@ async function selfTest(games) {
         if (act === 'raid') raids++;
         if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
         if (S.over) break;   // the law came in the night, or the dysentery did
-        // ENDLESS: one career in three is a long one that goes well past the old 30-day arc; the rest walk
-        // away once retiring is on offer. Nothing else ends a career now.
+        // ENDLESS: a long haul stays in until day 120; every other career walks away once retiring is on
+        // offer, since nothing else ends one now.
         if (S.loc === BUNKER && Math.random() < (longHaul ? 0.05 : 0.03) && S.day > (longHaul ? 120 : ENDLESS.retireDay)) {
           if (S.debt > 0 && S.cash >= S.debt) { S.cash -= S.debt; S.debt = 0; }   // nobody retires owing the Fixer
           if (retireBlock()) continue;
