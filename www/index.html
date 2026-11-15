@@ -7248,7 +7248,7 @@ const ACTIONS = {
     let html = `<p>Level <b>${li.level}</b>: <span class="cyan">${titleFor(li.level)}</span><br>` +
       `${li.into} / ${li.need} XP to the next level (${num(career.xp)} total)</p>` +
       '<p class="dim">XP comes from profitable sales, freelance jobs, escaping or beating the law and rival crews, raids, clearing your debt, ' +
-      'finishing a run and, most of all, syndicate missions. It carries over between runs.</p>' +
+      `retiring (and every day you stayed in before you did) and, most of all, syndicate missions. It carries over between careers.</p>` +
       '<p class="dim">Cyberware shows on your avatar as you level: ' + WARE.map(([at, what]) =>
         `<span class="${li.level >= at ? 'cyan' : ''}">${what} (${at})</span>`).join(', ') + '.</p>' +
       // The lock picking skill: it belongs to the save, like XP.
