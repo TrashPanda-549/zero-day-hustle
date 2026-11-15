@@ -3284,9 +3284,9 @@ const ACH = {
   retire1: ['Out of the Game', 'Retire from a career instead of being taken down', 300, () => stat('retired') >= 1],
   retirerich: ['Villa, Beach, No Extradition', 'Retire worth $25,000,000', 1500, () => stat('score') >= 25000000],
   // --- LEGACY: old careers turning up in new ones, and the endings they earned ---
-  ghost1: ['Ghosts of the Wire', 'Run into an operator from one of your own old careers', 200, () => stat('legacy') >= 1],
-  ghost10: ['The Whole Graveyard', 'Run into your old careers 10 times', 600, () => stat('legacy') >= 10],
-  record: ['Dead Operator\'s Record', 'Be worth more than the biggest retirement on your own board', 500, () => stat('beatrecord') >= 1],
+  legacy1: ['Ghosts of the Wire', 'Run into an operator from one of your own old careers', 200, () => stat('legacy') >= 1],
+  legacy10: ['The Whole Graveyard', 'Run into your old careers 10 times', 600, () => stat('legacy') >= 10],
+  boardbeat: ['Dead Operator\'s Record', 'Be worth more than the biggest retirement on your own board', 500, () => stat('beatrecord') >= 1],
   ends4: ['Several Ways Out', 'Reach four different endings', 1000, () => Object.keys(career.ends || {}).length >= 4],
   endcat: ['Nothing But the Cat', 'Retire with the cat and almost nothing else', 300, () => !!(career.ends && career.ends.cat)],
 };
@@ -14932,7 +14932,7 @@ async function legacySelfTest() {
     const onBoard = new Set(legacyPool().map(g => g.id));
     if (met.some(id => !onBoard.has(id))) fail('somebody who is not on the board turned up', met);
     if (stat('legacy') < LEGACY.perCareer) fail('meeting a legacy was not counted', career.stats);
-    if (!ACH.ghost1[3]()) fail('meeting a legacy did not earn its achievement', career.stats);
+    if (!ACH.legacy1[3]()) fail('meeting a legacy did not earn its achievement', career.stats);
     newGame();   // a new career meets them all over again
     if (!legacyTake('test')) fail('a new career met nobody');
 
@@ -14997,7 +14997,7 @@ async function legacySelfTest() {
     if (!legacyRecordLine().includes('past it')) fail('the board to beat does not say you are past it', legacyRecordLine());
     nextDay();
     if (stat('beatrecord') !== 1) fail('the record was taken twice', career.stats);
-    if (!ACH.record[3]()) fail('passing the record did not earn its achievement', career.stats);
+    if (!ACH.boardbeat[3]()) fail('passing the record did not earn its achievement', career.stats);
 
     // ---- nothing on the board can be broken: every recorded ending is one the game has ----
     for (const s of hallLoad()) if (s.end && (!ENDINGS[s.end] || !s.epi)) fail('a board entry recorded a broken ending', s);
