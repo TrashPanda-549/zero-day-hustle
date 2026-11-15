@@ -10787,7 +10787,7 @@ async function fightRounds(E) {
       msg = 'They are still on you.';
     } else if (cmd === 'wipe') {
       S.inv = {}; S.cost = {};
-      S.heat = Math.floor(S.heat / 2);
+      heatDown(Math.ceil(S.heat / 2));   // ENDLESS: halved, but never below the floor a long career leaves
       log('<span class="amber">You nuked the drive. The trail went cold.</span>');
       E.result = 'fled';
       await BTL.flee('wipe');
@@ -13730,6 +13730,177 @@ async function dunSelfTest() {
 }
 // ====================== DUNGEONS (deep runs): END ======================
 
+// ====================== ENDLESS CAREERS: the step-by-step test ======================
+// The curves past the arc, everything that counts days at day 300, the pressure, retiring, the hall of
+// fame, and a 1.35 save left on day 28.
+let endlessTally = {nights: 0, retired: 0, longest: 0, botDay: 0};
+async function endlessSelfTest() {
+  const run = S, random = Math.random, mine = career, keep = slot, get = store.get, set = store.set, wasAuto = AUTO;
+  const fail = (what, ...more) => { throw new Error(`Endless test: ${what} ` + JSON.stringify(more)); };
+  const finite = (what, ...vals) => { for (const v of vals) if (!Number.isFinite(v) || Math.abs(v) > 1e15) fail(what, v); };
+  try {
+    career = newCareer();
+    newGame();
+    // ---- the money curve: the measured arc untouched, then damped, rising, capped and always readable ----
+    if (lateMult(1) !== 1 || lateMult(ENDLESS.arc) !== 1) fail('the arc was not left alone', lateMult(ENDLESS.arc));
+    if (!(lateMult(ENDLESS.arc + 1) > 1) || !(lateMult(100) > lateMult(60)) || !(lateMult(365) > lateMult(200))) fail('late growth does not rise');
+    if (lateMult(1e6) !== ENDLESS.lateCap || lateMult(1e9) !== ENDLESS.lateCap) fail('late growth is not capped', lateMult(1e6));
+    if (!(lateMult(200) > 2.5 && lateMult(200) < 3.5)) fail('day 200 is off the designed curve', lateMult(200));
+    let lastSize = 0, lastTake = 0;
+    for (const day of [1, 10, 20, 30, 31, 45, 60, 100, 200, 365, 1000, 10000]) {
+      S.day = day;
+      const size = marketSize(), take = dayTake(day);
+      finite('market size', size); finite('day take', take);
+      if (!(size > lastSize) || !(take >= lastTake)) fail('the money curve does not rise', day, size, take);
+      if (day <= ENDLESS.arc && Math.abs(size - ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(day - 1, ECON.marketCurve))) > 0.001) {
+        fail('the measured arc moved', day, size);
+      }
+      // Every price and payout that climbs with the day stays a number a player can read.
+      finite('effective day', effDay());
+      if (effDay() > ENDLESS.arc * ENDLESS.lateCap + 0.001) fail('effDay ran away', day, effDay());
+      finite('shop scale', 1 + Math.floor(effDay() / 10) * 0.5);
+      finite('extract fee', medFee(), Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5)));
+      finite('drive price', drivePrice(600 * (1 + Math.floor(effDay() / 8))));
+      for (const g of GOODS) finite('depth of ' + g[0], depthOf(g[0]));
+      lastSize = size; lastTake = take;
+    }
+    // ---- the pressure curve ----
+    S.day = 1;
+    if (press01() !== 0 || pressName() !== '' || heatFloor() !== 0) fail('pressure before the arc', press01());
+    S.day = ENDLESS.arc; if (press01() !== 0) fail('pressure on the last day of the arc', press01());
+    S.day = ENDLESS.arc + ENDLESS.ramp; if (press01() !== 1 || heatFloor() !== ENDLESS.heatFloor) fail('pressure does not reach 1', press01(), heatFloor());
+    S.day = ENDLESS.arc + ENDLESS.ramp * 10; if (press01() !== 1 || heatFloor() !== ENDLESS.heatFloor) fail('pressure is not capped', press01());
+    if (!PRESS_WORDS.includes(pressName())) fail('no word for the pressure', pressName());
+    const rate1 = (S.day = 1, debtRate()), rateLate = (S.day = ENDLESS.arc + ENDLESS.ramp, debtRate());
+    if (!(rateLate > rate1) || !(rateLate <= DEBT_RATE + ENDLESS.debtRate + 0.0001)) fail('the Fixer\'s rate', rate1, rateLate);
+    // Nothing takes Heat below the floor, and nothing a bag holds is wasted silently.
+    S.day = ENDLESS.arc + ENDLESS.ramp; S.heat = 100; S.fx = {vpn: 0, decoy: 0}; S.tricks = 0;
+    heatDown(100);
+    if (S.heat !== ENDLESS.heatFloor) fail('Heat went below the floor', S.heat);
+    for (const k of Object.keys(COOL)) if (COOL[k].drop && coolDrop(k) !== 0) fail('a Heat item beat the floor', k, coolDrop(k));
+    for (const k of Object.keys(COOL)) if (COOL[k].drop && !coolBlock(k).includes('as low as it goes')) fail('a useless Heat item was offered', k, coolBlock(k));
+    S.heat = 20;   // below the floor already: a floor must never RAISE your Heat in the middle of a day
+    heatDown(5);
+    if (S.heat !== 20) fail('the floor raised Heat mid-day', S.heat);
+    // ---- however late it is, a fight is a fight a player can win ----
+    for (const day of [1, 30, 120, 400, 5000]) {
+      S.day = day;
+      for (let i = 0; i < 200; i++) {
+        const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)), rnd(2, 3 + Math.floor(effDay() / 6))];
+        if (n.some(v => clampN(v, 1, ENDLESS.foeMax) > ENDLESS.foeMax)) fail('too many hostiles', day, n);
+      }
+      // ...and fight() itself caps whatever it is handed, so no caller can get round it.
+      // ...and fight() itself caps whatever it is handed, so no caller can get round it.
+      const E = {kind: 'law', tier: 0, name: 'the test', n: 999, hit: 0, lo: 0, hi: 0};
+      const realRounds = fightRounds;
+      fightRounds = async F => { F.result = 'won'; return 'won'; };
+      try { await fight(E); } finally { fightRounds = realRounds; }
+      if (E.n !== ENDLESS.foeMax) fail('fight() does not cap the crowd', day, E.n);
+    }
+    // ---- nights past the arc: everything that counts days still behaves ----
+    career = newCareer(); newGame();
+    S.cash = 1e7; S.debt = 0; S.loc = BUNKER;
+    let wasDay = S.day;
+    for (let i = 0; i < 150; i++) {
+      nextDay();
+      endlessTally.nights++;
+      if (S.day !== wasDay + 1 || !Number.isInteger(S.day)) fail('the day did not advance', S.day, wasDay);
+      wasDay = S.day;
+      if (S.day > ENDLESS.arc + 1 && S.heat < heatFloor() - 2) fail('the Heat floor did not hold overnight', S.day, S.heat, heatFloor());
+      if (!(S.heat >= 0 && S.heat <= 100) || !Number.isInteger(S.heat)) fail('Heat is not a whole percentage', S.heat);
+      if (!(S.trips >= 0 && S.trips <= tripsMax())) fail('trips went wrong on a late night', S.trips);
+      finite('debt', S.debt); finite('wallet', S.wallet);
+      if (!Number.isInteger(S.debt) || !Number.isInteger(S.wallet)) fail('money stopped being whole', S.debt, S.wallet);
+      if (S.gig && !(S.gig.due > 0 && S.gig.due < S.day + 30)) fail('a gig lost its deadline', S.gig, S.day);
+      if (S.leads.some(L => !(L.day >= 1 && L.day <= S.day) || S.day - L.day > DUN.leadDays)) fail('a cold lead was kept', S.leads, S.day);
+      if (Object.values(S.grudge).some(g => !(g >= 0 && g <= ENDLESS.grudgeMax))) fail('a grudge ran away', S.grudge);
+      if (S.plants.some(p => !(p.pay > 0 && p.left > 0))) fail('a planted device went wrong', S.plants);
+    }
+    if (S.day < 150) fail('150 nights did not get to day 150', S.day);
+    endlessTally.longest = Math.max(endlessTally.longest, S.day);
+    // The markets still roll, and still have something on the shelf, at day 150.
+    S.loc = 'Tor Bazaar'; rollMarket();
+    if (!GOODS.some(([n]) => S.prices[n] > 0) || GOODS.some(([n]) => S.prices[n] && !(book(n).depth > 0 && book(n).stock >= 0))) {
+      fail('the markets stopped working late', S.prices);
+    }
+    // ---- retiring: when it is refused, what it pays, and what it leaves behind ----
+    career = newCareer(); newGame();
+    S.day = 2; S.loc = BUNKER;
+    if (!retireBlock().includes('day 2')) fail('retiring too early was allowed', retireBlock());
+    S.day = 40;
+    if (!retireBlock().includes('Fixer')) fail('retiring in debt was allowed', retireBlock());
+    S.debt = 0; S.loc = 'Tor Bazaar';
+    if (!retireBlock().includes('Bunker')) fail('retiring on the street was allowed', retireBlock());
+    S.loc = BUNKER;
+    if (retireBlock()) fail('retiring was refused with everything in order', retireBlock());
+    S.cash = 1000000; S.wallet = 500000; S.inv = {}; S.stash = {}; S.rides = []; S.ride = '';
+    if (retireWorth().total !== 1500000) fail('a bare retirement is not cash plus wallet', retireWorth());
+    S.drive = 100000;
+    addItems('Zero-Days', 10, 1); S.stash['Warez'] = 100;
+    grantVehicle('board'); grantVehicle('hatch');
+    const W = retireWorth();
+    const midZ = (GOODS[0][1] + GOODS[0][2]) / 2, midW = (GOODS[9][1] + GOODS[9][2]) / 2;
+    if (W.n !== 110 || W.goods !== Math.round((midZ * 10 + midW * 100) * ENDLESS.fence)) fail('the fence paid wrong', W, midZ, midW);
+    if (W.rides !== rideValue('board') + rideValue('hatch')) fail('the garage was not sold up', W);
+    if (W.total !== 1500000 + W.goods + W.rides) fail('the retirement total is wrong', W);
+    autoPick = all => (all.includes(true) ? true : all[0]);
+    try { await ACTIONS.retire(); } finally { autoPick = null; }
+    if (!S.over || !S.retired) fail('retiring did not end the career', S.over, S.retired);
+    const xpWas = career.xp, scoreWant = W.total;
+    await finish();
+    endlessTally.retired++;
+    if (stat('retired') !== 1 || stat('runs') !== 1 || stat('score') !== scoreWant) fail('retiring was not recorded', career.stats);
+    if (!(career.xp > xpWas + 100 + 40 * ENDLESS.retireXp - 1)) fail('a long career paid no XP for its days', xpWas, career.xp);
+    // ...and being taken down pays nothing at all.
+    career = newCareer(); newGame();
+    S.day = 60; S.cash = 9e6; S.busted = true; S.over = true;
+    await finish();
+    if (stat('score') || stat('runs') || stat('retired')) fail('a career that was taken down banked a score', career.stats);
+    // ---- the hall of fame: two tables, old entries kept, nothing lost ----
+    AUTO = false;
+    const mem = {'zdh-scores': [{handle: 'old', score: 9e9}, {handle: 'thirty', score: 4e6, eco: 2}]};
+    store.get = key => (key in mem ? JSON.parse(JSON.stringify(mem[key])) : null);
+    store.set = (key, value) => { mem[key] = JSON.parse(JSON.stringify(value)); };
+    try {
+      const e1 = hallAdd('short', 2000000, 40), e2 = hallAdd('long', 6000000, 300);
+      if (!e1 || !e2 || e1.rate !== 50000 || e2.rate !== 20000 || e1.eco !== ECON.version) fail('an entry was not banked', e1, e2);
+      const html = hallHtml(e2);
+      for (const want of ['BIGGEST RETIREMENT', 'BEST A DAY', 'THE THIRTY DAYS', 'BEFORE THE CRASH', 'short', 'long', 'old', 'thirty', 'day 300']) {
+        if (!html.includes(want)) fail('the hall of fame does not show ' + want);
+      }
+      if (hallLoad().length !== 4) fail('the hall of fame lost an entry', hallLoad());
+      // The shorter career wins on the rate table and loses on the score table: that is the whole point.
+      const rated = hallLoad().filter(s => s.eco === ECON.version).sort(byRate);
+      if (rated[0].handle !== 'short' || hallLoad().filter(s => s.eco === ECON.version).sort(byScore)[0].handle !== 'long') {
+        fail('the two tables rank the same way', rated);
+      }
+      // Rubbish in storage is survived, not trusted.
+      mem['zdh-scores'] = 'not an array';
+      if (hallLoad().length) fail('a broken hall of fame was believed', hallLoad());
+      mem['zdh-scores'] = [null, {score: 'x'}, {handle: 'ok', score: 1, days: 1, rate: 1, eco: ECON.version}];
+      if (hallLoad().length !== 1 || !hallHtml().includes('ok')) fail('a half-broken hall of fame was not cleaned up', hallLoad());
+    } finally { AUTO = wasAuto; store.get = get; store.set = set; }
+    // ---- a 1.35 save left on day 28 loads, and the career carries on past 30 ----
+    career = newCareer(); newGame();
+    const old = JSON.parse(JSON.stringify(S));
+    old.day = 28; old.cash = 400000; old.debt = 0; old.loc = BUNKER; old.heat = 12;
+    delete old.retired;   // 1.35 saves have no such thing
+    const record = JSON.parse(JSON.stringify(newCareer()));
+    store.get = key => (key === 'zdh-save' ? JSON.parse(JSON.stringify(old)) : key === 'zdh-career' ? JSON.parse(JSON.stringify(record)) : null);
+    try { if (!loadSave(0)) fail('the day-28 save did not load'); } finally { store.get = get; slot = keep; }
+    if (S.day !== 28 || S.over) fail('the day-28 save came back wrong', S.day, S.over);
+    S.loc = BUNKER; S.cash = 400000;
+    autoPick = all => (all.includes(true) ? true : all[0]);
+    try { for (let i = 0; i < 5; i++) { if (S.over) break; await ACTIONS.sleep(); await flushNotes(); } } finally { autoPick = null; }
+    if (!S.over && S.day <= ENDLESS.arc) fail('a day-28 save could not get past the old deadline', S.day);
+    if (!S.over && (S.day !== 33 || retireBlock())) fail('the old save cannot retire after carrying on', S.day, retireBlock());
+  } finally {
+    Math.random = random; autoPick = null; AUTO = wasAuto; store.get = get; store.set = set;
+    slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
+  }
+}
+// ====================== ENDLESS CAREERS: the step-by-step test: END ======================
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -13803,6 +13974,7 @@ async function selfTest(games) {
         await baseSelfTest();   // BASE
         await skillSelfTest();   // SKILL TREE
         await dunSelfTest();    // DUNGEONS
+        await endlessSelfTest();   // ENDLESS CAREERS
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
@@ -13827,7 +13999,11 @@ async function selfTest(games) {
       for (const k of Object.keys(COOL)) S[k] = pick([0, 0, rnd(0, GADGETS[k][2])]);
       for (const k of Object.keys(AMMO)) S.ammo[k] = pick([0, 0, rnd(1, 40)]);
       let wasFit = true, wasSyn = career.syn;
-      for (let step = 0; step < 600 && !S.over; step++) {
+      // ENDLESS: careers are given a much longer leash until one of them has played a real long haul (day
+      // 120 and past it) with every invariant below watching. A long haul only walks away once it is there;
+      // if it is taken down first, the next career tries again.
+      const longHaul = game > 0 && endlessTally.botDay < 120, steps = longHaul ? 4000 : 600;
+      for (let step = 0; step < steps && !S.over; step++) {
         const r = Math.random();
         const act = r < 0.3 ? 'buy' : r < 0.5 ? 'sell' : r < 0.6 ? 'contract' : r < 0.65 ? 'dump'
           : r < 0.8 ? 'travel' : r < 0.83 ? pick(['sleep', 'store', 'take', 'locker']) : r < 0.86 ? 'broker' : r < 0.89 ? 'wallet'
@@ -13838,6 +14014,17 @@ async function selfTest(games) {
         if (act === 'raid') raids++;
         if (S.loc === BUNKER && Math.random() < 0.4) await ACTIONS.sleep();   // days only pass by sleeping
         if (S.over) break;   // the law came in the night, or the dysentery did
+        // ENDLESS: one career in three is a long one that goes well past the old 30-day arc; the rest walk
+        // away once retiring is on offer. Nothing else ends a career now.
+        if (S.loc === BUNKER && Math.random() < (longHaul ? 0.05 : 0.03) && S.day > (longHaul ? 120 : ENDLESS.retireDay)) {
+          if (S.debt > 0 && S.cash >= S.debt) { S.cash -= S.debt; S.debt = 0; }   // nobody retires owing the Fixer
+          if (retireBlock()) continue;
+          autoPick = all => (all.includes(true) ? true : all[0]);
+          try { await ACTIONS.retire(); } finally { autoPick = null; }
+          if (S.over) { endlessTally.retired++; endlessTally.longest = Math.max(endlessTally.longest, S.day); break; }
+        }
+        endlessTally.longest = Math.max(endlessTally.longest, S.day);
+        endlessTally.botDay = Math.max(endlessTally.botDay, S.day);
         // The prison pocket, away from a fight so it happens often enough: hide something small, get it back
         // out, and half the time make sure some of it sticks. (Real brushes with the law use it at random too.)
         if (Math.random() < 0.012 && pocketRoom() > 0) {
@@ -14206,10 +14393,15 @@ async function selfTest(games) {
     if (games >= 20 && !(skTally.spent > skWas.spent && skTally.deep >= 2 && skTally.fired > skWas.fired && skTally.respec)) {
       throw new Error('the skill tree was not exercised: ' + JSON.stringify(skTally));
     }
+    // ENDLESS: ...and careers must have been played well past the old arc and walked away from on purpose.
+    if (games >= 20 && !(endlessTally.retired >= 2 && endlessTally.botDay >= 120 && endlessTally.nights >= 150)) {
+      throw new Error('endless careers were not exercised: ' + JSON.stringify(endlessTally));
+    }
+    const esum = ` retirements=${endlessTally.retired} longestcareer=${endlessTally.longest} longestbotcareer=${endlessTally.botDay} latenights=${endlessTally.nights}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
