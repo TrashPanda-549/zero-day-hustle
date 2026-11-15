@@ -124,11 +124,12 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #news{margin:10px 0 0}
 #news div{color:var(--yellow);padding:2px 0}
 #news div::before{content:">> ";color:var(--pink)}
-#quest .fold{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
-#quest .fold>summary{color:var(--pink)}
-#quest .fold>summary small{text-align:right}
-#quest .fold[open]>summary small{display:none}
-#quest .fold .job{margin:6px}
+/* the syndicate mission: always open, and kept to a heading line and one block */
+#quest .qnow{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
+#quest .qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
+  color:var(--pink);font-weight:normal}
+#quest .qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
+#quest .qnow .job{margin:6px}
 #market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
 .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
   border-bottom:1px solid var(--line)}
@@ -468,7 +469,7 @@ button .ico.room{width:44px;height:26px}
    tall (a desktop window, a tablet on its side, a desktop browser). Below that nothing here does anything and
    the page is the one-column phone layout above (from 761px that one column runs the full width).
    #colme (you: avatar, level, health, stat chips), #coltrade (mission, products, jobs, actions) and, inside
-   it, #colmarket (the mission fold directly above the products) are plain wrappers; on a phone
+   it, #colmarket (the mission directly above the products) are plain wrappers; on a phone
    they are display:contents, which is the same as not being there.
    The play screen fills the window edge to edge like the loading screen: #app is pinned to all four sides and
    becomes a grid of panels that scroll inside themselves, so the page itself never scrolls.
@@ -507,9 +508,9 @@ button .ico.room{width:44px;height:26px}
   #log{grid-area:log;margin:10px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:14px}
   #log div{padding:3px 0}
   #hud{margin-top:0;grid-template-columns:66px minmax(0,1fr)}
-  /* the mission fold stays directly above the products; the products take the spare height and scroll */
+  /* the mission stays directly above the products; the products take the spare height and scroll */
   #quest{flex:none}
-  #quest .fold{margin:0 0 10px}
+  #quest .qnow{margin:0 0 10px}
   #market{margin-top:0;flex:1 1 auto;min-height:0;overflow-y:auto;
     display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
   #market>.fold,#market>.row:first-child{grid-column:1/-1}
@@ -1711,7 +1712,8 @@ function adoptOldSave() {
     localStorage.setItem('zdh-last', '1');
   } catch (e) {}
 }
-// The drop-downs on the main screen (syndicate mission, products, Local BBS). Which ones are open is remembered.
+// The drop-downs on the main screen (products, Local BBS). Which ones are open is remembered.
+// The syndicate mission above them is not one of these: it is always open (see render()).
 const FOLDS = store.get('zdh-folds') || {};
 const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${FOLDS[id] ? ' open' : ''}>` +
   `<summary>${label}<small>${note}</small></summary>${body}</details>`;
@@ -5828,12 +5830,13 @@ function render() {
     `<span class="bar"><i style="width:${Math.floor(li.into / li.need * 100)}%"></i></span>` +
     `<span class="xp">${career.syn ? SYNDICATES[career.syn][0] : `${li.into}/${li.need} XP`}</span>`;
   const Q = quest();
-  // The syndicate mission sits above the products, folded to one line (tap to open; the fold is remembered).
-  $('#quest').innerHTML = !Q ? '' : fold('quest', `${SYNDICATES[career.syn][0].toUpperCase()} MISSION`,
-    `${Q.title} &middot; ${Q.kind === 'heist' ? heistShort(Q) : questStatus(Q)}`,   // a break-in shows its stage, even folded
+  // The syndicate mission sits above the products and the Local BBS, always open: it is the thing above what
+  // you use most, so it is kept to a heading line and one block (1.34.0; it used to be a fold, shut by default).
+  $('#quest').innerHTML = !Q ? '' : `<div class="qnow"><h3>${SYNDICATES[career.syn][0].toUpperCase()} MISSION` +
+    `<small>${Q.kind === 'heist' ? heistShort(Q) : questStatus(Q)}</small></h3>` +
     `<div class="job quest"><div><div class="what">${Q.title}</div><div class="sub">${questGoal(Q)}</div>` +
-    `<div class="sub"><span class="cyan">${questStatus(Q)}</span> &middot; pays ${questReward(Q)}</div></div>` +
-    '<button data-act="syndicate">Briefing</button></div>');
+    `<div class="sub">pays ${questReward(Q)}</div></div>` +
+    '<button data-act="syndicate">Briefing</button></div></div>';
   $('#jobs').innerHTML =
     (!S.gig || !CONTACTS[S.gig.who] ? '' : `<h3>STREET GIG &middot; ${S.gig.who.toUpperCase()}</h3>` +
     `<div class="job gig"><div><div class="what">${S.gig.title}</div><div class="sub">${gigGoal(S.gig)}</div>` +
