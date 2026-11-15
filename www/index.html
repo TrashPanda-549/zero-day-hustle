@@ -4248,7 +4248,8 @@ function getLook() {
 }
 
 // Draws one person in a 200 x 352 box. Used for the player and for everyone who comes after them.
-// F: {look, gear: {slot: {kind, c, rar, fill}}, syn, level, weapon, emp, hp, mood, gold, ko, cuffs}
+// F: {look, gear: {slot: {kind, c, rar, fill}}, syn, level, weapon, emp, hp, mood, gold, ko, cuffs, glow}
+// glow: false draws the clothes in their own colours, with no rarity trim and no rarity glow (see wear()).
 function figure(F) {
   const INK = '#0b0a19', EYE = '#1b1426', GOLD = '#ffd24a', CYAN = '#00e5ff';
   const [, SKIN, SHADE] = SKINS[F.look.skin];
@@ -4268,9 +4269,14 @@ function figure(F) {
   const twin = s => s + flip(s);   // any shapes plus their mirror image
   // A piece of clothing: solid material colour, thin trim in the rarity colour.
   // Rare glows, Epic pulses, Legendary shimmers.
-  const wear = (p, fill, shapes) => `<g class="av-w${p.c === RCOL[0] ? '' : ' av-trim'}${p.rar >= 3 ? (p.rar === 4 ? ' av-leg' : ' av-epic') : ''}" ` +
-    `fill="${p.fill || fill}" stroke="${p.c}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"` +
-    `${p.rar >= 2 ? ` style="--rc:${p.c};filter:drop-shadow(0 0 3px ${p.c})"` : ''}>${shapes}</g>`;
+  // F.glow === false turns all of that off: the trim goes back to the plain colour every Common piece has and
+  // nothing glows, so the clothes are drawn in their own colours. That is how the player is drawn as a person
+  // (the avatar and the figure in a fight); the rarity colour belongs on the item's picture, where you are
+  // looking at the item itself. Foes are not touched: their trim is their faction's colour, not a rarity.
+  const trim = F.glow === false ? RCOL[0] : null;
+  const wear = (p, fill, shapes) => `<g class="av-w${(trim || p.c) === RCOL[0] ? '' : ' av-trim'}${!trim && p.rar >= 3 ? (p.rar === 4 ? ' av-leg' : ' av-epic') : ''}" ` +
+    `fill="${p.fill || fill}" stroke="${trim || p.c}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"` +
+    `${!trim && p.rar >= 2 ? ` style="--rc:${p.c};filter:drop-shadow(0 0 3px ${p.c})"` : ''}>${shapes}</g>`;
   const SLEEVE = 'M70 76 Q56 80 52 96 Q46 140 42 196 L57 199 Q60 160 67 118 Z';
   const TORSO = 'M70 75 Q100 68 130 75 L137 84 L139 120 Q134 160 132 190 L68 190 Q66 160 61 120 L63 84 Z';
   let out = '';
@@ -5264,7 +5270,9 @@ function avatarSvg(o) {
   const kinds = [['emp', '#00e5ff'], ['smoke', '#c9d1d5'], ['bomb', '#ff4fd8'], ['fakeid', '#fcee0a']];
   const belt = kinds.filter(([k]) => st[k] > 0).map(([, c]) => c)
     .concat(kinds.flatMap(([k, c]) => Array(Math.max(0, (st[k] || 0) - 1)).fill(c)));
-  const F = {look: getLook(), syn: career.syn, level: lvl, weapon: weaponArt(st.weapon || 0), belt, hp,
+  // glow: false — this is you as a person, so your gear is drawn in its own colours. The rarity colour is
+  // for the pictures of the items themselves (gearIcon), in the inventory and the lists that sell and hand them out.
+  const F = {look: getLook(), syn: career.syn, level: lvl, weapon: weaponArt(st.weapon || 0), belt, hp, glow: false,
     gear: Object.fromEntries(Object.keys(SLOTS).map(slot => [slot, part(slot)])),
     mood: pose === 'busted' ? 'ouch' : rich ? 'grin' : o.mood || (quiet ? '' : st.mood) || '',
     gold: rich, ko: pose === 'down', cuffs: pose === 'busted'};
@@ -8967,7 +8975,8 @@ const BTL = (() => {
     const belt = kinds.filter(([k]) => S[k] > 0).map(([, c]) => c)
       .concat(kinds.flatMap(([k, c]) => Array(Math.max(0, (S[k] || 0) - 1)).fill(c)));
     const hp = S.hp > 60 ? 100 : S.hp > 35 ? 60 : S.hp > 15 ? 35 : 15;   // the steps at which the drawing changes
-    return Object.assign({look: getLook(), syn: career.syn, level: level(), weapon: 0, belt, hp, mood: '',
+    // glow: false — the same as the avatar: no rarity trim or glow on the person, only on the item's picture.
+    return Object.assign({look: getLook(), syn: career.syn, level: level(), weapon: 0, belt, hp, mood: '', glow: false,
       gear: Object.fromEntries(Object.keys(SLOTS).map(slot => [slot, part(slot)]))}, o);
   }
 
