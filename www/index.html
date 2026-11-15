@@ -165,6 +165,9 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .job.quest button:active:not(:disabled){background:var(--cyan);color:#000}
 #actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
 #actions button{min-height:46px}
+/* SHOP TILES: an action button's tile is small enough to leave the label its room */
+#actions button.hasico{gap:5px;padding:4px 6px}
+#actions button.hasico .ico.room{width:34px;height:20px}
 #log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
 #log div{padding:1px 0}
 #log div:first-child{color:var(--fg)}
@@ -736,6 +739,10 @@ button .ico.room{width:44px;height:26px}
   #tiny .acts button::before{counter-increment:n;content:counter(n) "  ";color:var(--yellow);font-weight:bold}
   #tiny .acts button:disabled{opacity:.4}
   #tiny .acts button.primary::before{color:#000}
+  /* SHOP TILES: a tile on an action button stays on the line here, at the height of the line */
+  #tiny .acts button.hasico{display:flex;align-items:center;gap:4px;padding:0 5px}
+  #tiny .acts button.hasico .ico.room{width:26px;height:15px}
+  #tiny .acts button.hasico > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
 
   /* the log and the news, read a page at a time */
   #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
@@ -882,6 +889,13 @@ button .ico.room{width:44px;height:26px}
   .bpop{font-size:13px;text-shadow:1px 1px 0 #000,-1px -1px 0 #000}
   .bpop small{font-size:8px}
 }
+/* ===== NEMESIS: the record page for the ones who got away (see NEM): START ===== */
+.nemrow{border-left-width:3px}
+.nemrow .versus{float:right;margin:0 0 4px 8px}
+.nemrow .nempip{letter-spacing:2px;color:var(--red)}
+.nemrow .nempip .off{color:var(--dim)}
+.nemgone b{color:var(--dim)}
+/* ===== NEMESIS: END ===== */
 </style>
 </head>
 <body class="ident">
@@ -2815,6 +2829,8 @@ const SND = (() => {
 // FACES: stand is how the cast feels about you (-STAND_MAX..STAND_MAX), memo what they remember you doing.
 const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, stand: {}, memo: {}, lockpick: 0,
   base: newBase(), marks: newMarks(),   // BASE: the Bunker's stations and the weapon skills
+  ends: {},   // LEGACY: the endings this save has reached, {id: when}
+  nem: [], nemGone: [],   // NEMESIS: the survivors still out there, and the stories that are finished
   skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
@@ -3123,10 +3139,13 @@ const skRow = id => {
 async function skillTree() {
   for (;;) {
     const p = skPoints();
-    const html = `<p><b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
-      `${skCount()} of ${skIds().length} routines running</p>` +
-      // Kept to one line: on a 320x170 screen everything above the branch buttons has to be scrolled past.
-      `<p class="dim">${SKILL.perLevel} point a level. A branch is a line, and no career can afford every branch.</p>` +
+    // SHOP TILES: the tree gets a picture, folded into the two lines that were already here rather than
+    // added above them. Kept to one row: on a 320x170 screen everything above the branch buttons has to be
+    // scrolled past.
+    const html = `<div class="syn">${withIcon(shopIcon('skills'),
+      `<b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
+      `${skCount()} of ${skIds().length} routines running<br>` +
+      `<span class="dim">${SKILL.perLevel} point a level. A branch is a line, and no career can afford every branch.</span>`)}</div>` +
       Object.entries(SK_BRANCHES).map(([b, [name, what]]) => {
         const ids = skBranch(b), on = ids.filter(skHas).length;
         return `<div class="syn skbr"><b class="${on === ids.length ? 'green' : on ? 'cyan' : ''}">${name}</b> ` +
@@ -3283,6 +3302,13 @@ const ACH = {
   dunboth: ['Body and Wire', 'Clear a building and a network dive', 300, () => stat('dunsite') >= 1 && stat('dundive') >= 1],
   dundeep: ['Sub-Basement', `Clear a deep run ${DUN_FLOORS} floors deep`, 500, () => stat('dundeep') >= 1],
   dunbail: ['Knowing When to Stop', 'Walk out of a deep run carrying 10 goods or more', 150, () => stat('dunbail') >= 1],
+  // --- nemeses (see NEM): the ones who got away. "three" is NEM.cap, which is set with the rest of that code ---
+  nem1: ['Someone Got Away', 'Beat a rival crew and leave a survivor behind', 100, () => stat('nemborn') >= 1],
+  nemmet: ['Long Memory', 'Have a survivor come back and find you', 150, () => stat('nemmet') >= 1],
+  nemfull: ['Popular', 'Have three nemeses out there at once', 300, () => stat('nemfull') >= 1],
+  nemback: ['It Was Sentimental', 'Take back something a nemesis was carrying', 200, () => stat('nemback') >= 1],
+  nemdown: ['No Loose Ends', 'Put a nemesis down for good', 400, () => stat('nemdown') >= 1],
+  nemdown3: ['Closure', 'Put down three nemeses in one career', 800, () => stat('nemdown') >= 3],
   // --- endless careers (see ENDLESS): staying in, and walking out ---
   day50: ['Overstayed', 'Still working on day 50', 150, () => S.day >= 50],
   day100: ['Lifer', 'Still working on day 100', 400, () => S.day >= 100],
@@ -3301,6 +3327,12 @@ const ACH = {
     () => LOCATIONS.some(l => l !== BUNKER && distTrade(l) >= 90)],
   lockdown: ['Heavy Police Presence', 'Bring one district to a standstill with break-ins', 150,
     () => LOCATIONS.some(l => l !== BUNKER && distSec(l) >= 90)],
+  // --- LEGACY: old careers turning up in new ones, and the endings they earned ---
+  legacy1: ['Ghosts of the Wire', 'Run into an operator from one of your own old careers', 200, () => stat('legacy') >= 1],
+  legacy10: ['The Whole Graveyard', 'Run into your old careers 10 times', 600, () => stat('legacy') >= 10],
+  boardbeat: ['Dead Operator\'s Record', 'Be worth more than the biggest retirement on your own board', 500, () => stat('beatrecord') >= 1],
+  ends4: ['Several Ways Out', 'Reach four different endings', 1000, () => Object.keys(career.ends || {}).length >= 4],
+  endcat: ['Nothing But the Cat', 'Retire with the cat and almost nothing else', 300, () => !!(career.ends && career.ends.cat)],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -3441,8 +3473,10 @@ function fixCareer() {
     if (!CAST[name] || !m || typeof m !== 'object' || typeof m.w !== 'string') delete career.memo[name];
     else { m.w = m.w.slice(0, 90); m.d = Number.isInteger(m.d) && m.d >= 1 ? m.d : 1; }
   }
+  if (!career.ends || typeof career.ends !== 'object' || Array.isArray(career.ends)) career.ends = {};   // LEGACY: from before the endings, none have been reached
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
+  nemFix();      // NEMESIS: from before the nemeses, nobody is out there; a damaged list is tidied, not trusted
   fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
@@ -3696,8 +3730,12 @@ async function contact() {
   const G = makeGig(name);
   log(`${name} was waiting for you at ${S.loc}.`);
   render();
+  // LEGACY: some of them knew a career of yours that ended, and say so before they get to the job.
+  // (FACES + LEGACY: both, in that order. How they feel about you is who is talking; the operator they knew
+  //  is an aside they drop before the job. Neither one suppresses the other.)
+  const ghost = Math.random() < LEGACY.contact ? legacyTake('contact') : null;
   const html = contactHead(name) + `<p class="dim">${role}. Trust: ${trustStars(name)}</p>` + castState(name) +
-    `<p>${castLine(name, line)}</p>` +
+    `<p>${castLine(name, line)}</p>` + legacyContactLine(ghost) +
     `<div class="syn"><b>${G.title}</b><br>"${G.pitch}"</div>` +
     `<p><b>${gigGoal(G)}</b><br><span class="amber">You have until the end of day ${G.due}.</span></p>` +
     `<p>Pays: ${questReward(G)}</p>` +
@@ -4632,12 +4670,14 @@ function stash(it) {
 }
 
 // Pass an item to hand over that exact one (a mission reward) instead of rolling loot.
-async function dropLoot(from, boost, gift) {
+// LEGACY: `asLoot` passes an exact item that was FOUND, not handed over, so it is framed as loot.
+async function dropLoot(from, boost, gift, asLoot) {
   const it = gift || makeItem(rollRarity(boost));
+  const reward = !!gift && !asLoot;
   const worn = career.gear[it.slot];
   SND.play('loot');
-  log(`${gift ? 'Reward' : 'Loot'} from ${from}: <span class="r${it.rar}">${it.name}</span> (${RARITY[it.rar]}).`);
-  const choice = await dialog(gift ? 'Reward!' : 'Loot!', `<p>${from} ${gift ? 'hands you your cut' : 'left something behind'}:</p><div class="syn">${itemHtml(it)}</div>` +
+  log(`${reward ? 'Reward' : 'Loot'} from ${from}: <span class="r${it.rar}">${it.name}</span> (${RARITY[it.rar]}).`);
+  const choice = await dialog(reward ? 'Reward!' : 'Loot!', `<p>${from} ${reward ? 'hands you your cut' : 'left something behind'}:</p><div class="syn">${itemHtml(it)}</div>` +
     (worn ? `<p class="dim">You are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
     [['Equip it', 'e', 'primary'], ['Put it in the bag', 'b']]);
@@ -6551,6 +6591,11 @@ function rollMarket() {
     }
     if (Object.keys(S.prices).length >= 4) break;
   }
+  // LEGACY: now and then the news on a market is not about prices at all, but about a career that ended.
+  {
+    const ghost = Math.random() < LEGACY.news ? legacyTake('news') : null;
+    if (ghost) S.news.push(legacyNewsLine(ghost));
+  }
   rollContracts();   // priced off the day's prices, before what you did here lately moves them
   const hang = openBooks();   // economy 1.28: market depth (see ECON)
   // Today's gear on the black market: up to Epic, never Legendary.
@@ -6866,6 +6911,13 @@ const MISC_ART = {
   medkit: '<rect x="3" y="7" width="18" height="13" rx="2" fill="#e9e9f0" stroke="#0b0a19"/><rect x="9" y="4" width="6" height="4" rx="1" fill="none" stroke="#e9e9f0" stroke-width="1.4"/><path d="M12 10 v7 M8.5 13.5 h7" stroke="#ff3b5c" stroke-width="2.4"/>',
   proxy: '<g fill="none" stroke="#00e5ff" stroke-width="2"><rect x="2.5" y="9" width="8" height="6" rx="3"/><rect x="13.5" y="9" width="8" height="6" rx="3"/></g><rect x="8" y="10.5" width="8" height="3" rx="1.5" fill="none" stroke="#ff4fd8" stroke-width="2"/>',
   doc: '<circle cx="12" cy="12" r="9" fill="#0f6644" stroke="#3dff9a"/><path d="M12 6.5 v11 M6.5 12 h11" stroke="#fff" stroke-width="3"/>',
+  // SHOP TILES: patrols on the Intel Board used to borrow the Decoy Swarm's picture. A cruiser is a cruiser.
+  patrol: '<rect x="2" y="12" width="20" height="7" rx="1.5" fill="#1c2f5e" stroke="#4da3ff"/>' +
+    '<path d="M6 12 l2.6 -4.5 h6.8 l2.6 4.5 z" fill="#0b1c2a" stroke="#4da3ff" stroke-width=".8"/>' +
+    '<rect x="8" y="3.6" width="8" height="3.6" rx="1" fill="#2a2f45" stroke="#c9d1d5" stroke-width=".7"/>' +
+    '<rect x="8.7" y="4.3" width="3" height="2.2" fill="#ff3b5c"/><rect x="12.3" y="4.3" width="3" height="2.2" fill="#4da3ff"/>' +
+    '<circle cx="7" cy="19.2" r="2.2" fill="#0b0a19" stroke="#c9d1d5" stroke-width=".8"/>' +
+    '<circle cx="17" cy="19.2" r="2.2" fill="#0b0a19" stroke="#c9d1d5" stroke-width=".8"/>',
   // --- Heat items ---
   burner: '<rect x="7" y="2.5" width="10" height="19" rx="2" fill="#2a2f45" stroke="#3dff9a"/><rect x="9" y="5" width="6" height="6.5" fill="#3dff9a" opacity=".85"/><path d="M9.5 14 h1 M11.5 14 h1 M13.5 14 h1 M9.5 16.2 h1 M11.5 16.2 h1 M13.5 16.2 h1 M9.5 18.4 h1 M11.5 18.4 h1 M13.5 18.4 h1" stroke="#c9d1d5" stroke-width="1.1"/>',
   acid: '<path d="M10 2.5 h4 v4 l3 4 v9.5 a1.5 1.5 0 0 1 -1.5 1.5 h-7 a1.5 1.5 0 0 1 -1.5 -1.5 v-9.5 l3 -4 z" fill="#14351f" stroke="#3dff9a"/><path d="M7.6 13 h8.8 v6.6 a1 1 0 0 1 -1 1 h-6.8 a1 1 0 0 1 -1 -1 z" fill="#3dff9a" opacity=".8"/><path d="M9.5 16 q2.5 -2.6 5 0 M10.4 18 q1.6 -1.7 3.2 0 M11.4 19.6 q.6 -.6 1.2 0" stroke="#0b0a19" stroke-width="1" fill="none"/>',
@@ -6955,6 +7007,86 @@ const RIDE_ART = (() => {
   };
 })();
 const rideIcon = id => (RIDE_ART[id] ? `<svg class="ico ride" viewBox="0 0 40 24" aria-hidden="true">${RIDE_ART[id]}</svg>` : '');
+
+// ---------- SHOP TILES ----------
+// Places you go into that are not rooms of the Bunker: the three ride shops, and the few screens that are a
+// place in their own right (a deep run, the Heat kit on the bench, the skill tree). Drawn in the same 88 x 50
+// cutaway box as ROOM_ART, with the same primitives and the same palette, so a shop tile and a room tile sit
+// beside each other without an argument. Built once at load; nothing here is drawn per frame.
+const SHOP_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', STEEL = '#8a8fa8', DARK = '#2a2f45';
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 1}"${o || ''}/>`;
+  const c = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const sk = col => ` stroke="${col}"`;
+  const sh = (d, f, st, o) => `<path d="${d}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  const ell = (x, y, rx, ry, f, st, o) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  // a wheel seen side-on, hub and two spokes: the bike shop is nothing but these
+  const wheel = (x, y, rad, col) => c(x, y, rad, 'none', sk(col || GREY) + ' stroke-width="1.4"') + c(x, y, 1.1, col || GREY) +
+    p(`M${x - rad} ${y} h${rad * 2} M${x} ${y - rad} v${rad * 2}`, col || GREY, 0.5, ' opacity=".6"');
+  // the only lettering any tile needs, as blocks: a hand-painted 404 over a bike shed door
+  const GLYPH = {0: [[0, 0, 4, 1], [0, 6, 4, 1], [0, 1, 1, 5], [3, 1, 1, 5]], 4: [[0, 0, 1, 4], [0, 4, 4, 1], [3, 0, 1, 7]]};
+  const digits = (txt, x, y, s, col) => [...txt].map((ch, i) =>
+    GLYPH[ch].map(([dx, dy, w, h]) => r(x + i * 5 * s + dx * s, y + dy * s, w * s, h * s, col)).join('')).join('');
+  const crate = (x, y, s) => r(x, y, s, s, '#6b4a2a', sk('#c98f6b')) + p(`M${x} ${y} l${s} ${s} M${x + s} ${y} l${-s} ${s}`, '#c98f6b', 0.7);
+  return {
+    // 404: Brakes Not Found. A pegboard of wheels, a hand-painted sign, a workstand with a frame up on it,
+    // and more wheels on the floor. Nothing in the shop has a brake on it, which is the joke.
+    bike: r(2, 4, 46, 26, '#17142e', sk('#3dff9a')) +
+      p('M5 9 h40 M5 15 h40 M5 21 h40 M5 27 h40', '#3dff9a', 0.5, ' stroke-dasharray=".8 3.2" opacity=".5"') +
+      wheel(14, 17, 8) + wheel(32, 17, 8) + wheel(44, 11, 4.5, '#ff4fd8') +
+      r(54, 2, 32, 13, '#0b0a19', sk('#fcee0a')) + digits('404', 60, 5, 1.3, '#fcee0a') +
+      r(56, 19, 28, 8, '#17142e', sk('#c98f6b')) + r(59, 21, 5, 4, '#0c4270') + r(66, 21, 5, 4, '#fcee0a') + r(73, 21, 7, 4, '#4a5068') +
+      p('M62 50 v-18 M54 50 h16 M62 33 h-7', STEEL, 1.6) +
+      p('M55 43 L65 33 L75 41 L55 43 M65 33 v9', '#00e5ff', 1.8) + wheel(79, 42, 6, '#00e5ff') +
+      wheel(12, 43, 6.5) + wheel(27, 45, 4.5, '#ff4fd8'),
+    // Grand Theft Otto's. A car up on the lift, a sign with two letters out, and an oil stain older than the lot.
+    auto: r(2, 2, 40, 13, '#0b0a19', sk('#ff8a1e')) +
+      [0, 1, 2, 3, 4].map(i => r(5 + i * 7.6, 5, 5, 7, i === 1 || i === 3 ? DARK : '#ff8a1e')).join('') +
+      ell(46, 46, 21, 4, INK) + ell(41, 45, 8, 1.6, '#c77dff', '', ' opacity=".35"') +
+      r(16, 20, 4, 30, STEEL) + r(68, 20, 4, 30, STEEL) + p('M20 28 h15 M53 28 h15', STEEL, 2.4) +
+      sh('M18 26 v-5 l7 -1 l5 -6 h18 l6 6 l10 1 v5 z', '#ff3b5c', INK) +
+      sh('M31 15 h7 v4.5 h-11 z M41 15 h5 l4 4.5 h-9 z', '#0b1c2a', '#ff3b5c') +
+      c(28, 26, 3.4, INK, sk(GREY) + ' stroke-width="1.2"') + c(60, 26, 3.4, INK, sk(GREY) + ' stroke-width="1.2"') +
+      r(74, 34, 12, 16, '#ff3b5c', sk(INK)) + p('M75 39 h10 M75 44 h10', INK, 0.8) + c(84, 36.5, 1, '#fcee0a'),
+    // Get to the Choppa! The roof: a painted pad, a windsock, a fuel bowser, and a rotor somewhere overhead.
+    heli: p('M6 4 h76', GREY, 1.6) + p('M44 4 v5', GREY, 1.8) +
+      r(2, 28, 84, 3, '#4a5068') + r(2, 31, 84, 19, '#17142e') +
+      p('M2 38 h84 M2 44 h84 M22 31 v19 M44 31 v19 M66 31 v19', '#2b2752', 0.7) +
+      ell(40, 41, 20, 7, 'none', '#fcee0a', ' stroke-width="1.5"') + p('M34 37 v8 M46 37 v8 M34 41 h12', '#fcee0a', 2) +
+      p('M72 40 v-26', STEEL, 1.4) + sh('M72 14 l-16 3.5 v7 l16 3.5 z', '#ff8a1e', INK) +
+      p('M61 15.6 v10.8 M66 14.8 v12.4', '#e9e9f0', 1.4) +
+      r(3, 32, 14, 11, '#ffd24a', sk(INK)) + r(5, 34, 6, 4, '#0b1c2a') + p('M17 36 q8 2 6 8', '#4a5068', 1.4) +
+      c(6, 44, 1.5, INK) + c(14, 44, 1.5, INK),
+    // A deep run. Four levels of somebody else's building, a way down the side, and the reason at the bottom.
+    deep: p('M4 6 v44 M84 6 v44', '#2b2752', 1) +
+      [8, 21, 34, 47].map(y => r(4, y, 80, 3, y === 47 ? '#4a5068' : STEEL)).join('') +
+      p('M60 11 h8 v5 h8 M60 24 h8 v5 h8 M60 37 h8 v5 h8', '#fcee0a', 1.8) +
+      crate(10, 14, 7) + r(22, 13, 9, 8, '#101426', sk('#00e5ff')) + c(27, 16, 1, '#3dff9a') +
+      r(10, 25, 12, 9, '#17142e', sk('#ff3b5c')) + c(16, 29, 1.6, '#ff3b5c') +
+      r(36, 25, 13, 9, '#101426', sk('#00e5ff')) + p('M38 29 h3 l1.5 -3 2 6 1.5 -3 h2', '#00e5ff', 0.9) +
+      c(20, 42, 4.5, '#fcee0a', sk(INK)) + c(20, 42, 12, '#fcee0a', ' opacity=".16"') +
+      sh('M40 37 l15 5 l-15 5 z', '#fcee0a', '', ' opacity=".16"'),
+    // Lowering the Heat. The gauge coming down, a fan pointed at it, a burner in two pieces and a bucket of ice.
+    cool: c(22, 22, 13, '#101426', sk(GREY)) + p('M11 18 a13 13 0 0 1 22 0', '#ff3b5c', 2.4) +
+      p('M22 22 L13 29', '#fcee0a', 1.8) + c(22, 22, 2, GREY) +
+      p('M42 14 v18 M37 27 l5 5 5 -5', '#00e5ff', 2) +
+      r(56, 8, 24, 24, '#17142e', sk('#00e5ff')) + p('M58 13 q10 -3.5 20 0 M58 20 q10 -3.5 20 0 M58 27 q10 -3.5 20 0', '#00e5ff', 0.9) +
+      c(68, 20, 3, '#00e5ff') +
+      sh('M8 38 h18 l-2 12 h-14 z', '#0c4270', '#00e5ff') + c(12, 40, 2, '#e9e9f0') + c(18, 39.4, 2.4, '#e9e9f0') + c(23, 41, 1.8, '#e9e9f0') +
+      sh('M56 38 h8 l-1 11 h-7 z', DARK, GREY) + sh('M70 40 h8 l1 9 h-8 z', DARK, GREY) + p('M64 39 l6 2', '#ff3b5c', 1.2),
+    // The skill tree. Five traces off one trunk, a pad on the end of each, and one more above the middle.
+    skills: c(44, 24, 21, '#00e5ff', ' opacity=".07"') +
+      p('M44 50 v-10 M44 40 h-28 v-9 M44 40 h-14 v-15 M44 40 v-24 M44 40 h14 v-15 M44 40 h28 v-9', '#00e5ff', 1.2) +
+      c(44, 40, 2, '#00e5ff') +
+      [[16, 31, '#00e5ff'], [30, 25, '#fcee0a'], [44, 16, '#3dff9a'], [58, 25, '#4da3ff'], [72, 31, '#ff3b5c']]
+        .map(([x, y, col]) => c(x, y, 4, '#101426', sk(col) + ' stroke-width="1.3"') + c(x, y, 1.6, col)).join('') +
+      p('M44 12 v-5', '#c77dff', 1.2) + c(44, 6, 3.4, '#101426', sk('#c77dff') + ' stroke-width="1.3"') + c(44, 6, 1.3, '#c77dff'),
+  };
+})();
+// A shop tile for a list, a card or a button. Same box and the same CSS sizes as a Bunker room, by design.
+const shopIcon = key => (SHOP_ART[key]
+  ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key]}</svg>` : '');
 
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
@@ -7108,7 +7240,9 @@ async function rideShop(key) {
     const mine = VEHICLES[S.ride], tradeIn = mine ? rideValue(S.ride) : 0, full = S.rides.length >= garageSize();
     const priceOf = id => VEHICLES[id][1];   // the table is the price: it does not rise with the day
     const least = id => (mine ? Math.max(0, priceOf(id) - tradeIn) : priceOf(id));   // the cheapest way to leave on it
-    let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
+    // SHOP TILES: the shop's own picture at the head of its screen, the way a Bunker station shows its room.
+    let html = `<div class="syn">${withIcon(shopIcon(key), `<b>${title}</b><br><span class="dim">${RIDE_SHOPS[key][2]} at ${spot}</span>`)}</div>` +
+      `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You have ${tripsHtml()}. ` +
       `Garage ${S.rides.length}/${garageSize()}.</p>` +
       (mine ? `<p class="dim">YOU CAME ON</p><div class="syn">${rideCard(S.ride, `<span class="dim">worth ${money(tradeIn)} as a trade-in</span>`)}</div>`
         : '<p class="dim">You walked here.</p>') +
@@ -7182,7 +7316,10 @@ async function garage() {
   if (S.loc !== BUNKER) return;
   for (;;) {
     const spots = Object.values(RIDE_SHOPS).map(([name, spot, what]) => `${name} at ${spot} (${what})`).join(', ');
-    let html = `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
+    // SHOP TILES: the Garage has had a drawing since it was built; it just never showed it on its own screen.
+    let html = `<div class="syn">${withIcon(roomIcon('garage'), `<b>${BASE.garage.name}</b> <span class="dim">level ${lvl('garage')} of ${topLv('garage')}</span><br>` +
+      `<span class="dim">room for ${garageSize()}, ${S.rides.length} in</span>`)}</div>` +
+      `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
       `<div class="syn${S.ride ? ' pickable" data-pick="foot' : ''}"><b>On foot</b>${S.ride ? '' : ' <span class="green">&larr; today</span>'}<br>` +
       `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span></div>`;
     for (const id of S.rides) {
@@ -7452,17 +7589,18 @@ function renderNow() {
     if (!retireBlock()) acts += '<button class="danger" data-act="retire">Retire (end the career)</button>';
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
-    if (S.loc === spot) acts += `<button data-act="${key}shop">${name} (${what})</button>`;
+    // SHOP TILES: each shop's own picture on its button (and so on the handheld DO screen, which copies these)
+    if (S.loc === spot) acts += `<button class="hasico" data-act="${key}shop">${shopIcon(key)}<span>${name} (${what})</span></button>`;
   }
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
-  acts += `<button data-act="dungeon">${dunButton()}</button>`;   // DUNGEONS: deep runs
+  acts += `<button class="hasico" data-act="dungeon">${shopIcon('deep')}<span>${dunButton()}</span></button>`;   // DUNGEONS: deep runs
   acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
   // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
-  if (skLeft()) acts += `<button data-act="skills">Skill tree (${skLeft()} to spend)</button>`;
+  if (skLeft()) acts += `<button class="hasico" data-act="skills">${shopIcon('skills')}<span>Skill tree (${skLeft()} to spend)</span></button>`;
   acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= heatFloor() ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
-  if (coolCount()) acts += `<button data-act="cooloff">Lower Heat (${coolCount()})</button>`;
+  if (coolCount()) acts += `<button class="hasico" data-act="cooloff">${shopIcon('cool')}<span>Lower Heat (${coolCount()})</span></button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
   if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
   if (S.loc === GUN_SPOT) {
@@ -7853,6 +7991,7 @@ const ACTIONS = {
     if (ill) await sickNight(ill);
     if (S.over) return;
     if (Math.random() < raidOdds()) await homeRaid(true);
+    if (!S.over) await nemCheck('bunker');   // NEMESIS: or it was not the law on the stairs at all
   },
 
   // Gear you are not carrying can wait in the Bunker's locker.
@@ -7886,7 +8025,10 @@ const ACTIONS = {
     if (S.loc !== BUNKER) return;
     for (;;) {
       const left = drillsMax() - (S.drills || 0), capped = lockInfo().level >= practiceCap();
-      const html = '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
+      // SHOP TILES: the Lock Board's own drawing, which only the cutaway used to show.
+      const html = `<div class="syn">${withIcon(roomIcon('locks'), `<b>${BASE.locks.name}</b> <span class="dim">level ${lvl('locks')} of ${topLv('locks')}</span><br>` +
+        '<span class="dim">a job lot from a locksmith who retired suddenly</span>')}</div>` +
+        '<p>A board of locks screwed to the workbench, bought as a job lot from a locksmith who retired suddenly.</p>' +
         `<div class="syn">${lockLine()}${lockMeter()}</div>` +
         `<p>Tries left today: <b class="${left ? 'green' : 'red'}">${left}</b> of ${drillsMax()}.</p>` +
         (capped ? `<p class="amber">You have learned what a workbench can teach (level ${practiceCap()}). The rest is behind real doors.</p>`
@@ -8002,7 +8144,9 @@ const ACTIONS = {
       const keys = Object.keys(COOL).filter(k => S[k]);
       if (S.fakeid) keys.unshift('fakeid');
       if (!keys.length) return;
-      const html = meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
+      // SHOP TILES: the Heat kit gets a tile of its own, above the gauge it is there to bring down.
+      const html = `<div class="syn">${withIcon(shopIcon('cool'), `<b>Lower Heat</b><br><span class="dim">${coolCount()} in the kit</span>`)}</div>` +
+        meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
         `<p>Wanted by: <b>${LAW[lawTier()].short}</b>.${coverText() ? ` Running: <span class="cyan">${coverText()}</span>.` : ''}</p>` +
         keys.map(k => {
           const ok = k === 'fakeid' ? S.heat > heatFloor() : !coolBlock(k);
@@ -8128,6 +8272,8 @@ const ACTIONS = {
     const buttons = [['Close', null, 'primary']];
     buttons.unshift(['Hall of fame', 'hall']);   // ENDLESS: retired careers can be looked at any time
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
+    // NEMESIS: who is out there, and what they are carrying that used to be yours
+    buttons.unshift([`Nemeses (${nemList().length}/${NEM.cap})`, 'nem', nemList().length ? 'danger' : '']);
     buttons.unshift([`Skill tree${skLeft() ? ` (${skLeft()} to spend)` : ` (${skCount()}/${skIds().length})`}`, 'skills',
       skLeft() ? 'primary' : '']);
     if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
@@ -8145,10 +8291,11 @@ const ACTIONS = {
     else if (choice === 'skills') await skillTree();   // SKILL TREE
     else if (choice === 'quest') await ACTIONS.syndicate();
     else if (choice === 'ach') await ACTIONS.achievements();
+    else if (choice === 'nem') await ACTIONS.nemeses();   // NEMESIS
     else if (choice === 'hall') {
-      await alertDlg('Hall of fame', hallHtml() +
+      await alertDlg('Hall of fame', hallHtml() + legacyRecordLine() +   // LEGACY: and the number to beat
         '<p class="dim">Careers that walked away. A career you lose pays nothing: retiring from the Bunker is the only ' +
-        'way onto the board.</p>');
+        'way onto the board. The ones who were taken down are listed anyway, because the street lists them.</p>');
     }
     else if (choice === 'hidden') await hiddenInvite();
   },
@@ -8167,6 +8314,34 @@ const ACTIONS = {
           `<span class="cyan">+${xp} XP</span><br><span class="${got ? '' : 'dim'}">${secret && !got ? 'A secret. Somebody is watching how you deal with the people who watch everyone.' : how}</span></div>`;
       }).join('');
     await dialog('Achievements', html, [['Close', null, 'primary']]);
+  },
+
+  // ===== NEMESIS: the page in your record for the people who are still looking for you (see NEM). =====
+  async nemeses() {
+    const live = nemList(), gone = nemGoneList();
+    const pips = N => `<span class="nempip">${'&#9679;'.repeat(N.g)}` +
+      `<span class="off">${'&#9675;'.repeat(Math.max(0, NEM.maxG - N.g))}</span></span>`;
+    const html = `<p><b>${live.length}</b> of ${NEM.cap} still out there.</p>` +
+      (live.length ? live.map(N => `<div class="syn nemrow" style="border-left-color:${nemColour(N)}">` +
+        `<div class="versus" style="grid-template-columns:86px"><div>${nemSvg(N)}` +
+        `<small>${esc(N.tag).toUpperCase()}</small></div></div>` +
+        `<b style="color:${nemColour(N)}">${esc(N.name)}</b> ${pips(N)}<br>` +
+        `<span class="dim">${nemLine(N)}</span><br>` +
+        `<span class="dim">Met ${N.met} time${N.met === 1 ? '' : 's'}, and beat you ${N.won}. ` +
+        `Last seen at ${esc(N.at)} on day ${N.day}. Carrying a ${esc(WEAPONS[nemArm(N)][0])}.</span><br>` +
+        (N.took.length ? `<span class="red">Took from you: ${N.took.map(t => esc(nemTookText(t))).join(', ')}.</span>`
+          : '<span class="dim">Has taken nothing off you. Yet.</span>') + '</div>').join('')
+        : '<p class="dim">Nobody is looking for you right now. Beat a rival crew and sooner or later one of ' +
+          'them walks away from it.</p>') +
+      (gone.length ? '<p class="dim">SETTLED</p>' + gone.slice().reverse().map(g =>
+        `<div class="syn nemgone"><b>${esc(g.name)}</b> <span class="dim">&middot; ` +
+        `${g.how === 'down' ? 'put down for good' : 'left the field'} on day ${g.day}, after ` +
+        `${g.met} meeting${g.met === 1 ? '' : 's'}${g.won ? ` and ${g.won} of them yours to regret` : ''}` +
+        '</span></div>').join('') : '') +
+      `<p class="dim">They come back better armed every time, and a win at grudge ${NEM.maxG} is the last ` +
+      'time you see them. Whatever they took is on them, so beating them is how you get it back. ' +
+      `Leave one alone for ${NEM.cold} days and they give it up and go.</p>`;
+    await dialog('Who is looking for you', html, [['Close', null, 'primary']]);
   },
 
   // Back to the start menu, to switch to another save or start a new one.
@@ -8330,7 +8505,8 @@ const ACTIONS = {
       `<br><b>Retiring with ${money(W.total)} after ${S.day} days.</b></p>`;
     const keeps = '<p class="dim">The Bunker, everything built in it, your skills, your XP, your gear and your weapon skill all ' +
       'belong to this save and are waiting for the next career. The money is not: that is what goes in the hall of fame.</p>' +
-      (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '');
+      (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '') +
+      legacyRecordLine();   // LEGACY: whose number is still the one to beat
     if (await confirmDlg('Retire', parts + keeps + '<p>Walk away for good?</p>', 'Retire', 'One more day')) {
       S.retired = true;
       S.over = true;
@@ -8998,7 +9174,7 @@ async function intelDlg() {
     const html = `<div class="syn">${withIcon(roomIcon('intel'), `<b>${l ? I.n : 'Dark'}</b><br>${l ? BASE.intel.say(I, l) : 'The power is out. The string is still there.'}`)}</div>` +
       (l ? `<p class="dim">TODAY, DAY ${S.day}</p>` + (tips.length ? tips.map(t => `<div class="syn"><b>${t.good}</b> ${t.up ? '<span class="amber">&#9650; selling high</span>' : '<span class="cyan">&#9660; going cheap</span>'} ` +
         `at <b>${t.loc}</b><br><span class="dim">about ${money(t.price)} each, they say</span></div>`).join('') : '<p class="dim">Nobody is talking today.</p>') +
-        (I.law ? `<p>${withIcon(miscIcon('decoy'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
+        (I.law ? `<p>${withIcon(miscIcon('patrol'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
         `<p class="dim">Rumours are right about ${Math.round(I.right * 100)}% of the time. A wrong one sends you to the wrong place, and there is no telling which is which. New ones every morning.</p>` : '');
     const choice = await dialog('Intel Board', html, [...stationBtn('intel'), ['Done', null, 'primary']]);
     if (choice === 'base') { await stationDlg('intel', true); continue; }
@@ -9374,6 +9550,7 @@ function nextDay(inside) {
   plantsTick();      // devices left behind on break-ins send their money home
   baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
   dunNight();        // DUNGEONS: addresses go cold, and the Intel Board may have turned one up
+  nemNight();        // NEMESIS: a grudge nobody has fed in a while goes cold too
   // ENDLESS: past the arc the rival crews stop waiting to be crossed. One of them takes an interest in you
   // on its own, now and then, up to ENDLESS.grudgeMax (so the odds it feeds stay inside their own caps).
   if (S.day > ENDLESS.arc && Math.random() < ENDLESS.grudgeNight * press01()) {
@@ -9395,6 +9572,7 @@ function nextDay(inside) {
   S.markets = {};
   rollMarket();
   if (S.loc !== BUNKER) awayRaid(Math.min(0.25 + ENDLESS.raidOdds * press01(), ENDLESS.raidOdds * press01() + S.heat / 400));   // days spent locked up or in a clinic
+  legacyRecordCheck();   // LEGACY: the morning you pass the biggest retirement on your own board
 }
 
 // While you are out, the law may raid the Bunker and take whatever is stashed there.
@@ -9472,6 +9650,9 @@ async function homeRaid(asleep) {
 
 // ---------- events ----------
 async function randomEvent() {
+  // NEMESIS: before anything else, one of the survivors may be standing where you came up: on the street,
+  // or waiting at the market you keep coming back to. At most one of them a day (see nemDue).
+  if (await nemCheck('street')) return;
   // These odds are per trip. There are several trips in a day, so each one is fairly small.
   // ENDLESS: the law and the crews both press harder the longer you stay in (ENDLESS.lawOdds, gangOdds).
   const push = press01();
@@ -9714,8 +9895,10 @@ function lawEncounter() {
 }
 
 function gangEncounter(key) {
+  // LEGACY: a crew that recruited one of your retired operators opens with their playbook, and says so.
+  const ghost = Math.random() < LEGACY.crew ? legacyTake('crew', g => g.how === 'retired') : null;
   return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(effDay() / 8)),
-    hit: 0.3, lo: 3, hi: 8});
+    hit: 0.3, lo: 3, hi: 8, intro: ghost ? legacyCrewLine(key, ghost) : undefined});
 }
 
 // ---------- getting jumped ----------
@@ -9736,6 +9919,508 @@ function jumped() {
     ambush: Math.random() < Math.max(0.15, 0.5 - bonus('speed') / 100),
     intro: `You surface at ${S.loc} and walk straight into it. ${name}: ${n} of them, stepping out of the dark.`});
 }
+
+// ====================== NEMESIS: the ones who got away: START ======================
+// Beat a rival crew and sometimes one of them does not go down with the rest. They get a name, a face, a
+// mark from the meeting, and their crew's colours. Every time they come back they are better armed and
+// angrier; when they beat you they take something and carry it where you can see it next time; when you
+// beat them their crew pays to be rid of them and you take your things back off the body.
+//
+// They live on the CAREER, not the run (career.nem, career.nemGone), so one of them can haunt a whole
+// career across several runs, which is the only length at which a grudge is worth anything. The run keeps
+// only what belongs to today: S.nemDay (one meeting a day, no more) and S.visits (which market you wear out).
+//
+// A story ends one of two ways: you put them down at the top of the grudge, or you leave them alone long
+// enough that they give it up. There are never more than NEM.cap of them, and never more than one a day,
+// so they stay a thing that happens to you and not a toll on every trip.
+const NEM = {
+  cap: 3,            // how many can be out there at once (see the "Popular" achievement)
+  maxG: 4,           // grudge levels; a win at the top is the last time you see them
+  born: 0.4,         // chance a rival crew you beat leaves a survivor
+  rest: 2,           // days before one of them turns up again
+  street: 0.22,      // chance a due one is waiting where you surface
+  fav: 0.45,         // ...or at a market you keep coming back to
+  favNeed: 4,        // visits that make a market one you use a lot
+  bunker: 0.3,       // chance a due one is behind the night's noise on the Bunker stairs
+  deep: 0.4,         // chance a due one is holding the bottom of a deep run
+  cold: 25,          // days without a meeting after which they leave the field
+  cut: 0.18,         // share of the cash you have left that they take when they win
+  bounty: [5000, 7000],   // what their crew pays to be rid of them: flat, plus this much a grudge level
+  tookMax: 3,        // how many of your things they carry at once
+  goneMax: 12,       // how many finished stories the record keeps
+  // What they carry at each grudge level (positions in WEAPONS): a box cutter, a machete, a revolver,
+  // a sniper rifle, a rail gun. Each one hits harder and more often than the last.
+  arms: [13, 14, 17, 19, 20],
+};
+const NEM_TAGS = ['Switchblade', 'Mirrorshade', 'Deadhand', 'Nullroute', 'Half-Byte', 'Rustbucket', 'Gravedigger',
+  'Cold Boot', 'Lowbat', 'Hexwound', 'Offline', 'Sawtooth', 'Dialtone', 'Pocket Change'];
+const NEM_LAST = ['Marisol', 'Oyelaran', 'Vuk', 'Brannigan', 'Sparrow', 'Okonkwo', 'Delgado', 'Rask', 'Yusuf',
+  'Calloway', 'Petrova', 'Nakamura', 'Ferreira', 'Quill'];
+// What the first meeting left on them. This is the thing that says it is the same person.
+const NEM_MARKS = ['a burn down one cheek', 'an eye that does not track any more', 'a jaw wired shut',
+  'two fingers short on the left hand', 'a plate in the skull and the shaved patch to prove it',
+  'a scar where your last meeting went in'];
+const NEM_HATS = [0, 1, 2, 3, 5];    // what they wear on the head (positions in SLOTS.head)
+const NEM_MASKS = [0, 2, 6, 7, 8];   // ...and over the face (SLOTS.face)
+const NEM_TOOK = {cash: 1, weapon: 1, gear: 1};   // what a loss to one of them can cost you
+let nemTally = {born: 0, met: 0, won: 0, lost: 0, down: 0, retired: 0, took: 0, back: 0};   // counted for the self-test
+
+const nemList = () => (Array.isArray(career.nem) ? career.nem : (career.nem = []));
+const nemGoneList = () => (Array.isArray(career.nemGone) ? career.nemGone : (career.nemGone = []));
+const nemBy = id => nemList().find(N => N.id === id) || null;
+const nemColour = N => SYN_COL[N.gang] || '#ff4fd8';
+const nemCrew = N => (SYNDICATES[N.gang] ? SYNDICATES[N.gang][0] : 'a crew with no name');
+// What they are holding: their own gear at this grudge level, unless they took a weapon off you. Then it is yours.
+const nemArm = N => {
+  const t = (N.took || []).find(x => x.k === 'weapon' && WEAPONS[x.n]);
+  return t ? t.n : NEM.arms[clampN(N.g, 0, NEM.arms.length - 1)];
+};
+const nemTookText = t => (t.k === 'cash' ? money(t.n) : t.k === 'weapon'
+  ? (WEAPONS[t.n] ? WEAPONS[t.n][0] : 'a weapon of yours') : (t.it ? t.it.name : 'something of yours'));
+
+// A damaged or ancient record is put right, not trusted: no ghosts, no duplicates, nothing over the cap.
+function nemFix() {
+  const ok = N => !!N && typeof N === 'object' && typeof N.id === 'string' && typeof N.name === 'string' &&
+    typeof N.gang === 'string' && !!SYN_COL[N.gang] && Number.isInteger(N.g) && Array.isArray(N.took) &&
+    !!N.look && typeof N.look === 'object';
+  const seen = {};
+  career.nemGone = (Array.isArray(career.nemGone) ? career.nemGone : [])
+    .filter(g => g && typeof g === 'object' && typeof g.name === 'string').slice(-NEM.goneMax);
+  const dead = {};
+  for (const g of career.nemGone) dead[g.name] = 1;
+  career.nem = (Array.isArray(career.nem) ? career.nem : []).filter(N => {
+    if (!ok(N) || seen[N.id] || seen[N.name] || dead[N.name]) return false;
+    seen[N.id] = seen[N.name] = 1;
+    N.g = clampN(N.g, 1, NEM.maxG);
+    N.met = Number.isInteger(N.met) && N.met > 0 ? N.met : 0;
+    N.won = Number.isInteger(N.won) && N.won > 0 ? N.won : 0;
+    N.day = Number.isInteger(N.day) && N.day >= 1 ? N.day : 1;
+    N.born = Number.isInteger(N.born) && N.born >= 1 ? N.born : 1;
+    N.at = LOCATIONS.includes(N.at) ? N.at : LOCATIONS[0];
+    N.mk = NEM_MARKS[N.mk] ? N.mk : 0;
+    N.hat = NEM_HATS.includes(N.hat) ? N.hat : NEM_HATS[0];
+    N.mask = NEM_MASKS.includes(N.mask) ? N.mask : NEM_MASKS[0];
+    N.tag = typeof N.tag === 'string' ? N.tag : String(N.name).split(' ')[0];
+    N.took = N.took.filter(t => t && typeof t === 'object' && NEM_TOOK[t.k] &&
+      (t.k !== 'cash' || t.n > 0) && (t.k !== 'weapon' || !!WEAPONS[t.n]) &&
+      (t.k !== 'gear' || !!(t.it && RARITY[t.it.rar]))).slice(-NEM.tookMax);
+    return true;
+  }).slice(0, NEM.cap);
+}
+
+// ---------- how they look ----------
+// Built out of the same figure and gear drawings as everybody else: their crew's colour on every piece,
+// better trim the longer the grudge has run, a coat once it is personal, and your bag on their back.
+function nemKit(N, P) {
+  const c = nemColour(N), g = clampN(N.g, 1, NEM.maxG);
+  const dark = {ghost: '#12202b', ledger: '#2a2416', null: '#11261b', red: '#3a1018', x404: '#1d1430'}[N.gang] || '#15131c';
+  const rar = Math.min(4, g);
+  // Dark clothes with their crew's colour as the trim, and the mask in the crew's colour on its own, so
+  // the face is the thing you recognise across a street.
+  const gear = {head: P(N.hat, c, dark, rar), face: P(N.mask, c, null, Math.min(4, g - 1)),
+    body: P(3, c, dark, rar), legs: P(6, c, dark), hands: P(3, c, dark, Math.min(4, g - 1)),
+    feet: P(1, c, dark), deck: P(7, c, dark, Math.min(4, g - 1))};
+  if (g >= 3) gear.coat = P(6, c, dark, 3);
+  if ((N.took || []).some(t => t.k === 'gear')) gear.back = P(5, c, dark, 3);
+  return gear;
+}
+const nemFig = N => ({look: N.look, syn: N.gang, level: 1, weapon: 0, hp: 100, mood: 'mean',
+  gear: nemKit(N, (kind, c, fill, rar) => ({kind, c, rar: rar || 0, fill}))});
+function nemSvg(N) {
+  return `<svg class="avatar foe" viewBox="${bustBox()}" role="img" aria-label="${esc(N.name)}">` +
+    `<rect x="0" y="0" width="200" height="352" fill="${nemColour(N)}" opacity=".13"/>` +
+    `<g${figClass()}>${sprite(figure(nemFig(N)), true)}</g></svg>`;
+}
+
+// ---------- what they say ----------
+// Short, flat, and about the last time. Nobody makes a speech in an alley.
+function nemSay(N) {
+  const took = (N.took || []).length ? nemTookText(N.took[N.took.length - 1]) : '';
+  if (N.g >= NEM.maxG) return `"${N.met} times now. One of us is staying here."`;
+  if (took && N.won) return `"I still have ${took}. I came back for the rest of it."`;
+  if (N.met >= 2) return `"${N.at}, and the time before that. You do not even remember, do you."`;
+  return `"You left me on the floor at ${N.at}. I got up."`;
+}
+const nemLine = N => `${nemCrew(N)} &middot; ${NEM_MARKS[N.mk]}`;
+
+// ---------- born ----------
+// One survivor, named once per career: no two of them share a handle, and nobody who is already finished
+// comes back under a new face.
+function nemBorn(gang) {
+  // (typeof, because the crew called 'null' is a real one and a lookup would take null for it)
+  if (typeof gang !== 'string' || !SYN_COL[gang] || !S || !S.grudge || S.grudge[gang] === undefined) return null;
+  nemFix();
+  if (nemList().length >= NEM.cap) return null;
+  const used = {};
+  for (const x of nemList().concat(nemGoneList())) used[x.name] = 1;
+  const tags = NEM_TAGS.filter(t => !nemList().some(N => N.tag === t));
+  const tag = pick(tags.length ? tags : NEM_TAGS);
+  let name = '';
+  for (const last of NEM_LAST.slice().sort(() => Math.random() - 0.5)) {
+    if (!used[`${tag} ${last}`]) { name = `${tag} ${last}`; break; }
+  }
+  if (!name) return null;
+  const N = {id: 'n' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36),
+    tag, name, gang, g: 1, met: 0, won: 0,
+    mk: rnd(0, NEM_MARKS.length - 1), hat: pick(NEM_HATS), mask: pick(NEM_MASKS),
+    look: {skin: rnd(0, SKINS.length - 1), hair: rnd(0, HAIRSTYLES.length - 1), col: rnd(0, HAIRCOLS.length - 1),
+      streak: rnd(0, STREAKS.length - 1)},
+    took: [], at: LOCATIONS.includes(S.loc) ? S.loc : LOCATIONS[0], day: S.day, born: S.day};
+  nemList().push(N);
+  nemTally.born++;
+  tally('nemborn');
+  if (nemList().length >= NEM.cap) tally('nemfull');
+  log(`<span class="amber">One of them walked away: ${N.name} of ${nemCrew(N)}, ${NEM_MARKS[N.mk]}.</span>`);
+  return N;
+}
+// Called from a won fight: the line that goes on the results panel.
+function nemBirth(E) {
+  const N = nemBorn(E.gang);
+  return N ? `One of them is not on the floor. ${N.name} went over the wall, and had a good look at you first.` : '';
+}
+
+// ---------- coming back ----------
+// Who is due: one of them, at most one a day, and never the day after the last meeting. A save carried
+// into a shorter run has dates in the future; that counts as due rather than as a nemesis who never comes.
+function nemDue(odds) {
+  if (!S || S.over || S.nemDay === S.day) return null;
+  const ready = nemList().filter(N => (N.day > S.day ? NEM.rest : S.day - N.day) >= NEM.rest);
+  if (!ready.length || Math.random() >= odds) return null;
+  return ready[rnd(0, ready.length - 1)];
+}
+function nemMeet(N, where) {
+  S.nemDay = S.day;
+  N.met++;
+  N.day = S.day;
+  N.at = where === 'bunker' ? BUNKER : (LOCATIONS.includes(S.loc) ? S.loc : N.at);
+  nemTally.met++;
+  tally('nemmet');
+  return N;
+}
+// A street ambush or the Bunker stairs: in person, so it all lands on your Health, like any other jumping.
+function nemEnc(N, where) {
+  const crew = clampN(Math.round(N.g * 0.8 + effDay() / 16), 0, 4), arm = WEAPONS[nemArm(N)];
+  const lead = where === 'bunker'
+    ? `Somebody is on the Bunker stairs, and it is not the law. ${N.name}, ${arm[0]} in hand`
+    : `${N.name} is waiting where you surface at ${S.loc}, ${arm[0]} in hand`;
+  return {kind: 'thug', nem: N, gang: N.gang, name: N.name, n: 1 + crew, seed: rnd(0, 5),
+    hit: clampN(0.36 + 0.04 * N.g, 0.2, 0.85), lo: 4 + N.g, hi: 9 + 2 * N.g,
+    ambush: where === 'bunker' || Math.random() < 0.35,
+    intro: `${lead}${crew ? `, with ${crew} of ${nemCrew(N)} behind them` : ', alone'}. ${nemSay(N)}`};
+}
+// The hook the encounter paths call: true if one of them took the trip over. where: 'street' or 'bunker'.
+async function nemCheck(where) {
+  if (!S || S.over) return false;
+  if (where !== 'bunker') {
+    if (S.loc === BUNKER) return false;   // crews still cannot reach you at home in daylight
+    S.visits = S.visits && typeof S.visits === 'object' ? S.visits : {};
+    S.visits[S.loc] = (S.visits[S.loc] || 0) + 1;
+  }
+  const fav = where !== 'bunker' && (S.visits[S.loc] || 0) >= NEM.favNeed;
+  const N = nemDue(where === 'bunker' ? NEM.bunker : fav ? NEM.fav : NEM.street);
+  if (!N) return false;
+  nemMeet(N, where);
+  log(`<span class="red">${N.name} found you${where === 'bunker' ? ' at the Bunker' : fav ? ` at ${S.loc}. Again.` : ` at ${S.loc}.`}</span>`);
+  await fight(nemEnc(N, where));
+  return true;
+}
+// A deep run's own hostiles, with one of them in front of the rest. The encounter keeps its kind, so a
+// network dive stays a fight over the wire and a building stays a fight in a corridor.
+function nemDress(E, where) {
+  if (!E || E.nem || E.kind === 'law') return E;
+  const N = nemDue(NEM.deep);
+  if (!N) return E;
+  nemMeet(N, where);
+  E.nem = N;
+  E.name = N.name;
+  E.gang = N.gang;
+  E.boss = true;
+  E.hit = clampN((E.hit || 0.3) + 0.04 * N.g, 0.2, 0.85);
+  E.hi = (E.hi || 8) + 2 * N.g;
+  E.intro = `The bottom of the run is not holding what the lead said it was. ${N.name} is. ${nemSay(N)}`;
+  return E;
+}
+
+// ---------- what it costs and what it pays ----------
+// They take one thing and keep it. Gear only when losing it still leaves you able to carry what you hold.
+function nemSteal(N) {
+  const opts = [];
+  if (S.cash > 200) opts.push('cash');
+  if (S.weapon > 0) opts.push('weapon');
+  const slots = Object.keys(career.gear).filter(k => career.gear[k] && used() <= cap() - carries(career.gear[k]));
+  if (slots.length) opts.push('gear');
+  if (!opts.length) return 'a long look at everything you are not carrying any more';
+  const k = pick(opts);
+  let t;
+  if (k === 'cash') { const n = Math.max(1, Math.floor(S.cash * NEM.cut)); S.cash -= n; t = {k: 'cash', n}; }
+  else if (k === 'weapon') { t = {k: 'weapon', n: S.weapon}; S.weapon = 0; }
+  else { const slot = pick(slots); t = {k: 'gear', it: career.gear[slot]}; delete career.gear[slot]; }
+  N.took.push(t);
+  while (N.took.length > NEM.tookMax) N.took.shift();
+  nemTally.took++;
+  tally('nemtook');
+  return k === 'cash' ? `${money(t.n)} out of your pocket` : k === 'weapon' ? `your ${WEAPONS[t.n][0]}` : `your ${t.it.name}`;
+}
+// Called from lose(): they are angrier and they are carrying something of yours now.
+function nemLoss(E) {
+  const N = E.nem;
+  if (!N) return '';
+  nemTally.lost++;
+  tally('nemlost');
+  N.won++;
+  const got = nemSteal(N);
+  if (N.g < NEM.maxG) N.g++;
+  N.day = S.day;
+  saveCareer();
+  return `<p class="red">${N.name} takes ${got}, and makes sure you watch them do it.</p>`;
+}
+// Called from a won fight: the bounty, the crew easing off, your things back, and either a worse one
+// next time or the end of the story. Pushes its own rows onto the results panel.
+function nemWin(E, gains) {
+  const N = E.nem;
+  if (!N) return '';
+  nemTally.won++;
+  tally('nemwin');
+  const bounty = Math.round((NEM.bounty[0] + NEM.bounty[1] * N.g) * (1 + Math.floor(effDay() / 10)));
+  S.cash += bounty;
+  gains.push(['Bounty', `+${money(bounty)}`, 'green']);
+  if (S.grudge && S.grudge[N.gang] > 0) {
+    S.grudge[N.gang] = Math.max(0, S.grudge[N.gang] - 1);
+    gains.push([`${nemCrew(N)} grudge`, '-1', 'green']);
+  }
+  let back = 0;
+  for (const t of N.took.splice(0)) {
+    if (t.k === 'cash') { S.cash += t.n; gains.push(['Your cash', `+${money(t.n)}`, 'green']); back++; }
+    else if (t.k === 'weapon' && WEAPONS[t.n]) {
+      if (!WEAPONS[S.weapon] || WEAPONS[t.n][1] > WEAPONS[S.weapon][1]) S.weapon = t.n;
+      gains.push([WEAPONS[t.n][0], 'back']);
+      back++;
+    } else if (t.k === 'gear' && t.it) { stash(t.it); gains.push([t.it.name, 'back']); back++; }
+  }
+  if (back) { nemTally.back += back; tally('nemback', back); }
+  if (N.g >= NEM.maxG) {
+    nemFinish(N, 'down');
+    return `${N.name} does not get up this time.`;
+  }
+  N.g++;
+  N.day = S.day;
+  saveCareer();
+  return `${N.name} goes down, and is gone by the time you have counted the money. Worse next time.`;
+}
+// A story closes: put down for good, or given up on. how: 'down' or 'gone'.
+function nemFinish(N, how) {
+  const i = nemList().indexOf(N);
+  if (i >= 0) nemList().splice(i, 1);
+  nemGoneList().push({name: N.name, gang: N.gang, how, g: N.g, met: N.met, won: N.won, day: S.day});
+  while (nemGoneList().length > NEM.goneMax) nemGoneList().shift();
+  if (how === 'down') { nemTally.down++; tally('nemdown'); } else { nemTally.retired++; tally('nemgone'); }
+  saveCareer();
+  log(how === 'down' ? `<span class="green">${N.name} is finished. ${nemCrew(N)} will have to find somebody else.</span>`
+    : `<span class="dim">${N.name} has stopped looking. Word is they took the money and left the field.</span>`);
+}
+// Overnight: a grudge nobody feeds goes cold. This is what keeps them from becoming a toll on every trip.
+function nemNight() {
+  for (const N of nemList().slice()) {
+    const since = N.day > S.day ? 0 : S.day - N.day;
+    if (since < NEM.cold) continue;
+    nemFinish(N, 'gone');
+    notes.push(['A grudge goes cold', `<p>${N.name} has not been seen in ${NEM.cold} days.</p>` +
+      `<p>${nemCrew(N)} say they took what they were owed and went somewhere with fewer stairs. ` +
+      'Whatever they were carrying went with them.</p>', '']);
+  }
+}
+
+// ---------- the debug menu's way in ----------
+// nemSpawn(gang) makes one, nemSend(which, where) brings one to you now, nemClear() takes them all off the
+// board. The table is NEM; the list is career.nem and the finished ones are career.nemGone.
+function nemSpawn(gang) {
+  return nemBorn(gang && SYN_COL[gang] ? gang : pick(Object.keys(noGrudges())));
+}
+function nemSend(which, where) {
+  const N = typeof which === 'object' && which ? which : nemBy(which) || nemList()[Number(which) || 0] || nemSpawn();
+  if (!N) return null;
+  N.day = Math.max(1, S.day - NEM.rest);
+  delete S.nemDay;
+  if (where === 'deep') return nemDress({kind: 'gang', gang: N.gang, name: nemCrew(N), n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+  nemMeet(N, where === 'bunker' ? 'bunker' : 'street');
+  return fight(nemEnc(N, where === 'bunker' ? 'bunker' : 'street'));
+}
+function nemClear() {
+  const n = nemList().length;
+  career.nem = [];
+  career.nemGone = [];
+  saveCareer();
+  return n;
+}
+// ---------- the self-test, step by step ----------
+// Makes nemeses, meets them, loses to them, beats them, puts one down for good, lets one go cold, and
+// drags the whole lot through a save and a reload. It watches for duplicates, ghosts, state lost over a
+// reload, the cap being broken, and a theft that would leave you holding more than you can carry.
+async function nemSelfTest() {
+  const fail = (why, ...rest) => { throw new Error('NEMESIS: ' + why + (rest.length ? ' ' + JSON.stringify(rest) : '')); };
+  const keepCareer = career, keepRun = S, keepNotes = notes.slice();
+  try {
+    career = JSON.parse(JSON.stringify(career));
+    S = JSON.parse(JSON.stringify(S));
+    career.nem = []; career.nemGone = [];
+    S.loc = 'Tor Bazaar'; S.day = 10; S.over = false; delete S.nemDay;
+    const crews = Object.keys(noGrudges());
+
+    // Nobody is born to a crew that has no grudge against you, or to nothing at all.
+    if (nemBorn('x404') || nemBorn('nobody') || nemBorn(undefined) || nemBorn(null)) fail('a nemesis was born to nobody', career.nem);
+
+    // Born: every crew you can cross leaves one, each a person of their own, and never past the cap.
+    for (let i = 0; i < 12; i++) nemBorn(crews[i % crews.length]);
+    if (nemList().length !== NEM.cap) fail('the cap was not held', nemList().length, NEM.cap);
+    if (new Set(nemList().map(N => N.id)).size !== NEM.cap ||
+      new Set(nemList().map(N => N.name)).size !== NEM.cap) fail('two of them are the same person', nemList().map(N => N.name));
+    if (nemList().some(N => !SYN_COL[N.gang] || S.grudge[N.gang] === undefined || N.g !== 1 || N.took.length ||
+      !NEM_MARKS[N.mk] || !WEAPONS[nemArm(N)] || !LOCATIONS.includes(N.at))) fail('a new nemesis starts wrong', nemList());
+    if (nemBorn(crews[0])) fail('a nemesis was born over the cap', nemList().length);
+
+    // A damaged record is put right, not trusted: ghosts, duplicates, overflow and the already-finished all go.
+    const good = JSON.parse(JSON.stringify(nemList()[0]));
+    career.nemGone = [{name: 'Gone Already', gang: 'red', how: 'down', g: 4, met: 3, won: 0, day: 2}];
+    career.nem = [null, 7, {id: 'x'}, good, JSON.parse(JSON.stringify(good)),
+      Object.assign({}, good, {id: 'n-two', name: 'Other One', g: 99, mk: 99, took: [{k: 'junk'}, {k: 'cash', n: 0}]}),
+      Object.assign({}, good, {id: 'n-dead', name: 'Gone Already'})];
+    nemFix();
+    if (nemList().length !== 2 || nemList()[0].name !== good.name || nemList()[1].g !== NEM.maxG ||
+      nemList()[1].took.length || !NEM_MARKS[nemList()[1].mk] ||
+      nemList().some(N => N.name === 'Gone Already')) fail('nemFix did not tidy the list', career.nem);
+
+    // One meeting a day, never two days running, and a date from a longer run is not a ghost.
+    career.nem = []; career.nemGone = [];
+    const D = nemBorn('null');
+    const due = () => { delete S.nemDay; D.day = S.day - NEM.rest; };
+    due();
+    if (!nemDue(1)) fail('a nemesis that was due did not come');
+    S.nemDay = S.day;
+    if (nemDue(1)) fail('a second nemesis came the same day');
+    delete S.nemDay;
+    D.day = S.day;
+    if (nemDue(1)) fail('a nemesis came back the day you beat them');
+    D.day = S.day + 50;
+    if (!nemDue(1)) fail('a nemesis carried into a shorter run never comes back');
+
+    // The battle screen: one of them at the front, with their name, their crew's colour and their mark.
+    due();
+    const E = nemEnc(D, 'street');
+    if (E.nem !== D || !(E.n >= 1) || !E.intro.includes(D.name) || !E.intro.includes('"')) fail('the encounter does not carry them', E);
+    const line = BTL.roster(E);
+    if (line.length !== E.n || !line[0].boss || line[0].name !== D.name || line[0].col !== nemColour(D) ||
+      line[0].deco !== 'nem' || !line[0].mk || !line[0].wmk) fail('no nemesis at the front of the line-up', line.map(f => [f.name, f.deco, f.col]));
+    if (line.slice(1).some(f => f.boss)) fail('more than one boss on the stage');
+    if (new Set(line.map(f => f.name)).size !== line.length) fail('two hostiles share a name', line.map(f => f.name));
+    if (line.slice(1).some(f => f.col !== nemColour(D))) fail('the crew behind them is in the wrong colours');
+    if (!nemSvg(D).includes('<svg') || !figure(nemFig(D))) fail('a nemesis has no picture');
+    // ...and over the wire they are jacked in, not armed. The law never brings one with them.
+    let raid = null;
+    for (let i = 0; i < 300 && !(raid && raid.nem); i++) {
+      due();
+      raid = nemDress({kind: 'raid', gang: D.gang, name: 'ICE', n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+    }
+    if (!raid.nem) fail('a deep run never put a nemesis at the bottom');
+    const wire = BTL.roster(raid);
+    if (!wire[0].boss || wire[0].weapon !== 0 || wire[0].name !== D.name) fail('a nemesis over the wire is wrong', wire.map(f => [f.name, f.weapon]));
+    due();
+    if (nemDress({kind: 'law', tier: 0, name: LAW[0].name, n: 1, hit: 0.3, lo: 3, hi: 8}, 'deep').nem) fail('a nemesis turned up in a police raid');
+
+    // Losing: they take one thing, carry no more than they can, and never leave you overloaded. The drive is
+    // filled right up to the line first, so a bag they could take would break it and must be left alone.
+    S.cash = 100000; S.weapon = 15;
+    career.gear = {back: makeItem(4, 'back'), head: makeItem(2, 'head')};
+    if (free() > 0) addItems('Warez', free(), 10);
+    const kinds = {};
+    for (let i = 0; i < 20; i++) {
+      if (!career.gear.head) career.gear.head = makeItem(2, 'head');
+      if (!career.gear.back) fail('they took the bag off a full drive');
+      if (!S.weapon) S.weapon = 15;
+      if (S.cash < 5000) S.cash = 100000;
+      const fits = used() <= cap(), had = D.took.length, won = D.won;
+      const said = nemLoss({nem: D});
+      if (!said.includes(D.name)) fail('a loss said nothing', said);
+      if (D.won !== won + 1) fail('a loss was not counted', D.won);
+      if (D.took.length !== Math.min(NEM.tookMax, had + 1)) fail('a loss took the wrong number of things', D.took);
+      if (fits && used() > cap()) fail('a loss left you carrying more than you can', used(), cap());
+      kinds[D.took[D.took.length - 1].k] = 1;
+      D.g = 1;   // hold them at one level so every kind of theft gets a turn
+    }
+    for (const k of Object.keys(NEM_TOOK)) if (!kinds[k]) fail('a nemesis never took ' + k, Object.keys(kinds));
+    if (D.took.some(t => !NEM_TOOK[t.k])) fail('they are carrying something the game does not have', D.took);
+    // A weapon they took is the weapon they turn up holding next time.
+    D.took = [{k: 'weapon', n: 19}];
+    if (nemArm(D) !== 19) fail('a stolen weapon is not the one they carry', nemArm(D));
+    D.took = [{k: 'cash', n: 500}, {k: 'weapon', n: 19}, {k: 'gear', it: makeItem(3, 'head')}];
+
+    // ...and all of it survives a save and a reload.
+    const before = JSON.stringify(career.nem), goneBefore = JSON.stringify(career.nemGone);
+    const rec = JSON.parse(JSON.stringify(career)), run = JSON.parse(JSON.stringify(S));
+    const get = store.get, keep = slot;
+    store.get = key => (key === 'zdh-save' ? run : key === 'zdh-career' ? rec : null);
+    try { loadSave(0); } finally { store.get = get; slot = keep; }
+    if (JSON.stringify(career.nem) !== before || JSON.stringify(career.nemGone) !== goneBefore) {
+      fail('a nemesis did not survive a save and a reload', career.nem, JSON.parse(before));
+    }
+    const M = nemBy(JSON.parse(before)[0].id);
+    if (!M || M.took.length !== 3) fail('the nemesis went missing over the reload', career.nem);
+
+    // Beating them: a bounty, their crew easing off, your things back, and a worse one next time.
+    M.g = 2; S.grudge[M.gang] = 3; S.cash = 0; S.weapon = 0; career.gear = {}; career.bag = [];
+    const gains = [], note = nemWin({nem: M}, gains);
+    if (M.took.length) fail('a win did not take the trophies back', M.took);
+    if (!(S.cash > 500)) fail('a win paid no bounty', S.cash);
+    if (S.weapon !== 19) fail('a win did not hand your weapon back', S.weapon);
+    if (!career.bag.length) fail('a win did not hand your gear back', career.bag);
+    if (S.grudge[M.gang] !== 2) fail('a win did not ease the crew off', S.grudge);
+    if (M.g !== 3 || !note.includes(M.name)) fail('a win did not make them angrier', M.g, note);
+    if (!gains.length) fail('a win put nothing on the results panel');
+    if (stat('nemback') < 1) fail('taking your things back was not counted', career.stats);
+    // ...and a win at the top of the grudge is the last time.
+    M.g = NEM.maxG;
+    const last = nemWin({nem: M}, []);
+    if (nemBy(M.id) || !last.includes(M.name)) fail('a nemesis who went down is still out there', career.nem);
+    if (!nemGoneList().some(g => g.name === M.name && g.how === 'down')) fail('the record does not say they went down', career.nemGone);
+    for (let i = 0; i < 20; i++) nemBorn(M.gang);
+    if (nemList().some(x => x.name === M.name)) fail('somebody who is finished came back', career.nem);
+
+    // A grudge nobody feeds goes cold on its own: that is what stops them taxing every trip.
+    career.nem = []; career.nemGone = []; notes.length = 0;
+    const C = nemBorn('ghost');
+    C.day = 1; S.day = 1 + NEM.cold;
+    nemNight();
+    if (nemBy(C.id)) fail('a cold grudge did not go', career.nem);
+    if (!nemGoneList().some(g => g.name === C.name && g.how === 'gone')) fail('the record does not say they left', career.nemGone);
+    if (!notes.length) fail('nothing said a grudge had gone cold');
+    notes.length = 0;
+    // ...and one that is still being fed does not.
+    const K = nemBorn('red');
+    K.day = S.day;
+    nemNight();
+    if (!nemBy(K.id)) fail('a live grudge went cold early');
+
+    // The record page draws with somebody out there, with finished stories on it, and with nobody at all.
+    autoPick = () => null;
+    try {
+      await ACTIONS.nemeses();
+      await ACTIONS.profile();
+      career.nem = []; career.nemGone = [];
+      await ACTIONS.nemeses();
+    } finally { autoPick = null; }
+
+    // The debug menu's handles do what they say.
+    career.nem = []; career.nemGone = [];
+    if (!nemSpawn('red') || nemList().length !== 1) fail('nemSpawn made nothing', career.nem);
+    nemSpawn();
+    if (nemClear() !== 2 || nemList().length || nemGoneList().length) fail('nemClear left something behind', career.nem);
+  } finally {
+    career = keepCareer;
+    S = keepRun;
+    notes.length = 0;
+    notes.push(...keepNotes);
+  }
+}
+// ====================== NEMESIS: the ones who got away: END ======================
 
 // ---------- the prison pocket, in use ----------
 // E.pocket holds what went in during this encounter: [{name, qty, cost, tag}]. It only lasts as long as the
@@ -10051,17 +10736,30 @@ const BTL = (() => {
     const P = (kind, c, fill, rar) => ({kind, c, rar: rar || 0, fill});
     const out = [];
     const core = enc.kind === 'raid' && (enc.boss || enc.hit >= 0.34);
+    // NEMESIS: one of them leads whatever turned up, and everyone behind them wears their crew's colours.
+    const nemC = enc.nem ? (SYN_COL[enc.nem.gang] || '#ff4fd8') : '';
     for (let i = 0; i < enc.n; i++) {
       let name, look, gear, weapon = 0, syn, deco = '', boss = false;
-      if (enc.kind === 'thug' && enc.guard) {
+      if (enc.nem && i === 0) {
+        // NEMESIS: the same person every time: their mark, their crew's colour, and your things on them.
+        const N = enc.nem;
+        name = N.name;
+        look = Object.assign({}, N.look);
+        gear = nemKit(N, P);
+        weapon = enc.kind === 'raid' ? 0 : nemArm(N);
+        syn = N.gang;
+        deco = enc.kind === 'raid' ? 'holo' : 'nem';
+        boss = true;
+      } else if (enc.kind === 'thug' && enc.guard) {
         // Site security, answering the alarm on a break-in (see heistAlarm): a cap, a uniform, and no mask.
-        const c = '#ff9d2e';
+        const c = nemC || '#ff9d2e';   // NEMESIS: their colours when one of them brought them
         [name, look, gear, weapon] = i % 2
           ? ['Night Watchman', {skin: 3, hair: 3, col: 2, streak: 4}, {head: P('cap', c), coat: P(5, c), legs: P(3, c), feet: P(1, c)}, 11]
           : ['Security Guard', {skin: 1, hair: 0, col: 1, streak: 4}, {head: P('cap', c), body: P(3, c, '#2a2f45'), legs: P(3, c), feet: P(1, c)}, 4];
       } else if (enc.kind === 'thug') {
         // [skin, hair, hair colour, hat, jacket, mask, weapon]
-        const [skin, hair, col, hat, coat, mask, arm] = THUG_LOOKS[(i + (enc.seed || 0)) % THUG_LOOKS.length], c = '#ff9d2e';
+        const [skin, hair, col, hat, coat, mask, arm] = THUG_LOOKS[(i + (enc.seed || 0)) % THUG_LOOKS.length],
+          c = nemC || '#ff9d2e';   // NEMESIS: their colours when one of them brought them
         name = arm === 11 ? 'Bruiser' : arm === 13 ? 'Cutter' : 'Chopper';
         look = {skin, hair, col, streak: 4};
         gear = {head: hat < 0 ? null : P(hat, c), body: P(coat, c), face: mask < 0 ? null : P(mask, c), hands: P(2, c), feet: P(1, c),
@@ -10111,7 +10809,7 @@ const BTL = (() => {
         if (enc.kind === 'raid') { weapon = 0; deco = boss ? 'boss' : 'holo'; }   // jacked in: a deck, not a weapon
       }
       const F = {look, gear, syn, level: 1, weapon: 0, hp: 100, mood: 'mean'};
-      out.push({name, boss, deco, weapon, col: enc.kind === 'law' ? ['#4da3ff', '#c9d1d5', '#ff3b5c'][enc.tier || 0] : enc.kind === 'thug' ? '#ff9d2e' : SYN_COL[syn] || '#ff4fd8',
+      out.push({name, boss, deco, weapon, col: nemC || (enc.kind === 'law' ? ['#4da3ff', '#c9d1d5', '#ff3b5c'][enc.tier || 0] : enc.kind === 'thug' ? '#ff9d2e' : SYN_COL[syn] || '#ff4fd8'),
         ghost: syn === 'ghost', mk: figure(F), wmk: weapon ? figure(Object.assign({}, F, {weapon, only: 'weapon'})) : '',
         wk: weapon ? WEAPONS[weapon][4] : 'deck'});
     }
@@ -10410,6 +11108,13 @@ const BTL = (() => {
       g.globalAlpha *= 0.55; P(-15, -33, 7, 9, a.col); g.globalAlpha /= 0.55;
       P(-14, -32, 5, 7, '#06050d');
       for (let k = 0; k < 3; k++) P(-14, -32 + (Math.floor(t / 140) + k * 2) % 7, 2 + (k * 2 + Math.floor(t / 400)) % 4, 1, a.col);
+    } else if (a.deco === 'nem') {
+      // NEMESIS: the mark of the last meeting, lit from below, and their crew's colour turning over their head.
+      P(-6, -44, 2, 1, '#ff3b5c'); P(-5, -43, 2, 1, '#ff3b5c'); P(-4, -42, 2, 1, '#ff3b5c');
+      for (let k = 0; k < 2; k++) {
+        const an = t / 520 + k * Math.PI, x = Math.round(Math.cos(an) * 11);
+        if (Math.sin(an) > 0) P(x, -52, 2, 2, a.col);
+      }
     } else if (a.deco === 'boss') {
       for (let k = 0; k < 3; k++) { const an = t / 600 + k * TAU / 3, x = Math.round(Math.cos(an) * 13), y = Math.round(Math.sin(an) * 4); if (Math.sin(an) > 0) P(x, -30 + y, 2, 2, a.col); }
       P(-4, -57, 1, 2, '#ffd24a'); P(0, -58, 1, 3, '#ffd24a'); P(4, -57, 1, 2, '#ffd24a'); P(-4, -55, 9, 1, '#ffd24a');
@@ -11067,6 +11772,7 @@ const BTL = (() => {
 
   const api = {
     live: on,
+    roster,   // NEMESIS: the self-test and the debug menu read a line-up without opening the screen
     open(enc, head, hint) {
       if (AUTO) return;
       api.close();
@@ -11562,7 +12268,9 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
-  SND.battle = E.kind === 'raid' ? 'raid' : 'fight';
+  S.fought = (S.fought || 0) + 1;   // LEGACY: fights this career, which is one of the things an ending reads
+  // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
+  SND.battle = E.kind === 'raid' || E.nem ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
   try {
     const result = await fightRounds(E);
@@ -11873,7 +12581,10 @@ async function fightRounds(E) {
         gear = Math.random() < (raid ? 0.85 : 0.6);
       }
       if (S.heat !== heatWas) gains.push(['Heat', `${heatWas}% &rarr; ${S.heat}%`, S.heat > heatWas ? 'red' : 'green']);
-      const grudge = law || thug ? '' : `${E.name} will remember this.`;
+      // ===== NEMESIS: either this was one of them, or one of the crew you just beat walks away. =====
+      const nemNote = E.nem ? nemWin(E, gains)
+        : (E.gang && (E.kind === 'gang' || E.kind === 'raid') && total >= 2 && Math.random() < NEM.born ? nemBirth(E) : '');
+      const grudge = nemNote || (law || thug ? '' : `${E.name} will remember this.`);
       if (!await BTL.results(raid ? 'Node looted' : 'You won', `${what}.`, gains, grudge)) {
         await alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
           (grudge ? `<p class="dim">${grudge}</p>` : ''));
@@ -11906,6 +12617,8 @@ async function lose(E) {
       removeItems(name, take);
     }
     S.opsec = Math.max(S.opsec, 40);
+    // ===== NEMESIS: if this was one of them they take one thing more, and carry it where you can see it. =====
+    const nemNote = E.nem ? nemLoss(E) : '';
     let clinic = '';
     if (hurt) {
       // Beaten unconscious: a day in a back-room clinic.
@@ -11918,7 +12631,7 @@ async function lose(E) {
     render();
     return alertDlg(hurt ? 'Beaten and robbed' : 'Robbed',
       (hurt ? `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` : '') + `<p>${E.name} ${hurt ? 'leave you on the floor' : 'own your rig'}. They take <b>${money(cash)}</b> and ` +
-      `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${clinic}`, 'danger');
+      `<b>${num(goods)}</b> of your goods${hurt ? '' : ' before you pull the plug'}.</p>${nemNote}${clinic}`, 'danger');
   }
   if (E.tier === 2) {
     S.busted = S.over = true;
@@ -11975,11 +12688,13 @@ const HALL_MAX = 10;
 const byScore = (a, b) => b.score - a.score;
 const byRate = (a, b) => (b.rate || 0) - (a.rate || 0);
 function hallLoad() {
-  const all = (!AUTO && store.get('zdh-scores')) || [];
+  const all = (legacyOn() && store.get('zdh-scores')) || [];   // LEGACY: legacyOn() is !AUTO, plus the self-test's stubbed board
   return Array.isArray(all) ? all.filter(s => s && Number.isFinite(s.score)) : [];
 }
+// LEGACY: an entry that recorded an ending says which one under the handle. Entries from before it (and from
+// before eco 3 altogether) simply have nothing there.
 const hallRows = (list, rate) => list.map((s, i) =>
-  `<tr><td>${i + 1}.</td><td>${esc(s.handle || 'anon')}</td><td>${money(rate ? s.rate : s.score)}` +
+  `<tr><td>${i + 1}.</td><td>${esc(s.handle || 'anon')}${s.end && ENDINGS[s.end] ? `<br><small class="dim">${ENDINGS[s.end][0]}</small>` : ''}</td><td>${money(rate ? s.rate : s.score)}` +
   `${rate ? '<small class="dim">/day</small>' : ''}</td><td class="dim">${s.days ? `day ${num(s.days)}` : '&mdash;'}</td></tr>`).join('');
 // Everything the hall of fame has to say, as HTML. `mine` (optional) is this career's entry, for the heading.
 function hallHtml(mine) {
@@ -11989,43 +12704,367 @@ function hallHtml(mine) {
   const thirty = all.filter(s => s.eco === 2).sort(byScore).slice(0, HALL_MAX);
   const older = all.filter(s => s.eco !== ECON.version && s.eco !== 2).sort(byScore).slice(0, HALL_MAX);
   const table = (head, list, rate) => (list.length ? `<p class="dim">${head}</p><table class="hall">${hallRows(list, rate)}</table>` : '');
+  // LEGACY: the careers that were taken down get a line of their own under the tables, and the epilogues
+  // that have been recorded can be read again (legacyHtml).
+  const fell = fallLoad();
+  // (your own epilogue is not repeated here: the send-off has just shown it, and legacyHtml leaves you out)
   return (mine ? `<p class="dim">You went on the board as <b>${esc(mine.handle)}</b>: ${money(mine.score)} on day ${num(mine.days)}, ` +
       `${money(mine.rate)} a day.</p>` : '') +
     (now.length || rated.length ? '' : '<p class="dim">Nobody has retired yet.</p>') +
     table('HALL OF FAME &middot; BIGGEST RETIREMENT', now) +
     table('HALL OF FAME &middot; BEST A DAY', rated, true) +
     table('THE THIRTY DAYS: careers that ended on a deadline (1.29 to 1.35)', thirty) +
-    table('BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees', older);
+    table('BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees', older) +
+    (fell.length ? '<p class="dim">TAKEN DOWN: no score, and the street remembers anyway</p>' +
+      `<table class="hall">${fell.map(f => `<tr><td></td><td>${esc(f.handle)}</td>` +
+        `<td class="dim">${ENDINGS[f.end] ? ENDINGS[f.end][0] : 'gone'}</td>` +
+        `<td class="dim">day ${num(f.days)}</td></tr>`).join('')}</table>` : '') +
+    legacyHtml(mine);
 }
 // Put a career on the board if it is good enough for either table. Returns the entry, or null.
-function hallAdd(handle, score, days) {
-  const entry = {handle: String(handle).slice(0, 16), score, days, rate: Math.round(score / Math.max(1, days)), eco: ECON.version};
+// LEGACY: `extra` carries what the send-off worked out (the ending, its epilogue, the crew, one signature
+// piece of gear). It is optional: every older caller, and every older entry, still works without it.
+function hallAdd(handle, score, days, extra) {
+  const entry = Object.assign({}, extra || {},
+    {handle: safeHandle(handle), score, days, rate: Math.round(score / Math.max(1, days)), eco: ECON.version});
   const all = hallLoad(), mine = all.filter(s => s.eco === ECON.version), rest = all.filter(s => s.eco !== ECON.version);
   const keep = new Set([...mine.concat(entry).sort(byScore).slice(0, HALL_MAX), ...mine.concat(entry).sort(byRate).slice(0, HALL_MAX)]);
   if (!keep.has(entry)) return null;
-  if (!AUTO) store.set('zdh-scores', [...keep].concat(rest.sort(byScore).slice(0, HALL_MAX * 2)));
+  if (legacyOn()) store.set('zdh-scores', [...keep].concat(rest.sort(byScore).slice(0, HALL_MAX * 2)));   // LEGACY: legacyOn() is !AUTO, plus the self-test's stubbed board
   return entry;
 }
+
+// ====================== LEGACY: old careers, and the endings: BEGIN ======================
+// Two things live in this block.
+//
+// 1. LEGACIES. A career that ended leaves a mark on the ones that come after it. The source is the board
+//    you already keep: a hall-of-fame entry is a person, and a career that was TAKEN DOWN goes on a much
+//    shorter list of its own ('zdh-fallen'), because the dead do not get a score. Nothing extra is asked of
+//    the player at the end: a retirement already names a handle, and the rest (the ending, the epilogue, the
+//    crew, one signature piece of gear) is what the game already knows when the send-off is drawn.
+//    They turn up in places the player already goes: a market's news lines, a street contact's first words,
+//    a rival crew's opening line, the gear in a deep cache, the paperwork in a deep run, and the record on
+//    the board itself. A career sees LEGACY.perCareer of them at most, each one once, so it stays a mark on
+//    the world and not a pop-up.
+//
+// 2. THE ENDINGS. Retiring, and being taken down, each pick a send-off out of what the game knows about how
+//    the career was played (see careerFacts): the money, the days, the Heat, arrests, how many fights, the
+//    crew, the Bunker, the skill tree, whether the Fixer was ever cleared, and the cat. The first ending in
+//    the order whose test passes is the one you get. Every one has a short epilogue, which is shown in the
+//    send-off and recorded with the entry, so it can be read again from the hall of fame.
+const LEGACY = {
+  perCareer: 6,     // appearances one career gets at most, however long it runs
+  news: 0.14,       // chance a market's news includes a line about an old career
+  contact: 0.3,     // ...that a street contact brings one up
+  crew: 0.25,       // ...that a rival crew is running a retired operator's playbook
+  gear: 0.4,        // ...that gear deep in a cache has a dead operator's name on it
+  file: 0.45,       // ...that the paperwork in a deep run is somebody's file
+  fallMax: 8,       // careers taken down that stay on file
+};
+// The self-test drives careers under AUTO against a stubbed store, so it has to be able to read and write a
+// board the player's real one is nowhere near. Nothing else ever sets this.
+let legacyAuto = false;
+const legacyOn = () => !AUTO || legacyAuto;
+
+// ---------- the fallen: careers that were taken down ----------
+// They bank nothing, so they are not hall-of-fame entries. They are kept because a career that ended badly
+// is worth more to the next one than a career that ended well.
+function fallLoad() {
+  const all = (legacyOn() && store.get('zdh-fallen')) || [];
+  return Array.isArray(all) ? all.filter(f => f && f.handle && Number.isFinite(f.days) && f.days > 0) : [];
+}
+function fallAdd(entry) {
+  const list = [entry].concat(fallLoad().filter(f => f.handle !== entry.handle || f.days !== entry.days));
+  if (legacyOn()) store.set('zdh-fallen', list.slice(0, LEGACY.fallMax));
+  return entry;
+}
+
+// ---------- the pool: the board, read as people ----------
+// Era-3 and era-2 entries both count: they were careers. Entries from before the 1.29 crash carry no `days`
+// and no handle worth repeating, so they stay scores on a wall and never become anybody.
+const legacyId = g => `${g.how}:${g.handle}:${g.days}:${g.score || 0}`;
+// A handle is player text and a legacy's name ends up inside item names and aria labels, so it is cut down
+// to something that cannot break any of them.
+const safeHandle = h => (String(h === undefined ? '' : h).replace(/[<>&"'`\\]/g, '').trim().slice(0, 16) || 'anon');
+function legacyPool() {
+  if (!legacyOn()) return [];
+  const rows = store.get('zdh-scores');
+  const out = [], seen = new Set();
+  const add = g => {
+    g.handle = safeHandle(g.handle);
+    const id = legacyId(g);
+    if (seen.has(id)) return;         // the same career listed twice is still one person
+    seen.add(id);
+    out.push(Object.assign({id}, g));
+  };
+  for (const s of Array.isArray(rows) ? rows : []) {
+    if (!s || !s.handle || !Number.isFinite(s.score) || !Number.isFinite(s.days) || !(s.days > 0)) continue;
+    add({how: 'retired', handle: s.handle, days: s.days, score: s.score, rate: s.rate || 0,
+      crew: SYNDICATES[s.crew] ? s.crew : null, gear: s.gear || '', end: s.end || '', epi: s.epi || ''});
+  }
+  for (const f of fallLoad()) {
+    add({how: f.how === 'dead' ? 'dead' : 'busted', handle: f.handle, days: f.days, score: 0, rate: 0,
+      crew: SYNDICATES[f.crew] ? f.crew : null, gear: f.gear || '', end: f.end || '', epi: f.epi || ''});
+  }
+  return out;
+}
+// Who has turned up in this career already, and where. It belongs to the run, so a new career meets them again.
+const legacySeen = () => (S.ghosts && typeof S.ghosts === 'object' ? S.ghosts : (S.ghosts = {}));
+// One legacy that has not appeared in this career yet, or null. want: an optional filter.
+function legacyTake(where, want) {
+  const seen = legacySeen();
+  if (Object.keys(seen).length >= LEGACY.perCareer) return null;
+  const pool = legacyPool().filter(g => !seen[g.id] && (!want || want(g)));
+  if (!pool.length) return null;
+  const g = pick(pool);
+  seen[g.id] = where;
+  legacyTally.met++;
+  legacyTally.where[where] = (legacyTally.where[where] || 0) + 1;
+  tally('legacy');
+  return g;
+}
+let legacyTally = {met: 0, where: {}, ends: {}, records: 0};   // counted for the self-test
+
+// ---------- what they say about them ----------
+const gname = g => esc(g.handle);
+// A line for a market's news. Retirements are a boast; the ones who did not walk away are a warning.
+function legacyNewsLine(g) {
+  if (g.how === 'retired') {
+    return pick([`Somebody at the bar swears ${gname(g)} walked away on day ${num(g.days)} with ${money(g.score)} and a boarding pass.`,
+      `The feeds are still running the ${gname(g)} story: ${money(g.score)} in ${num(g.days)} days, and not one charge that stuck.`,
+      `A dealer here used to sell to ${gname(g)}. Says the money was real and the name was not.`,
+      `Overheard in the queue: "${gname(g)} got out. Actually out. With ${money(g.score)}."`]);
+  }
+  return pick([`They still talk about ${gname(g)}, who did not walk away. Day ${num(g.days)}. No score, no funeral.`,
+    `A flyer taped to a shutter: ${gname(g)}, wanted, last seen around day ${num(g.days)}. Somebody has drawn on it.`,
+    `The bar has a rule about saying ${gname(g)}'s name after midnight.`,
+    `A kid is selling ${gname(g)}'s old handle as a t-shirt. It is not a nice t-shirt.`]);
+}
+// What a street contact says before they get to the job.
+const legacyContactLine = g => (!g ? '' : `<p class="dim">${g.how === 'retired'
+  ? `"You work like ${gname(g)} did. ${gname(g)} is on a beach now. Do not get ideas."`
+  : `"Last one who stood where you are standing was ${gname(g)}. Day ${num(g.days)}. Do not be ${gname(g)}."`}</p>`);
+// A rival crew's opening line when it has one of your retired operators on the books.
+const legacyCrewLine = (key, g) => `${SYNDICATES[key][0]} have you boxed in, and they are working off ` +
+  `${gname(g)}'s playbook: ${gname(g)} retired on day ${num(g.days)} and sold them the lot on the way out.`;
+// Paperwork deep in a run.
+const legacyFileNote = g => (g.how === 'retired'
+  ? `A file with ${gname(g)} on the spine, open at a page about ${money(g.score)} that was never recovered. ` +
+    'Somebody has written NO LEADS, and then, later and in a different pen, NO LEADS.'
+  : `A closed file: ${gname(g)}, day ${num(g.days)}. Photographs of a room you recognise. There is a space at ` +
+    'the bottom for who they worked with, and it is not empty.');
+// Gear in a cache, with a name on it. The item keeps a real item type at the end of its name, so everything
+// that reads a name for its type (what it holds, what the avatar draws) still works.
+function legacyItem(g, boost) {
+  const it = makeItem(rollRarity(boost));
+  const type = SLOTS[it.slot][1].find(n => it.name.endsWith(n));
+  if (type) it.name = `${safeHandle(g.handle)}'s ${type}`;
+  it.legacy = safeHandle(g.handle);
+  return it;
+}
+const legacyGearNote = g => (g.how === 'retired'
+  ? `There is a name inked inside the collar: <b>${gname(g)}</b>. They did not need it where they went.`
+  : `There is a name inked inside the collar: <b>${gname(g)}</b>. This is as far as ${gname(g)} got.`);
+
+// ---------- the record on the board, and beating it ----------
+// Era-3 entries that were real careers: the ones a new career can be measured against.
+const legacyScores = () => legacyPool().filter(g => g.how === 'retired' && g.score > 0).sort((a, b) => b.score - a.score);
+// The line the Bunker shows while somebody else's number is still the one to beat.
+function legacyRecordLine() {
+  const top = legacyScores()[0];
+  if (!top) return '';
+  const mine = retireWorth().total;
+  return `<p class="dim">The board to beat: <b>${gname(top)}</b>, ${money(top.score)} on day ${num(top.days)}. ` +
+    (mine > top.score ? '<span class="amber">You are past it. It only counts if you walk away with it.</span>'
+      : `You are worth ${money(mine)}.`) + '</p>';
+}
+// Once a career, the morning you are worth more than the best retirement on your own board.
+function legacyRecordCheck() {
+  if (S.over || S.ghostRec) return;
+  const top = legacyScores()[0];
+  if (!top || retireWorth().total <= top.score) return;
+  S.ghostRec = 1;
+  legacyTally.records++;
+  tally('beatrecord');
+  log(`<span class="amber">You are worth more than ${gname(top)} retired with. The record on the board is yours to take home.</span>`);
+  notes.push(['THE RECORD', `<p>${gname(top)} retired on day ${num(top.days)} worth <b>${money(top.score)}</b>. ` +
+    'That has been the number on the board ever since.</p>' +
+    `<p>This morning you are worth <b class="green">${money(retireWorth().total)}</b>.</p>` +
+    '<p class="dim">It only counts if you walk away with it.</p>', '']);
+}
+
+// ---------- the endings ----------
+// id: [title, test(F), epilogue]. F is what careerFacts() gathered. The ORDER lists below are what decides
+// which one you get: the first test that passes wins, so they run from the rarest down to the one anybody
+// can reach, and the last one in each list is the fallback and is never tested.
+const ENDINGS = {
+  island: ['The Quiet Archipelago', F => F.score >= 25000000,
+    'There is an island. There is a dish on the roof of the house on the island, pointed at a satellite that ' +
+    'does not ask questions. Twice a year a man in a linen suit flies out to tell you the money is still there, ' +
+    'eats your food and flies home. Nobody on the island knows what you did, and nobody on the mainland can prove it.'],
+  board: ['Still on the Board', F => F.topRate > 0 && F.rate > F.topRate,
+    'You do not buy anything. You get on a bus. Somewhere behind you a number goes up on a board that four ' +
+    'people in the world can see, and your handle goes next to it, and it stays there. Years from now somebody ' +
+    'who is not born yet will read that line and decide this is a job.'],
+  villa: ['Villa, Beach, No Extradition', F => F.score >= 5000000 && F.heat <= 25,
+    'A white house above a town with one road out and no extradition treaty. The local police chief fixes your ' +
+    'pool pump and takes a drink for it. You answer to the new name so often that you start answering to it in ' +
+    'your sleep, which was always the point.'],
+  crewman: ['Made for Life', F => !!F.crew && F.inner,
+    'You do not retire so much as get promoted out of the way. The crew buys you a flat you would not have ' +
+    'chosen, in a city you would not have chosen, and once a quarter somebody you have never met rings to ask ' +
+    'whether you are well. You always say yes. You are always well. You will be well for a very long time.'],
+  fixer: ['The Fixer Who Never Left', F => F.days >= 120 && F.stations >= 24,
+    'You do not leave the district. You just stop going out. The Bunker keeps its lights on, the cat keeps its ' +
+    'chair, and people knock: who do I call about a door, who do I call about a plate, who buys this. You take ' +
+    'ten percent and never touch the goods again. On paper you are retired. Ask anyone on the street.'],
+  specialist: ['The Teaching Job', F => F.routines >= 12,
+    'You end up teaching, which nobody saw coming, least of all you. A room above a repair shop, six kids, no ' +
+    'names, and everything you worked out the hard way written on a whiteboard in the wrong order. Two of them ' +
+    'will be better than you were. One will be worse, and louder, and will be fine.'],
+  ghost: ['No Such Person', F => F.arrests === 0 && F.fought <= 2 && F.heat <= 20,
+    'There is no file. There was never a file. In a building full of people paid to notice things, nobody ever ' +
+    'typed your name, because you never gave them a reason and never once stayed to argue. You buy a flat, a ' +
+    'kettle and a dog, and the most dangerous thing you ever do again is park badly.'],
+  soldier: ['The Loud Way Out', F => F.fought >= 25,
+    'Your hands do not work properly in the cold any more. You buy a bar with a long sightline to the door and ' +
+    'something heavy behind the optics, and you sit facing the room for the rest of your life. Business is good. ' +
+    'You never relax once, and you tell people that is simply how you sit.'],
+  cat: ['Nothing But the Cat', F => F.score < 150000 && F.cat >= 1,
+    'You get out with a holdall, the last of the cash, and the cat, who does not enjoy the bus. A bedsit over a ' +
+    'kebab shop, a job wiring alarms for a man who asks nothing, and a windowsill the cat approves of. You ' +
+    'banked almost nothing. You banked the cat.'],
+  broke: ['Bus Fare and a Burner', F => F.score < 150000,
+    'You walk away with bus fare and a burner: no villa, no boat, no island. A rented room two cities over and ' +
+    'a name borrowed from a dead man with good credit. Everybody who retires alive is ahead of the game. You ' +
+    'tell yourself that most mornings, and most mornings it works.'],
+  owed: ['Never Square', F => !F.cleared,
+    'You clear the Fixer on the last morning, in one payment, standing up, and he counts it twice. Every day ' +
+    'you ever worked, some of it was his. He shakes your hand. You sit in a park afterwards and work out what ' +
+    'paying him off in the first month would have been worth, and then you stop working things out for good.'],
+  flat: ['A Flat Two Cities Over', () => true,
+    'A quiet flat two cities over, a shop that sells second-hand synthesisers, and a landline. You are in bed by ' +
+    'eleven. Once a month something on the news makes your stomach drop, and then it turns out to be somebody else.'],
+  // --- taken down: no score, and a trace of a different kind ---
+  dysentery: ['Filed Under Misadventure', F => F.how === 'dead',
+    'They bag the goods, photograph them and file you under misadventure. The street gets the story wrong inside ' +
+    'a week: it becomes a warning about trusting a prison pocket, which, to be fair, is exactly what it is.'],
+  forfeit: ['Schedule A', F => F.worth >= 1000000,
+    'They do not charge you with anything for nine months. They do not have to: the house, the garage, the wallet ' +
+    'and the money all belong to a schedule now, and a schedule cannot be argued with. Your name survives as a ' +
+    'case number, and as the thing people say at the bar when somebody will not go home.'],
+  vanished: ['Four Words', () => true,
+    'No arrest, no charge, no record, no you. The Bunker is empty inside a week and somebody else is sleeping in ' +
+    'it inside a month. The only trace is a story that gets shorter every time it is told, until it is four ' +
+    'words: they came for them.'],
+};
+const ENDING_ORDER = ['island', 'board', 'villa', 'crewman', 'fixer', 'specialist', 'ghost', 'soldier', 'cat',
+  'broke', 'owed', 'flat'];
+const DOWN_ORDER = ['dysentery', 'forfeit', 'vanished'];
+let forcedEnding = null;   // the debug menu and the self-test: the next send-off uses this one
+// Everything about the career an ending is allowed to read. Gathered once, so a test cannot change it.
+function careerFacts(score, days, how) {
+  const board = legacyScores();
+  return {how: how || 'retired', score, days, rate: Math.round(score / Math.max(1, days)),
+    worth: Math.max(0, S.cash + S.wallet - S.debt),
+    heat: S.heat, arrests: S.arrests || 0, fought: S.fought || 0, cleared: !!S.cleared,
+    cat: lvl('cat'), crew: career.syn || null, stations: BASE_IDS.reduce((sum, id) => sum + lvl(id), 0),
+    // the crew's whole line of missions finished: the one thing a syndicate alone can earn you
+    inner: !!career.syn && !!career.quest && !!QUESTS[career.syn] && career.quest.n >= QUESTS[career.syn].length,
+    routines: skCount(), topScore: board.length ? board[0].score : 0,
+    topRate: legacyPool().reduce((m, g) => Math.max(m, g.rate || 0), 0)};
+}
+// Which send-off this career gets. A forced one is used once and then forgotten.
+function endingFor(F) {
+  const order = F.how === 'retired' ? ENDING_ORDER : DOWN_ORDER;
+  if (forcedEnding && order.includes(forcedEnding)) { const id = forcedEnding; forcedEnding = null; return id; }
+  const id = order.find(k => { try { return !!ENDINGS[k][1](F); } catch (e) { return false; } }) || order[order.length - 1];
+  return id;
+}
+// Note that this career reached this ending, for the achievements. It belongs to the save.
+function noteEnding(id) {
+  if (!career.ends || typeof career.ends !== 'object') career.ends = {};
+  if (!career.ends[id]) career.ends[id] = Date.now();
+  legacyTally.ends[id] = (legacyTally.ends[id] || 0) + 1;
+  saveCareer();
+}
+// The rarest thing you were wearing when you walked away: what people remember you in.
+function signatureGear() {
+  const worn = Object.values(career.gear).filter(Boolean);
+  return worn.length ? worn.reduce((best, it) => ((it.rar || 0) > (best.rar || 0) ? it : best), worn[0]).name : '';
+}
+// The send-off, as HTML: the title and the epilogue.
+const endingHtml = id => `<p><b class="amber">${ENDINGS[id][0]}</b></p><p>${ENDINGS[id][2]}</p>`;
+// The epilogues on the board, so a send-off can be read again. Only entries that recorded one.
+// `skip` leaves one entry out: the career whose send-off is on the screen already.
+function legacyHtml(skip) {
+  const list = legacyPool().filter(g => g.epi && ENDINGS[g.end] &&
+    !(skip && g.handle === safeHandle(skip.handle) && g.days === skip.days)).slice(0, 4);
+  if (!list.length) return '';
+  return '<p class="dim">WHAT BECAME OF THEM</p>' + list.map(g => `<div class="syn"><b>${gname(g)}</b> ` +
+    `<span class="dim">&middot; ${ENDINGS[g.end][0]}${g.gear ? ` &middot; ${esc(g.gear)}` : ''}</span><br>` +
+    `<span class="dim">${esc(g.epi)}</span></div>`).join('');
+}
+
+// Put a made-up old career on the board, so its legacy can be met without playing one.
+// (Nothing in the game calls this: it is for the debug menu and the self-test.)
+// how: 'retired' (the default), 'busted' or 'dead'. over: any of the fields, to set them by hand.
+function plantLegacy(how, over) {
+  const o = over || {};
+  const handle = safeHandle(o.handle || pick(['Nullset', 'Bitrot', 'Dogcopter', 'Payphone', 'Mx Void', 'Grep']));
+  const days = o.days || rnd(40, 300);
+  const gear = o.gear === undefined ? 'Kernel Panic Trench Coat' : o.gear;
+  const crew = SYNDICATES[o.crew] ? o.crew : null;
+  if (how === 'busted' || how === 'dead') {
+    const end = ENDINGS[o.end] ? o.end : how === 'dead' ? 'dysentery' : 'vanished';
+    return fallAdd({handle, days, how, crew, gear, end, epi: o.epi || ENDINGS[end][2]});
+  }
+  const end = ENDINGS[o.end] ? o.end : 'flat';
+  const score = o.score === undefined ? rnd(2, 40) * 1000000 : o.score;
+  return hallAdd(handle, score, days, {end, epi: o.epi || ENDINGS[end][2], crew, gear});
+}
+// Make the next send-off use this ending, whatever the career actually did.
+// (Nothing in the game calls this: it is for the debug menu and the self-test.) Returns the id, or null.
+function forceEnding(id) {
+  forcedEnding = ENDINGS[id] ? id : null;
+  return forcedEnding;
+}
+// ====================== LEGACY: old careers, and the endings: END ======================
+
 // ---------- end of run ----------
 async function finish() {
   store.del('zdh-save');
   render();
   SND.play(S.busted || S.dead ? 'gone' : 'level');
-  if (S.dead) {
-    // The one way to die: leaving goods stuck in your prison pocket until the dysentery finishes it.
-    await dialog('YOU HAVE DIED OF DYSENTERY', `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` +
-      `<p>Cause of death: <b class="red">${S.dead}</b>.</p>` +
-      `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
-      `A street doc would have had them out in ten minutes.</p>` +
-      '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
-      `<p>Your career ends on day <b>${num(S.day)}</b>, ${num(S.day)} day${S.day === 1 ? '' : 's'} in. No score for the dead: you had to walk away to bank it.</p>` +
-      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
-    return;
-  }
-  if (S.busted) {
-    await dialog('VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` + '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
-      `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the disappeared: you had to walk away to bank it.</p>` +
-      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
+  // LEGACY: a career that was taken down has its own send-offs, and leaves a trace of a different kind:
+  // it goes on the fallen list under this save's own name, which is all the bookkeeping it costs.
+  if (S.dead || S.busted) {
+    const F = careerFacts(0, S.day, S.dead ? 'dead' : 'busted');
+    const id = endingFor(F);
+    noteEnding(id);
+    const fallen = fallAdd({handle: safeHandle((saveList()[slot] || {}).name || 'anon'), days: S.day,
+      how: F.how, crew: career.syn || null, gear: signatureGear(), end: id, epi: ENDINGS[id][2]});
+    const tail = `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the ` +
+      `${S.dead ? 'dead' : id === 'forfeit' ? 'seized' : 'disappeared'}: you had to walk away to bank it.</p>` +
+      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` + endingHtml(id) +
+      `<p class="dim">They go on the board under <b>${esc(fallen.handle)}</b>, with no number next to the name. ` +
+      'Later careers will hear about it.</p>';
+    if (S.dead) {
+      // The one way to die: leaving goods stuck in your prison pocket until the dysentery finishes it.
+      await dialog('YOU HAVE DIED OF DYSENTERY', `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` +
+        `<p>Cause of death: <b class="red">${S.dead}</b>.</p>` +
+        `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
+        `A street doc would have had them out in ten minutes.</p>` +
+        '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
+        tail, [['New career', true, 'primary']], 'danger');
+      return;
+    }
+    await dialog(id === 'forfeit' ? 'SEIZED' : 'VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` +
+      (id === 'forfeit'
+        ? `<p>You were worth <b>${money(F.worth)}</b> when they came, and that is exactly why they came in daylight, ` +
+          'with a van for the hardware and a lawyer for the rest.</p>'
+        : '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>') +
+      tail, [['New career', true, 'primary']], 'danger');
     return;
   }
   // Retired. Everything is sold up (see retireWorth) and the career goes on the board.
@@ -12040,13 +13079,12 @@ async function finish() {
   const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
-  // Where a retirement like that gets you. The last one is for the ones who should never have had to work again.
-  const ENDINGS = [[50000, 'a rented room, a new name, and a job doing tech support for a letting agent'],
-    [250000, 'a quiet flat two cities over, and a shop that sells second-hand synthesisers'],
-    [1000000, 'a bar on a coast with no extradition treaty, and a dog that came with the bar'],
-    [10000000, 'a house nobody can find, a boat nobody can trace, and a hobby that is almost legal'],
-    [Infinity, 'an island, a satellite uplink, and a standing invitation to never come back']];
-  const ending = ENDINGS.find(([limit]) => score < limit)[1];
+  // LEGACY: where a retirement like that gets you is no longer a line off the money alone. The send-off is
+  // chosen from everything the career did (careerFacts / ENDINGS), and its epilogue goes on the board with
+  // the entry so it can be read again.
+  const F = careerFacts(score, days, 'retired');
+  const ending = endingFor(F);
+  noteEnding(ending);
   // A big retirement ends the career draped in gold.
   const pose = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
     : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>`;
@@ -12056,13 +13094,17 @@ async function finish() {
     `<p>Retired on day <b>${num(days)}</b> worth <b class="green">${money(score)}</b>` +
     `<br>That is <b class="cyan">${money(Math.round(score / Math.max(1, days)))}</b> a day, every day you were in` +
     `<br>Career rating: <b class="cyan">${rank}</b>` +
-    `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` +
-    `<p class="dim">You buy ${ending}.</p>`;
+    `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
+  // LEGACY: the title and the epilogue.
+  const epi = endingHtml(ending);
   // On a handheld the picture is the whole first screenful, so there the figures come first and the picture
-  // follows them; on a screen with room the picture leads, as it always has.
-  const summary = () => (tinyScreen() ? facts + pose : pose + facts);
+  // follows them; on a screen with room the picture leads, as it always has. The epilogue goes where it will
+  // be read: straight after the figures on a handheld (the picture can wait at the bottom), under them on a
+  // screen with room for both.
+  const summary = () => (tinyScreen() ? facts + epi + pose : pose + facts + epi);
   const handle = (await askText('RETIRED', summary() + '<p>The name they will remember:</p>')) || 'anon';
-  const mine = hallAdd(handle, score, days);
+  const mine = hallAdd(handle, score, days,
+    {end: ending, epi: ENDINGS[ending][2], crew: career.syn || null, gear: signatureGear()});
   // ENDLESS: on a handheld the send-off with every table in it is four screens of scrolling, so there the
   // tables go behind an answer, the way every other long list on that screen does. On a screen with room
   // for them they stay in front of you.
@@ -12744,6 +13786,12 @@ async function rideSelfTest() {
         (t.cargo && !rideCard(id).includes(`carries ${t.cargo}`)) || (t.loud && (!t.fuel || !rideCard(id).includes(`+${t.loud}% Heat`)))) fail('row does not say what it does', id);
     }
     if (Object.keys(RIDE_ART).some(id => !VEHICLES[id])) fail('a picture with no ride');
+    // SHOP TILES: no shop or action tile is a duplicate of another, and none borrows a room's drawing.
+    const tiles = Object.entries(SHOP_ART).map(([k, art]) => [k, art]).concat(BASE_IDS.map(id => [id, roomArt(id, 1)]));
+    for (let i = 0; i < tiles.length; i++) {
+      for (let j = i + 1; j < tiles.length; j++) if (tiles[i][1] === tiles[j][1]) fail('two things share one drawing', tiles[i][0], tiles[j][0]);
+    }
+    for (const k of ['deep', 'cool', 'skills']) if (!SHOP_ART[k] || !shopIcon(k)) fail('no tile', k);
     for (let h = 1; h <= MAX_HOPS; h++) if (!ids.some(id => VEHICLES[id][2] === h)) fail('nothing adds this many hops', h);
     const byPrice = ids.slice().sort((a, b) => VEHICLES[a][1] - VEHICLES[b][1]);
     if (byPrice.some((id, i) => i && VEHICLES[id][2] < VEHICLES[byPrice[i - 1]][2])) fail('a dearer ride adds fewer hops');
@@ -12752,7 +13800,9 @@ async function rideSelfTest() {
     const spots = Object.values(RIDE_SHOPS).map(s => s[1]);
     if (new Set(spots).size !== 3 || spots.some(s => !LOCATIONS.includes(s) || s === BUNKER || !rideSpot(s))) fail('shops are nowhere', spots);
     for (const key of Object.keys(RIDE_SHOPS)) {
-      if (ids.filter(id => VEHICLES[id][3] === key).length < 3 || typeof ACTIONS[key + 'shop'] !== 'function') fail('thin shop', key);
+      // SHOP TILES: every shop has its own drawing, and it is not a copy of another shop's
+      if (ids.filter(id => VEHICLES[id][3] === key).length < 3 || typeof ACTIONS[key + 'shop'] !== 'function' ||
+        !SHOP_ART[key] || !shopIcon(key)) fail('thin shop', key);
     }
     if (VEHICLES[byPrice[1]][1] > START_CASH) fail('nothing a new player can afford');
     // --- a new run is on foot ---
@@ -13871,8 +14921,13 @@ async function dunRoom(D, room) {
       dunTally.loot++;
       if (gear) {
         dunTally.gear++;
-        D.note = '<span class="green">Somebody left something good in here and forgot about it.</span>';
-        await dropLoot(room.name.toLowerCase(), DUN.gearBoost[clampN(D.floor - 1, 0, 4)] / 2);
+        // LEGACY: deep enough in, the thing somebody left behind belonged to a career of your own.
+        const boost = DUN.gearBoost[clampN(D.floor - 1, 0, 4)] / 2;
+        const ghost = Math.random() < LEGACY.gear ? legacyTake('gear') : null;
+        D.note = ghost ? `<span class="green">${legacyGearNote(ghost)}</span>`
+          : '<span class="green">Somebody left something good in here and forgot about it.</span>';
+        if (ghost) log(`<span class="green">${legacyGearNote(ghost)}</span>`);   // ...and in the log, in case this was the last room
+        await dropLoot(room.name.toLowerCase(), boost, ghost ? legacyItem(ghost, boost) : undefined, true);
       } else {
         const r = Math.random();
         if (r < DUN.ammoOdds && skin === 'site') {
@@ -14085,6 +15140,13 @@ async function dunRoom(D, room) {
       [['Read it', 'read', 'primary'], ['Move on', 'on'], out]);
     if (how === 'bail') return 'bail';
     if (how === 'read') {
+      // LEGACY: sometimes the paperwork is somebody's file, and sometimes it is somebody you used to be.
+      const ghost = Math.random() < LEGACY.file ? legacyTake('file') : null;
+      if (ghost) {
+        D.note = `<span class="amber">${legacyFileNote(ghost)}</span>`;
+        SND.play('hack');
+        return 'on';
+      }
       if (dunLeads().length < DUN.leadMax && Math.random() < 0.6) {
         const L = dunLead('', D.lead.deep + (Math.random() < 0.4 ? 1 : 0));
         dunLeads().push(L);
@@ -14104,7 +15166,7 @@ async function dunRoom(D, room) {
       [['Go in', 'go', 'primary'], ['Not today', 'bail', 'small']]);
     if (how !== 'go') return 'bail';
     dunTally.boss++;
-    const E = dunFoes(D, true, false);
+    const E = nemDress(dunFoes(D, true, false), 'deep');   // NEMESIS: one of them may be holding the bottom
     await fight(E);
     if (S.over) return 'over';
     if (E.result === 'lost') return 'blown';
@@ -14352,7 +15414,9 @@ Object.assign(ACTIONS, {
     for (;;) {
       const list = dunLeads().filter(L => DUN_TH[L.th]);
       const here = list.filter(dunHere), away = list.filter(L => !dunHere(L));
-      const html = '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
+      // SHOP TILES: a deep run gets a tile of its own (it was a bare button before)
+      const html = `<div class="syn">${withIcon(shopIcon('deep'), '<b>Deep run</b><br><span class="dim">rooms, then a floor down, then the same again</span>')}</div>` +
+        '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
         'having at the bottom. A trip to go in and one for each floor down; you can walk out at any room with ' +
         'what you are holding.</p>' +
         (here.length ? '<p class="dim">READY HERE &middot; tap one to go in</p>' +
@@ -15186,6 +16250,258 @@ async function facesSelfTest() {
 }
 // ===== FACES: the step-by-step test ends =====
 
+// ====================== LEGACY: the step-by-step test ======================
+// The ending tables are whole, every ending can be reached and the order is what picks it, retiring and
+// being taken down each write down what they worked out, a career that ended turns up in a later one in
+// every place it can, nobody turns up twice, nobody turns up who is not on the board, and a board full of
+// entries from older versions still loads and still draws.
+async function legacySelfTest() {
+  const run = S, mine = career, keep = slot, random = Math.random, wasAuto = AUTO;
+  const get = store.get, set = store.set, del = store.del;
+  const realDialog = dialog, realAsk = askText, realFight = fight;
+  const fail = (what, ...more) => { throw new Error('Legacy test: ' + what + ' ' + JSON.stringify(more)); };
+  const mem = {};
+  let last = '', nextName = 'bot';
+  const fixed = async (v, fn) => { Math.random = () => v; try { return await fn(); } finally { Math.random = random; } };
+  // Make one of the appearances certain for the length of one call.
+  const always = async (key, fn) => { const was = LEGACY[key]; LEGACY[key] = 1; try { return await fn(); } finally { LEGACY[key] = was; } };
+  const named = /\bg\d\b/;   // the planted legacies below are all called g0, g1, ...
+  try {
+    // Nothing in here may touch the player's own board or saves: the store is a memory map, and `slot`
+    // stays 0, so even store.del cannot reach a real save file.
+    store.get = key => (key in mem ? JSON.parse(JSON.stringify(mem[key])) : null);
+    store.set = (key, value) => { mem[key] = JSON.parse(JSON.stringify(value)); };
+    store.del = key => { delete mem[key]; };
+    legacyAuto = true;   // ...and the bot may read and write that board although AUTO is on
+    slot = 0;
+    dialog = (title, html, buttons, tone) => { last = String(html); return realDialog(title, html, buttons, tone); };
+    askText = async (title, html) => { last = String(html); return nextName; };
+
+    // ---- the tables are whole ----
+    const ids = ENDING_ORDER.concat(DOWN_ORDER);
+    if (ENDING_ORDER.length < 4 || DOWN_ORDER.length < 2) fail('too few endings', ENDING_ORDER.length, DOWN_ORDER.length);
+    if (new Set(ids).size !== ids.length) fail('an ending is in both orders, or listed twice', ids);
+    if (Object.keys(ENDINGS).length !== ids.length) fail('an ending is in ENDINGS and in no order', Object.keys(ENDINGS), ids);
+    for (const id of ids) {
+      const E = ENDINGS[id];
+      if (!E) fail('an ending in the order does not exist', id);
+      if (!E[0] || typeof E[1] !== 'function' || typeof E[2] !== 'string' || E[2].length < 80) fail('an ending is not finished', id, E && E[0]);
+      if (E[2].length > 700) fail('an epilogue is longer than a paragraph', id, E[2].length);
+      if (!endingHtml(id).includes(E[0])) fail('an ending does not draw', id);
+    }
+    // The last of each order is the fallback and must answer to anything.
+    for (const order of [ENDING_ORDER, DOWN_ORDER]) {
+      if (!ENDINGS[order[order.length - 1]][1]({})) fail('the fallback ending can be refused', order[order.length - 1]);
+    }
+    // ---- every ending can be reached, and the order is what picks it ----
+    const F0 = () => ({how: 'retired', score: 300000, days: 40, rate: 7500, worth: 0, heat: 60, arrests: 3,
+      fought: 10, cleared: true, cat: 0, crew: null, inner: false, stations: 14, routines: 0, topScore: 0, topRate: 0});
+    const want = (id, over) => {
+      const F = Object.assign(F0(), over), got = endingFor(F);
+      if (got !== id) fail('the wrong send-off was chosen', id, got, F);
+    };
+    want('island', {score: 25000000, rate: 1});
+    want('board', {rate: 100, topRate: 99});
+    want('villa', {score: 6000000, heat: 20, rate: 1});
+    want('crewman', {crew: 'ghost', inner: true});
+    want('fixer', {days: 130, stations: 30});
+    want('specialist', {routines: 12});
+    want('ghost', {arrests: 0, fought: 0, heat: 10});
+    want('soldier', {fought: 40});
+    want('cat', {score: 1000, cat: 1});
+    want('broke', {score: 1000, cat: 0});
+    want('owed', {cleared: false});
+    want('flat', {});
+    want('dysentery', {how: 'dead'});
+    want('forfeit', {how: 'busted', worth: 2000000});
+    want('vanished', {how: 'busted', worth: 0});
+    // ---- forcing one: refuses rubbish, used once, and never crosses between the two orders ----
+    if (forceEnding('not an ending') !== null) fail('an unknown ending was forced');
+    if (forceEnding('cat') !== 'cat') fail('forcing an ending did not take');
+    if (endingFor(F0()) !== 'cat') fail('a forced ending was ignored');
+    if (endingFor(F0()) !== 'flat') fail('a forced ending was used twice');
+    forceEnding('vanished');
+    if (endingFor(F0()) !== 'flat') fail('a taken-down send-off leaked into a retirement');
+    forceEnding(null);
+
+    // ---- retiring several different ways: what is shown, and what is written down ----
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    career = newCareer(); fixCareer();
+    const retireAs = async (id, name, over) => {
+      newGame();
+      Object.assign(S, {day: 40, loc: BUNKER, debt: 0, cash: 1000000, wallet: 0, inv: {}, stash: {}, rides: [], ride: ''}, over || {});
+      if (retireBlock()) fail('the test could not retire', id, retireBlock());
+      nextName = name;
+      forceEnding(id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await ACTIONS.retire(); } finally { autoPick = null; }
+      if (!S.over || !S.retired) fail('retiring did not end the career', id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await finish(); } finally { autoPick = null; }
+      if (!last.includes(ENDINGS[id][0])) fail('the send-off did not show its title', id, last.slice(0, 200));
+      if (!last.includes(ENDINGS[id][2].slice(0, 40))) fail('the send-off did not show its epilogue', id);
+      if (!career.ends[id]) fail('the ending was not written on the save', id, career.ends);
+      const row = hallLoad().find(s => s.handle === name);
+      if (!row) fail('the career did not go on the board', id, name, hallLoad());
+      if (row.end !== id || row.epi !== ENDINGS[id][2]) fail('the entry did not record its ending', row);
+      if (!row.gear) fail('the entry recorded no signature gear', row);
+      if (!hallHtml(row).includes(ENDINGS[id][0])) fail('the hall of fame does not show the ending', id);
+      return row;
+    };
+    const big = await retireAs('island', 'g0', {cash: 40000000});
+    await retireAs('cat', 'g1', {cash: 9000});
+    await retireAs('soldier', 'g2', {cash: 2000000});
+    await retireAs('flat', 'g3', {cash: 400000});
+    if (Object.keys(career.ends).length < 4) fail('four endings were not remembered', career.ends);
+    if (!ACH.ends4[3]()) fail('reaching four endings did not earn its achievement', career.ends);
+    if (!ACH.endcat[3]()) fail('retiring with nothing but the cat did not earn its achievement', career.ends);
+    if (!big.epi || !('crew' in big) || big.rate !== Math.round(big.score / big.days)) fail('the biggest retirement recorded nothing', big);
+    // ---- being taken down: more than one send-off, no score, and a trace of a different kind ----
+    const downAs = async (id, how, name, over) => {
+      newGame();
+      mem['zdh-slots'] = {0: {name, t: 1}};
+      Object.assign(S, {day: 60, loc: BUNKER, debt: 0, over: true}, over || {});
+      if (how === 'dead') S.dead = 'dysentery'; else S.busted = true;
+      const scoreWas = stat('score'), runsWas = stat('runs');
+      forceEnding(id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await finish(); } finally { autoPick = null; }
+      if (!last.includes(ENDINGS[id][0])) fail('the taken-down send-off did not show its title', id, last.slice(0, 200));
+      if (stat('score') !== scoreWas || stat('runs') !== runsWas) fail('being taken down banked something', id, career.stats);
+      const f = fallLoad().find(x => x.end === id);
+      if (!f || f.days !== 60 || !f.epi || f.handle !== name) fail('a career that was taken down left no trace', id, fallLoad());
+      return f;
+    };
+    await downAs('forfeit', 'busted', 'g5', {cash: 9000000});
+    await downAs('vanished', 'busted', 'g6', {cash: 100});
+    await downAs('dysentery', 'dead', 'g8', {cash: 100});
+    if (fallLoad().length !== 3) fail('the fallen list did not keep all three', fallLoad());
+    // The same name on the same day is the same career, not two.
+    await downAs('vanished', 'busted', 'g6', {cash: 100});
+    if (fallLoad().length !== 3) fail('one career was listed twice on the fallen list', fallLoad());
+
+    // ---- the pool: who becomes a person, and who stays a number on a wall ----
+    mem['zdh-scores'] = [{handle: 'ancient', score: 9e9},
+      {handle: 'thirty', score: 4000000, days: 28, rate: 142857, eco: 2},
+      {handle: 'dupe', score: 1000000, days: 50, rate: 20000, eco: 3},
+      {handle: 'dupe', score: 1000000, days: 50, rate: 20000, eco: 3},
+      {handle: 'nodays', score: 1000000, eco: 3}, null, {score: 'x'}, 'rubbish'];
+    mem['zdh-fallen'] = [{handle: 'gonzo', days: 33, how: 'busted', end: 'vanished', epi: 'They came for them.'},
+      {handle: 'nodays'}, null];
+    const pool = legacyPool();
+    if (new Set(pool.map(g => g.id)).size !== pool.length) fail('a legacy was listed twice', pool);
+    if (pool.length !== 3) fail('the pool is not the three real careers', pool.map(g => g.handle));
+    for (const w of ['thirty', 'dupe', 'gonzo']) if (!pool.some(g => g.handle === w)) fail('a real career is missing from the pool', w);
+    for (const w of ['ancient', 'nodays']) if (pool.some(g => g.handle === w)) fail('a number on a wall became a person', w);
+    // ...and every one of those older entries still loads and still draws.
+    const oldHtml = hallHtml();
+    for (const w of ['ancient', 'thirty', 'dupe', 'BEFORE THE CRASH', 'THE THIRTY DAYS', 'TAKEN DOWN', 'gonzo']) {
+      if (!oldHtml.includes(w)) fail('the hall of fame no longer shows ' + w);
+    }
+    if (hallLoad().length !== 5) fail('the hall of fame lost an old entry', hallLoad());
+    // Rubbish in storage is survived, not trusted.
+    mem['zdh-scores'] = 'not an array'; mem['zdh-fallen'] = 7;
+    if (legacyPool().length || fallLoad().length || hallLoad().length) fail('a broken board was believed', legacyPool());
+    if (hallHtml().includes('undefined')) fail('a broken board drew rubbish', hallHtml().slice(0, 200));
+
+    // ---- a handful a career, each of them once, and nobody who is not on the board ----
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    career = newCareer(); fixCareer();
+    for (let i = 0; i < 9; i++) {
+      plantLegacy(i % 3 === 2 ? 'busted' : 'retired', {handle: 'g' + i, days: 40 + i, score: (i + 1) * 1000000});
+    }
+    if (legacyPool().length < 8) fail('planting legacies did not take', legacyPool().length);
+    newGame();
+    const met = [];
+    for (let i = 0; i < 40; i++) { const g = legacyTake('test'); if (g) met.push(g.id); }
+    if (met.length !== LEGACY.perCareer) fail('a career did not meet its handful of legacies', met.length);
+    if (new Set(met).size !== met.length) fail('a legacy turned up twice in one career', met);
+    const onBoard = new Set(legacyPool().map(g => g.id));
+    if (met.some(id => !onBoard.has(id))) fail('somebody who is not on the board turned up', met);
+    if (stat('legacy') < LEGACY.perCareer) fail('meeting a legacy was not counted', career.stats);
+    if (!ACH.legacy1[3]()) fail('meeting a legacy did not earn its achievement', career.stats);
+    newGame();   // a new career meets them all over again
+    if (!legacyTake('test')) fail('a new career met nobody');
+
+    // ---- every place a legacy can turn up, turns up ----
+    newGame(); S.ghosts = {};
+    S.loc = 'Tor Bazaar'; S.markets = {};
+    await always('news', () => rollMarket());
+    if (!S.news.some(n => named.test(n))) fail('no news about an old career', S.news);
+    newGame(); S.ghosts = {}; S.loc = 'Tor Bazaar';
+    autoPick = () => false;   // "Not today": the gig itself is not what is being tested
+    try { await always('contact', () => contact()); } finally { autoPick = null; }
+    if (!named.test(last)) fail('a street contact never mentioned an old career', last.slice(0, 300));
+    newGame(); S.ghosts = {};
+    let intro = '';
+    fight = async E => { intro = E.intro || ''; E.result = 'won'; };
+    try { await always('crew', () => gangEncounter(pick(rivals()))); } finally { fight = realFight; }
+    if (!named.test(intro) || !intro.includes('playbook')) fail('a rival crew never ran an old operator\'s playbook', intro);
+    // Gear with a name on it keeps a real item type at the end of its name, so everything that reads a name
+    // for its type still works, and a handle cannot carry anything into one that would break a page.
+    const who = legacyPool().find(g => g.how === 'retired');
+    const it = legacyItem(who, 20);
+    if (!it.name.startsWith(who.handle + "'s ")) fail('a legacy item is not named after them', it.name);
+    const type = SLOTS[it.slot][1].find(n => it.name.endsWith(n));
+    if (!type) fail('a legacy item lost its item type', it.name);
+    if (POCKETS[it.slot] && carries(it) !== Math.round(POCKETS[it.slot][SLOTS[it.slot][1].indexOf(type)] * RARITY_MULT[it.rar])) {
+      fail('a legacy item stopped holding what its type holds', it.name, carries(it));
+    }
+    if (!itemHtml(it).includes(it.name) || !itemStats(it)) fail('a legacy item does not draw', it.name);
+    if (/[<>&"'`]/.test(safeHandle('<img src=x>&"\'`evil'))) fail('a handle was not cut down', safeHandle('<img src=x>&"\'`evil'));
+    if (safeHandle('') !== 'anon' || safeHandle(undefined) !== 'anon') fail('an empty handle was kept', safeHandle(''));
+    // ...and the two places inside a deep run, played as rooms.
+    const stageRoom = async (room, odds, pickWhat) => {
+      newGame(); S.ghosts = {};
+      Object.assign(S, {day: 20, trips: 20, loc: 'Datacenter Dock'});
+      const L = dunLead('site', 2);
+      L.at = S.loc;
+      const D = {th: L.th, lead: L, floor: 2, room: 0, rooms: [room], m: 10, goods: {}, cash: 0, note: '', jam: false};
+      S.dun = D;
+      autoPick = all => { const v = pickWhat.find(x => all.includes(x)); return v === undefined ? all[0] : v; };
+      try { await always(odds, () => fixed(0.01, () => dunRoom(D, room))); } finally { autoPick = null; delete S.dun; }
+      return D;
+    };
+    const filed = await stageRoom({t: 'file', name: 'Records room', line: 'Boxes of paper.'}, 'file', ['read']);
+    if (!named.test(filed.note)) fail('a deep run\'s paperwork never turned up somebody\'s file', filed.note);
+    const cached = await stageRoom({t: 'loot', name: 'Store room', line: 'Shelves and boxes.'}, 'gear', ['take', 'b', 'e']);
+    if (!named.test(cached.note)) fail('a deep cache never held an old career\'s gear', cached.note);
+    if (!ownedGear().some(g => /^g\d's /.test(g.name))) fail('the gear with a name on it was not handed over', cached.note);
+
+    // ---- the record on the board, and the morning you pass it ----
+    career = newCareer(); fixCareer();
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    plantLegacy('retired', {handle: 'g7', days: 100, score: 5000000});
+    newGame();
+    Object.assign(S, {day: 40, loc: BUNKER, debt: 0, cash: 1000000, wallet: 0});
+    if (!legacyRecordLine().includes('g7')) fail('the board to beat does not say whose it is', legacyRecordLine());
+    nextDay();
+    if (S.ghostRec || stat('beatrecord')) fail('the record was taken without passing it', S.ghostRec);
+    S.cash = 6000000;
+    nextDay();
+    if (!S.ghostRec || stat('beatrecord') !== 1) fail('passing the record was not noticed', S.ghostRec, career.stats);
+    if (!notes.some(([title]) => title === 'THE RECORD')) fail('passing the record said nothing', notes.map(n => n[0]));
+    if (!legacyRecordLine().includes('past it')) fail('the board to beat does not say you are past it', legacyRecordLine());
+    nextDay();
+    if (stat('beatrecord') !== 1) fail('the record was taken twice', career.stats);
+    if (!ACH.boardbeat[3]()) fail('passing the record did not earn its achievement', career.stats);
+
+    // ---- nothing on the board can be broken: every recorded ending is one the game has ----
+    for (const s of hallLoad()) if (s.end && (!ENDINGS[s.end] || !s.epi)) fail('a board entry recorded a broken ending', s);
+    for (const f of fallLoad()) if (!ENDINGS[f.end] || !f.epi) fail('a fallen entry recorded a broken ending', f);
+    if (!(legacyTally.met >= LEGACY.perCareer) || Object.keys(legacyTally.ends).length < 7 || !legacyTally.records) {
+      fail('the legacy test did not exercise what it claims', legacyTally);
+    }
+  } finally {
+    Math.random = random;
+    store.get = get; store.set = set; store.del = del;
+    dialog = realDialog; askText = realAsk; fight = realFight;
+    legacyAuto = false; forcedEnding = null; AUTO = wasAuto;
+    autoPick = null; slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
+  }
+}
+// ====================== LEGACY: the step-by-step test: END ======================
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -15195,6 +16511,7 @@ async function selfTest(games) {
   let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   let skWas = {spent: 0, fired: 0};   // SKILL TREE: what the step-by-step test did does not count below
   let dunWas = {}, dunUses = 0;   // DUNGEONS
+  let nemWas = {};   // NEMESIS: what the step-by-step test did does not count towards the random games
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -15261,6 +16578,8 @@ async function selfTest(games) {
         await dunSelfTest();    // DUNGEONS
         await endlessSelfTest();   // ENDLESS CAREERS
         await facesSelfTest();   // FACES
+        await legacySelfTest();    // LEGACY: old careers in new ones, and the endings
+        await nemSelfTest();    // NEMESIS
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
@@ -15268,6 +16587,7 @@ async function selfTest(games) {
       if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
       if (game === 0) skWas = {spent: skTally.spent, fired: skTally.fired};   // SKILL TREE
       if (game === 0) dunWas = Object.assign({}, dunTally);   // DUNGEONS
+      if (game === 0) nemWas = Object.assign({}, nemTally);   // NEMESIS
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -15416,6 +16736,28 @@ async function selfTest(games) {
           if (stashTotal() > stashCap()) throw new Error('a deep run overfilled the stash: ' + stashTotal());
           if (career.lockpick < lock) throw new Error('a deep run took lock picking away');
           if (S.over) break;
+        }
+        // NEMESIS: now and then a rival crew leaves a survivor behind, and now and then one of the
+        // survivors turns up: on the street, at the Bunker, or holding the bottom of a deep run. However
+        // it goes, the list stays inside its cap, nobody is on it twice, and nobody who is finished returns.
+        if (Math.random() < 0.06) {
+          const was = nemList().length;
+          nemBorn(pick(Object.keys(noGrudges())));
+          if (nemList().length > NEM.cap || nemList().length < was) throw new Error('the nemesis list went wrong: ' + JSON.stringify(career.nem));
+        }
+        if (nemList().length && Math.random() < 0.12) {
+          const N = pick(nemList()), id = N.id, met = N.met;
+          N.day = Math.max(1, S.day - NEM.rest);
+          delete S.nemDay;
+          if (Math.random() < 0.2) {
+            const E = nemDress({kind: 'gang', gang: N.gang, name: SYNDICATES[N.gang][0], n: 2, hit: 0.3, lo: 3, hi: 8}, 'deep');
+            if (E.nem && (E.name !== E.nem.name || !E.boss || !E.intro)) throw new Error('a deep run dressed a nemesis in wrong: ' + JSON.stringify([E.name, E.boss]));
+            if (E.nem) await fight(E);
+          } else if (S.loc === BUNKER || Math.random() < 0.3) await nemCheck('bunker');
+          else await nemCheck('street');
+          if (S.over) break;
+          const still = nemBy(id);
+          if (still && still.met < met) throw new Error('a meeting was not counted: ' + JSON.stringify([met, still.met]));
         }
         // Rides: every so often the bot turns up at one of the three shops, usually with the price of something in
         // its pocket, and buys, trades in or sells whatever it taps; at the Bunker it swaps rides in the garage.
@@ -15632,6 +16974,23 @@ async function selfTest(games) {
           skCount() > skIds().length || skSpent() > skTotal() || skLeft() !== skTotal() - skSpent() ||
           skTotal() !== (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus() || skSpent() > skTreeCost() ||
           (skFight !== null) ||
+          // NEMESIS: never more of them than the cap, never the same person twice, each one in a crew that
+          // has a grudge against you, with a grudge level on the scale, a mark, a weapon the game has and
+          // only things the game has in their pockets; nobody who is finished is still on the list; and at
+          // most one meeting a day, on a day this run has had.
+          !Array.isArray(career.nem) || career.nem.length > NEM.cap || !Array.isArray(career.nemGone) ||
+          career.nemGone.length > NEM.goneMax ||
+          new Set(career.nem.map(N => N.id)).size !== career.nem.length ||
+          new Set(career.nem.map(N => N.name)).size !== career.nem.length ||
+          career.nem.some(N => typeof N.gang !== 'string' || !SYN_COL[N.gang] || S.grudge[N.gang] === undefined ||
+            !Number.isInteger(N.g) || N.g < 1 || N.g > NEM.maxG || !Number.isInteger(N.met) || N.met < 0 ||
+            !Number.isInteger(N.won) || N.won < 0 || !Number.isInteger(N.day) || N.day < 1 ||
+            !LOCATIONS.includes(N.at) || !NEM_MARKS[N.mk] || !WEAPONS[nemArm(N)] || !N.look ||
+            !Array.isArray(N.took) || N.took.length > NEM.tookMax ||
+            N.took.some(t => !NEM_TOOK[t.k] || (t.k === 'cash' && !(t.n > 0)) ||
+              (t.k === 'weapon' && !WEAPONS[t.n]) || (t.k === 'gear' && !(t.it && RARITY[t.it.rar]))) ||
+            career.nemGone.some(g => g.name === N.name)) ||
+          (S.nemDay !== undefined && !(Number.isInteger(S.nemDay) && S.nemDay >= 1 && S.nemDay <= S.day)) ||
           // DUNGEONS: never more addresses than the limit, each one a real theme at a real place at a real
           // depth; and a run in progress is on a floor that exists, at a room in its own list, with its meter
           // on the scale and whole numbers of goods taken.
@@ -15726,6 +17085,16 @@ async function selfTest(games) {
     if (games >= 20 && !(endlessTally.retired >= 2 && endlessTally.botDay >= 120 && endlessTally.nights >= 150)) {
       throw new Error('endless careers were not exercised: ' + JSON.stringify(endlessTally));
     }
+    // NEMESIS: ...and rival crews must have left survivors in real play, and the survivors must have come
+    // back for the bot. Beating one, losing to one, putting one down for good, letting one go cold and
+    // taking your own things back off one are all played step by step in nemSelfTest as well.
+    if (games >= 20 && !(nemTally.born > (nemWas.born || 0) && nemTally.met > (nemWas.met || 0) &&
+      nemTally.won && nemTally.lost && nemTally.took && nemTally.back && nemTally.down && nemTally.retired)) {
+      throw new Error('nemeses were not exercised: ' + JSON.stringify([nemTally, nemWas]));
+    }
+    const nsum = ` nemeses=${nemTally.born} nemmeetings=${nemTally.met} nembeaten=${nemTally.won}` +
+      ` nemlosses=${nemTally.lost} nemtook=${nemTally.took} nemtookback=${nemTally.back}` +
+      ` nemdown=${nemTally.down} nemwentcold=${nemTally.retired}`;
     const esum = ` retirements=${endlessTally.retired} longestcareer=${endlessTally.longest} longestbotcareer=${endlessTally.botDay} latenights=${endlessTally.nights}`;
     // FACES: ...and the bot must have built standing up and lost it, done a junkie a favour, taken what the
     // fence kept back, been refused, and played districts both hot and locked down.
@@ -15734,6 +17103,15 @@ async function selfTest(games) {
     }
     const fsum = ` standingup=${faceTally.up} standingdown=${faceTally.down} favours=${faceTally.favour}` +
       ` keptback=${faceTally.kept} refused=${faceTally.refused} hotdistricts=${faceTally.hot} lockeddown=${faceTally.locked} districtscooled=${faceTally.cool}`;
+    // LEGACY: ...and old careers must have been met, in every place one can turn up, with every send-off
+    // reached and somebody else's record passed.
+    if (games >= 20 && !(legacyTally.met >= LEGACY.perCareer && legacyTally.records >= 1 &&
+      Object.keys(legacyTally.ends).length >= 7 &&   // four retirements and all three ways of being taken down
+      ['news', 'contact', 'crew', 'file', 'gear', 'test'].every(k => legacyTally.where[k]))) {
+      throw new Error('legacies were not exercised: ' + JSON.stringify(legacyTally));
+    }
+    const lsum = ` legaciesmet=${legacyTally.met} legacyplaces=${Object.keys(legacyTally.where).sort().join('/')}` +
+      ` endingsreached=${Object.keys(legacyTally.ends).sort().join('/')} recordsbeaten=${legacyTally.records}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     // SOUNDTRACK: nothing in all of that was allowed to make a sound. The engine reports on itself:
@@ -15743,7 +17121,7 @@ async function selfTest(games) {
       throw new Error('the self-test was not silent: ' + JSON.stringify(snd));
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${fsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum}${lsum}${fsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -15769,6 +17147,8 @@ function loadSave(n) {
       stand: record.stand, memo: record.memo,
       lockpick: record.lockpick,   // fixCareer() starts it at 0 for a save from before lock picking
       base: record.base, marks: record.marks,   // BASE: fixCareer() fills these in for a save from before the base
+      ends: record.ends,   // LEGACY: the endings reached (fixCareer tidies it for a save from before them)
+      nem: record.nem, nemGone: record.nemGone,   // NEMESIS: nemFix() tidies these (see fixCareer)
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
@@ -15848,6 +17228,9 @@ function loadSave(n) {
   if (!AMMO[S.loaded]) S.loaded = 'std';
   S.store = S.store || [];
   S.grudge = Object.assign(noGrudges(), S.grudge);
+  // NEMESIS: a run from before the nemeses has met nobody today and worn out no market.
+  S.visits = S.visits && typeof S.visits === 'object' ? S.visits : {};
+  if (!(Number.isInteger(S.nemDay) && S.nemDay >= 1 && S.nemDay <= S.day)) delete S.nemDay;
   S.raided = !!S.raided;
   log('Run resumed.');
   return true;
