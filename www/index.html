@@ -13904,7 +13904,8 @@ async function endlessSelfTest() {
     autoPick = all => (all.includes(true) ? true : all[0]);
     try { for (let i = 0; i < 5; i++) { if (S.over) break; await ACTIONS.sleep(); await flushNotes(); } } finally { autoPick = null; }
     if (!S.over && S.day <= ENDLESS.arc) fail('a day-28 save could not get past the old deadline', S.day);
-    if (!S.over && (S.day !== 33 || retireBlock())) fail('the old save cannot retire after carrying on', S.day, retireBlock());
+    // (a raid in the night can cost a couple of days in a cell, so the day is only required to be past the arc)
+    if (!S.over && (S.day < ENDLESS.arc + 3 || retireBlock())) fail('the old save cannot retire after carrying on', S.day, retireBlock());
   } finally {
     Math.random = random; autoPick = null; AUTO = wasAuto; store.get = get; store.set = set;
     slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
