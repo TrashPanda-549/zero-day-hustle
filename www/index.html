@@ -1769,14 +1769,16 @@ const BASE = {
       {n: 'Police-Band Scanner', t: 3, raid: 0.7, cool: 3, warn: true, req: [rCash(340000), rLv(13), rSt('power', 2), rGad('vpn', 1), rGad('wiper', 1), rGood('Botnet Hours', 4)]},
       {n: 'Faraday Lining', t: 4, raid: 0.6, cool: 4, warn: true, req: [rCash(1500000), rLv(20), rSt('power', 3), rGood('Rootkits', 2), rGear(3, 1)]}]},
   intel: {name: 'Intel Board', tag: 'INTEL', col: '#ff2a6d',
-    about: 'Rumours about today\'s prices. Some of them are even true.',
+    about: 'Rumours about today\'s prices, and warnings about tomorrow\'s news. Some of them are even true.',
+    // LIVE NEWS: `ahead` is how many days ahead the board sees the headlines that have not broken yet.
     say: L => `${L.tips} rumour${L.tips === 1 ? '' : 's'} a day about prices elsewhere, right about ${Math.round(L.right * 100)}% of the time.` +
+      (L.ahead ? ` Warns you about news breaking ${L.ahead === 1 ? 'tomorrow' : `in the next ${L.ahead} days`}, at the same odds.` : '') +
       (L.law ? ' Shows how likely the law is to stop you on a trip today.' : ''),
-    lv: [{tips: 0, right: 0},
-      {n: 'Corkboard and Red String', t: 1, tips: 1, right: 0.7, req: [rCash(3000), rGood('Cracked Accounts', 8)]},
-      {n: 'Scanner on a Shelf', t: 2, tips: 2, right: 0.8, req: [rCash(33000), rLv(5), rSt('power', 1), rGood('Leaked Databases', 4)]},
-      {n: 'Wall of Monitors', t: 3, tips: 3, right: 0.88, law: true, req: [rCash(280000), rLv(11), rSt('power', 2), rGood('Leaked Databases', 8), rGood('Rootkits', 2)]},
-      {n: 'Informant on a Retainer', t: 4, tips: 4, right: 0.95, law: true, req: [rCash(1200000), rLv(18), rSt('power', 3), rGood('Zero-Days', 1), rGad('fakeid', 2)]}]},
+    lv: [{tips: 0, right: 0, ahead: 0},
+      {n: 'Corkboard and Red String', t: 1, tips: 1, right: 0.7, ahead: 1, req: [rCash(3000), rGood('Cracked Accounts', 8)]},
+      {n: 'Scanner on a Shelf', t: 2, tips: 2, right: 0.8, ahead: 1, req: [rCash(33000), rLv(5), rSt('power', 1), rGood('Leaked Databases', 4)]},
+      {n: 'Wall of Monitors', t: 3, tips: 3, right: 0.88, ahead: 2, law: true, req: [rCash(280000), rLv(11), rSt('power', 2), rGood('Leaked Databases', 8), rGood('Rootkits', 2)]},
+      {n: 'Informant on a Retainer', t: 4, tips: 4, right: 0.95, ahead: 2, law: true, req: [rCash(1200000), rLv(18), rSt('power', 3), rGood('Zero-Days', 1), rGad('fakeid', 2)]}]},
   cat: {name: 'The Cat', tag: 'CAT', col: '#ff9d2e',
     about: 'Nobody builds a cat. You make the place acceptable, and one moves in.',
     say: L => `Purring: +${L.hp}% Health a night.` + (L.gift ? ` About one night in ${Math.round(1 / L.gift)} it leaves a present in the stash.` : '') +
@@ -2968,6 +2970,11 @@ const ACH = {
   day250: ['Old Money', 'Still working on day 250', 1000, () => S.day >= 250],
   retire1: ['Out of the Game', 'Retire from a career instead of being taken down', 300, () => stat('retired') >= 1],
   retirerich: ['Villa, Beach, No Extradition', 'Retire worth $25,000,000', 1500, () => stat('score') >= 25000000],
+  // --- live news (see NEWS_EVENTS): reading the paper, and being read to ---
+  evread: ['Read All About It', 'Buy goods the Intel Board warned you about, before the news broke', 150, () => stat('evahead') >= 1],
+  evpro: ['Insider Trading (Unregulated)', 'Do it 25 times', 500, () => stat('evahead') >= 25],
+  evlive: ['It Was a Bad Week', 'Live through 25 headlines', 300, () => stat('evseen') >= 25],
+  evshut: ['Papers, Please', 'Find a district cordoned off when you wanted to be in it', 50, () => stat('evshut') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -5728,6 +5735,7 @@ function addHeat(value) {
 const fx = () => (S.fx && typeof S.fx === 'object' ? S.fx : (S.fx = {vpn: 0, decoy: 0}));
 // Everything that raises Heat comes through here, so a running VPN can halve it.
 function heatUp(n) {
+  if (n > 0) { const em = evHeat(); if (em !== 1) n = Math.ceil(n * em); }   // LIVE NEWS: a crackdown, or a bigger fish
   if (n > 0 && fx().vpn > 0) n = Math.ceil(n / 2);
   if (n > 0) n = Math.ceil(n * skHeatMul());   // SKILL TREE: Traffic Shaping
   S.heat = Math.min(100, S.heat + n);
@@ -5884,11 +5892,17 @@ function rollMarket() {
   for (;;) {
     S.prices = {}; S.flags = {}; S.news = [];
     for (const [name, low, high, scarce, flood] of GOODS) {
-      if (Math.random() < 0.18) continue;   // nobody is dealing this here today
+      // LIVE NEWS: something in the news is nearly always on the board here, so the headline can be seen.
+      if (Math.random() < (evTouch(name) ? 0.04 : 0.18)) continue;   // nobody is dealing this here today
       let price = rnd(low, high);
       const r = Math.random();
       if (r < ECON.spikeOdds) { price *= rnd(ECON.spikeMult[0], ECON.spikeMult[1]); S.news.push(scarce); S.flags[name] = 'up'; }
       else if (r < ECON.spikeOdds + ECON.crashOdds) { price = Math.max(1, Math.floor(price / rnd(ECON.crashDiv[0], ECON.crashDiv[1]))); S.news.push(flood); S.flags[name] = 'down'; }
+      // LIVE NEWS: the one lever on prices. The roll above is untouched; an event multiplies it, and may
+      // raise the arrow if the roll did not. Everything downstream (books, stock, the floor) is unchanged.
+      const em = evPrice(name);
+      if (em !== 1) price = Math.max(1, Math.round(price * em));
+      if (!S.flags[name]) { const ef = evFlag(name); if (ef) S.flags[name] = ef; }
       S.prices[name] = price;
     }
     if (Object.keys(S.prices).length >= 4) break;
@@ -5913,7 +5927,9 @@ function rollMarket() {
 const marketSize = () => ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(Math.min(S.day, ENDLESS.arc) - 1, ECON.marketCurve)) * lateMult(S.day);
 function depthOf(name, flag) {
   const g = GOODS.find(x => x[0] === name), mid = (g[1] + g[2]) / 2;
-  const units = marketSize() * (ECON.depthWeight[name] || 1) * (flag === 'up' ? ECON.spikeDepth : 1) / mid;
+  // LIVE NEWS: an event multiplies the dollar depth here, and everything below (stock, the halving
+  // distance, notDealtYet) follows from it exactly as it follows from marketSize().
+  const units = marketSize() * (ECON.depthWeight[name] || 1) * (flag === 'up' ? ECON.spikeDepth : 1) * evDepth(name) / mid;
   // Street-level goods are dealt everywhere from day one, so cheap deliveries and break-in devices can always be bought.
   return Math.max(mid <= ECON.streetMax ? ECON.streetDepth : ECON.minDepth, Math.round(units * 10) / 10);
 }
@@ -6040,6 +6056,368 @@ const walletGain = amount => Math.floor(Math.min(Math.min(amount, ECON.walletFul
 // A drive upgrade costs more the more of them you have fitted (ECON.driveCurve). base: what the first one costs.
 const drivePrice = base => Math.round(base * Math.pow(1 + Math.max(0, S.drive - START_DRIVE) / 50, ECON.driveCurve) / 10) * 10;
 
+// ===== LIVE NEWS (v1.37): headlines that actually move the market =====
+// The news strip used to be flavour text. Now most of what it says is an EVENT: a headline, a duration in
+// days, and real effects. The Intel Board sells warnings about the ones that have not broken yet, which is
+// what finally makes that station worth its price.
+//
+// WHERE THE EFFECTS GO IN. Nothing in here sets a price, a stock level or a depth itself. An event only
+// multiplies the INPUTS the measured economy (ECON) already reads, so market depth, the stock on the shelf,
+// the price floor, overnight recovery and the "not dealt in yet" rules all keep working unchanged, and no
+// number can come out unreadable:
+//   1. rollMarket()   the morning price roll is multiplied by evPrice(good). An event's goods are also
+//                     almost always dealt that day, so you can see what the headline did.
+//   2. depthOf()      the dollar depth is multiplied by evDepth(good). Stock, the halving distance and
+//                     notDealtYet() all follow from depth exactly as they follow from marketSize().
+//   3. S.flags        an event can raise the amber (scarce) or cyan (flooded) arrow, which feeds
+//                     ECON.spikeDepth and ECON.floodStock, as a rolled spike or crash does.
+//   4. heatUp()       a crackdown multiplies every Heat gain in the game (evHeat()).
+//   5. randomEvent()  a crackdown or a gang war adds to the law's and the crews' per-trip odds, and a gang
+//                     war decides which crew comes for you (evLaw(), evGang(), evCrew()).
+//   6. ACTIONS.travel() a closed district is not on the list of places you can go (evShut()).
+// Both market multipliers are clamped (NEWS.cap), so however many events pile up on one good the price and
+// the depth stay inside a range a player can read.
+//
+// marketSize() and dayTake() are deliberately NOT touched: the measured income curve and everything priced
+// off it (rides, Heat per deal, XP, the Fixer's ceiling) are left exactly as they were.
+const NEWS = {
+  from: 2,          // day 1 is left alone
+  odds: 0.55,       // chance a night that one more event is lined up
+  lead: [1, 2],     // how many days ahead it is lined up: that window is what the Intel Board sells
+  maxRun: 3,        // most events running at once
+  maxPlan: 2,       // most lined up at once
+  cap: {price: [0.3, 2.6], depth: [0.4, 2.2]},   // the most all of them together can do to one good
+};
+// Pools events draw their goods from.
+const EV_BIG = ['Zero-Days', 'Rootkits', 'Botnet Hours'];
+const EV_STREET = ['Phishing Kits', 'Rogue APs', 'Cracked Accounts', 'USB Droppers', 'Burner SIMs', 'Warez'];
+const EV_MID = ['Botnet Hours', 'Leaked Databases', 'Phishing Kits', 'Rogue APs'];
+// Words for the headlines.
+const evGoodsText = E => (E.g || []).join(' and ');
+const evCrewText = E => (E.crew && SYNDICATES[E.crew] ? SYNDICATES[E.crew][0] : 'a crew nobody will name');
+// One table of events. Add to it freely; nothing outside it knows what the ids mean.
+//   n      what it is called in the debug listing
+//   pool   the goods it can land on ('any', a list, or absent for an event that is not about one good)
+//   many   how many goods it takes from the pool (default 1)
+//   where  'loc' if it happens in one district
+//   days   [fewest, most] days it runs
+//   price  multiplier on the morning price roll for its goods
+//   depth  multiplier on how deep the market is in them
+//   flag   'up' or 'down': the arrow on the product row
+//   heat   multiplier on every Heat gain while it runs
+//   law    added to the per-trip chance the law stops you
+//   gang   added to the per-trip chance a rival crew comes for you
+//   shut   1: its district is closed, and you cannot travel there
+//   crew   1: a rival crew is behind it (and the one you meet on the street)
+//   head / on / off / warn: the headline, the standing line, the line when it ends, and what the board sells
+const NEWS_EVENTS = {
+  raid: {n: 'Datacenter raid', pool: ['Zero-Days'], days: [3, 4], price: 0.45, depth: 1.3, flag: 'down', law: 0.02,
+    head: E => `Feds walked into a colo with a warrant and a trolley. Everyone is dumping ${evGoodsText(E)} before they become evidence.`,
+    on: E => `The colo raid is still being counted. ${evGoodsText(E)} are worth half what they were.`,
+    off: E => `The colo story has dropped off the front page. ${evGoodsText(E)} are finding their price again.`,
+    warn: E => `a raid on a datacenter is coming, and ${evGoodsText(E)} will be dumped`},
+  combo: {n: 'Combo list leak', pool: ['Cracked Accounts'], days: [2, 3], price: 0.3, depth: 1.6, flag: 'down',
+    head: E => `Somebody posted a four-billion-line combo list for free, with a readme thanking us all. ${evGoodsText(E)} are now a hobby.`,
+    on: E => `${evGoodsText(E)} are still free on four forums. Nobody is paying for them.`,
+    off: E => `The combo list has rotted enough that ${evGoodsText(E)} mean something again.`,
+    warn: E => `a combo list is about to go public and make ${evGoodsText(E)} worthless`},
+  breach: {n: 'Mega-breach', pool: ['Leaked Databases'], days: [2, 3], price: 0.4, depth: 1.6, flag: 'down',
+    head: E => `A hotel chain lost everyone who has ever slept in it. ${evGoodsText(E)} are stacked three deep on every board.`,
+    on: E => `The breach is still being torrented. ${evGoodsText(E)} are cheap and getting cheaper.`,
+    off: E => `The breach has been absorbed. ${evGoodsText(E)} are back to being worth money.`,
+    warn: E => `a breach is about to drop and bury the ${evGoodsText(E)} market`},
+  takedown: {n: 'Botnet takedown', pool: ['Botnet Hours'], days: [2, 4], price: 2, depth: 1.3, flag: 'up',
+    head: E => `An international takedown sinkholed four of the big families overnight. ${evGoodsText(E)} just got expensive.`,
+    on: E => `Half the bots are still in a sinkhole. ${evGoodsText(E)} are going for silly money.`,
+    off: E => `The families have rebuilt out of smart fridges. ${evGoodsText(E)} are ordinary again.`,
+    warn: E => `a takedown is coming and ${evGoodsText(E)} will spike`},
+  kernel: {n: 'Kernel hardening', pool: ['Rootkits'], days: [3, 4], price: 1.8, depth: 0.8, flag: 'up',
+    head: E => `A quiet kernel release broke every public ring-0 trick at once. Working ${evGoodsText(E)} cost a fortune and nobody has many.`,
+    on: E => `${evGoodsText(E)} that still work are rare and dear.`,
+    off: E => `Somebody found the bypass and published it. ${evGoodsText(E)} are back to normal.`,
+    warn: E => `a kernel release is about to break most ${evGoodsText(E)} and send the price up`},
+  bounty: {n: 'Bounty bonanza', pool: ['Zero-Days'], days: [2, 3], price: 1.75, depth: 1.5, flag: 'up',
+    head: E => `A payment processor tripled its bounties after a very bad quarter. Nobody is selling ${evGoodsText(E)} cheap today.`,
+    on: E => `The bounty programme is still paying triple. ${evGoodsText(E)} are holding high.`,
+    off: E => `The bounty budget ran out on a Tuesday. ${evGoodsText(E)} have come back down.`,
+    warn: E => `bounties are about to triple and ${evGoodsText(E)} will spike`},
+  idlaw: {n: 'New ID laws', pool: ['Burner SIMs'], days: [3, 4], price: 2, depth: 1.2, flag: 'up',
+    head: E => `New ID rules hit the kiosks at midnight. ${evGoodsText(E)} are suddenly a regulated product.`,
+    on: E => `The kiosks are still asking for a face. ${evGoodsText(E)} are scarce.`,
+    off: E => `A thousand kiosks quietly stopped asking. ${evGoodsText(E)} are ordinary again.`,
+    warn: E => `an ID law is about to land and ${evGoodsText(E)} will spike`},
+  taxman: {n: 'Tax season', pool: ['Phishing Kits'], days: [3, 5], price: 1.7, depth: 1.3, flag: 'up',
+    head: E => `Filing deadline. Every inbox in the city is expecting a letter about money. ${evGoodsText(E)} are selling out.`,
+    on: E => `Filing week is still on. ${evGoodsText(E)} are moving at a premium.`,
+    off: E => `The deadline passed. ${evGoodsText(E)} are back to the usual trickle.`,
+    warn: E => `the filing deadline is coming and ${evGoodsText(E)} will sell high`},
+  customs: {n: 'Customs sweep', pool: ['USB Droppers', 'Burner SIMs', 'Rogue APs'], many: 2, days: [2, 4], price: 1.6, depth: 0.7, flag: 'up',
+    head: E => `Customs opened a container that was supposed to be garden furniture. ${evGoodsText(E)} are hard to get hold of.`,
+    on: E => `The container is still in an evidence lock-up. ${evGoodsText(E)} are thin on the ground.`,
+    off: E => `A new shipment came in through somewhere friendlier. ${evGoodsText(E)} are back.`,
+    warn: E => `a customs sweep is about to make ${evGoodsText(E)} scarce`},
+  tracker: {n: 'Tracker seized', pool: ['Warez'], days: [2, 3], price: 1.8, depth: 1.4, flag: 'up',
+    head: E => `The big private tracker is a seizure notice and a sad cartoon. ${evGoodsText(E)} are worth something for once.`,
+    on: E => `The tracker is still a seizure notice. ${evGoodsText(E)} are up.`,
+    off: E => `The tracker came back on a different flag. ${evGoodsText(E)} are free again, as nature intended.`,
+    warn: E => `a tracker seizure is coming and ${evGoodsText(E)} will jump`},
+  dump: {n: 'Release group dump', pool: EV_STREET, days: [2, 3], price: 0.5, depth: 1.4, flag: 'down',
+    head: E => `A release group fell out with itself and dumped the whole archive on the way out. ${evGoodsText(E)} are going for nothing.`,
+    on: E => `The archive is still mirrored everywhere. ${evGoodsText(E)} are cheap.`,
+    off: E => `The mirrors have gone dark. ${evGoodsText(E)} are priced like goods again.`,
+    warn: E => `a release group is about to dump its archive and ${evGoodsText(E)} will crash`},
+  shortage: {n: 'Shortage', pool: 'any', days: [2, 3], price: 1.9, depth: 1.35, flag: 'up',
+    head: E => `Whatever supplies ${evGoodsText(E)} has stopped supplying it. Everybody wants some and nobody has any.`,
+    on: E => `${evGoodsText(E)} are still short. The price shows it.`,
+    off: E => `The ${evGoodsText(E)} shortage sorted itself out, the way they do.`,
+    warn: E => `a shortage is coming: ${evGoodsText(E)} will spike`},
+  nodedown: {n: 'Crew node down', pool: EV_MID, where: 'loc', crew: 1, days: [2, 3], price: 0.6, depth: 1.25, flag: 'down',
+    head: E => `${evCrewText(E)} lost a node to a cooling failure and is liquidating ${evGoodsText(E)} at ${E.at}, insisting this was always the plan.`,
+    on: E => `${evCrewText(E)} is still clearing ${evGoodsText(E)} out at ${E.at}.`,
+    off: E => `${evCrewText(E)} has racked something new. The cheap ${evGoodsText(E)} at ${E.at} are gone.`,
+    warn: E => `${evCrewText(E)} is about to lose a node and sell ${evGoodsText(E)} cheap at ${E.at}`},
+  gangwar: {n: 'Gang war', where: 'loc', crew: 1, days: [2, 4], depth: 0.6, gang: 0.07,
+    head: E => `${evCrewText(E)} and somebody else are shooting at each other's vans in ${E.at}. Nobody is standing on that corner to trade.`,
+    on: E => `The ${E.at} war is still on. Trade there is whatever you can do quickly.`,
+    off: E => `Somebody's uncle sat both crews down. ${E.at} is open for business again.`,
+    warn: E => `a crew war is about to start in ${E.at}`},
+  lockdown: {n: 'District closed', where: 'loc', days: [1, 2], shut: 1,
+    head: E => `The city has closed ${E.at}. A gas leak, they say, four blocks wide, with a lot of unmarked vans in it.`,
+    on: E => `${E.at} is still cordoned off. Nobody is getting in.`,
+    off: E => `The cordon came down at ${E.at}. The gas leak was never mentioned again.`,
+    warn: E => `${E.at} is about to be cordoned off: you will not be able to go there`},
+  blackout: {n: 'Rolling blackout', days: [1, 2], depth: 0.65,
+    head: () => 'The grid is browning out across the city. Half the market is running on a generator and a bad attitude.',
+    on: () => 'The lights are still going out in rotation. Nobody is moving much of anything.',
+    off: () => 'The grid is back. Everyone is pretending their uptime was fine.',
+    warn: () => 'rolling blackouts are coming: every market in the city will go thin'},
+  crackdown: {n: 'Crackdown', days: [2, 4], heat: 1.6, law: 0.05,
+    head: () => 'A task force was stood up after a councillor\'s inbox turned up on a forum. Everything you do today is being written down twice.',
+    on: () => 'The task force is still working through the city. Everything you do costs more Heat.',
+    off: () => 'The task force was reassigned to something with a budget. The city exhales.',
+    warn: () => 'a crackdown is coming: every deal will raise more Heat for a few days'},
+  amnesty: {n: 'Bigger fish', days: [2, 3], heat: 0.6, law: -0.015,
+    head: () => 'Somebody three tiers above us got arrested on live television. Every investigator in the city has been reassigned to him.',
+    on: () => 'They are all still on the big one. Nobody is looking at us.',
+    off: () => 'The big case was pleaded out. Attention is back on the street.',
+    warn: () => 'a very large arrest is coming, and nobody will be looking at us for a few days'},
+  con: {n: 'Conference in town', where: 'loc', days: [2, 3], depth: 1.55, price: 1.12,
+    head: E => `A conference's unofficial overflow has taken over ${E.at}. Everyone there is buying, and everyone is wearing a lanyard.`,
+    on: E => `${E.at} is still full of lanyards and money.`,
+    off: E => `The lanyards went home. ${E.at} is a normal market again.`,
+    warn: E => `a conference is about to fill ${E.at}: everything will trade deeper there`},
+  fire: {n: 'Datacentre fire', where: 'loc', days: [2, 3], depth: 0.5, price: 1.3,
+    head: E => `Something caught fire in a riser at ${E.at}. Nobody died; a great deal of other people's data did.`,
+    on: E => `${E.at} is still half offline after the fire.`,
+    off: E => `${E.at} is back on its feet, with a new sprinkler and a new story.`,
+    warn: E => `a fire is about to take half of ${E.at} offline`},
+};
+const EV_IDS = Object.keys(NEWS_EVENTS);
+// The running events and the ones lined up. Kept on the save, so an event survives a reload.
+const evRun = () => (Array.isArray(S.ev) ? S.ev : (S.ev = []));
+const evPlan = () => (Array.isArray(S.evPlan) ? S.evPlan : (S.evPlan = []));
+let evOff = 0;      // the step-by-step self-tests hold the news still while they measure the bare economy
+let evTally = {started: 0, ended: 0, warned: 0, acted: 0, shut: 0};   // counted for the self-test
+// An event's effects only reach the market it is about: a city-wide one reaches all of them.
+const evHere = (E, loc) => !E.at || E.at === (loc === undefined ? S.loc : loc);
+const evDef = E => NEWS_EVENTS[E && E.id] || null;
+// Every running event, newest first, that is in play at all.
+function evActive() {
+  if (evOff) return [];
+  return evRun().filter(E => evDef(E) && E.left > 0);
+}
+const clamp2 = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// --- the levers (see the note above) ---
+// What the morning price roll for one good is multiplied by here.
+function evPrice(name, loc) {
+  let m = 1;
+  for (const E of evActive()) {
+    const D = evDef(E);
+    if (D.price && evHere(E, loc) && (E.g || []).includes(name)) m *= D.price;
+  }
+  return clamp2(m, NEWS.cap.price[0], NEWS.cap.price[1]);
+}
+// What the market's dollar depth in one good is multiplied by here. A district event with no goods of its
+// own (a war, a conference, a fire) moves the depth of everything traded there.
+function evDepth(name, loc) {
+  let m = 1;
+  for (const E of evActive()) {
+    const D = evDef(E);
+    if (!D.depth || !evHere(E, loc)) continue;
+    if (!D.pool || (E.g || []).includes(name)) m *= D.depth;
+  }
+  return clamp2(m, NEWS.cap.depth[0], NEWS.cap.depth[1]);
+}
+// The arrow an event puts on a product row, or '' for none. The first running event that has one wins.
+function evFlag(name, loc) {
+  for (const E of evActive()) {
+    const D = evDef(E);
+    if (D.flag && evHere(E, loc) && (E.g || []).includes(name)) return D.flag;
+  }
+  return '';
+}
+// True while any running event is about this good here: rollMarket keeps it on sale so the headline shows.
+const evTouch = (name, loc) => evActive().some(E => evDef(E).pool && evHere(E, loc) && (E.g || []).includes(name));
+// What every Heat gain in the game is multiplied by (a crackdown, or a very large arrest somewhere else).
+function evHeat() {
+  let m = 1;
+  for (const E of evActive()) if (evDef(E).heat) m *= evDef(E).heat;
+  return clamp2(m, 0.5, 2.5);
+}
+// Added to the per-trip odds that the law stops you, and that a rival crew comes for you.
+function evLaw() {
+  let n = 0;
+  for (const E of evActive()) if (evDef(E).law) n += evDef(E).law;
+  return clamp2(n, -0.02, 0.09);
+}
+function evGang() {
+  let n = 0;
+  for (const E of evActive()) if (evDef(E).gang && evHere(E)) n += evDef(E).gang;
+  return clamp2(n, 0, 0.12);
+}
+// A district nobody can get into today, and why.
+const evShut = loc => evActive().find(E => evDef(E).shut && E.at === loc) || null;
+// A gang war makes its own crew the one you run into. '' when no crew is in the news here.
+function evCrew() {
+  const E = evActive().find(x => evDef(x).crew && evDef(x).gang && x.crew && evHere(x));
+  return E ? E.crew : '';
+}
+// A district with something going on, for the travel list: [why, bad] (bad: closed outright).
+function evAt(loc) {
+  const closed = evShut(loc);
+  if (closed) return [`closed: ${NEWS_EVENTS[closed.id].n.toLowerCase()}`, true];
+  const E = evActive().find(x => x.at === loc);
+  return E ? [NEWS_EVENTS[E.id].n.toLowerCase(), false] : null;
+}
+
+// --- lining events up, starting them, ending them ---
+// Make one event record. id: which kind. Anything left out is picked at random the way a night would pick it.
+function evMake(id, how) {
+  const D = NEWS_EVENTS[id];
+  if (!D) return null;
+  how = how || {};
+  const places = LOCATIONS.filter(l => l !== BUNKER);
+  const pool = D.pool === 'any' ? GOODS.map(g => g[0]) : Array.isArray(D.pool) ? D.pool : null;
+  const g = how.g ? [].concat(how.g) : pool ? pool.slice().sort(() => Math.random() - 0.5).slice(0, D.many || 1) : [];
+  const at = how.at || (D.where === 'loc' ? pick(places) : '');
+  const crew = how.crew || (D.crew ? pick(rivals()) : '');
+  const n = how.days || rnd(D.days[0], D.days[1]);
+  // The Intel Board's warning is garbled or not at the moment it is lined up, so re-reading the board does
+  // not re-roll it and a better board shows more of them straight (see evForecast).
+  return {id, g, at, crew, n, left: n, w: Math.random(),
+    dg: g.length ? pick(GOODS.map(x => x[0]).filter(x => !g.includes(x))) : '',
+    dl: pick(places.filter(p => p !== at))};
+}
+// Line one up for a day or two's time. That gap is the whole point: it is what the Intel Board sells.
+function evSchedule(id, how) {
+  const E = evMake(id, how);
+  if (!E) return null;
+  E.on = S.day + ((how && how.lead) || rnd(NEWS.lead[0], NEWS.lead[1]));
+  evPlan().push(E);
+  return E;
+}
+// Start one now, running for its own number of days. (One of the debug menu's three handles.)
+function fireEvent(id, how) {
+  const E = evMake(id, how);
+  if (!E) return null;
+  const D = NEWS_EVENTS[id];
+  // Never two of the same kind, and never two closures: they would read as one headline twice.
+  for (let i = evRun().length - 1; i >= 0; i--) {
+    const R = evRun()[i];
+    if (R.id === id || (D.shut && evDef(R) && evDef(R).shut)) evRun().splice(i, 1);
+  }
+  E.day = S.day;
+  E.fresh = 1;        // the headline, not the standing line, is shown today
+  evRun().push(E);
+  evTally.started++;
+  tally('evseen');
+  return E;
+}
+// Stop everything, running and lined up. (One of the debug menu's three handles.)
+function clearEvents() {
+  S.ev = []; S.evPlan = []; S.evOver = [];
+  return true;
+}
+// A night passes: yesterday's endings are cleared, running events age, anything lined up for today breaks,
+// and now and then one more is lined up. Called from nextDay BEFORE the markets roll, so the day's prices
+// and depths are rolled under whatever is now running.
+function evTick() {
+  if (evOff) return;
+  S.evOver = [];
+  for (let i = evRun().length - 1; i >= 0; i--) {
+    const E = evRun()[i];
+    E.fresh = 0;
+    if (!evDef(E)) { evRun().splice(i, 1); continue; }
+    E.left -= 1;
+    if (E.left <= 0) {
+      evRun().splice(i, 1);
+      S.evOver.push(NEWS_EVENTS[E.id].off(E));
+      evTally.ended++;
+    }
+  }
+  for (let i = evPlan().length - 1; i >= 0; i--) {
+    const E = evPlan()[i];
+    if (!evDef(E) || E.on < S.day - 1) { evPlan().splice(i, 1); continue; }
+    if (E.on > S.day) continue;
+    evPlan().splice(i, 1);
+    const D = NEWS_EVENTS[E.id];
+    if (evRun().length >= NEWS.maxRun) continue;   // too much going on: this one quietly did not happen
+    for (let j = evRun().length - 1; j >= 0; j--) {
+      const R = evRun()[j];
+      if (R.id === E.id || (D.shut && evDef(R) && evDef(R).shut)) evRun().splice(j, 1);
+    }
+    E.day = S.day; E.fresh = 1; E.left = E.n;
+    evRun().push(E);
+    evTally.started++;
+    tally('evseen');
+  }
+  if (S.day >= NEWS.from && evPlan().length < NEWS.maxPlan && evRun().length < NEWS.maxRun && Math.random() < NEWS.odds) {
+    const busy = evRun().map(E => E.id).concat(evPlan().map(E => E.id));
+    const can = EV_IDS.filter(id => !busy.includes(id));
+    if (can.length) evSchedule(pick(can));
+  }
+}
+// The lines the news strip shows above the market's own: what broke today, what is still running, what ended.
+function evNews() {
+  const out = [];
+  for (const E of evActive()) {
+    const D = NEWS_EVENTS[E.id];
+    out.push(`<b class="${D.flag === 'down' || D.heat > 1 || D.shut ? 'red' : D.flag === 'up' ? 'amber' : 'cyan'}">` +
+      `${E.fresh ? 'BREAKING' : `DAY ${E.n - E.left + 1}/${E.n}`}</b> ${E.fresh ? D.head(E) : D.on(E)}`);
+  }
+  for (const line of (Array.isArray(S.evOver) ? S.evOver : [])) out.push(`<span class="dim">OVER</span> ${line}`);
+  return out;
+}
+// What the Intel Board can sell today: the events lined up but not broken yet, as far ahead as the board
+// sees, each one right or garbled according to the roll it was given when it was lined up. The better the
+// board, the further ahead it sees and the more of them come through straight.
+function evForecast() {
+  const I = BASE.intel.lv[eff('intel')], ahead = I.ahead || 0;
+  if (!ahead || evOff) return [];
+  const out = evPlan().filter(E => evDef(E) && E.on > S.day && E.on - S.day <= ahead).map(E => {
+    const D = NEWS_EVENTS[E.id], wrong = E.w >= I.right;
+    // A wrong warning is the real event with the wrong goods or the wrong district in it: there is no
+    // telling which is which, exactly as with the price rumours.
+    const shown = wrong ? Object.assign({}, E, E.g && E.g.length ? {g: [E.dg]} : {at: E.dl}) : E;
+    return {id: E.id, on: E.on, days: E.n, sure: !wrong, soon: E.on - S.day,
+      text: D.warn(shown), what: D.n, g: shown.g || [], at: shown.at || ''};
+  });
+  evTally.warned += out.length;
+  return out;
+}
+// Did the player act on a warning? Called when goods are bought: counts a buy of something an unbroken
+// warning names. (For the achievement, and for the harness.)
+function evCredit(name) {
+  if (!name) return;
+  const I = BASE.intel.lv[eff('intel')];
+  if (!(I.ahead > 0)) return;
+  if (evPlan().some(E => evDef(E) && E.on > S.day && (E.g || []).includes(name) && NEWS_EVENTS[E.id].price > 1)) {
+    evTally.acted++;
+    tally('evahead');
+  }
+}
+// ===== LIVE NEWS: END =====
+
 function newGame() {
   S = {day: 1, loc: BUNKER, trips: TRIPS_PER_DAY, markets: {}, cash: START_CASH + (inSyn('null') ? 3000 : 0), debt: START_DEBT, wallet: 0,
     drive: START_DRIVE, opsec: 100, heat: 0, proxies: 0, inv: {}, cost: {}, prices: {}, flags: {}, news: [],
@@ -6048,6 +6426,7 @@ function newGame() {
     contracts: [], xpRun: 0, cleared: false, stash: {}, stashCost: {}, hp: 100, medkits: 2, shop: [], weapon: 0, ammo: noAmmo(), loaded: 'std', store: [], emp: 0, smoke: 0, bomb: 0, fakeid: 0, grudge: noGrudges(), raided: false,
     fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
     glut: {},   // market depth: what is left of your earlier dealing on each market's prices (see settleMarkets)
+    ev: [], evPlan: [], evOver: [],   // LIVE NEWS: what is happening, what is coming, and what ended last night
     rides: [], ride: '', gas: {}, tripDebt: 0,   // rides owned, the one you are on, tanks filled today (see VEHICLES)
     over: false, busted: false, retired: false};   // ENDLESS: retired is the one ending that pays
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
@@ -6720,7 +7099,9 @@ function renderNow() {
   $('#ava').innerHTML = avatarSvg({fill: true}) + rideIcon(S.ride);   // the whole figure, so everything worn shows, and your ride
   $('#stats').innerHTML = chips.map(([k, v, cls]) =>
     `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
-  $('#news').innerHTML = S.news.map(n => `<div>${n}</div>`).join('');
+  // LIVE NEWS: what is actually happening in the city goes above the market's own scarcity lines, and it
+  // shows at the Bunker too, where there is no market to report on.
+  $('#news').innerHTML = evNews().concat(S.news).map(n => `<div>${n}</div>`).join('');
   const onSale = GOODS.filter(([name]) => S.prices[name]).length, holding = Object.keys(S.inv).length;
   $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''),
     '<div class="sub dim mnote" style="padding:2px 4px 6px">Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
@@ -6810,6 +7191,7 @@ const ACTIONS = {
     addItems(name, qty, cost / qty);
     moveMarket(name, -qty);
     addHeat(cost);
+    evCredit(name);   // LIVE NEWS: buying something a warning names, before the headline breaks
     SND.play('buy');
     log(`Bought ${num(qty)} ${name} for ${money(cost)}.${movedText(price, S.prices[name])}`);
   },
@@ -7552,16 +7934,20 @@ const ACTIONS = {
       return alertDlg('Worn out', '<p>You have no trips left today. Sleep to start a new day.</p>');
     }
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
-    const buttons = others.map(l =>
-      [l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
+    // LIVE NEWS: a closed district is not on the list at all, and one with something going on says so.
+    const shutList = others.filter(l => evShut(l));
+    const buttons = others.filter(l => !evShut(l)).map(l =>
+      [(l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
         : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing, bags)'
-          : rideSpot(l) ? `${l} (${rideSpot(l)[2]})` : l, l]);
+          : rideSpot(l) ? `${l} (${rideSpot(l)[2]})` : l) + (evAt(l) ? ` [${evAt(l)[0]}]` : ''), l]);
     buttons.push(['Stay here', null, 'small']);
-    const dest = await dialog('Tunnel out', tired
+    if (shutList.length) { evTally.shut++; tally('evshut'); }   // LIVE NEWS
+    const dest = await dialog('Tunnel out', (tired
       ? '<p>You are worn out: no trips left today. You can still make it home to the Bunker to sleep.</p>'
       : `<p>Where to? You have <b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left today` +
         `${rideHops() ? ` (the ${VEHICLES[S.ride][4]} adds ${rideHops()} a day)` : ''}. Prices stay put until you ` +
-        'sleep at the Bunker, and the trip home is always free.</p>', buttons);
+        'sleep at the Bunker, and the trip home is always free.</p>') +
+      (shutList.length ? `<p class="red">Cordoned off today: <b>${shutList.join(', ')}</b>. There is no way in.</p>` : ''), buttons);
     if (!dest) return;
     await travelFx(S.loc, dest);
     S.loc = dest;
@@ -8239,12 +8625,21 @@ async function intelDlg() {
   if (S.loc !== BUNKER) return;
   for (;;) {
     const l = eff('intel'), I = BASE.intel.lv[l], tips = l ? intelTips() : [];
+    const soon = l ? evForecast() : [];   // LIVE NEWS: the headlines that have not broken yet
     const stop = Math.min(0.25, 0.03 + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1);
     const html = `<div class="syn">${withIcon(roomIcon('intel'), `<b>${l ? I.n : 'Dark'}</b><br>${l ? BASE.intel.say(I, l) : 'The power is out. The string is still there.'}`)}</div>` +
       (l ? `<p class="dim">TODAY, DAY ${S.day}</p>` + (tips.length ? tips.map(t => `<div class="syn"><b>${t.good}</b> ${t.up ? '<span class="amber">&#9650; selling high</span>' : '<span class="cyan">&#9660; going cheap</span>'} ` +
         `at <b>${t.loc}</b><br><span class="dim">about ${money(t.price)} each, they say</span></div>`).join('') : '<p class="dim">Nobody is talking today.</p>') +
+        // LIVE NEWS: what the board is really for. Warnings about headlines that have not broken yet, as
+        // far ahead as this board sees, each one right at the board's own odds.
+        (I.ahead ? `<p class="dim">WHAT IS COMING</p>` + (soon.length
+          ? soon.map(f => `<div class="syn"><b class="amber">${f.soon === 1 ? 'TOMORROW' : `IN ${f.soon} DAYS`}</b> ` +
+            `${f.text[0].toUpperCase() + f.text.slice(1)}.<br><span class="dim">Expected to last about ` +
+            `${f.days} day${f.days === 1 ? '' : 's'}.</span></div>`).join('')
+          : '<p class="dim">Nothing on the wires yet. Come back tomorrow.</p>') : '') +
         (I.law ? `<p>${withIcon(miscIcon('decoy'), `Patrols: about a <b class="${stop >= 0.15 ? 'red' : stop >= 0.08 ? 'amber' : 'green'}">${Math.round(stop * 100)}%</b> chance the law stops you on each trip today.`)}</p>` : '') +
-        `<p class="dim">Rumours are right about ${Math.round(I.right * 100)}% of the time. A wrong one sends you to the wrong place, and there is no telling which is which. New ones every morning.</p>` : '');
+        `<p class="dim">Rumours and warnings are right about ${Math.round(I.right * 100)}% of the time. A wrong one names the wrong goods or the wrong place, and there is no telling which is which. ` +
+        (I.ahead ? 'Being holding the right thing when a headline breaks is where the money is. ' : '') + 'New ones every morning.</p>' : '');
     const choice = await dialog('Intel Board', html, [...stationBtn('intel'), ['Done', null, 'primary']]);
     if (choice === 'base') { await stationDlg('intel', true); continue; }
     return;
@@ -8636,6 +9031,7 @@ function nextDay(inside) {
   S.gas = {}; S.tripDebt = 0;
   S.trips = TRIPS_PER_DAY + rideHops();
   if (!inside) wakeRide();
+  evTick();          // LIVE NEWS: headlines break, run on and end BEFORE the day's markets are rolled
   S.markets = {};
   rollMarket();
   if (S.loc !== BUNKER) awayRaid(Math.min(0.25 + ENDLESS.raidOdds * press01(), ENDLESS.raidOdds * press01() + S.heat / 400));   // days spent locked up or in a clinic
@@ -8719,14 +9115,17 @@ async function randomEvent() {
   // These odds are per trip. There are several trips in a day, so each one is fairly small.
   // ENDLESS: the law and the crews both press harder the longer you stay in (ENDLESS.lawOdds, gangOdds).
   const push = press01();
-  if (Math.random() < Math.min(0.25 + ENDLESS.lawOdds * push, 0.03 + ENDLESS.lawOdds * push + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1)) {
+  // LIVE NEWS: a crackdown puts more patrols on the street, and a very large arrest elsewhere takes some off.
+  if (Math.random() < Math.max(0, Math.min(0.25 + ENDLESS.lawOdds * push, 0.03 + ENDLESS.lawOdds * push + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1) + evLaw())) {
     return S.loc === BUNKER ? homeRaid(false) : lawEncounter();
   }
   // Rival syndicates come after you more often the more you have crossed them. Never at the Bunker.
   const crews = rivals(), anger = crews.reduce((sum, k) => sum + S.grudge[k], 0);
-  if (S.loc !== BUNKER && Math.random() < Math.min(0.15 + ENDLESS.gangOdds * push, 0.02 + ENDLESS.gangOdds * push + 0.015 * anger)) {
+  // LIVE NEWS: a gang war in this district adds to the odds, and the crew fighting it is the one you meet.
+  if (S.loc !== BUNKER && Math.random() < Math.min(0.15 + ENDLESS.gangOdds * push, 0.02 + ENDLESS.gangOdds * push + 0.015 * anger) + evGang()) {
     let roll = Math.random() * (anger + crews.length);
-    const key = crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
+    const war = evCrew();
+    const key = (war && crews.includes(war) ? war : null) || crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
     return gangEncounter(key);
   }
   if (S.loc !== BUNKER && Math.random() < JUMP_ODDS) return jumped();   // street muscle, waiting where you come up
@@ -14081,6 +14480,238 @@ async function endlessSelfTest() {
 }
 // ====================== ENDLESS CAREERS: the step-by-step test: END ======================
 
+// ===== LIVE NEWS: the step-by-step test =====
+// Every event in the table, one at a time: the headline reads, the one price lever and the one depth lever
+// do exactly what the table says and nothing else, a market rolled under an event still obeys every ECON
+// rule (floor, stock, depth, "not dealt yet"), the clamps hold however many pile up, Heat, the law, the
+// crews and travel move with them, events start and end on their own days, the Intel Board sells the ones
+// that have not broken yet at its own accuracy, and a save keeps one running.
+async function newsSelfTest() {
+  const run = S, random = Math.random, mine = career, keep = slot, get = store.get, here = 'Tor Bazaar';
+  const fail = (what, ...more) => { throw new Error(`News test: ${what} ` + JSON.stringify(more)); };
+  const mid = n => { const g = GOODS.find(x => x[0] === n); return (g[1] + g[2]) / 2; };
+  try {
+    career = newCareer();
+    newGame();
+    S.drive = 100000;
+    // --- the table itself: every entry well formed, and every line it can print is a real line ---
+    if (EV_IDS.length < 12 || EV_IDS.length > 24) fail('the event table is the wrong size', EV_IDS.length);
+    for (const id of EV_IDS) {
+      const D = NEWS_EVENTS[id];
+      if (!D.n || !Array.isArray(D.days) || !(D.days[0] >= 1 && D.days[0] <= D.days[1] && D.days[1] <= 6)) fail('bad duration', id, D.days);
+      if (D.price !== undefined && !(D.price >= 0.25 && D.price <= 2.5)) fail('price multiplier out of range', id, D.price);
+      if (D.depth !== undefined && !(D.depth >= 0.4 && D.depth <= 2)) fail('depth multiplier out of range', id, D.depth);
+      if (!D.price && !D.depth && !D.heat && !D.law && !D.gang && !D.shut) fail('an event with no effects', id);
+      if (D.pool && D.pool !== 'any' && !D.pool.every(n => GOODS.some(g => g[0] === n))) fail('pool is not goods', id);
+      S.day = 5;
+      const E = evMake(id, {});
+      if (!E || E.left !== E.n || !(E.n >= D.days[0] && E.n <= D.days[1])) fail('evMake', id, E);
+      if (D.pool && !E.g.length) fail('no goods picked', id);
+      if (!D.pool && E.g.length) fail('goods picked for an event that is not about goods', id);
+      if ((D.where === 'loc') !== !!E.at) fail('district wrong', id, E.at);
+      if (E.at === BUNKER) fail('an event at the Bunker', id);
+      for (const key of ['head', 'on', 'off', 'warn']) {
+        const t = D[key](E);
+        if (typeof t !== 'string' || t.length < 12 || /undefined|NaN/.test(t)) fail(`the ${key} line`, id, t);
+      }
+    }
+    // --- the levers: exactly the goods and the places the event names, and nothing else ---
+    S.day = 15; S.loc = here;
+    for (const id of EV_IDS) {
+      const D = NEWS_EVENTS[id];
+      clearEvents();
+      S.loc = here;
+      const E = fireEvent(id);
+      if (!E || evRun().length !== 1 || E.left !== E.n || !E.fresh) fail('fireEvent did not start it', id, evRun());
+      if (!evNews().length || !evNews()[0].includes('BREAKING')) fail('no headline', id, evNews());
+      for (const [name] of GOODS) {
+        const onIt = (E.g || []).includes(name);
+        const here2 = !E.at || E.at === S.loc;
+        const wantP = D.price && onIt && here2 ? D.price : 1;
+        const wantD = D.depth && here2 && (!D.pool || onIt) ? D.depth : 1;
+        if (Math.abs(evPrice(name) - wantP) > 1e-9) fail('price lever', id, name, evPrice(name), wantP);
+        if (Math.abs(evDepth(name) - wantD) > 1e-9) fail('depth lever', id, name, evDepth(name), wantD);
+        if (evFlag(name) !== (D.flag && onIt && here2 ? D.flag : '')) fail('flag lever', id, name, evFlag(name));
+      }
+      // ...and a district event reaches only its own district.
+      if (E.at) {
+        const away = LOCATIONS.find(l => l !== BUNKER && l !== E.at);
+        if (evPrice(E.g[0] || 'Warez', away) !== 1 || evDepth(E.g[0] || 'Warez', away) !== 1) fail('a district event reached another district', id);
+      }
+      if (Math.abs(evHeat() - (D.heat || 1)) > 1e-9) fail('Heat lever', id, evHeat());
+      if (Math.abs(evLaw() - (D.law || 0)) > 1e-9) fail('law lever', id, evLaw());
+      if (Math.abs(evGang() - (D.gang && (!E.at || E.at === S.loc) ? D.gang : 0)) > 1e-9) fail('crew lever', id, evGang());
+      if (!!evShut(E.at || here) !== !!D.shut) fail('closure lever', id);
+      // A gang war names the crew fighting it, but only in the district it is being fought in.
+      if (D.gang && D.crew) {
+        if (evCrew() !== (E.at === S.loc ? E.crew : '')) fail('a crew war reached the wrong district', id, E.at, S.loc, evCrew());
+        const was = S.loc; S.loc = E.at;
+        const who = evCrew();
+        S.loc = was;
+        if (!rivals().includes(who) || who !== E.crew) fail('a gang war names no crew', id, who);
+      }
+      // A market rolled under it still obeys every ECON rule, whatever the event does.
+      S.markets = {}; S.loc = E.at || here;
+      rollMarket();
+      for (const name of Object.keys(S.prices)) {
+        const b = book(name);
+        if (!(S.prices[name] >= 1) || !Number.isFinite(S.prices[name]) || !Number.isInteger(S.prices[name])) fail('price is not a readable number', id, name, S.prices[name]);
+        if (!(b.depth >= ECON.minDepth) || !Number.isFinite(b.depth)) fail('depth below the minimum', id, name, b.depth);
+        if (!Number.isInteger(b.stock) || b.stock < 0) fail('stock is not a whole number', id, name, b.stock);
+        if ((b.depth < ECON.thin) !== (b.stock === 0)) fail('a thin market has stock, or a deep one has none', id, name, b);
+        if (priceAt(b, 1e6) !== Math.max(1, Math.round(b.base * ECON.floor))) fail('the floor stopped working', id, name);
+        if (priceAt(b, b.depth) !== Math.max(1, Math.round(b.base * 0.5))) fail('the price stopped halving at the depth', id, name);
+        // The worst a price can be is the top of the good's range, times the biggest rolled spike, times
+        // the event clamp. Nothing an event does can take it past that.
+        const g = GOODS.find(x => x[0] === name);
+        if (S.prices[name] > g[2] * ECON.spikeMult[1] * NEWS.cap.price[1] + 1) fail('a price nobody can read', id, name, S.prices[name]);
+      }
+      // The street goods are still dealt everywhere, however thin the news makes the city (ECON.streetDepth).
+      const day = S.day; S.day = 1;
+      if (notDealtYet('Warez') || notDealtYet('Burner SIMs')) fail('an event took the street goods off the board', id);
+      S.day = day;
+    }
+    // --- the arithmetic, to the dollar: the roll is untouched and the event multiplies it ---
+    clearEvents();
+    Math.random = () => 0.5;
+    S.day = 15; S.loc = here; S.markets = {};
+    const plain = (() => { rollMarket(); return Object.assign({}, S.prices); })();
+    const plainDepth = depthOf('Botnet Hours');
+    fireEvent('takedown', {g: 'Botnet Hours', days: 3});
+    S.markets = {};
+    rollMarket();
+    const T = NEWS_EVENTS.takedown;
+    if (S.prices['Botnet Hours'] !== Math.round(plain['Botnet Hours'] * T.price)) {
+      fail('the price lever is not a multiple of the untouched roll', S.prices['Botnet Hours'], plain['Botnet Hours']);
+    }
+    if (S.flags['Botnet Hours'] !== 'up') fail('the arrow did not go up');
+    if (Math.abs(depthOf('Botnet Hours') - Math.round(plainDepth * T.depth * 10) / 10) > 0.11) fail('the depth lever', depthOf('Botnet Hours'), plainDepth);
+    if (S.prices['Warez'] !== plain['Warez'] || depthOf('Warez') !== depthOf('Warez', undefined)) fail('an event moved a good it was not about');
+    // ...and the clamps hold when several pile up on one good.
+    clearEvents();
+    for (const id of ['takedown', 'shortage', 'bounty']) fireEvent(id, {g: 'Botnet Hours', days: 3});
+    if (evPrice('Botnet Hours') !== NEWS.cap.price[1]) fail('the price clamp did not hold', evPrice('Botnet Hours'));
+    clearEvents();
+    for (const id of ['combo', 'dump', 'breach']) fireEvent(id, {g: 'Cracked Accounts', days: 3});
+    if (evPrice('Cracked Accounts') !== NEWS.cap.price[0]) fail('the price floor clamp did not hold', evPrice('Cracked Accounts'));
+    // --- Heat: a crackdown multiplies every gain, a bigger fish takes some off ---
+    clearEvents(); S.fx = {vpn: 0, decoy: 0}; career.skills = {}; career.skBonus = 0;
+    S.heat = 0; heatUp(10);
+    if (S.heat !== 10) fail('plain Heat', S.heat);
+    fireEvent('crackdown', {days: 2});
+    S.heat = 0; heatUp(10);
+    if (S.heat !== Math.ceil(10 * NEWS_EVENTS.crackdown.heat)) fail('a crackdown did not raise Heat gains', S.heat);
+    clearEvents(); fireEvent('amnesty', {days: 2});
+    S.heat = 0; heatUp(10);
+    if (S.heat !== Math.ceil(10 * NEWS_EVENTS.amnesty.heat)) fail('a bigger fish did not lower Heat gains', S.heat);
+    // --- travel: a closed district is not on the list, and you cannot get to it ---
+    clearEvents(); S.loc = here; S.trips = 5;
+    const shutAt = LOCATIONS.find(l => l !== BUNKER && l !== here);
+    fireEvent('lockdown', {at: shutAt, days: 2});
+    if (!evShut(shutAt) || evAt(shutAt)[1] !== true) fail('the district did not close', shutAt);
+    let offered = [];
+    autoPick = all => { offered = all.slice(); return null; };
+    try { await ACTIONS.travel(); } finally { autoPick = null; }
+    if (offered.includes(shutAt)) fail('a closed district was offered', offered);
+    if (!offered.length) fail('nowhere to go at all', offered);
+    autoPick = all => (all.includes(shutAt) ? shutAt : null);
+    try { await ACTIONS.travel(); } finally { autoPick = null; }
+    if (S.loc === shutAt) fail('you got into a closed district');
+    // --- a day at a time: it breaks on its day, runs its days, and ends with its own line ---
+    clearEvents(); S.loc = BUNKER; S.day = 10;
+    const planned = evSchedule('tracker', {lead: 2, days: 3, g: 'Warez'});
+    if (!planned || planned.on !== 12 || evRun().length) fail('lining one up started it early', planned);
+    const was = evTally.started;
+    nextDay();   // day 11: still coming
+    if (evRun().some(E => E.id === 'tracker')) fail('it broke a day early', evRun());
+    nextDay();   // day 12: it breaks
+    const live = evRun().find(E => E.id === 'tracker');
+    if (!live || live.left !== 3 || !live.fresh || evTally.started <= was) fail('it did not break on its day', S.day, evRun());
+    if (!evNews().some(t => t.includes('BREAKING') && t.includes('Warez'))) fail('no breaking headline', evNews());
+    nextDay();
+    const mid2 = evRun().find(E => E.id === 'tracker');
+    if (!mid2 || mid2.left !== 2 || mid2.fresh) fail('the second day of an event', mid2);
+    if (!evNews().some(t => t.includes('DAY 2/3'))) fail('no standing line', evNews());
+    nextDay(); nextDay();
+    if (evRun().some(E => E.id === 'tracker')) fail('it ran past its last day', evRun());
+    if (!(S.evOver || []).length || !evNews().some(t => t.includes('OVER'))) fail('no line when it ended', S.evOver);
+    nextDay();
+    if ((S.evOver || []).some(t => t.includes('tracker came back'))) fail('last night\'s ending was reported twice');
+    // --- the Intel Board: what it sells, how far ahead, and how often it is wrong ---
+    clearEvents(); S.day = 20; S.loc = BUNKER;
+    setStation('intel', 0);
+    if (evForecast().length) fail('a dark board saw the future');
+    const near = evSchedule('shortage', {lead: 1, days: 3, g: 'Rootkits'});
+    const far = evSchedule('crackdown', {lead: 2, days: 3});
+    near.w = 0; far.w = 0;   // both of these are warnings the board gets right
+    setStation('intel', 1);
+    if (evForecast().length !== 1 || evForecast()[0].id !== 'shortage' || evForecast()[0].soon !== 1) fail('a corkboard saw too far', evForecast());
+    setStation('intel', topLv('intel'));
+    const f = evForecast();
+    if (f.length !== 2 || !f.every(x => x.sure) || !f.some(x => x.soon === 2)) fail('the top board did not see both', f);
+    if (!f[0].text.includes('Rootkits') || !f[0].g.includes('Rootkits')) fail('the warning did not name the goods', f[0]);
+    if (f[0].days !== 3) fail('the warning did not say how long', f[0]);
+    // A warning the board gets wrong names the wrong goods, and says so to nobody: the same wrong one every
+    // time it is read, and right again on a better board.
+    near.w = 0.75;
+    setStation('intel', 1);   // 70% right: this one comes through garbled
+    const bad = evForecast().find(x => x.id === 'shortage');
+    if (!bad || bad.sure || bad.g.includes('Rootkits')) fail('a wrong warning was not garbled', bad);
+    if (JSON.stringify(evForecast()) !== JSON.stringify(evForecast())) fail('warnings are re-rolled every time the board is read');
+    setStation('intel', topLv('intel'));   // 95% right: the same one comes through straight
+    if (!evForecast().find(x => x.id === 'shortage').sure) fail('a better board did not get it right', near.w);
+    // The board's own dialog shows it, and the old price rumours still work.
+    S.hq = {};
+    const tips = intelTips();
+    if (tips.length !== BASE.intel.lv[topLv('intel')].tips) fail('the price rumours stopped working', tips);
+    autoPick = all => (all.includes(null) ? null : all[0]);
+    let shown = '';
+    const realDlg = dialog;
+    dialog = async (title, html, buttons) => { if (title === 'Intel Board') shown = html; return realDlg(title, html, buttons); };
+    try { await intelDlg(); } finally { dialog = realDlg; autoPick = null; }
+    if (!shown.includes('WHAT IS COMING') || !shown.includes('Rootkits') || !shown.includes(`TODAY, DAY ${S.day}`) ||
+      !shown.includes('IN 2 DAYS')) fail('the board does not show what is coming', shown.slice(0, 400));
+    // Buying what a warning names, before it breaks, is counted.
+    clearEvents(); S.day = 20; S.loc = here; S.markets = {}; S.cash = 50000000;
+    evSchedule('shortage', {lead: 1, days: 3, g: 'Warez'});
+    rollMarket();
+    const acted = stat('evahead');
+    if (S.prices['Warez']) { await ACTIONS.buy('Warez'); }
+    if (stat('evahead') <= acted) fail('buying ahead of a warning was not counted');
+    // --- a save keeps an event running, and a save from before the news loads with none ---
+    clearEvents(); S.day = 9; S.loc = here;
+    fireEvent('crackdown', {days: 4});
+    evSchedule('con', {lead: 1, days: 2, at: here});
+    const now = JSON.parse(JSON.stringify(S)), old = JSON.parse(JSON.stringify(S)), record = JSON.parse(JSON.stringify(career));
+    delete old.ev; delete old.evPlan; delete old.evOver;
+    try {
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      const kept = evRun().find(E => E.id === 'crackdown');
+      if (!kept || kept.left !== 4 || evPlan().length !== 1 || evHeat() === 1) fail('a save lost a running event', S.ev, S.evPlan);
+      store.get = key => (key === 'zdh-save' ? old : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (evRun().length || evPlan().length || evHeat() !== 1 || evPrice('Warez') !== 1) fail('an old save loaded with news running', S.ev);
+      // ...and rubbish in a save file is thrown away rather than played.
+      const junk = JSON.parse(JSON.stringify(now));
+      junk.ev = [{id: 'no such event', g: [], left: 2, n: 2, w: 0}, {id: 'crackdown', g: [], at: '', left: 99, n: 2, w: 0},
+        {id: 'crackdown', g: ['Not A Good'], at: '', left: 1, n: 2, w: 0}];
+      junk.evPlan = [{id: 'crackdown', g: [], at: '', left: 2, n: 2, w: 0, on: 1}];
+      store.get = key => (key === 'zdh-save' ? junk : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (evRun().length || evPlan().length) fail('a broken save was played anyway', S.ev, S.evPlan);
+    } finally { store.get = get; slot = keep; career = mine; }
+    // --- the three handles the debug menu uses ---
+    career = mine; newGame(); S.day = 12; S.loc = here;
+    if (fireEvent('not an event')) fail('fireEvent made up an event');
+    for (const id of EV_IDS.slice(0, NEWS.maxRun)) fireEvent(id);
+    if (!evRun().length || !clearEvents() || evRun().length || evPlan().length || evNews().length) fail('clearEvents left something behind', S.ev);
+  } finally {
+    Math.random = random; autoPick = null; S = run; career = mine; slot = keep; store.get = get; logs = [];
+  }
+}
+// ===== LIVE NEWS: the step-by-step test: END =====
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -14090,6 +14721,7 @@ async function selfTest(games) {
   let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   let skWas = {spent: 0, fired: 0};   // SKILL TREE: what the step-by-step test did does not count below
   let dunWas = {}, dunUses = 0;   // DUNGEONS
+  let evWas = {};   // LIVE NEWS: what the step-by-step test did does not count below
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -14147,14 +14779,21 @@ async function selfTest(games) {
         try { loadSave(0); } finally { store.get = get; slot = keep; }
         if (cap() < OLD_START_DRIVE || used() !== 110 || !S.inv['Warez']) throw new Error('old save lost space: ' + cap());
         S = run; career = mine; logs = [];
-        await coolSelfTest();
-        await econSelfTest();
-        await lockSelfTest();
-        await rideSelfTest();
-        await baseSelfTest();   // BASE
-        await skillSelfTest();   // SKILL TREE
-        await dunSelfTest();    // DUNGEONS
-        await endlessSelfTest();   // ENDLESS CAREERS
+        // LIVE NEWS: the step-by-step tests below measure the bare economy to the dollar, so the news is
+        // held still while they run (evOff). The random games after them play with it switched on, and
+        // newsSelfTest exercises the events themselves.
+        evOff++;
+        try {
+          await coolSelfTest();
+          await econSelfTest();
+          await lockSelfTest();
+          await rideSelfTest();
+          await baseSelfTest();   // BASE
+          await skillSelfTest();   // SKILL TREE
+          await dunSelfTest();    // DUNGEONS
+          await endlessSelfTest();   // ENDLESS CAREERS
+        } finally { evOff--; }
+        await newsSelfTest();   // LIVE NEWS
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
@@ -14162,6 +14801,7 @@ async function selfTest(games) {
       if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
       if (game === 0) skWas = {spent: skTally.spent, fired: skTally.fired};   // SKILL TREE
       if (game === 0) dunWas = Object.assign({}, dunTally);   // DUNGEONS
+      if (game === 0) evWas = Object.assign({}, evTally);     // LIVE NEWS
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -14337,6 +14977,13 @@ async function selfTest(games) {
           if (S.day === day && (BASE_IDS.some((b, i) => lvl(b) !== lv[i]) || (HQ().shots || 0) < shots)) throw new Error('a station changed level without a night passing: ' + JSON.stringify([id, lv, BASE_IDS.map(lvl)]));
           if (MARK_KINDS.some((k, i) => career.marks[k] < marks[i])) throw new Error('weapon skill went down');
         }
+        // LIVE NEWS: the bot reads the Intel Board now and then, with one built, so the warnings about
+        // headlines that have not broken yet are actually sold and read.
+        if (S.loc === BUNKER && Math.random() < 0.08) {
+          if (!lvl('intel')) setStation('intel', rnd(1, topLv('intel')));
+          autoPick = all => (all.includes(null) ? null : all[0]);
+          try { await ACTIONS.station('intel'); } finally { autoPick = null; }
+        }
         // BASE: a session on the Range needs several things to line up at once (a built range with the power
         // on, a weapon of a kind it teaches, the rounds for it, a skill still under its cap and a session
         // left today), and left to chance 25 games can go by without one. So now and then the bot is set up
@@ -14435,6 +15082,8 @@ async function selfTest(games) {
           const [, , had, hops] = trip, cost = S.loc === BUNKER ? 0 : 1;
           if (S.trips !== had - cost || (!had && cost)) throw new Error('a trip cost the wrong number of trips: ' + JSON.stringify([trip, S.loc, S.trips]));
           if (cost && had <= hops) rideHopTally++;   // a hop the bot could not have made on foot
+          // LIVE NEWS: a trip never gets you into a district the city has cordoned off.
+          if (evShut(S.loc)) throw new Error('travelled into a closed district: ' + S.loc);
         }
         await flushNotes();
         await levelUpCheck();
@@ -14499,6 +15148,24 @@ async function selfTest(games) {
           // DUNGEONS: never more addresses than the limit, each one a real theme at a real place at a real
           // depth; and a run in progress is on a floor that exists, at a room in its own list, with its meter
           // on the scale and whole numbers of goods taken.
+          // LIVE NEWS: never more events than the limits, each a real headline with a real duration at a
+          // real place about real goods, lined up inside the window the Intel Board sells; what the levers
+          // can do stays inside the clamps; and nothing the news does leaves a price, a depth or a stock
+          // that breaks an ECON rule.
+          !Array.isArray(S.ev) || !Array.isArray(S.evPlan) || S.ev.length > NEWS.maxRun || S.evPlan.length > NEWS.maxPlan ||
+          S.ev.concat(S.evPlan).some(E => !NEWS_EVENTS[E.id] || !Array.isArray(E.g) || !E.g.every(n => names.includes(n)) ||
+            (E.at && (!LOCATIONS.includes(E.at) || E.at === BUNKER)) || !(E.left >= 1 && E.left <= E.n) ||
+            !(E.n >= NEWS_EVENTS[E.id].days[0] && E.n <= NEWS_EVENTS[E.id].days[1]) || !(E.w >= 0 && E.w <= 1)) ||
+          S.evPlan.some(E => !(E.on > S.day && E.on <= S.day + NEWS.lead[1])) ||
+          S.ev.filter(E => NEWS_EVENTS[E.id].shut).length > 1 ||
+          names.some(n => !(evPrice(n) >= NEWS.cap.price[0] - 1e-9 && evPrice(n) <= NEWS.cap.price[1] + 1e-9 &&
+            evDepth(n) >= NEWS.cap.depth[0] - 1e-9 && evDepth(n) <= NEWS.cap.depth[1] + 1e-9)) ||
+          !(evHeat() >= 0.5 && evHeat() <= 2.5) || !(evLaw() >= -0.02 && evLaw() <= 0.09) || !(evGang() >= 0 && evGang() <= 0.12) ||
+          Object.entries(S.prices).some(([n, p]) => !Number.isInteger(p) || p < 1 ||
+            p > GOODS.find(g => g[0] === n)[2] * ECON.spikeMult[1] * NEWS.cap.price[1] * 2 + 1) ||
+          Object.values(S.markets).some(m => Object.values(m.book || {}).some(b =>
+            !(b.depth >= ECON.minDepth) || !Number.isFinite(b.depth) || !Number.isInteger(b.stock) || b.stock < 0 ||
+            (b.depth < ECON.thin) !== (b.stock === 0))) ||
           !Array.isArray(S.leads) || S.leads.length > DUN.leadMax ||
           S.leads.some(L => !DUN_TH[L.th] || !LOCATIONS.includes(L.at) || L.at === BUNKER || !Number.isInteger(L.seed) ||
             !(L.deep >= DUN.floors[0] && L.deep <= DUN.floors[1]) || !(L.day >= 1 && L.day <= S.day)) ||
@@ -14578,10 +15245,20 @@ async function selfTest(games) {
       throw new Error('endless careers were not exercised: ' + JSON.stringify(endlessTally));
     }
     const esum = ` retirements=${endlessTally.retired} longestcareer=${endlessTally.longest} longestbotcareer=${endlessTally.botDay} latenights=${endlessTally.nights}`;
+    // LIVE NEWS: ...and headlines must have broken, run their days out and ended on the bot, and the Intel
+    // Board must have sold it warnings about ones that had not broken yet.
+    // (Cordons are counted over the whole test, step-by-step part included: a closure is one event kind in
+    //  twenty and short, and a run that never happened to want into one is no reason to call the news dead.)
+    const ev = {};
+    for (const key of Object.keys(evTally)) ev[key] = evTally[key] - (evWas[key] || 0);
+    if (games >= 20 && !(ev.started >= 3 && ev.ended >= 3 && ev.warned >= 1 && evTally.shut)) {
+      throw new Error('the news was not exercised: ' + JSON.stringify([ev, evTally]));
+    }
+    const nsum = ` headlines=${ev.started} ranout=${ev.ended} warningssold=${ev.warned} boughtahead=${ev.acted} cordons=${evTally.shut}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum}${nsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -14651,6 +15328,15 @@ function loadSave(n) {
   // Market depth arrived in 1.28: an older run has moved no prices yet, and its markets get their books
   // when they are next looked at (see book()).
   S.glut = S.glut && typeof S.glut === 'object' ? S.glut : {};
+  // LIVE NEWS: a save from before the news has nothing running. One that was saved mid-event keeps it,
+  // with anything the table no longer has dropped and every number checked.
+  const evFix = list => (Array.isArray(list) ? list : []).filter(E => E && NEWS_EVENTS[E.id] &&
+    Array.isArray(E.g) && E.g.every(n => GOODS.some(g => g[0] === n)) && (!E.at || LOCATIONS.includes(E.at)) &&
+    Number.isInteger(E.n) && E.n > 0 && E.n <= 10 && Number.isInteger(E.left) && E.left > 0 && E.left <= E.n &&
+    typeof E.w === 'number' && E.w >= 0 && E.w <= 1).slice(0, NEWS.maxRun);
+  S.ev = evFix(S.ev);
+  S.evPlan = evFix(S.evPlan).filter(E => Number.isInteger(E.on) && E.on > S.day && E.on <= S.day + NEWS.lead[1]).slice(0, NEWS.maxPlan);
+  S.evOver = (Array.isArray(S.evOver) ? S.evOver : []).filter(t => typeof t === 'string').slice(0, 4);
   // Break-ins arrived in 1.27: an older run has no devices planted, no practice used and no entry tools.
   S.plants = Array.isArray(S.plants) ? S.plants.filter(p => p && p.pay > 0 && p.left > 0) : [];
   S.drills = Number.isInteger(S.drills) && S.drills > 0 ? Math.min(S.drills, drillsMax()) : 0;
