@@ -2500,6 +2500,7 @@ const SND = (() => {
 // lockpick: lock picking skill points (see lockInfo()).
 const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0,
   base: newBase(), marks: newMarks(),   // BASE: the Bunker's stations and the weapon skills
+  ends: {},   // LEGACY: the endings this save has reached, {id: when}
   skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
@@ -2968,6 +2969,12 @@ const ACH = {
   day250: ['Old Money', 'Still working on day 250', 1000, () => S.day >= 250],
   retire1: ['Out of the Game', 'Retire from a career instead of being taken down', 300, () => stat('retired') >= 1],
   retirerich: ['Villa, Beach, No Extradition', 'Retire worth $25,000,000', 1500, () => stat('score') >= 25000000],
+  // --- LEGACY: old careers turning up in new ones, and the endings they earned ---
+  ghost1: ['Ghosts of the Wire', 'Run into an operator from one of your own old careers', 200, () => stat('legacy') >= 1],
+  ghost10: ['The Whole Graveyard', 'Run into your old careers 10 times', 600, () => stat('legacy') >= 10],
+  record: ['Dead Operator\'s Record', 'Be worth more than the biggest retirement on your own board', 500, () => stat('beatrecord') >= 1],
+  ends4: ['Several Ways Out', 'Reach four different endings', 1000, () => Object.keys(career.ends || {}).length >= 4],
+  endcat: ['Nothing But the Cat', 'Retire with the cat and almost nothing else', 300, () => !!(career.ends && career.ends.cat)],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -3097,6 +3104,7 @@ function fixCareer() {
   if (!career.ach || typeof career.ach !== 'object') career.ach = {};
   if (!Array.isArray(career.locker)) career.locker = [];
   if (!(Number.isInteger(career.lockpick) && career.lockpick >= 0)) career.lockpick = 0;   // from before lock picking: the starting skill
+  if (!career.ends || typeof career.ends !== 'object' || Array.isArray(career.ends)) career.ends = {};   // LEGACY: from before the endings, none have been reached
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
   fixQuest();
@@ -3347,7 +3355,10 @@ async function contact() {
   const G = makeGig(name);
   log(`${name} was waiting for you at ${S.loc}.`);
   render();
+  // LEGACY: some of them knew a career of yours that ended, and say so before they get to the job.
+  const ghost = Math.random() < LEGACY.contact ? legacyTake('contact') : null;
   const html = contactHead(name) + `<p class="dim">${role}. Trust: ${trustStars(name)}</p><p>${line}</p>` +
+    legacyContactLine(ghost) +
     `<div class="syn"><b>${G.title}</b><br>"${G.pitch}"</div>` +
     `<p><b>${gigGoal(G)}</b><br><span class="amber">You have until the end of day ${G.due}.</span></p>` +
     `<p>Pays: ${questReward(G)}</p>` +
@@ -4275,12 +4286,14 @@ function stash(it) {
 }
 
 // Pass an item to hand over that exact one (a mission reward) instead of rolling loot.
-async function dropLoot(from, boost, gift) {
+// LEGACY: `asLoot` passes an exact item that was FOUND, not handed over, so it is framed as loot.
+async function dropLoot(from, boost, gift, asLoot) {
   const it = gift || makeItem(rollRarity(boost));
+  const reward = !!gift && !asLoot;
   const worn = career.gear[it.slot];
   SND.play('loot');
-  log(`${gift ? 'Reward' : 'Loot'} from ${from}: <span class="r${it.rar}">${it.name}</span> (${RARITY[it.rar]}).`);
-  const choice = await dialog(gift ? 'Reward!' : 'Loot!', `<p>${from} ${gift ? 'hands you your cut' : 'left something behind'}:</p><div class="syn">${itemHtml(it)}</div>` +
+  log(`${reward ? 'Reward' : 'Loot'} from ${from}: <span class="r${it.rar}">${it.name}</span> (${RARITY[it.rar]}).`);
+  const choice = await dialog(reward ? 'Reward!' : 'Loot!', `<p>${from} ${reward ? 'hands you your cut' : 'left something behind'}:</p><div class="syn">${itemHtml(it)}</div>` +
     (worn ? `<p class="dim">You are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
     [['Equip it', 'e', 'primary'], ['Put it in the bag', 'b']]);
@@ -5893,6 +5906,11 @@ function rollMarket() {
     }
     if (Object.keys(S.prices).length >= 4) break;
   }
+  // LEGACY: now and then the news on a market is not about prices at all, but about a career that ended.
+  {
+    const ghost = Math.random() < LEGACY.news ? legacyTake('news') : null;
+    if (ghost) S.news.push(legacyNewsLine(ghost));
+  }
   rollContracts();   // priced off the day's prices, before what you did here lately moves them
   const hang = openBooks();   // economy 1.28: market depth (see ECON)
   // Today's gear on the black market: up to Epic, never Legendary.
@@ -7420,9 +7438,9 @@ const ACTIONS = {
     else if (choice === 'quest') await ACTIONS.syndicate();
     else if (choice === 'ach') await ACTIONS.achievements();
     else if (choice === 'hall') {
-      await alertDlg('Hall of fame', hallHtml() +
+      await alertDlg('Hall of fame', hallHtml() + legacyRecordLine() +   // LEGACY: and the number to beat
         '<p class="dim">Careers that walked away. A career you lose pays nothing: retiring from the Bunker is the only ' +
-        'way onto the board.</p>');
+        'way onto the board. The ones who were taken down are listed anyway, because the street lists them.</p>');
     }
     else if (choice === 'hidden') await hiddenInvite();
   },
@@ -7589,7 +7607,8 @@ const ACTIONS = {
       `<br><b>Retiring with ${money(W.total)} after ${S.day} days.</b></p>`;
     const keeps = '<p class="dim">The Bunker, everything built in it, your skills, your XP, your gear and your weapon skill all ' +
       'belong to this save and are waiting for the next career. The money is not: that is what goes in the hall of fame.</p>' +
-      (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '');
+      (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '') +
+      legacyRecordLine();   // LEGACY: whose number is still the one to beat
     if (await confirmDlg('Retire', parts + keeps + '<p>Walk away for good?</p>', 'Retire', 'One more day')) {
       S.retired = true;
       S.over = true;
@@ -8639,6 +8658,7 @@ function nextDay(inside) {
   S.markets = {};
   rollMarket();
   if (S.loc !== BUNKER) awayRaid(Math.min(0.25 + ENDLESS.raidOdds * press01(), ENDLESS.raidOdds * press01() + S.heat / 400));   // days spent locked up or in a clinic
+  legacyRecordCheck();   // LEGACY: the morning you pass the biggest retirement on your own board
 }
 
 // While you are out, the law may raid the Bunker and take whatever is stashed there.
@@ -8911,8 +8931,10 @@ function lawEncounter() {
 }
 
 function gangEncounter(key) {
+  // LEGACY: a crew that recruited one of your retired operators opens with their playbook, and says so.
+  const ghost = Math.random() < LEGACY.crew ? legacyTake('crew', g => g.how === 'retired') : null;
   return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(effDay() / 8)),
-    hit: 0.3, lo: 3, hi: 8});
+    hit: 0.3, lo: 3, hi: 8, intro: ghost ? legacyCrewLine(key, ghost) : undefined});
 }
 
 // ---------- getting jumped ----------
@@ -10759,6 +10781,7 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
+  S.fought = (S.fought || 0) + 1;   // LEGACY: fights this career, which is one of the things an ending reads
   SND.battle = E.kind === 'raid' ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
   try {
@@ -11172,11 +11195,13 @@ const HALL_MAX = 10;
 const byScore = (a, b) => b.score - a.score;
 const byRate = (a, b) => (b.rate || 0) - (a.rate || 0);
 function hallLoad() {
-  const all = (!AUTO && store.get('zdh-scores')) || [];
+  const all = (legacyOn() && store.get('zdh-scores')) || [];   // LEGACY: legacyOn() is !AUTO, plus the self-test's stubbed board
   return Array.isArray(all) ? all.filter(s => s && Number.isFinite(s.score)) : [];
 }
+// LEGACY: an entry that recorded an ending says which one under the handle. Entries from before it (and from
+// before eco 3 altogether) simply have nothing there.
 const hallRows = (list, rate) => list.map((s, i) =>
-  `<tr><td>${i + 1}.</td><td>${esc(s.handle || 'anon')}</td><td>${money(rate ? s.rate : s.score)}` +
+  `<tr><td>${i + 1}.</td><td>${esc(s.handle || 'anon')}${s.end && ENDINGS[s.end] ? `<br><small class="dim">${ENDINGS[s.end][0]}</small>` : ''}</td><td>${money(rate ? s.rate : s.score)}` +
   `${rate ? '<small class="dim">/day</small>' : ''}</td><td class="dim">${s.days ? `day ${num(s.days)}` : '&mdash;'}</td></tr>`).join('');
 // Everything the hall of fame has to say, as HTML. `mine` (optional) is this career's entry, for the heading.
 function hallHtml(mine) {
@@ -11186,43 +11211,353 @@ function hallHtml(mine) {
   const thirty = all.filter(s => s.eco === 2).sort(byScore).slice(0, HALL_MAX);
   const older = all.filter(s => s.eco !== ECON.version && s.eco !== 2).sort(byScore).slice(0, HALL_MAX);
   const table = (head, list, rate) => (list.length ? `<p class="dim">${head}</p><table class="hall">${hallRows(list, rate)}</table>` : '');
+  // LEGACY: the careers that were taken down get a line of their own under the tables, and the epilogues
+  // that have been recorded can be read again (legacyHtml).
+  const fell = fallLoad();
   return (mine ? `<p class="dim">You went on the board as <b>${esc(mine.handle)}</b>: ${money(mine.score)} on day ${num(mine.days)}, ` +
-      `${money(mine.rate)} a day.</p>` : '') +
+      `${money(mine.rate)} a day.</p>` + (mine.epi ? `<p>${esc(mine.epi)}</p>` : '') : '') +
     (now.length || rated.length ? '' : '<p class="dim">Nobody has retired yet.</p>') +
     table('HALL OF FAME &middot; BIGGEST RETIREMENT', now) +
     table('HALL OF FAME &middot; BEST A DAY', rated, true) +
     table('THE THIRTY DAYS: careers that ended on a deadline (1.29 to 1.35)', thirty) +
-    table('BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees', older);
+    table('BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees', older) +
+    (fell.length ? '<p class="dim">TAKEN DOWN: no score, and the street remembers anyway</p>' +
+      `<table class="hall">${fell.map(f => `<tr><td></td><td>${esc(f.handle)}</td>` +
+        `<td class="dim">${ENDINGS[f.end] ? ENDINGS[f.end][0] : 'gone'}</td>` +
+        `<td class="dim">day ${num(f.days)}</td></tr>`).join('')}</table>` : '') +
+    legacyHtml();
 }
 // Put a career on the board if it is good enough for either table. Returns the entry, or null.
-function hallAdd(handle, score, days) {
-  const entry = {handle: String(handle).slice(0, 16), score, days, rate: Math.round(score / Math.max(1, days)), eco: ECON.version};
+// LEGACY: `extra` carries what the send-off worked out (the ending, its epilogue, the crew, one signature
+// piece of gear). It is optional: every older caller, and every older entry, still works without it.
+function hallAdd(handle, score, days, extra) {
+  const entry = Object.assign({}, extra || {},
+    {handle: safeHandle(handle), score, days, rate: Math.round(score / Math.max(1, days)), eco: ECON.version});
   const all = hallLoad(), mine = all.filter(s => s.eco === ECON.version), rest = all.filter(s => s.eco !== ECON.version);
   const keep = new Set([...mine.concat(entry).sort(byScore).slice(0, HALL_MAX), ...mine.concat(entry).sort(byRate).slice(0, HALL_MAX)]);
   if (!keep.has(entry)) return null;
-  if (!AUTO) store.set('zdh-scores', [...keep].concat(rest.sort(byScore).slice(0, HALL_MAX * 2)));
+  if (legacyOn()) store.set('zdh-scores', [...keep].concat(rest.sort(byScore).slice(0, HALL_MAX * 2)));   // LEGACY: legacyOn() is !AUTO, plus the self-test's stubbed board
   return entry;
 }
+
+// ====================== LEGACY: old careers, and the endings: BEGIN ======================
+// Two things live in this block.
+//
+// 1. LEGACIES. A career that ended leaves a mark on the ones that come after it. The source is the board
+//    you already keep: a hall-of-fame entry is a person, and a career that was TAKEN DOWN goes on a much
+//    shorter list of its own ('zdh-fallen'), because the dead do not get a score. Nothing extra is asked of
+//    the player at the end: a retirement already names a handle, and the rest (the ending, the epilogue, the
+//    crew, one signature piece of gear) is what the game already knows when the send-off is drawn.
+//    They turn up in places the player already goes: a market's news lines, a street contact's first words,
+//    a rival crew's opening line, the gear in a deep cache, the paperwork in a deep run, and the record on
+//    the board itself. A career sees LEGACY.perCareer of them at most, each one once, so it stays a mark on
+//    the world and not a pop-up.
+//
+// 2. THE ENDINGS. Retiring, and being taken down, each pick a send-off out of what the game knows about how
+//    the career was played (see careerFacts): the money, the days, the Heat, arrests, how many fights, the
+//    crew, the Bunker, the skill tree, whether the Fixer was ever cleared, and the cat. The first ending in
+//    the order whose test passes is the one you get. Every one has a short epilogue, which is shown in the
+//    send-off and recorded with the entry, so it can be read again from the hall of fame.
+const LEGACY = {
+  perCareer: 6,     // appearances one career gets at most, however long it runs
+  news: 0.14,       // chance a market's news includes a line about an old career
+  contact: 0.3,     // ...that a street contact brings one up
+  crew: 0.25,       // ...that a rival crew is running a retired operator's playbook
+  gear: 0.4,        // ...that gear deep in a cache has a dead operator's name on it
+  file: 0.45,       // ...that the paperwork in a deep run is somebody's file
+  fallMax: 8,       // careers taken down that stay on file
+};
+// The self-test drives careers under AUTO against a stubbed store, so it has to be able to read and write a
+// board the player's real one is nowhere near. Nothing else ever sets this.
+let legacyAuto = false;
+const legacyOn = () => !AUTO || legacyAuto;
+
+// ---------- the fallen: careers that were taken down ----------
+// They bank nothing, so they are not hall-of-fame entries. They are kept because a career that ended badly
+// is worth more to the next one than a career that ended well.
+function fallLoad() {
+  const all = (legacyOn() && store.get('zdh-fallen')) || [];
+  return Array.isArray(all) ? all.filter(f => f && f.handle && Number.isFinite(f.days) && f.days > 0) : [];
+}
+function fallAdd(entry) {
+  const list = [entry].concat(fallLoad().filter(f => f.handle !== entry.handle || f.days !== entry.days));
+  if (legacyOn()) store.set('zdh-fallen', list.slice(0, LEGACY.fallMax));
+  return entry;
+}
+
+// ---------- the pool: the board, read as people ----------
+// Era-3 and era-2 entries both count: they were careers. Entries from before the 1.29 crash carry no `days`
+// and no handle worth repeating, so they stay scores on a wall and never become anybody.
+const legacyId = g => `${g.how}:${g.handle}:${g.days}:${g.score || 0}`;
+// A handle is player text and a legacy's name ends up inside item names and aria labels, so it is cut down
+// to something that cannot break any of them.
+const safeHandle = h => (String(h === undefined ? '' : h).replace(/[<>&"'`\\]/g, '').trim().slice(0, 16) || 'anon');
+function legacyPool() {
+  if (!legacyOn()) return [];
+  const rows = store.get('zdh-scores');
+  const out = [], seen = new Set();
+  const add = g => {
+    g.handle = safeHandle(g.handle);
+    const id = legacyId(g);
+    if (seen.has(id)) return;         // the same career listed twice is still one person
+    seen.add(id);
+    out.push(Object.assign({id}, g));
+  };
+  for (const s of Array.isArray(rows) ? rows : []) {
+    if (!s || !s.handle || !Number.isFinite(s.score) || !Number.isFinite(s.days) || !(s.days > 0)) continue;
+    add({how: 'retired', handle: s.handle, days: s.days, score: s.score, rate: s.rate || 0,
+      crew: SYNDICATES[s.crew] ? s.crew : null, gear: s.gear || '', end: s.end || '', epi: s.epi || ''});
+  }
+  for (const f of fallLoad()) {
+    add({how: f.how === 'dead' ? 'dead' : 'busted', handle: f.handle, days: f.days, score: 0, rate: 0,
+      crew: SYNDICATES[f.crew] ? f.crew : null, gear: f.gear || '', end: f.end || '', epi: f.epi || ''});
+  }
+  return out;
+}
+// Who has turned up in this career already, and where. It belongs to the run, so a new career meets them again.
+const legacySeen = () => (S.ghosts && typeof S.ghosts === 'object' ? S.ghosts : (S.ghosts = {}));
+// One legacy that has not appeared in this career yet, or null. want: an optional filter.
+function legacyTake(where, want) {
+  const seen = legacySeen();
+  if (Object.keys(seen).length >= LEGACY.perCareer) return null;
+  const pool = legacyPool().filter(g => !seen[g.id] && (!want || want(g)));
+  if (!pool.length) return null;
+  const g = pick(pool);
+  seen[g.id] = where;
+  legacyTally.met++;
+  legacyTally.where[where] = (legacyTally.where[where] || 0) + 1;
+  tally('legacy');
+  return g;
+}
+let legacyTally = {met: 0, where: {}, ends: {}, records: 0};   // counted for the self-test
+
+// ---------- what they say about them ----------
+const gname = g => esc(g.handle);
+// A line for a market's news. Retirements are a boast; the ones who did not walk away are a warning.
+function legacyNewsLine(g) {
+  if (g.how === 'retired') {
+    return pick([`Somebody at the bar swears ${gname(g)} walked away on day ${num(g.days)} with ${money(g.score)} and a boarding pass.`,
+      `The feeds are still running the ${gname(g)} story: ${money(g.score)} in ${num(g.days)} days, and not one charge that stuck.`,
+      `A dealer here used to sell to ${gname(g)}. Says the money was real and the name was not.`,
+      `Overheard in the queue: "${gname(g)} got out. Actually out. With ${money(g.score)}."`]);
+  }
+  return pick([`They still talk about ${gname(g)}, who did not walk away. Day ${num(g.days)}. No score, no funeral.`,
+    `A flyer taped to a shutter: ${gname(g)}, wanted, last seen around day ${num(g.days)}. Somebody has drawn on it.`,
+    `The bar has a rule about saying ${gname(g)}'s name after midnight.`,
+    `A kid is selling ${gname(g)}'s old handle as a t-shirt. It is not a nice t-shirt.`]);
+}
+// What a street contact says before they get to the job.
+const legacyContactLine = g => (!g ? '' : `<p class="dim">${g.how === 'retired'
+  ? `"You work like ${gname(g)} did. ${gname(g)} is on a beach now. Do not get ideas."`
+  : `"Last one who stood where you are standing was ${gname(g)}. Day ${num(g.days)}. Do not be ${gname(g)}."`}</p>`);
+// A rival crew's opening line when it has one of your retired operators on the books.
+const legacyCrewLine = (key, g) => `${SYNDICATES[key][0]} have you boxed in, and they are working off ` +
+  `${gname(g)}'s playbook: ${gname(g)} retired on day ${num(g.days)} and sold them the lot on the way out.`;
+// Paperwork deep in a run.
+const legacyFileNote = g => (g.how === 'retired'
+  ? `A file with ${gname(g)} on the spine, open at a page about ${money(g.score)} that was never recovered. ` +
+    'Somebody has written NO LEADS, and then, later and in a different pen, NO LEADS.'
+  : `A closed file: ${gname(g)}, day ${num(g.days)}. Photographs of a room you recognise. There is a space at ` +
+    'the bottom for who they worked with, and it is not empty.');
+// Gear in a cache, with a name on it. The item keeps a real item type at the end of its name, so everything
+// that reads a name for its type (what it holds, what the avatar draws) still works.
+function legacyItem(g, boost) {
+  const it = makeItem(rollRarity(boost));
+  const type = SLOTS[it.slot][1].find(n => it.name.endsWith(n));
+  if (type) it.name = `${safeHandle(g.handle)}'s ${type}`;
+  it.legacy = safeHandle(g.handle);
+  return it;
+}
+const legacyGearNote = g => (g.how === 'retired'
+  ? `There is a name inked inside the collar: <b>${gname(g)}</b>. They did not need it where they went.`
+  : `There is a name inked inside the collar: <b>${gname(g)}</b>. This is as far as ${gname(g)} got.`);
+
+// ---------- the record on the board, and beating it ----------
+// Era-3 entries that were real careers: the ones a new career can be measured against.
+const legacyScores = () => legacyPool().filter(g => g.how === 'retired' && g.score > 0).sort((a, b) => b.score - a.score);
+// The line the Bunker shows while somebody else's number is still the one to beat.
+function legacyRecordLine() {
+  const top = legacyScores()[0];
+  if (!top) return '';
+  const mine = retireWorth().total;
+  return `<p class="dim">The board to beat: <b>${gname(top)}</b>, ${money(top.score)} on day ${num(top.days)}. ` +
+    (mine > top.score ? '<span class="amber">You are past it. It only counts if you walk away with it.</span>'
+      : `You are worth ${money(mine)}.`) + '</p>';
+}
+// Once a career, the morning you are worth more than the best retirement on your own board.
+function legacyRecordCheck() {
+  if (S.over || S.ghostRec) return;
+  const top = legacyScores()[0];
+  if (!top || retireWorth().total <= top.score) return;
+  S.ghostRec = 1;
+  legacyTally.records++;
+  tally('beatrecord');
+  log(`<span class="amber">You are worth more than ${gname(top)} retired with. The record on the board is yours to take home.</span>`);
+  notes.push(['THE RECORD', `<p>${gname(top)} retired on day ${num(top.days)} worth <b>${money(top.score)}</b>. ` +
+    'That has been the number on the board ever since.</p>' +
+    `<p>This morning you are worth <b class="green">${money(retireWorth().total)}</b>.</p>` +
+    '<p class="dim">It only counts if you walk away with it.</p>', '']);
+}
+
+// ---------- the endings ----------
+// id: [title, test(F), epilogue]. F is what careerFacts() gathered. The ORDER lists below are what decides
+// which one you get: the first test that passes wins, so they run from the rarest down to the one anybody
+// can reach, and the last one in each list is the fallback and is never tested.
+const ENDINGS = {
+  island: ['The Quiet Archipelago', F => F.score >= 25000000,
+    'There is an island. There is a dish on the roof of the house on the island, pointed at a satellite that ' +
+    'does not ask questions. Twice a year a man in a linen suit flies out to tell you the money is still there, ' +
+    'eats your food and flies home. Nobody on the island knows what you did, and nobody on the mainland can prove it.'],
+  board: ['Still on the Board', F => F.topRate > 0 && F.rate > F.topRate,
+    'You do not buy anything. You get on a bus. Somewhere behind you a number goes up on a board that four ' +
+    'people in the world can see, and your handle goes next to it, and it stays there. Years from now somebody ' +
+    'who is not born yet will read that line and decide this is a job.'],
+  villa: ['Villa, Beach, No Extradition', F => F.score >= 5000000 && F.heat <= 25,
+    'A white house above a town with one road out and no extradition treaty. The local police chief fixes your ' +
+    'pool pump and takes a drink for it. You answer to the new name so often that you start answering to it in ' +
+    'your sleep, which was always the point.'],
+  fixer: ['The Fixer Who Never Left', F => F.days >= 120 && F.stations >= 24,
+    'You do not leave the district. You just stop going out. The Bunker keeps its lights on, the cat keeps its ' +
+    'chair, and people knock: who do I call about a door, who do I call about a plate, who buys this. You take ' +
+    'ten percent and never touch the goods again. On paper you are retired. Ask anyone on the street.'],
+  ghost: ['No Such Person', F => F.arrests === 0 && F.fought <= 2 && F.heat <= 20,
+    'There is no file. There was never a file. In a building full of people paid to notice things, nobody ever ' +
+    'typed your name, because you never gave them a reason and never once stayed to argue. You buy a flat, a ' +
+    'kettle and a dog, and the most dangerous thing you ever do again is park badly.'],
+  soldier: ['The Loud Way Out', F => F.fought >= 25,
+    'Your hands do not work properly in the cold any more. You buy a bar with a long sightline to the door and ' +
+    'something heavy behind the optics, and you sit facing the room for the rest of your life. Business is good. ' +
+    'You never relax once, and you tell people that is simply how you sit.'],
+  cat: ['Nothing But the Cat', F => F.score < 150000 && F.cat >= 1,
+    'You get out with a holdall, the last of the cash, and the cat, who does not enjoy the bus. A bedsit over a ' +
+    'kebab shop, a job wiring alarms for a man who asks nothing, and a windowsill the cat approves of. You ' +
+    'banked almost nothing. You banked the cat.'],
+  broke: ['Bus Fare and a Burner', F => F.score < 150000,
+    'You walk away with bus fare and a burner: no villa, no boat, no island. A rented room two cities over and ' +
+    'a name borrowed from a dead man with good credit. Everybody who retires alive is ahead of the game. You ' +
+    'tell yourself that most mornings, and most mornings it works.'],
+  owed: ['Never Square', F => !F.cleared,
+    'You clear the Fixer on the last morning, in one payment, standing up, and he counts it twice. Every day ' +
+    'you ever worked, some of it was his. He shakes your hand. You sit in a park afterwards and work out what ' +
+    'paying him off in the first month would have been worth, and then you stop working things out for good.'],
+  flat: ['A Flat Two Cities Over', () => true,
+    'A quiet flat two cities over, a shop that sells second-hand synthesisers, and a landline. You are in bed by ' +
+    'eleven. Once a month something on the news makes your stomach drop, and then it turns out to be somebody else.'],
+  // --- taken down: no score, and a trace of a different kind ---
+  dysentery: ['Filed Under Misadventure', F => F.how === 'dead',
+    'They bag the goods, photograph them and file you under misadventure. The street gets the story wrong inside ' +
+    'a week: it becomes a warning about trusting a prison pocket, which, to be fair, is exactly what it is.'],
+  forfeit: ['Schedule A', F => F.worth >= 1000000,
+    'They do not charge you with anything for nine months. They do not have to: the house, the garage, the wallet ' +
+    'and the money all belong to a schedule now, and a schedule cannot be argued with. Your name survives as a ' +
+    'case number, and as the thing people say at the bar when somebody will not go home.'],
+  vanished: ['Four Words', () => true,
+    'No arrest, no charge, no record, no you. The Bunker is empty inside a week and somebody else is sleeping in ' +
+    'it inside a month. The only trace is a story that gets shorter every time it is told, until it is four ' +
+    'words: they came for them.'],
+};
+const ENDING_ORDER = ['island', 'board', 'villa', 'fixer', 'ghost', 'soldier', 'cat', 'broke', 'owed', 'flat'];
+const DOWN_ORDER = ['dysentery', 'forfeit', 'vanished'];
+let forcedEnding = null;   // the debug menu and the self-test: the next send-off uses this one
+// Everything about the career an ending is allowed to read. Gathered once, so a test cannot change it.
+function careerFacts(score, days, how) {
+  const board = legacyScores();
+  return {how: how || 'retired', score, days, rate: Math.round(score / Math.max(1, days)),
+    worth: Math.max(0, S.cash + S.wallet - S.debt),
+    heat: S.heat, arrests: S.arrests || 0, fought: S.fought || 0, cleared: !!S.cleared,
+    cat: lvl('cat'), crew: career.syn || null, stations: BASE_IDS.reduce((sum, id) => sum + lvl(id), 0),
+    routines: skCount(), topScore: board.length ? board[0].score : 0,
+    topRate: legacyPool().reduce((m, g) => Math.max(m, g.rate || 0), 0)};
+}
+// Which send-off this career gets. A forced one is used once and then forgotten.
+function endingFor(F) {
+  const order = F.how === 'retired' ? ENDING_ORDER : DOWN_ORDER;
+  if (forcedEnding && order.includes(forcedEnding)) { const id = forcedEnding; forcedEnding = null; return id; }
+  const id = order.find(k => { try { return !!ENDINGS[k][1](F); } catch (e) { return false; } }) || order[order.length - 1];
+  return id;
+}
+// Note that this career reached this ending, for the achievements. It belongs to the save.
+function noteEnding(id) {
+  if (!career.ends || typeof career.ends !== 'object') career.ends = {};
+  if (!career.ends[id]) career.ends[id] = Date.now();
+  legacyTally.ends[id] = (legacyTally.ends[id] || 0) + 1;
+  saveCareer();
+}
+// The rarest thing you were wearing when you walked away: what people remember you in.
+function signatureGear() {
+  const worn = Object.values(career.gear).filter(Boolean);
+  return worn.length ? worn.reduce((best, it) => ((it.rar || 0) > (best.rar || 0) ? it : best), worn[0]).name : '';
+}
+// The send-off, as HTML: the title and the epilogue.
+const endingHtml = id => `<p><b class="amber">${ENDINGS[id][0]}</b></p><p>${ENDINGS[id][2]}</p>`;
+// The epilogues on the board, so a send-off can be read again. Only entries that recorded one.
+function legacyHtml() {
+  const list = legacyPool().filter(g => g.epi && ENDINGS[g.end]).slice(0, 4);
+  if (!list.length) return '';
+  return '<p class="dim">WHAT BECAME OF THEM</p>' + list.map(g => `<div class="syn"><b>${gname(g)}</b> ` +
+    `<span class="dim">&middot; ${ENDINGS[g.end][0]}${g.gear ? ` &middot; ${esc(g.gear)}` : ''}</span><br>` +
+    `<span class="dim">${esc(g.epi)}</span></div>`).join('');
+}
+
+// Put a made-up old career on the board, so its legacy can be met without playing one.
+// (Nothing in the game calls this: it is for the debug menu and the self-test.)
+// how: 'retired' (the default), 'busted' or 'dead'. over: any of the fields, to set them by hand.
+function plantLegacy(how, over) {
+  const o = over || {};
+  const handle = safeHandle(o.handle || pick(['Nullset', 'Bitrot', 'Dogcopter', 'Payphone', 'Mx Void', 'Grep']));
+  const days = o.days || rnd(40, 300);
+  const gear = o.gear === undefined ? 'Kernel Panic Trench Coat' : o.gear;
+  const crew = SYNDICATES[o.crew] ? o.crew : null;
+  if (how === 'busted' || how === 'dead') {
+    const end = ENDINGS[o.end] ? o.end : how === 'dead' ? 'dysentery' : 'vanished';
+    return fallAdd({handle, days, how, crew, gear, end, epi: o.epi || ENDINGS[end][2]});
+  }
+  const end = ENDINGS[o.end] ? o.end : 'flat';
+  const score = o.score === undefined ? rnd(2, 40) * 1000000 : o.score;
+  return hallAdd(handle, score, days, {end, epi: o.epi || ENDINGS[end][2], crew, gear});
+}
+// Make the next send-off use this ending, whatever the career actually did.
+// (Nothing in the game calls this: it is for the debug menu and the self-test.) Returns the id, or null.
+function forceEnding(id) {
+  forcedEnding = ENDINGS[id] ? id : null;
+  return forcedEnding;
+}
+// ====================== LEGACY: old careers, and the endings: END ======================
+
 // ---------- end of run ----------
 async function finish() {
   store.del('zdh-save');
   render();
   SND.play(S.busted || S.dead ? 'gone' : 'level');
-  if (S.dead) {
-    // The one way to die: leaving goods stuck in your prison pocket until the dysentery finishes it.
-    await dialog('YOU HAVE DIED OF DYSENTERY', `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` +
-      `<p>Cause of death: <b class="red">${S.dead}</b>.</p>` +
-      `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
-      `A street doc would have had them out in ten minutes.</p>` +
-      '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
-      `<p>Your career ends on day <b>${num(S.day)}</b>, ${num(S.day)} day${S.day === 1 ? '' : 's'} in. No score for the dead: you had to walk away to bank it.</p>` +
-      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
-    return;
-  }
-  if (S.busted) {
-    await dialog('VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` + '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
-      `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the disappeared: you had to walk away to bank it.</p>` +
-      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
+  // LEGACY: a career that was taken down has its own send-offs, and leaves a trace of a different kind:
+  // it goes on the fallen list under this save's own name, which is all the bookkeeping it costs.
+  if (S.dead || S.busted) {
+    const F = careerFacts(0, S.day, S.dead ? 'dead' : 'busted');
+    const id = endingFor(F);
+    noteEnding(id);
+    const fallen = fallAdd({handle: safeHandle((saveList()[slot] || {}).name || 'anon'), days: S.day,
+      how: F.how, crew: career.syn || null, gear: signatureGear(), end: id, epi: ENDINGS[id][2]});
+    const tail = `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the ` +
+      `${S.dead ? 'dead' : 'disappeared'}: you had to walk away to bank it.</p>` +
+      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` + endingHtml(id) +
+      `<p class="dim">They go on the board under <b>${esc(fallen.handle)}</b>, with no number next to the name. ` +
+      'Later careers will hear about it.</p>';
+    if (S.dead) {
+      // The one way to die: leaving goods stuck in your prison pocket until the dysentery finishes it.
+      await dialog('YOU HAVE DIED OF DYSENTERY', `<div class="posebox wide">${avatarSvg({pose: 'down'})}</div>` +
+        `<p>Cause of death: <b class="red">${S.dead}</b>.</p>` +
+        `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
+        `A street doc would have had them out in ten minutes.</p>` +
+        '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
+        tail, [['New career', true, 'primary']], 'danger');
+      return;
+    }
+    await dialog(id === 'forfeit' ? 'SEIZED' : 'VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` +
+      (id === 'forfeit'
+        ? `<p>You were worth <b>${money(F.worth)}</b> when they came, and that is exactly why they came in daylight, ` +
+          'with a van for the hardware and a lawyer for the rest.</p>'
+        : '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>') +
+      tail, [['New career', true, 'primary']], 'danger');
     return;
   }
   // Retired. Everything is sold up (see retireWorth) and the career goes on the board.
@@ -11237,13 +11572,12 @@ async function finish() {
   const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
-  // Where a retirement like that gets you. The last one is for the ones who should never have had to work again.
-  const ENDINGS = [[50000, 'a rented room, a new name, and a job doing tech support for a letting agent'],
-    [250000, 'a quiet flat two cities over, and a shop that sells second-hand synthesisers'],
-    [1000000, 'a bar on a coast with no extradition treaty, and a dog that came with the bar'],
-    [10000000, 'a house nobody can find, a boat nobody can trace, and a hobby that is almost legal'],
-    [Infinity, 'an island, a satellite uplink, and a standing invitation to never come back']];
-  const ending = ENDINGS.find(([limit]) => score < limit)[1];
+  // LEGACY: where a retirement like that gets you is no longer a line off the money alone. The send-off is
+  // chosen from everything the career did (careerFacts / ENDINGS), and its epilogue goes on the board with
+  // the entry so it can be read again.
+  const F = careerFacts(score, days, 'retired');
+  const ending = endingFor(F);
+  noteEnding(ending);
   // A big retirement ends the career draped in gold.
   const pose = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
     : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>`;
@@ -11253,13 +11587,16 @@ async function finish() {
     `<p>Retired on day <b>${num(days)}</b> worth <b class="green">${money(score)}</b>` +
     `<br>That is <b class="cyan">${money(Math.round(score / Math.max(1, days)))}</b> a day, every day you were in` +
     `<br>Career rating: <b class="cyan">${rank}</b>` +
-    `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` +
-    `<p class="dim">You buy ${ending}.</p>`;
+    `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
+  // LEGACY: the title and the epilogue. On a handheld they come after the figures and the picture, so the
+  // first screenful is still the numbers, and the paragraph scrolls behind the answers pinned at the foot.
+  const epi = endingHtml(ending);
   // On a handheld the picture is the whole first screenful, so there the figures come first and the picture
   // follows them; on a screen with room the picture leads, as it always has.
-  const summary = () => (tinyScreen() ? facts + pose : pose + facts);
+  const summary = () => (tinyScreen() ? facts + pose + epi : pose + facts + epi);
   const handle = (await askText('RETIRED', summary() + '<p>The name they will remember:</p>')) || 'anon';
-  const mine = hallAdd(handle, score, days);
+  const mine = hallAdd(handle, score, days,
+    {end: ending, epi: ENDINGS[ending][2], crew: career.syn || null, gear: signatureGear()});
   // ENDLESS: on a handheld the send-off with every table in it is four screens of scrolling, so there the
   // tables go behind an answer, the way every other long list on that screen does. On a screen with room
   // for them they stay in front of you.
@@ -13065,8 +13402,12 @@ async function dunRoom(D, room) {
       dunTally.loot++;
       if (gear) {
         dunTally.gear++;
-        D.note = '<span class="green">Somebody left something good in here and forgot about it.</span>';
-        await dropLoot(room.name.toLowerCase(), DUN.gearBoost[clampN(D.floor - 1, 0, 4)] / 2);
+        // LEGACY: deep enough in, the thing somebody left behind belonged to a career of your own.
+        const boost = DUN.gearBoost[clampN(D.floor - 1, 0, 4)] / 2;
+        const ghost = Math.random() < LEGACY.gear ? legacyTake('gear') : null;
+        D.note = ghost ? `<span class="green">${legacyGearNote(ghost)}</span>`
+          : '<span class="green">Somebody left something good in here and forgot about it.</span>';
+        await dropLoot(room.name.toLowerCase(), boost, ghost ? legacyItem(ghost, boost) : undefined, true);
       } else {
         const r = Math.random();
         if (r < DUN.ammoOdds && skin === 'site') {
@@ -13279,6 +13620,13 @@ async function dunRoom(D, room) {
       [['Read it', 'read', 'primary'], ['Move on', 'on'], out]);
     if (how === 'bail') return 'bail';
     if (how === 'read') {
+      // LEGACY: sometimes the paperwork is somebody's file, and sometimes it is somebody you used to be.
+      const ghost = Math.random() < LEGACY.file ? legacyTake('file') : null;
+      if (ghost) {
+        D.note = `<span class="amber">${legacyFileNote(ghost)}</span>`;
+        SND.play('hack');
+        return 'on';
+      }
       if (dunLeads().length < DUN.leadMax && Math.random() < 0.6) {
         const L = dunLead('', D.lead.deep + (Math.random() < 0.4 ? 1 : 0));
         dunLeads().push(L);
@@ -14081,6 +14429,256 @@ async function endlessSelfTest() {
 }
 // ====================== ENDLESS CAREERS: the step-by-step test: END ======================
 
+// ====================== LEGACY: the step-by-step test ======================
+// The ending tables are whole, every ending can be reached and the order is what picks it, retiring and
+// being taken down each write down what they worked out, a career that ended turns up in a later one in
+// every place it can, nobody turns up twice, nobody turns up who is not on the board, and a board full of
+// entries from older versions still loads and still draws.
+async function legacySelfTest() {
+  const run = S, mine = career, keep = slot, random = Math.random, wasAuto = AUTO;
+  const get = store.get, set = store.set, del = store.del;
+  const realDialog = dialog, realAsk = askText, realFight = fight;
+  const fail = (what, ...more) => { throw new Error('Legacy test: ' + what + ' ' + JSON.stringify(more)); };
+  const mem = {};
+  let last = '', nextName = 'bot';
+  const fixed = async (v, fn) => { Math.random = () => v; try { return await fn(); } finally { Math.random = random; } };
+  // Make one of the appearances certain for the length of one call.
+  const always = async (key, fn) => { const was = LEGACY[key]; LEGACY[key] = 1; try { return await fn(); } finally { LEGACY[key] = was; } };
+  const named = /\bg\d\b/;   // the planted legacies below are all called g0, g1, ...
+  try {
+    // Nothing in here may touch the player's own board or saves: the store is a memory map, and `slot`
+    // stays 0, so even store.del cannot reach a real save file.
+    store.get = key => (key in mem ? JSON.parse(JSON.stringify(mem[key])) : null);
+    store.set = (key, value) => { mem[key] = JSON.parse(JSON.stringify(value)); };
+    store.del = key => { delete mem[key]; };
+    legacyAuto = true;   // ...and the bot may read and write that board although AUTO is on
+    slot = 0;
+    dialog = (title, html, buttons, tone) => { last = String(html); return realDialog(title, html, buttons, tone); };
+    askText = async (title, html) => { last = String(html); return nextName; };
+
+    // ---- the tables are whole ----
+    const ids = ENDING_ORDER.concat(DOWN_ORDER);
+    if (ENDING_ORDER.length < 4 || DOWN_ORDER.length < 2) fail('too few endings', ENDING_ORDER.length, DOWN_ORDER.length);
+    if (new Set(ids).size !== ids.length) fail('an ending is in both orders, or listed twice', ids);
+    if (Object.keys(ENDINGS).length !== ids.length) fail('an ending is in ENDINGS and in no order', Object.keys(ENDINGS), ids);
+    for (const id of ids) {
+      const E = ENDINGS[id];
+      if (!E) fail('an ending in the order does not exist', id);
+      if (!E[0] || typeof E[1] !== 'function' || typeof E[2] !== 'string' || E[2].length < 80) fail('an ending is not finished', id, E && E[0]);
+      if (E[2].length > 700) fail('an epilogue is longer than a paragraph', id, E[2].length);
+      if (!endingHtml(id).includes(E[0])) fail('an ending does not draw', id);
+    }
+    // The last of each order is the fallback and must answer to anything.
+    for (const order of [ENDING_ORDER, DOWN_ORDER]) {
+      if (!ENDINGS[order[order.length - 1]][1]({})) fail('the fallback ending can be refused', order[order.length - 1]);
+    }
+    // ---- every ending can be reached, and the order is what picks it ----
+    const F0 = () => ({how: 'retired', score: 300000, days: 40, rate: 7500, worth: 0, heat: 60, arrests: 3,
+      fought: 10, cleared: true, cat: 0, crew: null, stations: 14, routines: 0, topScore: 0, topRate: 0});
+    const want = (id, over) => {
+      const F = Object.assign(F0(), over), got = endingFor(F);
+      if (got !== id) fail('the wrong send-off was chosen', id, got, F);
+    };
+    want('island', {score: 25000000, rate: 1});
+    want('board', {rate: 100, topRate: 99});
+    want('villa', {score: 6000000, heat: 20, rate: 1});
+    want('fixer', {days: 130, stations: 30});
+    want('ghost', {arrests: 0, fought: 0, heat: 10});
+    want('soldier', {fought: 40});
+    want('cat', {score: 1000, cat: 1});
+    want('broke', {score: 1000, cat: 0});
+    want('owed', {cleared: false});
+    want('flat', {});
+    want('dysentery', {how: 'dead'});
+    want('forfeit', {how: 'busted', worth: 2000000});
+    want('vanished', {how: 'busted', worth: 0});
+    // ---- forcing one: refuses rubbish, used once, and never crosses between the two orders ----
+    if (forceEnding('not an ending') !== null) fail('an unknown ending was forced');
+    if (forceEnding('cat') !== 'cat') fail('forcing an ending did not take');
+    if (endingFor(F0()) !== 'cat') fail('a forced ending was ignored');
+    if (endingFor(F0()) !== 'flat') fail('a forced ending was used twice');
+    forceEnding('vanished');
+    if (endingFor(F0()) !== 'flat') fail('a taken-down send-off leaked into a retirement');
+    forceEnding(null);
+
+    // ---- retiring several different ways: what is shown, and what is written down ----
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    career = newCareer(); fixCareer();
+    const retireAs = async (id, name, over) => {
+      newGame();
+      Object.assign(S, {day: 40, loc: BUNKER, debt: 0, cash: 1000000, wallet: 0, inv: {}, stash: {}, rides: [], ride: ''}, over || {});
+      if (retireBlock()) fail('the test could not retire', id, retireBlock());
+      nextName = name;
+      forceEnding(id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await ACTIONS.retire(); } finally { autoPick = null; }
+      if (!S.over || !S.retired) fail('retiring did not end the career', id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await finish(); } finally { autoPick = null; }
+      if (!last.includes(ENDINGS[id][0])) fail('the send-off did not show its title', id, last.slice(0, 200));
+      if (!last.includes(ENDINGS[id][2].slice(0, 40))) fail('the send-off did not show its epilogue', id);
+      if (!career.ends[id]) fail('the ending was not written on the save', id, career.ends);
+      const row = hallLoad().find(s => s.handle === name);
+      if (!row) fail('the career did not go on the board', id, name, hallLoad());
+      if (row.end !== id || row.epi !== ENDINGS[id][2]) fail('the entry did not record its ending', row);
+      if (!row.gear) fail('the entry recorded no signature gear', row);
+      if (!hallHtml(row).includes(ENDINGS[id][0])) fail('the hall of fame does not show the ending', id);
+      return row;
+    };
+    const big = await retireAs('island', 'g0', {cash: 40000000});
+    await retireAs('cat', 'g1', {cash: 9000});
+    await retireAs('soldier', 'g2', {cash: 2000000});
+    await retireAs('flat', 'g3', {cash: 400000});
+    if (Object.keys(career.ends).length < 4) fail('four endings were not remembered', career.ends);
+    if (!ACH.ends4[3]()) fail('reaching four endings did not earn its achievement', career.ends);
+    if (!ACH.endcat[3]()) fail('retiring with nothing but the cat did not earn its achievement', career.ends);
+    if (!big.epi || !('crew' in big) || big.rate !== Math.round(big.score / big.days)) fail('the biggest retirement recorded nothing', big);
+    // ---- being taken down: more than one send-off, no score, and a trace of a different kind ----
+    const downAs = async (id, how, name, over) => {
+      newGame();
+      mem['zdh-slots'] = {0: {name, t: 1}};
+      Object.assign(S, {day: 60, loc: BUNKER, debt: 0, over: true}, over || {});
+      if (how === 'dead') S.dead = 'dysentery'; else S.busted = true;
+      const scoreWas = stat('score'), runsWas = stat('runs');
+      forceEnding(id);
+      autoPick = all => (all.includes(true) ? true : all[0]);
+      try { await finish(); } finally { autoPick = null; }
+      if (!last.includes(ENDINGS[id][0])) fail('the taken-down send-off did not show its title', id, last.slice(0, 200));
+      if (stat('score') !== scoreWas || stat('runs') !== runsWas) fail('being taken down banked something', id, career.stats);
+      const f = fallLoad().find(x => x.end === id);
+      if (!f || f.days !== 60 || !f.epi || f.handle !== name) fail('a career that was taken down left no trace', id, fallLoad());
+      return f;
+    };
+    await downAs('forfeit', 'busted', 'g5', {cash: 9000000});
+    await downAs('vanished', 'busted', 'g6', {cash: 100});
+    await downAs('dysentery', 'dead', 'g8', {cash: 100});
+    if (fallLoad().length !== 3) fail('the fallen list did not keep all three', fallLoad());
+    // The same name on the same day is the same career, not two.
+    await downAs('vanished', 'busted', 'g6', {cash: 100});
+    if (fallLoad().length !== 3) fail('one career was listed twice on the fallen list', fallLoad());
+
+    // ---- the pool: who becomes a person, and who stays a number on a wall ----
+    mem['zdh-scores'] = [{handle: 'ancient', score: 9e9},
+      {handle: 'thirty', score: 4000000, days: 28, rate: 142857, eco: 2},
+      {handle: 'dupe', score: 1000000, days: 50, rate: 20000, eco: 3},
+      {handle: 'dupe', score: 1000000, days: 50, rate: 20000, eco: 3},
+      {handle: 'nodays', score: 1000000, eco: 3}, null, {score: 'x'}, 'rubbish'];
+    mem['zdh-fallen'] = [{handle: 'gonzo', days: 33, how: 'busted', end: 'vanished', epi: 'They came for them.'},
+      {handle: 'nodays'}, null];
+    const pool = legacyPool();
+    if (new Set(pool.map(g => g.id)).size !== pool.length) fail('a legacy was listed twice', pool);
+    if (pool.length !== 3) fail('the pool is not the three real careers', pool.map(g => g.handle));
+    for (const w of ['thirty', 'dupe', 'gonzo']) if (!pool.some(g => g.handle === w)) fail('a real career is missing from the pool', w);
+    for (const w of ['ancient', 'nodays']) if (pool.some(g => g.handle === w)) fail('a number on a wall became a person', w);
+    // ...and every one of those older entries still loads and still draws.
+    const oldHtml = hallHtml();
+    for (const w of ['ancient', 'thirty', 'dupe', 'BEFORE THE CRASH', 'THE THIRTY DAYS', 'TAKEN DOWN', 'gonzo']) {
+      if (!oldHtml.includes(w)) fail('the hall of fame no longer shows ' + w);
+    }
+    if (hallLoad().length !== 5) fail('the hall of fame lost an old entry', hallLoad());
+    // Rubbish in storage is survived, not trusted.
+    mem['zdh-scores'] = 'not an array'; mem['zdh-fallen'] = 7;
+    if (legacyPool().length || fallLoad().length || hallLoad().length) fail('a broken board was believed', legacyPool());
+    if (hallHtml().includes('undefined')) fail('a broken board drew rubbish', hallHtml().slice(0, 200));
+
+    // ---- a handful a career, each of them once, and nobody who is not on the board ----
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    career = newCareer(); fixCareer();
+    for (let i = 0; i < 9; i++) {
+      plantLegacy(i % 3 === 2 ? 'busted' : 'retired', {handle: 'g' + i, days: 40 + i, score: (i + 1) * 1000000});
+    }
+    if (legacyPool().length < 8) fail('planting legacies did not take', legacyPool().length);
+    newGame();
+    const met = [];
+    for (let i = 0; i < 40; i++) { const g = legacyTake('test'); if (g) met.push(g.id); }
+    if (met.length !== LEGACY.perCareer) fail('a career did not meet its handful of legacies', met.length);
+    if (new Set(met).size !== met.length) fail('a legacy turned up twice in one career', met);
+    const onBoard = new Set(legacyPool().map(g => g.id));
+    if (met.some(id => !onBoard.has(id))) fail('somebody who is not on the board turned up', met);
+    if (stat('legacy') < LEGACY.perCareer) fail('meeting a legacy was not counted', career.stats);
+    if (!ACH.ghost1[3]()) fail('meeting a legacy did not earn its achievement', career.stats);
+    newGame();   // a new career meets them all over again
+    if (!legacyTake('test')) fail('a new career met nobody');
+
+    // ---- every place a legacy can turn up, turns up ----
+    newGame(); S.ghosts = {};
+    S.loc = 'Tor Bazaar'; S.markets = {};
+    await always('news', () => rollMarket());
+    if (!S.news.some(n => named.test(n))) fail('no news about an old career', S.news);
+    newGame(); S.ghosts = {}; S.loc = 'Tor Bazaar';
+    autoPick = () => false;   // "Not today": the gig itself is not what is being tested
+    try { await always('contact', () => contact()); } finally { autoPick = null; }
+    if (!named.test(last)) fail('a street contact never mentioned an old career', last.slice(0, 300));
+    newGame(); S.ghosts = {};
+    let intro = '';
+    fight = async E => { intro = E.intro || ''; E.result = 'won'; };
+    try { await always('crew', () => gangEncounter(pick(rivals()))); } finally { fight = realFight; }
+    if (!named.test(intro) || !intro.includes('playbook')) fail('a rival crew never ran an old operator\'s playbook', intro);
+    // Gear with a name on it keeps a real item type at the end of its name, so everything that reads a name
+    // for its type still works, and a handle cannot carry anything into one that would break a page.
+    const who = legacyPool().find(g => g.how === 'retired');
+    const it = legacyItem(who, 20);
+    if (!it.name.startsWith(who.handle + "'s ")) fail('a legacy item is not named after them', it.name);
+    const type = SLOTS[it.slot][1].find(n => it.name.endsWith(n));
+    if (!type) fail('a legacy item lost its item type', it.name);
+    if (POCKETS[it.slot] && carries(it) !== Math.round(POCKETS[it.slot][SLOTS[it.slot][1].indexOf(type)] * RARITY_MULT[it.rar])) {
+      fail('a legacy item stopped holding what its type holds', it.name, carries(it));
+    }
+    if (!itemHtml(it).includes(it.name) || !itemStats(it)) fail('a legacy item does not draw', it.name);
+    if (/[<>&"'`]/.test(safeHandle('<img src=x>&"\'`evil'))) fail('a handle was not cut down', safeHandle('<img src=x>&"\'`evil'));
+    if (safeHandle('') !== 'anon' || safeHandle(undefined) !== 'anon') fail('an empty handle was kept', safeHandle(''));
+    // ...and the two places inside a deep run, played as rooms.
+    const stageRoom = async (room, odds, pickWhat) => {
+      newGame(); S.ghosts = {};
+      Object.assign(S, {day: 20, trips: 20, loc: 'Datacenter Dock'});
+      const L = dunLead('site', 2);
+      L.at = S.loc;
+      const D = {th: L.th, lead: L, floor: 2, room: 0, rooms: [room], m: 10, goods: {}, cash: 0, note: '', jam: false};
+      S.dun = D;
+      autoPick = all => { const v = pickWhat.find(x => all.includes(x)); return v === undefined ? all[0] : v; };
+      try { await always(odds, () => fixed(0.01, () => dunRoom(D, room))); } finally { autoPick = null; delete S.dun; }
+      return D;
+    };
+    const filed = await stageRoom({t: 'file', name: 'Records room', line: 'Boxes of paper.'}, 'file', ['read']);
+    if (!named.test(filed.note)) fail('a deep run\'s paperwork never turned up somebody\'s file', filed.note);
+    const cached = await stageRoom({t: 'loot', name: 'Store room', line: 'Shelves and boxes.'}, 'gear', ['take', 'b', 'e']);
+    if (!named.test(cached.note)) fail('a deep cache never held an old career\'s gear', cached.note);
+    if (!ownedGear().some(g => /^g\d's /.test(g.name))) fail('the gear with a name on it was not handed over', cached.note);
+
+    // ---- the record on the board, and the morning you pass it ----
+    career = newCareer(); fixCareer();
+    mem['zdh-scores'] = []; mem['zdh-fallen'] = [];
+    plantLegacy('retired', {handle: 'g7', days: 100, score: 5000000});
+    newGame();
+    Object.assign(S, {day: 40, loc: BUNKER, debt: 0, cash: 1000000, wallet: 0});
+    if (!legacyRecordLine().includes('g7')) fail('the board to beat does not say whose it is', legacyRecordLine());
+    nextDay();
+    if (S.ghostRec || stat('beatrecord')) fail('the record was taken without passing it', S.ghostRec);
+    S.cash = 6000000;
+    nextDay();
+    if (!S.ghostRec || stat('beatrecord') !== 1) fail('passing the record was not noticed', S.ghostRec, career.stats);
+    if (!notes.some(([title]) => title === 'THE RECORD')) fail('passing the record said nothing', notes.map(n => n[0]));
+    if (!legacyRecordLine().includes('past it')) fail('the board to beat does not say you are past it', legacyRecordLine());
+    nextDay();
+    if (stat('beatrecord') !== 1) fail('the record was taken twice', career.stats);
+    if (!ACH.record[3]()) fail('passing the record did not earn its achievement', career.stats);
+
+    // ---- nothing on the board can be broken: every recorded ending is one the game has ----
+    for (const s of hallLoad()) if (s.end && (!ENDINGS[s.end] || !s.epi)) fail('a board entry recorded a broken ending', s);
+    for (const f of fallLoad()) if (!ENDINGS[f.end] || !f.epi) fail('a fallen entry recorded a broken ending', f);
+    if (!(legacyTally.met >= LEGACY.perCareer) || Object.keys(legacyTally.ends).length < 7 || !legacyTally.records) {
+      fail('the legacy test did not exercise what it claims', legacyTally);
+    }
+  } finally {
+    Math.random = random;
+    store.get = get; store.set = set; store.del = del;
+    dialog = realDialog; askText = realAsk; fight = realFight;
+    legacyAuto = false; forcedEnding = null; AUTO = wasAuto;
+    autoPick = null; slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
+  }
+}
+// ====================== LEGACY: the step-by-step test: END ======================
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -14155,6 +14753,7 @@ async function selfTest(games) {
         await skillSelfTest();   // SKILL TREE
         await dunSelfTest();    // DUNGEONS
         await endlessSelfTest();   // ENDLESS CAREERS
+        await legacySelfTest();    // LEGACY: old careers in new ones, and the endings
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
@@ -14578,10 +15177,19 @@ async function selfTest(games) {
       throw new Error('endless careers were not exercised: ' + JSON.stringify(endlessTally));
     }
     const esum = ` retirements=${endlessTally.retired} longestcareer=${endlessTally.longest} longestbotcareer=${endlessTally.botDay} latenights=${endlessTally.nights}`;
+    // LEGACY: ...and old careers must have been met, in every place one can turn up, with every send-off
+    // reached and somebody else's record passed.
+    if (games >= 20 && !(legacyTally.met >= LEGACY.perCareer && legacyTally.records >= 1 &&
+      Object.keys(legacyTally.ends).length >= 7 &&   // four retirements and all three ways of being taken down
+      ['news', 'contact', 'crew', 'file', 'gear', 'test'].every(k => legacyTally.where[k]))) {
+      throw new Error('legacies were not exercised: ' + JSON.stringify(legacyTally));
+    }
+    const lsum = ` legaciesmet=${legacyTally.met} legacyplaces=${Object.keys(legacyTally.where).sort().join('/')}` +
+      ` endingsreached=${Object.keys(legacyTally.ends).sort().join('/')} recordsbeaten=${legacyTally.records}`;
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum}${esum}${lsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -14605,6 +15213,7 @@ function loadSave(n) {
       rep: record.rep && typeof record.rep === 'object' ? record.rep : {},
       lockpick: record.lockpick,   // fixCareer() starts it at 0 for a save from before lock picking
       base: record.base, marks: record.marks,   // BASE: fixCareer() fills these in for a save from before the base
+      ends: record.ends,   // LEGACY: the endings reached (fixCareer tidies it for a save from before them)
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
