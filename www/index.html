@@ -11214,8 +11214,9 @@ function hallHtml(mine) {
   // LEGACY: the careers that were taken down get a line of their own under the tables, and the epilogues
   // that have been recorded can be read again (legacyHtml).
   const fell = fallLoad();
+  // (your own epilogue is not repeated here: the send-off has just shown it, and legacyHtml leaves you out)
   return (mine ? `<p class="dim">You went on the board as <b>${esc(mine.handle)}</b>: ${money(mine.score)} on day ${num(mine.days)}, ` +
-      `${money(mine.rate)} a day.</p>` + (mine.epi ? `<p>${esc(mine.epi)}</p>` : '') : '') +
+      `${money(mine.rate)} a day.</p>` : '') +
     (now.length || rated.length ? '' : '<p class="dim">Nobody has retired yet.</p>') +
     table('HALL OF FAME &middot; BIGGEST RETIREMENT', now) +
     table('HALL OF FAME &middot; BEST A DAY', rated, true) +
@@ -11225,7 +11226,7 @@ function hallHtml(mine) {
       `<table class="hall">${fell.map(f => `<tr><td></td><td>${esc(f.handle)}</td>` +
         `<td class="dim">${ENDINGS[f.end] ? ENDINGS[f.end][0] : 'gone'}</td>` +
         `<td class="dim">day ${num(f.days)}</td></tr>`).join('')}</table>` : '') +
-    legacyHtml();
+    legacyHtml(mine);
 }
 // Put a career on the board if it is good enough for either table. Returns the entry, or null.
 // LEGACY: `extra` carries what the send-off worked out (the ending, its epilogue, the crew, one signature
@@ -11416,10 +11417,18 @@ const ENDINGS = {
     'A white house above a town with one road out and no extradition treaty. The local police chief fixes your ' +
     'pool pump and takes a drink for it. You answer to the new name so often that you start answering to it in ' +
     'your sleep, which was always the point.'],
+  crewman: ['Made for Life', F => !!F.crew && F.inner,
+    'You do not retire so much as get promoted out of the way. The crew buys you a flat you would not have ' +
+    'chosen, in a city you would not have chosen, and once a quarter somebody you have never met rings to ask ' +
+    'whether you are well. You always say yes. You are always well. You will be well for a very long time.'],
   fixer: ['The Fixer Who Never Left', F => F.days >= 120 && F.stations >= 24,
     'You do not leave the district. You just stop going out. The Bunker keeps its lights on, the cat keeps its ' +
     'chair, and people knock: who do I call about a door, who do I call about a plate, who buys this. You take ' +
     'ten percent and never touch the goods again. On paper you are retired. Ask anyone on the street.'],
+  specialist: ['The Teaching Job', F => F.routines >= 12,
+    'You end up teaching, which nobody saw coming, least of all you. A room above a repair shop, six kids, no ' +
+    'names, and everything you worked out the hard way written on a whiteboard in the wrong order. Two of them ' +
+    'will be better than you were. One will be worse, and louder, and will be fine.'],
   ghost: ['No Such Person', F => F.arrests === 0 && F.fought <= 2 && F.heat <= 20,
     'There is no file. There was never a file. In a building full of people paid to notice things, nobody ever ' +
     'typed your name, because you never gave them a reason and never once stayed to argue. You buy a flat, a ' +
@@ -11456,7 +11465,8 @@ const ENDINGS = {
     'it inside a month. The only trace is a story that gets shorter every time it is told, until it is four ' +
     'words: they came for them.'],
 };
-const ENDING_ORDER = ['island', 'board', 'villa', 'fixer', 'ghost', 'soldier', 'cat', 'broke', 'owed', 'flat'];
+const ENDING_ORDER = ['island', 'board', 'villa', 'crewman', 'fixer', 'specialist', 'ghost', 'soldier', 'cat',
+  'broke', 'owed', 'flat'];
 const DOWN_ORDER = ['dysentery', 'forfeit', 'vanished'];
 let forcedEnding = null;   // the debug menu and the self-test: the next send-off uses this one
 // Everything about the career an ending is allowed to read. Gathered once, so a test cannot change it.
@@ -11466,6 +11476,8 @@ function careerFacts(score, days, how) {
     worth: Math.max(0, S.cash + S.wallet - S.debt),
     heat: S.heat, arrests: S.arrests || 0, fought: S.fought || 0, cleared: !!S.cleared,
     cat: lvl('cat'), crew: career.syn || null, stations: BASE_IDS.reduce((sum, id) => sum + lvl(id), 0),
+    // the crew's whole line of missions finished: the one thing a syndicate alone can earn you
+    inner: !!career.syn && !!career.quest && !!QUESTS[career.syn] && career.quest.n >= QUESTS[career.syn].length,
     routines: skCount(), topScore: board.length ? board[0].score : 0,
     topRate: legacyPool().reduce((m, g) => Math.max(m, g.rate || 0), 0)};
 }
@@ -11491,8 +11503,10 @@ function signatureGear() {
 // The send-off, as HTML: the title and the epilogue.
 const endingHtml = id => `<p><b class="amber">${ENDINGS[id][0]}</b></p><p>${ENDINGS[id][2]}</p>`;
 // The epilogues on the board, so a send-off can be read again. Only entries that recorded one.
-function legacyHtml() {
-  const list = legacyPool().filter(g => g.epi && ENDINGS[g.end]).slice(0, 4);
+// `skip` leaves one entry out: the career whose send-off is on the screen already.
+function legacyHtml(skip) {
+  const list = legacyPool().filter(g => g.epi && ENDINGS[g.end] &&
+    !(skip && g.handle === safeHandle(skip.handle) && g.days === skip.days)).slice(0, 4);
   if (!list.length) return '';
   return '<p class="dim">WHAT BECAME OF THEM</p>' + list.map(g => `<div class="syn"><b>${gname(g)}</b> ` +
     `<span class="dim">&middot; ${ENDINGS[g.end][0]}${g.gear ? ` &middot; ${esc(g.gear)}` : ''}</span><br>` +
@@ -11538,7 +11552,7 @@ async function finish() {
     const fallen = fallAdd({handle: safeHandle((saveList()[slot] || {}).name || 'anon'), days: S.day,
       how: F.how, crew: career.syn || null, gear: signatureGear(), end: id, epi: ENDINGS[id][2]});
     const tail = `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the ` +
-      `${S.dead ? 'dead' : 'disappeared'}: you had to walk away to bank it.</p>` +
+      `${S.dead ? 'dead' : id === 'forfeit' ? 'seized' : 'disappeared'}: you had to walk away to bank it.</p>` +
       `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` + endingHtml(id) +
       `<p class="dim">They go on the board under <b>${esc(fallen.handle)}</b>, with no number next to the name. ` +
       'Later careers will hear about it.</p>';
@@ -11588,12 +11602,13 @@ async function finish() {
     `<br>That is <b class="cyan">${money(Math.round(score / Math.max(1, days)))}</b> a day, every day you were in` +
     `<br>Career rating: <b class="cyan">${rank}</b>` +
     `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
-  // LEGACY: the title and the epilogue. On a handheld they come after the figures and the picture, so the
-  // first screenful is still the numbers, and the paragraph scrolls behind the answers pinned at the foot.
+  // LEGACY: the title and the epilogue.
   const epi = endingHtml(ending);
   // On a handheld the picture is the whole first screenful, so there the figures come first and the picture
-  // follows them; on a screen with room the picture leads, as it always has.
-  const summary = () => (tinyScreen() ? facts + pose + epi : pose + facts + epi);
+  // follows them; on a screen with room the picture leads, as it always has. The epilogue goes where it will
+  // be read: straight after the figures on a handheld (the picture can wait at the bottom), under them on a
+  // screen with room for both.
+  const summary = () => (tinyScreen() ? facts + epi + pose : pose + facts + epi);
   const handle = (await askText('RETIRED', summary() + '<p>The name they will remember:</p>')) || 'anon';
   const mine = hallAdd(handle, score, days,
     {end: ending, epi: ENDINGS[ending][2], crew: career.syn || null, gear: signatureGear()});
@@ -13407,6 +13422,7 @@ async function dunRoom(D, room) {
         const ghost = Math.random() < LEGACY.gear ? legacyTake('gear') : null;
         D.note = ghost ? `<span class="green">${legacyGearNote(ghost)}</span>`
           : '<span class="green">Somebody left something good in here and forgot about it.</span>';
+        if (ghost) log(`<span class="green">${legacyGearNote(ghost)}</span>`);   // ...and in the log, in case this was the last room
         await dropLoot(room.name.toLowerCase(), boost, ghost ? legacyItem(ghost, boost) : undefined, true);
       } else {
         const r = Math.random();
@@ -14474,7 +14490,7 @@ async function legacySelfTest() {
     }
     // ---- every ending can be reached, and the order is what picks it ----
     const F0 = () => ({how: 'retired', score: 300000, days: 40, rate: 7500, worth: 0, heat: 60, arrests: 3,
-      fought: 10, cleared: true, cat: 0, crew: null, stations: 14, routines: 0, topScore: 0, topRate: 0});
+      fought: 10, cleared: true, cat: 0, crew: null, inner: false, stations: 14, routines: 0, topScore: 0, topRate: 0});
     const want = (id, over) => {
       const F = Object.assign(F0(), over), got = endingFor(F);
       if (got !== id) fail('the wrong send-off was chosen', id, got, F);
@@ -14482,7 +14498,9 @@ async function legacySelfTest() {
     want('island', {score: 25000000, rate: 1});
     want('board', {rate: 100, topRate: 99});
     want('villa', {score: 6000000, heat: 20, rate: 1});
+    want('crewman', {crew: 'ghost', inner: true});
     want('fixer', {days: 130, stations: 30});
+    want('specialist', {routines: 12});
     want('ghost', {arrests: 0, fought: 0, heat: 10});
     want('soldier', {fought: 40});
     want('cat', {score: 1000, cat: 1});
