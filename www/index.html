@@ -5231,7 +5231,6 @@ const fx = () => (S.fx && typeof S.fx === 'object' ? S.fx : (S.fx = {vpn: 0, dec
 function heatUp(n) {
   if (n > 0 && fx().vpn > 0) n = Math.ceil(n / 2);
   if (n > 0) n = Math.ceil(n * skHeatMul());   // SKILL TREE: Traffic Shaping
-
   S.heat = Math.min(100, S.heat + n);
 }
 // How much Heat a Heat item would take off if used right now (0 for the ones that work over time).
