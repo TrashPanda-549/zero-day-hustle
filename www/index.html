@@ -2877,6 +2877,8 @@ function gainXp(n) {
 const openSyns = () => Object.keys(SYNDICATES).filter(k => !hiddenSyn(k) || HIDDEN_GATE[k]());
 
 async function joinSyndicate(key) {
+  // SNEAK REAPERS: a contract belongs to the crew that handed it over. Leave them and the paperwork goes back.
+  if (S && S.hit && key !== REAP_SYN) { S.hit = null; log('The contract you were holding went back to the book.'); }
   career.syn = key;
   career.quest = null;
   fixQuest();
@@ -10781,7 +10783,7 @@ async function reapScreen() {
 async function reapCheck() {
   const C = S.hit;
   if (!C) return;
-  if (!C.H || !C.mark || !(C.cash > 0)) { S.hit = null; return; }
+  if (!C.H || !C.mark || !(C.cash > 0) || !inSyn(REAP_SYN)) { S.hit = null; return; }
   if (S.day > C.due) {
     S.hit = null;
     reapTally.expired++;
@@ -17734,8 +17736,14 @@ async function selfTest(games) {
             ['depth lever', !(distDepthMult(S.loc) >= 1 - FACES.distDepth && distDepthMult(S.loc) <= 1)],
             ['a market gone', S.loc !== BUNKER && (Object.keys(S.prices).length < 4 || GOODS.some(([g, lo, hi]) => depthOf(g) < ((lo + hi) / 2 <= ECON.streetMax ? ECON.streetDepth : ECON.minDepth)))],
             ['kept back', !!(S.kept && !(S.kept.day === S.day && LOCATIONS.includes(S.kept.at) && S.kept.it && RARITY[S.kept.it.rar]))],
+            // SNEAK REAPERS: the same service for the contract and the sixth crew.
+            ['the contract', !!(S.hit && !(inSyn(REAP_SYN) && S.hit.H && S.hit.H.job === 'hit' && S.hit.mark && S.hit.mark.name &&
+              LOCKS[S.hit.H.lock] && LOCATIONS.includes(S.hit.H.at) && S.hit.H.at !== BUNKER &&
+              S.hit.cash > 0 && S.hit.xp > 0 && S.hit.due >= 1 && S.hit.due < S.day + 30))],
+            ['the Reapers are a rival', rivals().includes(REAP_SYN) || S.grudge[REAP_SYN] !== undefined],
+            ['the Reapers opened early', openSyns().includes(REAP_SYN) && !reapGate()],
           ].filter(([, v]) => v).map(([k]) => k);
-          throw new Error(`invariant broken${why.length ? ' (faces: ' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
+          throw new Error(`invariant broken${why.length ? ' (' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
             ' career=' + JSON.stringify({stand: career.stand, memo: career.memo}));
         }
       }
