@@ -910,6 +910,8 @@ button .ico.room{width:44px;height:26px}
 <div id="battle" hidden></div>
 <script>
 'use strict';
+// DAYS is no longer a deadline: a career has no last day (see ENDLESS, below). It is the length of the
+// MEASURED ARC, the first month, whose economy was tuned and measured for 1.29 and is left untouched.
 const DAYS = 30, START_CASH = 2000, START_DEBT = 5500, DEBT_RATE = 0.08, WALLET_RATE = 0.03,
   DEBT_LIMIT = 25000, START_DRIVE = 60, HEAT_DECAY = 8, MAX_PROXIES = 8;
 // What you can carry = START_DRIVE (plus upgrades) + what your clothes and backpack hold (see POCKETS).
@@ -969,7 +971,8 @@ const TRIPS_PER_DAY = 6;
 // (selling) or doubles (buying) the price. It is worked out in dollars, so every good is about as deep in
 // money terms: depth = marketSize(day) / the good's mid price. Half of a move is still there next morning.
 const ECON = {
-  version: 2,            // stamped on new hall-of-fame entries; entries without it are from the old economy
+  version: 3,            // stamped on new hall-of-fame entries: 3 is the endless era (1.36), 2 the thirty-day
+                         // runs of 1.29 to 1.35, anything older the economy before the 1.29 crash
   // The scene gets busier as the month goes on: size on day d = marketSize x (1 + marketGrowth x (d - 1) ^ marketCurve).
   // (Day 1: $550. Day 6: about $2,500. Day 10: $5,900. Day 15: $11,800. Day 20: $19,400. Day 30: $39,300.)
   marketSize: 550,       // $ of one good (at mid price) a market takes on day 1 before its price has halved
@@ -1001,6 +1004,62 @@ const ECON = {
   // Cash taken off beaten hostiles, as a multiple of what it was before 1.28.
   raidLoot: 0.35, lawLoot: 0.6, gangLoot: 0.6, thugLoot: 0.6,
 };
+
+// ---------- ENDLESS CAREERS (v1.36) ----------
+// A career has no last day. It ends when you are taken down (the law's top tier, or dysentery) or when you
+// RETIRE from the Bunker and bank what you are worth. Everything that decides how the days past the old
+// 30-day arc behave is in this one block.
+//
+// Two curves come out of it:
+//   lateMult(day)  what the money side is multiplied by past the arc. The measured 1.29 economy is left
+//                  exactly as it was up to day 30; after that market depth, a day's take and the payouts
+//                  that followed them grow LOGARITHMICALLY, not to the power of 1.7, so the numbers keep
+//                  meaning something without running away. (day 30: x1. 60: x1.9. 100: x2.4. 200: x3.0.
+//                  365: x3.5. The hard ceiling is lateCap, which no real career reaches.)
+//   press01(day)   how far the pressure has climbed, 0 at the arc to 1 at arc + ramp, and capped there:
+//                  late play has to stay tense, not unsurvivable. Everything it raises is listed below.
+// effDay(day) is lateMult applied to the day itself: anything that was tuned to climb with S.day (shop
+// prices, gear rarity, payouts, how many hostiles turn up) reads effDay() instead, so it keeps climbing on
+// the same damped curve and nothing can print a number nobody can read.
+const ENDLESS = {
+  arc: DAYS,              // the measured 30-day arc. Days 1..30 behave exactly as they did in 1.35.
+  lateSpan: 15,           // days past the arc that double the log term
+  lateGrowth: 0.55,       // how much of the day-30 value one doubling adds
+  lateCap: 4.5,           // the most anything can be multiplied by, ever
+  ramp: 120,              // days past the arc over which the pressure climbs to its maximum (day 150)
+  // --- what rises with the pressure (all of these are the value added at FULL pressure) ---
+  heatFloor: 40,          // Heat settles back to this overnight and never cools below it: the law keeps the
+                          // file open, so a career at full pressure is permanently wanted by the FBI
+  raidOdds: 0.06,         // added to the chance of a Bunker raid overnight (and its cap)
+  lawOdds: 0.03,          // added to the chance of meeting the law on a trip (and its cap)
+  gangOdds: 0.04,         // added to the chance a rival crew comes for you on a trip (and its cap)
+  grudgeNight: 0.25,      // chance a night past the arc that one rival crew's grudge goes up by one
+  grudgeMax: 8,           // ...but never past this, so the odds stay inside their own caps
+  debtRate: 0.06,         // added to the Fixer's daily rate: 8% a day becomes up to 14%
+  foeMax: 8,              // the most hostiles any street or Bunker fight can field, however late it is
+  // --- retiring ---
+  retireDay: 7,           // the earliest day you can walk away
+  fence: 0.6,             // what a fence pays for the goods you retire holding, as a share of their mid price
+  retireXp: 8,            // XP a day survived, on top of the end-of-career XP a cash-out always paid
+  retireXpMax: 1200,      // ...capped
+};
+// The money multiplier past the arc, and the "effective day" every scaling number reads.
+function lateMult(day) {
+  if (!(day > ENDLESS.arc)) return 1;
+  const m = 1 + ENDLESS.lateGrowth * Math.log2(1 + (day - ENDLESS.arc) / ENDLESS.lateSpan);
+  return Math.min(ENDLESS.lateCap, m);
+}
+const effDay = day => { const d = day === undefined ? S.day : day; return d <= ENDLESS.arc ? d : ENDLESS.arc * lateMult(d); };
+// How far the pressure has climbed: 0 up to the arc, 1 from arc + ramp on.
+const press01 = day => clampN(((day === undefined ? S.day : day) - ENDLESS.arc) / ENDLESS.ramp, 0, 1);
+// What the street calls you once the month is over. '' while the arc is still running.
+const PRESS_WORDS = ['KNOWN', 'WATCHED', 'HUNTED', 'MARKED'];
+const pressName = () => (S.day <= ENDLESS.arc ? '' : PRESS_WORDS[Math.min(PRESS_WORDS.length - 1, Math.floor(press01() * PRESS_WORDS.length))]);
+// The lowest Heat will go. The law never quite forgets a long career.
+const heatFloor = () => Math.round(ENDLESS.heatFloor * press01());
+// Everything that cools Heat goes through here, so the floor holds. A floor never RAISES your Heat.
+function heatDown(n) { S.heat = Math.max(Math.min(S.heat, heatFloor()), S.heat - n); }
+// ---------- ENDLESS CAREERS: END ----------
 
 // Crews you can join at level 10. The choice is permanent and applies to every run.
 const SYNDICATES = {
@@ -1298,11 +1357,13 @@ const rideValue = id => Math.round(VEHICLES[id][1] * RIDE_TRADE);
 // earn its price back before the run ends, so a rough curve between the measured days is enough.
 const TAKE = [[1, 3800], [3, 4000], [10, 40000], [15, 90000], [20, 160000], [24, 200000], [DAYS, 200000]];
 function dayTake(day) {
+  // ENDLESS: past the arc the table has run out, and a day's take grows with the markets (lateMult).
+  const late = lateMult(day);
   for (let i = 1; i < TAKE.length; i++) {
     const [d0, v0] = TAKE[i - 1], [d1, v1] = TAKE[i];
-    if (day <= d1) return v0 + (v1 - v0) * Math.max(0, day - d0) / (d1 - d0);
+    if (day <= d1) return (v0 + (v1 - v0) * Math.max(0, day - d0) / (d1 - d0)) * late;
   }
-  return TAKE[TAKE.length - 1][1];
+  return TAKE[TAKE.length - 1][1] * late;
 }
 // What h extra hops a day are worth, as a share of a day's take. It flattens out, because a market only takes so
 // much in a day: that is why climbing the ladder one rung at a time near the top loses money (see TUNING above).
@@ -1396,7 +1457,8 @@ const rideCard = (id, lead) => withIcon(rideIcon(id), `${lead ? lead + ' &middot
 function rideWorth(id, cost) {
   const v = VEHICLES[id], now = VEHICLES[S.ride], hops = v[2] - (now ? now[2] : 0);
   const gain = Math.round(dayTake(S.day) * (hopWorth(v[2]) - hopWorth(now ? now[2] : 0)) - (rideTwist(id, 'fuel') - rideTwist(S.ride, 'fuel')));
-  const left = DAYS - S.day + 1, net = Math.max(0, cost - rideValue(id));
+  // ENDLESS: a career has no last day, so a ride is judged on how fast it pays itself back, not on days left.
+  const net = Math.max(0, cost - rideValue(id));
   const over = now ? `the ${now[4]}` : 'your legs';
   const head = hops > 0 ? `<b>+${hops} hop${hops === 1 ? '' : 's'}</b> over ${over}` : hops === 0 ? `no more hops than ${over}` : `${-hops} hop${hops === -1 ? '' : 's'} fewer than ${over}`;
   let say;
@@ -1408,8 +1470,8 @@ function rideWorth(id, cost) {
   else if (!net) say = `<span class="green">about ${money(gain)} a day more after fuel</span>`;
   else {
     const days = Math.ceil(net / gain);
-    say = `about ${money(gain)} a day more after fuel: <span class="${days * 2 <= left ? 'green' : days <= left ? 'amber' : 'red'}">` +
-      (days <= left ? `pays for itself in ${days} day${days === 1 ? '' : 's'}, ${left} left` : `${days} days to pay for itself, and only ${left} left`) + '</span>';
+    say = `about ${money(gain)} a day more after fuel: <span class="${days <= 5 ? 'green' : days <= 15 ? 'amber' : 'red'}">` +
+      `pays for itself in ${days} day${days === 1 ? '' : 's'}</span>`;
   }
   return `<span class="dim">${head} &middot; ${say}</span>`;
 }
@@ -1828,7 +1890,7 @@ function baseNight() {
     S.cash -= cost;
     log(`Power for the Bunker: ${money(cost)}.${was ? ' The lights are back on.' : ''}`);
   }
-  if (BV('jam', 'cool')) S.heat = Math.max(0, S.heat - BV('jam', 'cool'));
+  if (BV('jam', 'cool')) heatDown(BV('jam', 'cool'));
   const C = BASE.cat.lv[eff('cat')];
   if (C.hp) S.hp = Math.min(100, S.hp + C.hp);
   if (C.opsec) S.opsec = Math.min(100, S.opsec + C.opsec);
@@ -2286,7 +2348,8 @@ const SND = (() => {
     // Pick the music for what is going on right now.
     sync() {
       if (AUTO) return;
-      const want = api.battle || (S.loc === BUNKER ? 'bunker' : S.heat >= 60 || S.day >= DAYS ? 'tense' : 'calm');
+      // ENDLESS: there is no last day to go tense on, so Heat and the pressure of a long career do it instead.
+      const want = api.battle || (S.loc === BUNKER ? 'bunker' : S.heat >= 60 || press01() >= 0.66 ? 'tense' : 'calm');
       if (want !== mood) { mood = want; step = 0; }
     },
     toggle(key) {
@@ -2316,7 +2379,8 @@ function levelInfo(total) {
 const level = () => levelInfo().level;
 const inSyn = key => career.syn === key;
 // SKILL TREE: Compound Interest shifts both rates a little (skDebt, skWallet).
-const debtRate = () => Math.max(0, (inSyn('ledger') ? 0.04 : DEBT_RATE) - skDebt());
+// ENDLESS: the Fixer puts his rate up as a career runs on. Carrying debt late is a decision, not a habit.
+const debtRate = () => Math.max(0, (inSyn('ledger') ? 0.04 : DEBT_RATE) - skDebt() + ENDLESS.debtRate * press01());
 const walletRate = () => (inSyn('ledger') ? 0.06 : WALLET_RATE) + skWallet();
 const pct = rate => Math.round(rate * 100);
 
@@ -2766,6 +2830,12 @@ const ACH = {
   dunboth: ['Body and Wire', 'Clear a building and a network dive', 300, () => stat('dunsite') >= 1 && stat('dundive') >= 1],
   dundeep: ['Sub-Basement', `Clear a deep run ${DUN_FLOORS} floors deep`, 500, () => stat('dundeep') >= 1],
   dunbail: ['Knowing When to Stop', 'Walk out of a deep run carrying 10 goods or more', 150, () => stat('dunbail') >= 1],
+  // --- endless careers (see ENDLESS): staying in, and walking out ---
+  day50: ['Overstayed', 'Still working on day 50', 150, () => S.day >= 50],
+  day100: ['Lifer', 'Still working on day 100', 400, () => S.day >= 100],
+  day250: ['Old Money', 'Still working on day 250', 1000, () => S.day >= 250],
+  retire1: ['Out of the Game', 'Retire from a career instead of being taken down', 300, () => stat('retired') >= 1],
+  retirerich: ['Villa, Beach, No Extradition', 'Retire worth $25,000,000', 1500, () => stat('score') >= 25000000],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -3104,7 +3174,7 @@ function makeGig(name) {
     const [good, low, high] = GOODS[rnd(4, GOODS.length - 1)], avg = (low + high) / 2;
     G.good = good;
     // Never more than one market deals in that day (its depth), so the goods can be bought in one place without paying double.
-    G.t = Math.max(1, Math.min(40, Math.floor(cap() / 2), Math.floor(depthOf(good)), Math.max(3, Math.round((1500 + S.day * 300) / avg))));
+    G.t = Math.max(1, Math.min(40, Math.floor(cap() / 2), Math.floor(depthOf(good)), Math.max(3, Math.round((1500 + effDay() * 300) / avg))));
     G.place = elsewhere();
     worth = avg * G.t * 1.5;
   } else if (kind === 'breakin') {
@@ -3117,12 +3187,12 @@ function makeGig(name) {
   else if (kind === 'law') { days = 5; hard = 1.4; }
   else if (kind === 'raid') { days = 4; hard = 1.5; }
   else if (kind === 'kills') { G.t = rnd(2, 4); days = 5; hard = 0.5 * G.t; }
-  else if (kind === 'profit') G.t = (2 + Math.floor(S.day / 3)) * 2500;
+  else if (kind === 'profit') G.t = (2 + Math.floor(effDay() / 3)) * 2500;
   else { G.t = rnd(1, 2); days = G.t + 2; hard = 0.6 * G.t; }   // 'cool'
-  G.due = Math.min(DAYS, S.day + days);
-  G.cash = Math.round(((1200 + S.day * 350) * hard + worth) * (1 + trust(name) / 10) / 10) * 10;
+  G.due = S.day + days;   // ENDLESS: no last day to squeeze a deadline against any more
+  G.cash = Math.round(((1200 + effDay() * 350) * hard + worth) * (1 + trust(name) / 10) / 10) * 10;
   G.xp = Math.round((60 + 12 * level()) * Math.max(0.7, kind === 'breakin' ? BREAKIN.gigHard[1] : hard));
-  G.rar = Math.random() < 0.25 ? Math.max(1, Math.min(3, rollRarity(S.day * 0.3 + 10))) : -1;
+  G.rar = Math.random() < 0.25 ? Math.max(1, Math.min(3, rollRarity(effDay() * 0.3 + 10))) : -1;
   return G;
 }
 const gigGoal = G => G.kind === 'deliver' ? `Bring ${G.t} ${G.good} to ${G.place}`
@@ -3797,7 +3867,7 @@ async function heistPlay(M) {
           } else {
             const lot = H.job === 'hack' ? H.data : H.swag;
             if (H.job === 'rob') {
-              const cash = Math.round(rnd(B.cash[0], B.cash[1]) * H.tier * (1 + S.day / 30) * cut / 10) * 10;
+              const cash = Math.round(rnd(B.cash[0], B.cash[1]) * H.tier * (1 + effDay() / 30) * cut / 10) * 10;
               S.cash += cash;
               st.took = (st.took ? st.took + ', ' : '') + money(cash);
               got = `${money(cash)} in notes that do not need counting twice.`;
@@ -3894,7 +3964,7 @@ function breakinJob() {
   const lock = pick(S.day <= 6 ? ['padlock', 'padlock', 'deadbolt'] : S.day <= 15 ? ['padlock', 'deadbolt', 'deadbolt', 'badge']
     : ['deadbolt', 'badge', 'cylinder', 'maglock']);
   const diff = LOCKS[lock][1], qty = rnd(1, 3), g = GOODS.find(x => x[0] === good), worth = (g[1] + g[2]) / 2 * qty;
-  return {good, qty, chance: 50, payout: Math.round(((B.bbs[0] + B.bbs[1] * S.day) * (1 + B.bbs[2] * diff) + B.bbs[3] * worth) / 10) * 10,
+  return {good, qty, chance: 50, payout: Math.round(((B.bbs[0] + B.bbs[1] * effDay()) * (1 + B.bbs[2] * diff) + B.bbs[3] * worth) / 10) * 10,
     job: HEISTS[id].ad, client: pick(CLIENTS), heist: id, lock, at: S.loc};
 }
 // What the BBS says about a job's odds: a chance for ordinary jobs, the lock for a break-in.
@@ -5527,12 +5597,15 @@ function coolDrop(key) {
   const c = COOL[key];
   if (!c.drop) return 0;
   const full = c.drop[lawTier()];
-  return Math.min(S.heat, c.quick && S.tricks > 0 ? Math.ceil(full / 2) : full);
+  // ENDLESS: nothing takes Heat below the floor a long career leaves behind.
+  return Math.min(Math.max(0, S.heat - heatFloor()), c.quick && S.tricks > 0 ? Math.ceil(full / 2) : full);
 }
 // Why a Heat item cannot be used right now, or '' when it can.
 function coolBlock(key) {
   const c = COOL[key];
   if (c.drop && S.heat <= 0) return 'You have no Heat to drop.';
+  // ENDLESS: past the arc the law keeps a file open on you. Nothing in a bag takes Heat below that floor.
+  if (c.drop && coolDrop(key) <= 0) return `Your Heat is already as low as it goes: ${heatFloor()}% is what a career this long leaves on the record.`;
   if (c.quick && S.tricks >= QUICK_MAX) return 'You have used both of today\'s fast fixes. Sleep on it.';
   if (c.hp && S.hp <= c.hp) return `It costs ${c.hp}% Health, and you only have ${S.hp}%.`;
   if (c.home && S.loc !== BUNKER) return 'It only works at the Bunker.';
@@ -5634,7 +5707,7 @@ function rollContracts() {
     const mid = (low + high) / 2;
     const lot = mid >= 10000 ? 3 : mid >= 2000 ? 8 : mid >= 500 ? 15 : mid >= 100 ? 30 : 50;
     // A job never asks for much more than a market deals in that day (ECON.jobLot x the market's depth).
-    const qty = Math.min(60, Math.max(1, Math.round(depthOf(name) * ECON.jobLot)), Math.max(1, Math.round(rnd(Math.ceil(lot / 3), lot) * (1 + S.day / 8))));
+    const qty = Math.min(60, Math.max(1, Math.round(depthOf(name) * ECON.jobLot)), Math.max(1, Math.round(rnd(Math.ceil(lot / 3), lot) * (1 + effDay() / 8))));
     const chance = rnd(50, 85);
     // Riskier jobs pay more. The unit price is never below today's local price, so a job that works beats
     // selling the same goods here, except into a scarcity spike: a job is never priced off one of those (ECON).
@@ -5683,7 +5756,7 @@ function rollMarket() {
   rollContracts();   // priced off the day's prices, before what you did here lately moves them
   const hang = openBooks();   // economy 1.28: market depth (see ECON)
   // Today's gear on the black market: up to Epic, never Legendary.
-  S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(S.day * 0.3))));
+  S.shop = [0, 1, 2].map(() => makeItem(Math.min(3, rollRarity(effDay() * 0.3))));
   S.store = S.loc === GUN_SPOT ? outfitStock() : [];
   S.markets[S.loc] = {prices: S.prices, flags: S.flags, news: S.news, contracts: S.contracts, shop: S.shop, store: S.store};
   S.markets[S.loc].book = hang;
@@ -5695,7 +5768,9 @@ function rollMarket() {
 // (S.prices) is what the next unit SELLS for: base x 0.5 ^ (x / depth). A unit you buy costs what it would then
 // sell back for, so buying and selling the same thing in one place never makes or loses money.
 // S.glut[place][good] carries what is left of earlier days' moves, counted in halvings.
-const marketSize = () => ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(S.day - 1, ECON.marketCurve));
+// ENDLESS: the measured curve runs to the end of the arc (day 30) and is left exactly as it was; past that
+// the scene keeps growing, but on the damped log curve in ENDLESS, so depth never runs away.
+const marketSize = () => ECON.marketSize * (1 + ECON.marketGrowth * Math.pow(Math.min(S.day, ENDLESS.arc) - 1, ECON.marketCurve)) * lateMult(S.day);
 function depthOf(name, flag) {
   const g = GOODS.find(x => x[0] === name), mid = (g[1] + g[2]) / 2;
   const units = marketSize() * (ECON.depthWeight[name] || 1) * (flag === 'up' ? ECON.spikeDepth : 1) / mid;
@@ -5830,7 +5905,7 @@ function newGame() {
     fx: {vpn: 0, decoy: 0}, tricks: 0,   // Heat items: what is still running, and fast fixes used today
     glut: {},   // market depth: what is left of your earlier dealing on each market's prices (see settleMarkets)
     rides: [], ride: '', gas: {}, tripDebt: 0,   // rides owned, the one you are on, tanks filled today (see VEHICLES)
-    over: false, busted: false};
+    over: false, busted: false, retired: false};   // ENDLESS: retired is the one ending that pays
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
@@ -6081,7 +6156,7 @@ const rideIcon = id => (RIDE_ART[id] ? `<svg class="ico ride" viewBox="0 0 40 24
 // hot: true for the black-market dealer (no background check, and every purchase adds a little Heat).
 async function weaponShop(title, blurb, kinds, markup, hot) {
   for (;;) {
-    const scale = 1 + Math.floor(S.day / 10) * 0.5;
+    const scale = 1 + Math.floor(effDay() / 10) * 0.5;
     const mine = WEAPONS[S.weapon], tradeIn = mine ? Math.round(mine[1] * 0.3) : 0;
     const priceOf = w => Math.max(0, Math.round(w[1] * scale * (w[4] === 'heavy' ? 1 : markup)) - tradeIn);
     let html = `<p>${blurb}</p><p>Cash: <span class="green">${money(S.cash)}</span>. You carry: ` +
@@ -6171,14 +6246,14 @@ function outfitStock() {
   const stock = [];
   for (const slot of Object.keys(SLOTS)) {
     stock.push(makeItem(pick([0, 0, 1]), slot));
-    stock.push(makeItem(Math.min(3, Math.max(1, rollRarity(S.day * 0.3 + 5))), slot));
+    stock.push(makeItem(Math.min(3, Math.max(1, rollRarity(effDay() * 0.3 + 5))), slot));
   }
   return stock;
 }
 
 async function outfitShop() {
   for (;;) {
-    const scale = 1 + Math.floor(S.day / 10) * 0.5, full = career.bag.length >= BAG_SIZE;
+    const scale = 1 + Math.floor(effDay() / 10) * 0.5, full = career.bag.length >= BAG_SIZE;
     let html = '<p>"Welcome to Ctrl+Alt+Drip. Streetwear, body armour, and things with too many pockets."</p>' +
       `<p>Cash: <span class="green">${money(S.cash)}</span>. Bag ${career.bag.length}/${BAG_SIZE}.</p>` +
       (full ? '<p class="red">Your bag is full. Scrap or store something before you buy more.</p>' : '');
@@ -6430,7 +6505,6 @@ function render() { keepFocus(renderNow); renderTiny(); }
 function renderNow() {
   SND.sync();
   fixTags();
-  const last = S.day >= DAYS;
   const li = levelInfo();
   $('#career').innerHTML = `<span class="lvl">LVL ${li.level}</span><span>${titleFor(li.level)}</span>` +
     `<span class="bar"><i style="width:${Math.floor(li.into / li.need * 100)}%"></i></span>` +
@@ -6457,9 +6531,11 @@ function renderNow() {
       <div class="sub"><span class="amber">pays ${money(payoutFor(c))}</span> &middot; ${jobOdds(c)}</div></div>
       <button data-act="contract" data-arg="${i}"${held >= c.qty ? '' : ' disabled'}>Run job</button></div>`;
   }).join('') || '<div class="none">Nobody is hiring here today. Boards change every day and from place to place.</div>'));
-  $('#dayloc').innerHTML = `DAY <b>${S.day}</b>/${DAYS} &middot; <span class="cyan">${S.loc}</span>` +
+  // ENDLESS: no day limit, so the day just counts up. Once the month is over the street has a word for you.
+  const word = pressName();
+  $('#dayloc').innerHTML = `DAY <b>${num(S.day)}</b> &middot; <span class="cyan">${S.loc}</span>` +
     ` &middot; ${tripsHtml()}` +
-    (last ? ' <span class="amber">&middot; FINAL DAY: sell what you hold</span>' : '');
+    (word ? ` &middot; <span class="${press01() >= 0.66 ? 'red' : 'amber'}">${word}</span>` : '');
   const chips = [
     ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
     ['Debt', money(S.debt), S.debt ? 'red' : ''],
@@ -6481,6 +6557,12 @@ function renderNow() {
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
+  // ENDLESS: how hard the street is pressing, shown only once the month is over (and on the handheld too,
+  // which builds its VITALS screen from these chips).
+  if (word) {
+    chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%` + (heatFloor() ? ` &middot; Heat floor ${heatFloor()}%` : ''),
+      press01() >= 0.66 ? 'red' : 'amber']);
+  }
   // SKILL TREE: points waiting to be spent, shown only while there are any.
   if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan']);
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
@@ -6541,13 +6623,14 @@ function renderNow() {
     // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
     // this one button lists every station.
     const up = BASE_IDS.filter(id => stationState(id) === 'ready').length;
-    acts += `<button data-act="sleep">${last ? 'Sleep (end the run)' : 'Sleep (end the day)'}</button>` +
+    acts += '<button data-act="sleep">Sleep (end the day)</button>' +
       `<button data-act="base">Base${up ? ` (${up} to build)` : baseJobs().length ? ' (building)' : ''}</button>`;
+    // ENDLESS: the only ending that pays, and it is always on the Bunker's wall once it is possible.
+    if (!retireBlock()) acts += '<button class="danger" data-act="retire">Retire (end the career)</button>';
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
     if (S.loc === spot) acts += `<button data-act="${key}shop">${name} (${what})</button>`;
   }
-  if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="dungeon">${dunButton()}</button>`;   // DUNGEONS: deep runs
   acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
@@ -6555,7 +6638,7 @@ function renderNow() {
   if (skLeft()) acts += `<button data-act="skills">Skill tree (${skLeft()} to spend)</button>`;
   acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
-  if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
+  if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= heatFloor() ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
   if (coolCount()) acts += `<button data-act="cooloff">Lower Heat (${coolCount()})</button>`;
   if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
   if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
@@ -6681,7 +6764,7 @@ const ACTIONS = {
     const key = await dialog('Hack a rival', html, buttons);
     if (!key) return;
     S.raided = true;
-    await fight({kind: 'raid', gang: key, name: SYNDICATES[key][0], n: rnd(2, 3 + Math.floor(S.day / 6)),
+    await fight({kind: 'raid', gang: key, name: SYNDICATES[key][0], n: rnd(2, 3 + Math.floor(effDay() / 6)),
       hit: 0.3, lo: 3, hi: 8});
   },
 
@@ -6912,7 +6995,6 @@ const ACTIONS = {
   // Sleeping is the only thing that ends the day. The law may come in the night.
   async sleep() {
     if (S.loc !== BUNKER || S.over) return;   // the run can be over before the screen catches up (the Bunk sleeps too)
-    if (S.day >= DAYS) return ACTIONS.cashout();
     const gut = !stuckTotal() ? '' : sickLeft() <= 1
       ? '<p class="red"><b>You still have goods stuck in your prison pocket. If you sleep now, you will die of dysentery.</b> ' +
         `The street doc is at ${docSpots()}.</p>`
@@ -6924,9 +7006,10 @@ const ACTIONS = {
       `${loud ? ` and adds ${loud}% Heat` : ''}, for +${VEHICLES[S.ride][2]} hops. ` +
       `${S.cash >= fuel ? 'To skip it, get on something else in the Garage first.' : 'You do not have that in cash right now: without it, it adds no hops tomorrow.'}</p>`;
     // BASE: the Bunk sets what a night heals, the Jammer cuts the odds of a raid (and, built up, tells you them).
-    const raidOdds = () => Math.min(0.5, 0.03 + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult();
+    // ENDLESS: the longer the career, the more often the door gets kicked in (ENDLESS.raidOdds).
+    const raidOdds = () => Math.min(0.5 + ENDLESS.raidOdds * press01(), 0.03 + ENDLESS.raidOdds * press01() + S.heat / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult();
     if (!await confirmDlg('Sleep', gut + `<p>Sleep in the Bunker and end the day? You recover ${BV('bed', 'heal')}% Health and ${BV('bed', 'opsec')}% OpSec, and your Heat cools.</p>` + tank +
-      baseSleepNote(Math.min(0.5, 0.03 + Math.max(0, S.heat - HEAT_DECAY - 20 - BV('jam', 'cool')) / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult()) +
+      baseSleepNote(Math.min(0.5 + ENDLESS.raidOdds * press01(), 0.03 + ENDLESS.raidOdds * press01() + Math.max(0, S.heat - HEAT_DECAY - 20 - BV('jam', 'cool')) / 200) * (inSyn('ghost') ? 0.7 : 1) * raidMult()) +
       '<p class="dim">Rival crews can\'t find you here, but the hotter you are, the more likely the law kicks the door in overnight.</p>',
       'Go to sleep', 'Stay up')) return;
     if (S.heat < 20) tally('cool');
@@ -6937,7 +7020,7 @@ const ACTIONS = {
     const ill = stuckTotal() ? ++S.sick : (S.sick = 0);
     S.hp = Math.min(100, S.hp + (ill >= 3 ? 0 : ill ? 15 : BV('bed', 'heal')));
     S.opsec = Math.min(100, S.opsec + BV('bed', 'opsec'));
-    S.heat = Math.max(0, S.heat - 20);
+    heatDown(20);
     log(`Day ${S.day}: you slept in the Bunker. New prices everywhere.`);
     render();
     if (ill) await sickNight(ill);
@@ -7033,7 +7116,7 @@ const ACTIONS = {
   // done: if you are short, the fee goes on your tab with the Fixer. The goods come back tagged.
   async clinic() {
     if (!GEAR_SPOTS.includes(S.loc) || !stuckTotal()) return;
-    const fee = Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5)), paid = Math.min(fee, S.cash), owed = fee - paid;
+    const fee = Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5)), paid = Math.min(fee, S.cash), owed = fee - paid;
     const n = stuckTotal();
     if (!await confirmDlg('Street doc', `<div class="syn">${withIcon(miscIcon('doc'), '<b>Extraction</b><br>' +
       `removes what is stuck in your prison pocket, and patches you up from ${S.hp}% to full Health`)}</div>` +
@@ -7061,12 +7144,12 @@ const ACTIONS = {
 
   // Burn a fake identity to cool your Heat.
   async fakeid() {
-    if (!S.fakeid || S.heat <= 0) return;
+    if (!S.fakeid || S.heat <= heatFloor()) return;   // ENDLESS: nothing drops Heat below the floor
     const was = S.heat;
     S.fakeid--;
     tally('fakeid');
     tally('cooled');
-    S.heat = Math.max(0, S.heat - 40);
+    heatDown(40);
     SND.play('heal');
     log(`You burned a ${GADGETS.fakeid[0]}: Heat down from ${was}% to ${S.heat}%.`);
   },
@@ -7088,10 +7171,11 @@ const ACTIONS = {
       const html = meter('Heat', S.heat, 100, S.heat + '%', heatClass(S.heat)) +
         `<p>Wanted by: <b>${LAW[lawTier()].short}</b>.${coverText() ? ` Running: <span class="cyan">${coverText()}</span>.` : ''}</p>` +
         keys.map(k => {
-          const ok = k === 'fakeid' ? S.heat > 0 : !coolBlock(k);
+          const ok = k === 'fakeid' ? S.heat > heatFloor() : !coolBlock(k);
           return `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${k}"` : ''}>` + withIcon(miscIcon(k),
             `<b>${GADGETS[k][0]}</b> <span class="dim">x${S[k]}</span><br>${GADGETS[k][3]}` +
-            (k === 'fakeid' ? (ok ? `<br><span class="green">Now: Heat ${S.heat}% &rarr; ${Math.max(0, S.heat - 40)}%</span>` : '<br><span class="dim">You have no Heat to drop.</span>')
+            (k === 'fakeid' ? (ok ? `<br><span class="green">Now: Heat ${S.heat}% &rarr; ${Math.max(Math.min(S.heat, heatFloor()), S.heat - 40)}%</span>`
+              : `<br><span class="dim">${S.heat > 0 ? `Your Heat is already as low as it goes: ${heatFloor()}% stays on the record.` : 'You have no Heat to drop.'}</span>`)
               : coolHint(k, true))) + '</div>';
         }).join('') +
         `<p class="dim">Tap one to use it. None of them work in a fight. ${QUICK_NOTE}</p>`;
@@ -7105,7 +7189,7 @@ const ACTIONS = {
   // Black market: weapons, gadgets, proxy chains, medkits and gear.
   async gear() {
     for (;;) {
-      const scale = 1 + Math.floor(S.day / 10) * 0.5;
+      const scale = 1 + Math.floor(effDay() / 10) * 0.5;
       const offers = [];
       // Heat items are in short supply (see coolStock) and cost more the hotter you are.
       const stock = coolStock(), hot = HOT_MARKUP[lawTier()];
@@ -7173,6 +7257,7 @@ const ACTIONS = {
       'It belongs to this save and carries over between runs.</span></div>' +
       (S.plants && S.plants.length ? `<p class="dim">Devices you left behind: ${S.plants.map(p => `${p.what} at ${p.site} (${money(p.pay)} a night, ${p.left} to go)`).join('; ')}.</p>` : '');
     const buttons = [['Close', null, 'primary']];
+    buttons.unshift(['Hall of fame', 'hall']);   // ENDLESS: retired careers can be looked at any time
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
     buttons.unshift([`Skill tree${skLeft() ? ` (${skLeft()} to spend)` : ` (${skCount()}/${skIds().length})`}`, 'skills',
       skLeft() ? 'primary' : '']);
@@ -7191,6 +7276,11 @@ const ACTIONS = {
     else if (choice === 'skills') await skillTree();   // SKILL TREE
     else if (choice === 'quest') await ACTIONS.syndicate();
     else if (choice === 'ach') await ACTIONS.achievements();
+    else if (choice === 'hall') {
+      await alertDlg('Hall of fame', hallHtml() +
+        '<p class="dim">Careers that walked away. A career you lose pays nothing: retiring from the Bunker is the only ' +
+        'way onto the board.</p>');
+    }
     else if (choice === 'hidden') await hiddenInvite();
   },
 
@@ -7343,12 +7433,27 @@ const ACTIONS = {
     await randomEvent();
   },
 
-  async cashout() {
-    const warn = (used() ? '<p class="amber">You are still holding goods. They count for nothing at the end.</p>' : '') +
-      (S.rides.length ? '<p class="amber">Your rides count for nothing at the end either. A ride shop pays ' +
-        `${pct(RIDE_TRADE)}% of the list price for the one you arrive on.</p>` : '');
-    if (await confirmDlg('Final day', warn + '<p>End the run and cash out?</p>', 'Cash out', 'Not yet')) S.over = true;
+  // ENDLESS: the one way out that pays. You sell up and walk, and what you are worth goes on the record.
+  async retire() {
+    const why = retireBlock();
+    if (why) return alertDlg('Retire', `<p>${why}</p>`);
+    const W = retireWorth();
+    const parts = `<p>Cash ${money(S.cash)}<br>Cold wallet ${money(S.wallet)}` +
+      (W.n ? `<br>A fence takes the ${num(W.n)} goods you hold and have stashed: <span class="green">${money(W.goods)}</span> ` +
+        `<span class="dim">(${pct(ENDLESS.fence)}% of what they are worth)</span>` : '') +
+      (S.rides.length ? `<br>The garage goes back to the shops: <span class="green">${money(W.rides)}</span> ` +
+        `<span class="dim">(${S.rides.length} ride${S.rides.length === 1 ? '' : 's'} at ${pct(RIDE_TRADE)}%)</span>` : '') +
+      `<br><b>Retiring with ${money(W.total)} after ${S.day} days.</b></p>`;
+    const keeps = '<p class="dim">The Bunker, everything built in it, your skills, your XP, your gear and your weapon skill all ' +
+      'belong to this save and are waiting for the next career. The money is not: that is what goes in the hall of fame.</p>' +
+      (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '');
+    if (await confirmDlg('Retire', parts + keeps + '<p>Walk away for good?</p>', 'Retire', 'One more day')) {
+      S.retired = true;
+      S.over = true;
+    }
   },
+  // Kept so anything that called for a cash-out still reaches the only ending that pays.
+  cashout() { return ACTIONS.retire(); },
 
   async broker() {
     const cmd = await dialog('The Fixer',
@@ -7801,7 +7906,7 @@ async function rangeDlg() {
 
 // ----- the Med Bay -----
 // What getting stuck goods out at home costs (the street doc's fee, times the Med Bay's share of it).
-const medFee = () => Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5) * (BV('med', 'doc') || 0));
+const medFee = () => Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5) * (BV('med', 'doc') || 0));
 // Patch yourself up: once a day. True if it did anything.
 function medPatch() {
   const heal = BV('med', 'heal'), hq = HQ();
@@ -8260,7 +8365,7 @@ function renderTiny() {
   }
   el.innerHTML =
     `<div class="thead"><b>${view === 'MARKET' && home ? 'STASH' : view}</b>` +
-    `<span>Day ${S.day}/${DAYS}</span><span>L${levelInfo().level}</span>` +
+    `<span>Day ${num(S.day)}${pressName() ? ' &middot; ' + pressName()[0] : ''}</span><span>L${levelInfo().level}</span>` +
     `<span class="where">${esc(S.loc)}</span><span class="trips">${S.trips} trips</span></div>` +
     `<div class="tsum"><b>${money(S.cash)}</b><span>drive ${num(used())}/${num(cap())}</span>` +
     `<span class="debt">debt ${money(S.debt)}</span></div>` +
@@ -8351,15 +8456,27 @@ function nextDay(inside) {
   S.wallet += walletGain(S.wallet);   // economy 1.28: full rate on the first slice only (ECON)
   if (S.wallet > banked) tally('interest', S.wallet - banked);
   settleMarkets();                    // economy 1.28: markets remember part of what you did to their prices
-  S.heat = Math.max(0, S.heat - HEAT_DECAY - skDecay());   // SKILL TREE: Cold Boot sheds a little more
+  heatDown(HEAT_DECAY + skDecay());   // SKILL TREE: Cold Boot sheds a little more (ENDLESS: never below the floor)
+  // ENDLESS: the law never closes the file on a long career. Overnight your Heat settles back up to the floor.
+  if (S.heat < heatFloor()) S.heat = heatFloor();
   // Heat items: decoy traffic cools a little more each night, a VPN runs down, and fast fixes are fresh again.
-  if (fx().decoy > 0) { S.heat = Math.max(0, S.heat - COOL.decoy.cool); S.fx.decoy--; }
+  if (fx().decoy > 0) { heatDown(COOL.decoy.cool); S.fx.decoy--; }
   if (S.fx.vpn > 0) S.fx.vpn--;
   S.tricks = 0;
   S.drills = 0;      // the practice board is fresh again
   plantsTick();      // devices left behind on break-ins send their money home
   baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
   dunNight();        // DUNGEONS: addresses go cold, and the Intel Board may have turned one up
+  // ENDLESS: past the arc the rival crews stop waiting to be crossed. One of them takes an interest in you
+  // on its own, now and then, up to ENDLESS.grudgeMax (so the odds it feeds stay inside their own caps).
+  if (S.day > ENDLESS.arc && Math.random() < ENDLESS.grudgeNight * press01()) {
+    const crews = rivals().filter(k => (S.grudge[k] || 0) < ENDLESS.grudgeMax);
+    if (crews.length) {
+      const key = pick(crews);
+      S.grudge[key] += 1;
+      log(`<span class="amber">${SYNDICATES[key][0]} has been asking where you sleep.</span>`);
+    }
+  }
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen') + skRegen());   // SKILL TREE: Field Dressing
@@ -8370,7 +8487,7 @@ function nextDay(inside) {
   if (!inside) wakeRide();
   S.markets = {};
   rollMarket();
-  if (S.loc !== BUNKER) awayRaid(Math.min(0.25, S.heat / 400));   // days spent locked up or in a clinic
+  if (S.loc !== BUNKER) awayRaid(Math.min(0.25 + ENDLESS.raidOdds * press01(), ENDLESS.raidOdds * press01() + S.heat / 400));   // days spent locked up or in a clinic
 }
 
 // While you are out, the law may raid the Bunker and take whatever is stashed there.
@@ -8428,8 +8545,8 @@ function stashHtml() {
 // slip away and they take half; get arrested and they take all of it.
 async function homeRaid(asleep) {
   const tier = lawTier(), L = LAW[tier], who = L.name[0].toUpperCase() + L.name.slice(1);
-  const n = [rnd(1, 2 + Math.floor(S.day / 10)), rnd(2, 3 + Math.floor(S.day / 8)),
-    rnd(2, 3 + Math.floor(S.day / 8))][tier];
+  const n = clampN([rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
+    rnd(2, 3 + Math.floor(effDay() / 8))][tier], 1, ENDLESS.foeMax);
   const E = {kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi,
     intro: asleep ? `You wake to boots on the stairs. ${who} is raiding the Bunker: ${n} agent${n === 1 ? '' : 's'}.`
       : `${who} has the Bunker surrounded: ${n} agent${n === 1 ? '' : 's'}.`};
@@ -8449,12 +8566,14 @@ async function homeRaid(asleep) {
 // ---------- events ----------
 async function randomEvent() {
   // These odds are per trip. There are several trips in a day, so each one is fairly small.
-  if (Math.random() < Math.min(0.25, 0.03 + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1)) {
+  // ENDLESS: the law and the crews both press harder the longer you stay in (ENDLESS.lawOdds, gangOdds).
+  const push = press01();
+  if (Math.random() < Math.min(0.25 + ENDLESS.lawOdds * push, 0.03 + ENDLESS.lawOdds * push + S.heat / 600) * (inSyn('ghost') ? 0.7 : 1)) {
     return S.loc === BUNKER ? homeRaid(false) : lawEncounter();
   }
   // Rival syndicates come after you more often the more you have crossed them. Never at the Bunker.
   const crews = rivals(), anger = crews.reduce((sum, k) => sum + S.grudge[k], 0);
-  if (S.loc !== BUNKER && Math.random() < Math.min(0.15, 0.02 + 0.015 * anger)) {
+  if (S.loc !== BUNKER && Math.random() < Math.min(0.15 + ENDLESS.gangOdds * push, 0.02 + ENDLESS.gangOdds * push + 0.015 * anger)) {
     let roll = Math.random() * (anger + crews.length);
     const key = crews.find(k => (roll -= S.grudge[k] + 1) < 0) || crews[0];
     return gangEncounter(key);
@@ -8464,7 +8583,7 @@ async function randomEvent() {
   // DUNGEONS: somebody selling an address for a deep run.
   if (S.loc !== BUNKER && Math.random() < DUN.brokerOdds) return dunBroker();
   // A street contact with a gig: only when you are free to take one and there is time left to do it.
-  if (S.loc !== BUNKER && !S.gig && S.day <= DAYS - 2 && Math.random() < CONTACT_ODDS) return contact();
+  if (S.loc !== BUNKER && !S.gig && Math.random() < CONTACT_ODDS) return contact();   // ENDLESS: there is always time left now
   if (Math.random() < 0.5) return;   // most trips are uneventful
   const r = Math.random();
   if (r < 0.10) {
@@ -8476,7 +8595,7 @@ async function randomEvent() {
       await alertDlg('Lucky find', `<p>Someone left an unlocked laptop in a ride share. You lift <b>${qty} ${name}</b>.</p>`);
     }
   } else if (r < 0.18) {
-    const price = drivePrice(rnd(400, 1200) * (1 + Math.floor(S.day / 8)));   // dearer the more you have fitted (ECON)
+    const price = drivePrice(rnd(400, 1200) * (1 + Math.floor(effDay() / 8)));   // dearer the more you have fitted (ECON)
     if (S.cash >= price && await confirmDlg('Drive upgrade',
       `<p>A hardware hacker offers an encrypted drive upgrade: <b>+50 slots</b> for ${money(price)}.</p>` +
       (S.drive > START_DRIVE ? '<p class="dim">Every upgrade is harder to fit than the last, and priced like it.</p>' : ''), 'Buy it', 'Pass')) {
@@ -8544,7 +8663,7 @@ function junkieSvg(J) {
 // One thing a junkie might have. Returns null when you could not use it (already carrying the most you can).
 // {name, text, list (the shop price), icon, cls, take()}
 function junkOffer(kind) {
-  const scale = 1 + Math.floor(S.day / 10) * 0.5;
+  const scale = 1 + Math.floor(effDay() / 10) * 0.5;
   if (kind === 'gadget' || kind === 'cool') {   // 'cool': one of the Heat items; 'gadget': any of the others
     const spare = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2] && !COOL[k] === (kind === 'gadget'));
     if (!spare.length) return null;
@@ -8569,7 +8688,7 @@ function junkOffer(kind) {
   }
   if (kind === 'weapon') {
     // Nothing too grand: what a junkie could plausibly have walked off with, a little better late in a run.
-    const top = 20000 + S.day * 3000;
+    const top = 20000 + effDay() * 3000;
     const i = pick(WEAPONS.map((w, n) => n).filter(n => WEAPONS[n] && n !== S.weapon && WEAPONS[n][1] <= top));
     const w = WEAPONS[i], mine = WEAPONS[S.weapon];
     return {name: w[0], text: `${WTYPE[w[4]][0].toLowerCase()}, ${w[2] > 1 ? `${w[2]} shots a round, ` : ''}${pct(w[3])}% to hit` +
@@ -8577,7 +8696,7 @@ function junkOffer(kind) {
       take() { S.weapon = i; }};
   }
   if (kind === 'gear') {
-    const it = makeItem(Math.min(3, rollRarity(S.day * 0.3 + 5)));
+    const it = makeItem(Math.min(3, rollRarity(effDay() * 0.3 + 5)));
     return {name: it.name, item: it, list: itemValue(it) * scale, icon: gearIcon(it), cls: 'r' + it.rar,
       take() { stash(it); saveCareer(); }};
   }
@@ -8589,7 +8708,7 @@ function junkOffer(kind) {
       take(paid) { addItems(name, qty, Math.floor(paid / qty)); }};
   }
   // 'drive': a pocketful of storage
-  return {name: 'Loose drives', text: '+25 drive slots, wiped (he says)', list: drivePrice(600 * (1 + Math.floor(S.day / 8))), icon: '',
+  return {name: 'Loose drives', text: '+25 drive slots, wiped (he says)', list: drivePrice(600 * (1 + Math.floor(effDay() / 8))), icon: '',
     take() { S.drive += 25; }};
 }
 
@@ -8635,13 +8754,13 @@ async function junkie() {
 // ---------- confrontations: the law, rival syndicates, and raids on rivals ----------
 function lawEncounter() {
   const tier = lawTier(), L = LAW[tier];
-  const n = [rnd(1, 2 + Math.floor(S.day / 10)), rnd(2, 3 + Math.floor(S.day / 8)),
-    rnd(2, 3 + Math.floor(S.day / 8))][tier];
+  const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
+    rnd(2, 3 + Math.floor(effDay() / 8))][tier];
   return fight({kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi});
 }
 
 function gangEncounter(key) {
-  return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(S.day / 8)),
+  return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(effDay() / 8)),
     hit: 0.3, lo: 3, hi: 8});
 }
 
@@ -8656,7 +8775,7 @@ const THUG_LOOKS = [[2, 2, 3, -1, 4, 0, 11], [4, 0, 1, 0, 0, 6, 13], [0, 4, 5, 1
 let jumpTally = 0;   // counted for the self-test
 
 function jumped() {
-  const n = rnd(1, 2 + Math.floor(S.day / 8)), name = pick(THUG_CREWS);
+  const n = clampN(rnd(1, 2 + Math.floor(effDay() / 8)), 1, ENDLESS.foeMax), name = pick(THUG_CREWS);
   jumpTally++;
   log(`<span class="red">${name} jumped you at ${S.loc}.</span>`);
   return fight({kind: 'thug', name, n, hit: 0.4, lo: 4, hi: 9, seed: rnd(0, 5),
@@ -10485,6 +10604,9 @@ const BTL = (() => {
 // One confrontation. E: {kind: 'law' | 'gang' | 'raid' | 'thug', name, n, hit, lo, hi, tier, gang, intro, ambush}
 // The music switches to the fight or raid theme for as long as it lasts.
 async function fight(E) {
+  // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
+  // so however late it is the fight screen always holds a crowd a player can actually beat.
+  if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
   SND.battle = E.kind === 'raid' ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
   try {
@@ -10654,7 +10776,7 @@ async function fightRounds(E) {
           await BTL.flee('jack');
           return;
         }
-        if (law) { S.heat = Math.max(0, S.heat - 10); gotAway(); }
+        if (law) { heatDown(10); gotAway(); }
         const how = thug ? ['You went over a fence and lost them in the alleys.', 'You go over a fence and lose them in the alleys.']
           : ['You hopped three networks and vanished.', 'You hop three networks and vanish.'];
         log(`<span class="green">${how[0]}</span>` + gainXp(law ? 20 : 10));
@@ -10690,7 +10812,7 @@ async function fightRounds(E) {
     } else if (cmd === 'sk_scrub') {
       S.opsec -= SKILL.scrubOpsec;
       skFight.used.qui_scrub = 1;
-      S.heat = Math.max(0, S.heat - SKILL.scrubHeat);
+      heatDown(SKILL.scrubHeat);
       stunned = true;
       msg = `You burn the trail while they are still ${raid ? 'tracing you' : 'looking at you'}: Heat down to ${S.heat}%, ` +
         'and they lose the thread for a beat.';
@@ -10725,19 +10847,19 @@ async function fightRounds(E) {
       await BTL.win();
       let loot, xp;
       if (law) {
-        loot = total * rnd(400, 1500) * (1 + Math.floor(S.day / 10));
-        if (!violent) S.heat = Math.max(0, S.heat - 25);
+        loot = total * rnd(400, 1500) * (1 + Math.floor(effDay() / 10));
+        if (!violent) heatDown(25);
         xp = gainXp(30 * total);
       } else if (raid) {
-        loot = total * rnd(1500, 4000) * (1 + Math.floor(S.day / 6));
+        loot = total * rnd(1500, 4000) * (1 + Math.floor(effDay() / 6));
         S.grudge[E.gang] += 2;
         heatUp(quiet ? 5 : 10);
         xp = gainXp(40 * total);
       } else if (thug) {
-        loot = total * rnd(300, 1200) * (1 + Math.floor(S.day / 10));   // street muscle carries less than a crew does
+        loot = total * rnd(300, 1200) * (1 + Math.floor(effDay() / 10));   // street muscle carries less than a crew does
         xp = gainXp(25 * total);
       } else {
-        loot = total * rnd(600, 2000) * (1 + Math.floor(S.day / 10));
+        loot = total * rnd(600, 2000) * (1 + Math.floor(effDay() / 10));
         S.grudge[E.gang] += 1;
         xp = gainXp(30 * total);
       }
@@ -10801,7 +10923,7 @@ async function fightRounds(E) {
         await alertDlg(raid ? 'Node looted' : 'You won', `<p>${what} for <b>${money(loot)}</b>.</p>` +
           (grudge ? `<p class="dim">${grudge}</p>` : ''));
       }
-      if (gear) await dropLoot(E.name, Math.min(30, level()) * 0.5 + S.day * 0.3 + (raid ? 5 : 0));
+      if (gear) await dropLoot(E.name, Math.min(30, level()) * 0.5 + effDay() * 0.3 + (raid ? 5 : 0));
       E.result = 'won';
       return;
     }
@@ -10833,7 +10955,8 @@ async function lose(E) {
     if (hurt) {
       // Beaten unconscious: a day in a back-room clinic.
       S.hp = 50;
-      if (S.day < DAYS) { nextDay(); clinic = '<p>You wake up a day later in a back-room clinic, stitched up to 50% Health.</p>'; }
+      nextDay();
+      clinic = '<p>You wake up a day later in a back-room clinic, stitched up to 50% Health.</p>';
     }
     log(`<span class="red">${E.name} cleaned you out: ${money(cash)} and ${num(goods)} goods.</span>`);
     S.mood = 'ouch';
@@ -10851,11 +10974,11 @@ async function lose(E) {
   S.cash -= fine;
   S.inv = {}; S.cost = {};
   let served = 0;
-  while (served < days && S.day < DAYS) { nextDay(true); served++; }
+  while (served < days) { nextDay(true); served++; }
   if (served) wakeRide();   // your ride sat outside the whole time; the tank is for the day you get out
   S.opsec = Math.max(S.opsec, E.tier ? 50 : 60);
   S.hp = Math.max(S.hp, 50);
-  S.heat = E.tier ? 20 : 10;
+  S.heat = Math.max(heatFloor(), E.tier ? 20 : 10);   // ENDLESS: a long career never comes out of a cell clean
   S.arrests = (S.arrests || 0) + 1;
   tally('arrest');
   log(`<span class="red">Arrested by ${E.name}: goods seized, ${money(fine)} fine, ${served} day${served === 1 ? '' : 's'} inside.</span>`);
@@ -10869,6 +10992,65 @@ async function lose(E) {
     '<p class="dim">The cold wallet was never found.</p>', 'danger');
 }
 
+// ---------- ENDLESS: retiring, and the hall of fame ----------
+// Retiring is the only ending that pays. You sell up: the cash, the cold wallet, every good you are
+// carrying or have stashed (a fence pays ENDLESS.fence of its mid price, not the day's local price: you are
+// not shopping around any more) and the whole garage at the shops' trade-in rate.
+function retireWorth() {
+  const mid = name => { const g = GOODS.find(x => x[0] === name); return g ? (g[1] + g[2]) / 2 : 0; };
+  let goods = 0, n = 0;
+  for (const held of [S.inv, S.stash]) {
+    for (const [name, q] of Object.entries(held || {})) { goods += mid(name) * q * ENDLESS.fence; n += q; }
+  }
+  goods = Math.round(goods);
+  const rides = (S.rides || []).reduce((sum, id) => sum + (VEHICLES[id] ? rideValue(id) : 0), 0);
+  return {goods, n, rides, total: S.cash + S.wallet - S.debt + goods + rides};
+}
+// Why you cannot retire right now, or '' when you can.
+const retireBlock = () => S.over ? 'This career is already over.'
+  : S.loc !== BUNKER ? 'You retire from the Bunker. Go home first.'
+  : S.dun ? 'Not in the middle of a deep run.'
+  : S.day < ENDLESS.retireDay ? `Nobody retires on day ${S.day}. Stay in until at least day ${ENDLESS.retireDay}.`
+  : S.debt > 0 ? `You still owe the Fixer ${money(S.debt)}. Nobody walks away from the Fixer owing him money.` : '';
+// The hall of fame. Careers are different lengths now, so the same entries are ranked two ways: the biggest
+// retirement, and the best net worth a day, which is the only fair way to put a 40-day career next to a
+// 300-day one. `eco` says which rules an entry was made under: ECON.version 3 is the endless era, 2 the
+// thirty-day runs of 1.29 to 1.35, and anything older came from the economy before the 1.29 crash.
+const HALL_MAX = 10;
+const byScore = (a, b) => b.score - a.score;
+const byRate = (a, b) => (b.rate || 0) - (a.rate || 0);
+function hallLoad() {
+  const all = (!AUTO && store.get('zdh-scores')) || [];
+  return Array.isArray(all) ? all.filter(s => s && Number.isFinite(s.score)) : [];
+}
+const hallRows = (list, rate) => list.map((s, i) =>
+  `<tr><td>${i + 1}.</td><td>${esc(s.handle || 'anon')}</td><td>${money(rate ? s.rate : s.score)}` +
+  `${rate ? '<small class="dim">/day</small>' : ''}</td><td class="dim">${s.days ? `day ${num(s.days)}` : '&mdash;'}</td></tr>`).join('');
+// Everything the hall of fame has to say, as HTML. `mine` (optional) is this career's entry, for the heading.
+function hallHtml(mine) {
+  const all = hallLoad();
+  const now = all.filter(s => s.eco === ECON.version).sort(byScore).slice(0, HALL_MAX);
+  const rated = all.filter(s => s.eco === ECON.version && s.rate > 0).sort(byRate).slice(0, HALL_MAX);
+  const thirty = all.filter(s => s.eco === 2).sort(byScore).slice(0, HALL_MAX);
+  const older = all.filter(s => s.eco !== ECON.version && s.eco !== 2).sort(byScore).slice(0, HALL_MAX);
+  const table = (head, list, rate) => (list.length ? `<p class="dim">${head}</p><table class="hall">${hallRows(list, rate)}</table>` : '');
+  return (mine ? `<p class="dim">You went on the board as <b>${esc(mine.handle)}</b>: ${money(mine.score)} on day ${num(mine.days)}, ` +
+      `${money(mine.rate)} a day.</p>` : '') +
+    (now.length || rated.length ? '' : '<p class="dim">Nobody has retired yet.</p>') +
+    table('HALL OF FAME &middot; BIGGEST RETIREMENT', now) +
+    table('HALL OF FAME &middot; BEST A DAY', rated, true) +
+    table('THE THIRTY DAYS: careers that ended on a deadline (1.29 to 1.35)', thirty) +
+    table('BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees', older);
+}
+// Put a career on the board if it is good enough for either table. Returns the entry, or null.
+function hallAdd(handle, score, days) {
+  const entry = {handle: String(handle).slice(0, 16), score, days, rate: Math.round(score / Math.max(1, days)), eco: ECON.version};
+  const all = hallLoad(), mine = all.filter(s => s.eco === ECON.version), rest = all.filter(s => s.eco !== ECON.version);
+  const keep = new Set([...mine.concat(entry).sort(byScore).slice(0, HALL_MAX), ...mine.concat(entry).sort(byRate).slice(0, HALL_MAX)]);
+  if (!keep.has(entry)) return null;
+  if (!AUTO) store.set('zdh-scores', [...keep].concat(rest.sort(byScore).slice(0, HALL_MAX * 2)));
+  return entry;
+}
 // ---------- end of run ----------
 async function finish() {
   store.del('zdh-save');
@@ -10881,48 +11063,49 @@ async function finish() {
       `<p>You went to sleep on day ${S.day - 1} with ${stuckList() || 'goods'} still stuck in your prison pocket, and did not get up. ` +
       `A street doc would have had them out in ten minutes.</p>` +
       '<p>The Fixer writes off the debt. The goods are recovered, bagged as evidence, and never spoken of again.</p>' +
-      `<p>Your run ends on day ${S.day}. No score for the dead.</p>` +
-      `<p>XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New run', true, 'primary']], 'danger');
+      `<p>Your career ends on day <b>${num(S.day)}</b>, ${num(S.day)} day${S.day === 1 ? '' : 's'} in. No score for the dead: you had to walk away to bank it.</p>` +
+      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
     return;
   }
   if (S.busted) {
     await dialog('VANISHED', `<div class="posebox">${avatarSvg({pose: 'vanished'})}</div>` + '<p>The NSA does not arrest people like you. A van you never noticed was parked outside all week.</p>' +
-      `<p>Your run ends on day ${S.day}. No score for the disappeared.</p>` +
-      `<p>XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New run', true, 'primary']], 'danger');
+      `<p>Your career ends on day <b>${num(S.day)}</b>. No score for the disappeared: you had to walk away to bank it.</p>` +
+      `<p>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>`, [['New career', true, 'primary']], 'danger');
     return;
   }
-  const score = S.cash + S.wallet - S.debt;
+  // Retired. Everything is sold up (see retireWorth) and the career goes on the board.
+  const W = retireWorth();
+  const score = W.total, days = S.day;
   tally('runs');
+  tally('retired');
   if (!S.arrests) tally('cleanrun');
   tally('score', score);
-  gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / ECON.xpScoreDiv));
+  // The end-of-career XP a cash-out always paid, plus ENDLESS.retireXp for every day you stayed in.
+  gainXp(100 + Math.min(400, Math.sqrt(Math.max(0, score)) / ECON.xpScoreDiv) + Math.min(ENDLESS.retireXpMax, days * ENDLESS.retireXp));
   const ranks = [[0, 'Owned by the Fixer'], [50000, 'Script Kiddie'], [250000, 'Gray Hat'],
     [1000000, 'Elite Operator'], [10000000, 'Ghost in the Wire']];
   const rank = (ranks.find(([limit]) => score < limit) || [0, 'Legend of the Underground'])[1];
-  let scores = (!AUTO && store.get('zdh-scores')) || [];
-  if (!Array.isArray(scores)) scores = [];
-  // A big score ends the run draped in gold.
+  // Where a retirement like that gets you. The last one is for the ones who should never have had to work again.
+  const ENDINGS = [[50000, 'a rented room, a new name, and a job doing tech support for a letting agent'],
+    [250000, 'a quiet flat two cities over, and a shop that sells second-hand synthesisers'],
+    [1000000, 'a bar on a coast with no extradition treaty, and a dog that came with the bar'],
+    [10000000, 'a house nobody can find, a boat nobody can trace, and a hobby that is almost legal'],
+    [Infinity, 'an island, a satellite uplink, and a standing invitation to never come back']];
+  const ending = ENDINGS.find(([limit]) => score < limit)[1];
+  // A big retirement ends the career draped in gold.
   const summary = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
-    : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` + `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)} - debt ${money(S.debt)}</p>` +
-    `<p>Final score: <b class="green">${money(score)}</b><br>Run rating: <b class="cyan">${rank}</b><br>` +
-    `XP earned this run: <b class="cyan">${num(S.xpRun || 0)}</b></p>`;
-  // Scores from before 1.29 were made in an economy where money came far faster. They are kept, but listed
-  // apart, and a new score only has to beat the ones made under the same rules (the `eco` stamp, ECON.version).
-  const byScore = (a, b) => b.score - a.score;
-  let now = scores.filter(s => s && s.eco === ECON.version).sort(byScore);
-  const old = scores.filter(s => s && s.eco !== ECON.version).sort(byScore).slice(0, 10);
-  if (now.length < 10 || score > Math.min(...now.map(s => s.score))) {
-    const handle = (await askText('New high score!', summary + '<p>Your handle:</p>')) || 'anon';
-    now.push({handle: handle.slice(0, 16), score, eco: ECON.version});
-    now = now.sort(byScore).slice(0, 10);
-    if (!AUTO) store.set('zdh-scores', now.concat(old));
-  }
-  const rows = list => list.map((s, i) =>
-    `<tr><td>${i + 1}.</td><td>${esc(s.handle)}</td><td>${money(s.score)}</td></tr>`).join('');
-  await dialog('Run complete', summary + `<p class="dim">HALL OF FAME</p><table class="hall">${rows(now)}</table>` +
-    (old.length ? '<p class="dim">BEFORE THE CRASH: scores from the old economy (before 1.29), when money grew on trees</p>' +
-      `<table class="hall dim">${rows(old)}</table>` : ''),
-    [['New run', true, 'primary']]);
+    : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` +
+    `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)}` +
+    (W.goods ? ` + ${num(W.n)} goods fenced ${money(W.goods)}` : '') + (W.rides ? ` + the garage ${money(W.rides)}` : '') +
+    (S.debt ? ` - debt ${money(S.debt)}` : '') + '</p>' +
+    `<p>Retired on day <b>${num(days)}</b> worth <b class="green">${money(score)}</b>` +
+    `<br>That is <b class="cyan">${money(Math.round(score / Math.max(1, days)))}</b> a day, every day you were in` +
+    `<br>Career rating: <b class="cyan">${rank}</b>` +
+    `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` +
+    `<p class="dim">You buy ${ending}.</p>`;
+  const handle = (await askText('RETIRED', summary + '<p>The name they will remember:</p>')) || 'anon';
+  const mine = hallAdd(handle, score, days);
+  await dialog('RETIRED', summary + hallHtml(mine), [['New career', true, 'primary']]);
 }
 
 document.addEventListener('click', async e => {
@@ -11034,7 +11217,7 @@ async function coolSelfTest() {
       rollMarket();
       const stock = Object.assign({}, coolStock()), kinds = Object.keys(stock);
       if (kinds.length !== COOL_KINDS || kinds.some(k => !COOL[k] || stock[k] !== COOL_EACH)) fail('stock', stock);
-      const scale = 1 + Math.floor(S.day / 10) * 0.5, seen = new Set();
+      const scale = 1 + Math.floor(effDay() / 10) * 0.5, seen = new Set();
       let cost = 0;
       autoPick = all => {
         all.forEach(v => seen.add(v));
@@ -13307,7 +13490,8 @@ async function dunSelfTest() {
       if (a[0].t === 'boss' && f !== 1) fail('boss first');
     }
     // A cache never holds more than the table allows, and the money a whole run can pay stays modest.
-    for (let day = 1; day <= DAYS; day++) {
+    // (ENDLESS: past the arc too, out to day 400, where the money curve is at its damped late values)
+    for (let day = 1; day <= 400; day += day < DAYS ? 1 : 7) {
       S.day = day;
       for (let f = 1; f <= DUN.floors[1]; f++) {
         S.dun = {th: 'tower', lead: L0, floor: f, room: 0, rooms: [], m: 0, goods: {}, cash: 0, at: S.loc, pts: 0};
@@ -13671,7 +13855,7 @@ async function selfTest(games) {
           const n = stuckTotal(), before = used(), tags = Object.values(S.tag).reduce((a, b) => a + b, 0), cash = S.cash, debt = S.debt;
           await ACTIONS.clinic();
           if (!stuckTotal()) {   // done: everything is back, tagged, you are patched up, and the fee was paid or put on the tab
-            const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.round(EXTRACT_FEE * (1 + Math.floor(S.day / 10) * 0.5));
+            const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5));
             if (S.hp !== 100 || S.sick || used() !== before || now !== tags + n || cash - S.cash + S.debt - debt !== fee) throw new Error('extraction went wrong');
           } else if (stuckTotal() !== n) throw new Error('extraction took only some');
         }
@@ -13914,9 +14098,11 @@ async function selfTest(games) {
           Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length) ||
           !Number.isInteger(career.xp) || !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || Object.keys(GADGETS).some(k => !(S[k] >= 0 && S[k] <= GADGETS[k][2])) || S.weapon >= WEAPONS.length || S.proxies > MAX_PROXIES ||
           Object.values(S.grudge).some(g => !(g >= 0)) || !!career.syn !== !!quest() || (career.quest && !(career.quest.p >= 0)) || !Number.isInteger(S.drive) || S.contracts.some(c => !(c.qty > 0 && c.payout > 0)) ||
-          (S.gig && !(CONTACTS[S.gig.who] && S.gig.t > 0 && S.gig.p >= 0 && S.gig.cash > 0 && S.gig.xp > 0 && S.gig.due <= DAYS)) ||
+          (S.gig && !(CONTACTS[S.gig.who] && S.gig.t > 0 && S.gig.p >= 0 && S.gig.cash > 0 && S.gig.xp > 0 && S.gig.due > 0 && S.gig.due < S.day + 30)) ||
           Object.values(career.rep || {}).some(n => !(n >= 0 && n <= TRUST_MAX)) ||
-          S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || S.day > DAYS || !Number.isInteger(S.heat) ||
+          // ENDLESS: the day only has a floor now. Heat has a floor that climbs with the career instead.
+          S.heat < 0 || S.heat > 100 || S.opsec < 0 || S.opsec > 100 || !(S.day >= 1) || !Number.isInteger(S.day) ||
+          S.heat < heatFloor() - 2 || !Number.isInteger(S.heat) ||
           !(Number.isInteger(S.tricks) && S.tricks >= 0 && S.tricks <= QUICK_MAX) || !(Number.isInteger(S.fx.vpn) && S.fx.vpn >= 0 && S.fx.vpn <= COOL.vpn.days) ||
           !(Number.isInteger(S.fx.decoy) && S.fx.decoy >= 0 && S.fx.decoy <= COOL.decoy.nights) ||
           Object.values(S.markets).some(m => m.cool && Object.values(m.cool).some(q => !(q >= 0 && q <= COOL_EACH))) ||
@@ -13948,7 +14134,7 @@ async function selfTest(games) {
           // on the scale and whole numbers of goods taken.
           !Array.isArray(S.leads) || S.leads.length > DUN.leadMax ||
           S.leads.some(L => !DUN_TH[L.th] || !LOCATIONS.includes(L.at) || L.at === BUNKER || !Number.isInteger(L.seed) ||
-            !(L.deep >= DUN.floors[0] && L.deep <= DUN.floors[1]) || !(L.day >= 1 && L.day <= DAYS)) ||
+            !(L.deep >= DUN.floors[0] && L.deep <= DUN.floors[1]) || !(L.day >= 1 && L.day <= S.day)) ||
           (S.dun && !(DUN_TH[S.dun.th] && S.dun.lead && DUN_TH[S.dun.lead.th] === DUN_TH[S.dun.th] &&
             Number.isInteger(S.dun.floor) && S.dun.floor >= 1 && S.dun.floor <= S.dun.lead.deep &&
             Array.isArray(S.dun.rooms) && S.dun.room >= 0 && S.dun.m >= 0 && S.dun.m <= 100 &&
@@ -14123,8 +14309,8 @@ function saveCard(n, meta) {
   const c = store.get('zdh-career', n) || {}, r = store.get('zdh-save', n);
   const lvl = levelInfo(Number.isInteger(c.xp) ? c.xp : 0).level;
   const crew = c.syn && SYNDICATES[c.syn] ? ` &middot; ${SYNDICATES[c.syn][0]}` : '';
-  const run = r && r.prices && !r.over ? `Day ${r.day}/${DAYS} &middot; ${money((r.cash || 0) + (r.wallet || 0) - (r.debt || 0))} net`
-    : 'between runs';
+  const run = r && r.prices && !r.over ? `Day ${num(r.day || 1)} &middot; ${money((r.cash || 0) + (r.wallet || 0) - (r.debt || 0))} net`
+    : 'between careers';
   const earned = c.ach && typeof c.ach === 'object' ? Object.keys(ACH).filter(id => c.ach[id]).length : 0;
   const when = meta.t ? new Date(meta.t).toLocaleDateString(undefined, {month: 'short', day: 'numeric'}) : '';
   return `<b>${esc(meta.name || 'anon')}</b> <span class="dim">save ${n}${n === slot ? ' &middot; in use' : ''}</span><br>` +
@@ -14133,12 +14319,20 @@ function saveCard(n, meta) {
 }
 
 function introText() {
-  return `<p>You have <b>${DAYS} days</b>, ${money(S.cash)} and a ${money(START_DEBT)} debt to the Fixer ` +
-    `that grows ${pct(debtRate())}% a day.</p>` +
+  return `<p>You have ${money(S.cash)}, a ${money(START_DEBT)} debt to the Fixer that grows ${pct(debtRate())}% a day, ` +
+    'and <b>no last day</b>. A career runs until you are taken down or you <span class="amber">retire</span> from the Bunker ' +
+    'and bank what you are worth.</p>' +
     '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
     'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
     '<p>No market can move unlimited weight: <span class="amber">sell a lot of one thing in one place and its price sags, buy a lot and it climbs</span>. ' +
-    'Spread your deals around. A market you flooded is still soft the next day, and every market deals bigger as the month goes on.</p>' +
+    'Spread your deals around. A market you flooded is still soft the next day, and every market deals bigger as the days go on: ' +
+    `the first month fastest, and more slowly after that, but it never stops.</p>` +
+    `<p><span class="red">Staying in costs you.</span> Past day ${ENDLESS.arc} the law stops forgetting (your Heat will not cool below a floor ` +
+    `that climbs to ${ENDLESS.heatFloor}%), rival crews come looking without being provoked, raids get likelier and the Fixer puts his rate up. ` +
+    `It all stops climbing around day ${ENDLESS.arc + ENDLESS.ramp}. Every extra day is worth more and costs more: that is the whole game.</p>` +
+    `<p>You can retire from day ${ENDLESS.retireDay}, as long as you owe the Fixer nothing. Retiring sells up everything you hold, ` +
+    'everything stashed and the whole garage, and puts the total on the hall of fame next to the days you lasted. ' +
+    'Get taken down instead and there is no score at all.</p>' +
     `<p>A <span class="amber">ride</span> gets you more trips: +1 a day for a skateboard or a unicycle, up to +${MAX_HOPS} for the best helicopter. ` +
     `They are sold at ${Object.values(RIDE_SHOPS).map(([name, spot]) => `${name} (${spot})`).join(', ')}, and you swap between yours at the Bunker's garage. ` +
     'Engines want fuel every day you ride them.</p>' +
