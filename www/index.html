@@ -11128,9 +11128,9 @@ async function finish() {
     [Infinity, 'an island, a satellite uplink, and a standing invitation to never come back']];
   const ending = ENDINGS.find(([limit]) => score < limit)[1];
   // A big retirement ends the career draped in gold.
-  const summary = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
-    : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>` +
-    `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)}` +
+  const pose = `<div class="posebox">${avatarSvg(score >= 250000 ? {pose: 'rich'}
+    : {plain: true, mood: score < 50000 ? 'ouch' : 'grin'})}</div>`;
+  const facts = `<p>Cash ${money(S.cash)} + wallet ${money(S.wallet)}` +
     (W.goods ? ` + ${num(W.n)} goods fenced ${money(W.goods)}` : '') + (W.rides ? ` + the garage ${money(W.rides)}` : '') +
     (S.debt ? ` - debt ${money(S.debt)}` : '') + '</p>' +
     `<p>Retired on day <b>${num(days)}</b> worth <b class="green">${money(score)}</b>` +
@@ -11138,7 +11138,10 @@ async function finish() {
     `<br>Career rating: <b class="cyan">${rank}</b>` +
     `<br>XP earned this career: <b class="cyan">${num(S.xpRun || 0)}</b></p>` +
     `<p class="dim">You buy ${ending}.</p>`;
-  const handle = (await askText('RETIRED', summary + '<p>The name they will remember:</p>')) || 'anon';
+  // On a handheld the picture is the whole first screenful, so there the figures come first and the picture
+  // follows them; on a screen with room the picture leads, as it always has.
+  const summary = () => (tinyScreen() ? facts + pose : pose + facts);
+  const handle = (await askText('RETIRED', summary() + '<p>The name they will remember:</p>')) || 'anon';
   const mine = hallAdd(handle, score, days);
   // ENDLESS: on a handheld the send-off with every table in it is four screens of scrolling, so there the
   // tables go behind an answer, the way every other long list on that screen does. On a screen with room
@@ -11148,7 +11151,7 @@ async function finish() {
     const tiny = tinyScreen();
     const buttons = tiny && !seen ? [['Hall of fame', 'hall'], ['New career', true, 'primary']]
       : [['New career', true, 'primary']];
-    if (await dialog('RETIRED', summary + (tiny ? '' : hallHtml(mine)), buttons) !== 'hall') return;
+    if (await dialog('RETIRED', summary() + (tiny ? '' : hallHtml(mine)), buttons) !== 'hall') return;
     seen = true;
     await alertDlg('Hall of fame', hallHtml(mine));
   }
