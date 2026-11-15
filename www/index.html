@@ -124,11 +124,13 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #news{margin:10px 0 0}
 #news div{color:var(--yellow);padding:2px 0}
 #news div::before{content:">> ";color:var(--pink)}
-#quest .fold{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
-#quest .fold>summary{color:var(--pink)}
-#quest .fold>summary small{text-align:right}
-#quest .fold[open]>summary small{display:none}
-#quest .fold .job{margin:6px}
+/* the syndicate mission: always open, and kept to a heading line and one block */
+#quest .qnow{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
+/* the heading is not tied to #quest: the handheld's JOBS screen copies this block out of it (see renderTiny) */
+.qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
+  color:var(--pink);font-weight:normal}
+.qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
+#quest .qnow .job{margin:6px}
 #market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
 .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
   border-bottom:1px solid var(--line)}
@@ -189,6 +191,8 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .hall{width:100%;border-collapse:collapse;margin-top:6px}
 .hall td{padding:2px 4px}.hall td:last-child{text-align:right}
 .syn{margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-left:2px solid var(--accent);background:rgba(23,20,46,.6)}
+.keyhelp{display:none}   /* the handheld's key list: see TINY SCREENS at the end of this style sheet */
+#tiny{display:none}      /* the handheld's screens, built only at that size (renderTiny) */
 .syn b{color:var(--cyan)}
 
 /* gear screen */
@@ -472,12 +476,18 @@ button .ico.room{width:44px;height:26px}
 .skbr .skpips{letter-spacing:2px;font-size:11px}
 .skbr b{letter-spacing:.5px}
 /* ===== skill tree: END ===== */
+/* ===== dungeons (deep runs): BEGIN =====
+   Deep runs are played entirely in the ordinary dialog box, so there is almost nothing to style: an
+   address card that reads as one tappable block. */
+.dunlead{border-left-color:var(--amber)}
+.dunlead:hover,.dunlead:focus-visible{background:rgba(252,238,10,.08);outline:none}
+/* ===== dungeons (deep runs): END ===== */
 /* ================= WIDE SCREENS =================
    Everything from here to the end of the style sheet only applies to a window at least 900px wide and 500px
    tall (a desktop window, a tablet on its side, a desktop browser). Below that nothing here does anything and
    the page is the one-column phone layout above (from 761px that one column runs the full width).
    #colme (you: avatar, level, health, stat chips), #coltrade (mission, products, jobs, actions) and, inside
-   it, #colmarket (the mission fold directly above the products) are plain wrappers; on a phone
+   it, #colmarket (the mission directly above the products) are plain wrappers; on a phone
    they are display:contents, which is the same as not being there.
    The play screen fills the window edge to edge like the loading screen: #app is pinned to all four sides and
    becomes a grid of panels that scroll inside themselves, so the page itself never scrolls.
@@ -516,9 +526,9 @@ button .ico.room{width:44px;height:26px}
   #log{grid-area:log;margin:10px 0 0;min-width:0;min-height:0;overflow-y:auto;font-size:14px}
   #log div{padding:3px 0}
   #hud{margin-top:0;grid-template-columns:66px minmax(0,1fr)}
-  /* the mission fold stays directly above the products; the products take the spare height and scroll */
+  /* the mission stays directly above the products; the products take the spare height and scroll */
   #quest{flex:none}
-  #quest .fold{margin:0 0 10px}
+  #quest .qnow{margin:0 0 10px}
   #market{margin-top:0;flex:1 1 auto;min-height:0;overflow-y:auto;
     display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
   #market>.fold,#market>.row:first-child{grid-column:1/-1}
@@ -587,6 +597,272 @@ button .ico.room{width:44px;height:26px}
 @media (min-width:3000px) and (min-height:1650px){:root{--z:2}}
 @media (min-width:3400px) and (min-height:1900px){:root{--z:2.25}}
 @media (min-width:3800px) and (min-height:2100px){:root{--z:2.5}}
+/* ================= TINY SCREENS (a handheld: 320 x 170) =================
+   Everything from here to the end of the style sheet only applies to a window no wider than 600px and no
+   taller than 260px: a wide, very short screen like the Cardputer Zero's 320 x 170. No phone, tablet or
+   desktop viewport is that short (the shortest phone in landscape is 320 tall, and a phone in portrait is
+   taller still), so nothing here can reach the one-column phone layout, the phone-landscape battle layout
+   (max-height:480px, which this block sits after and overrides at this size) or the WIDE SCREENS rules
+   (min-width:900px, which cannot match at the same time).
+   The play screen is two panes side by side: the trading core on the left (mission, products, jobs,
+   actions) and you on the right (avatar, level, health, chips, news, log). The page itself never scrolls;
+   every pane scrolls inside itself. Decoration that costs a full-screen repaint (the scanline overlay, the
+   background gradients, the glitch and streak animations, the avatar's idle animations) is off here,
+   because this runs on a slow handheld. */
+@media (max-width:600px) and (max-height:260px){
+  /* no mouse and no touch on a handheld: the focus ring below is the cursor. (Asking for no pointer here
+     does nothing under cage/WPE, where the compositor paints it; it is for hosts where the page is asked.) */
+  *,*::before,*::after{cursor:none!important}
+  :root{--cut:none}                       /* the clipped corners cost 9px of every button and a mask per paint */
+  html,body{height:100%;overflow:hidden}
+  body{font-size:11px;line-height:1.25;min-height:0;background:var(--bg)}
+  body::after{content:none}               /* the scanlines are a fixed full-screen layer over everything */
+  *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  h1,.bootlogo,.tlabel,.boothint,.basemap .blink,.av-fig,.av-bob,.avatar *{animation:none}
+  #travel::before{content:none}
+  /* the focus ring stands in for the pointer, so it is drawn on focus however the focus arrived, and it is
+     drawn twice: a yellow line and a black one outside it, so it reads over a panel or over the artwork */
+  button:focus,summary:focus,input:focus,[tabindex]:focus,.tile:focus,.slottag:focus,.bopt:focus{
+    outline:2px solid #fff;outline-offset:1px;box-shadow:0 0 0 4px #000}
+  button:focus,.tile:focus,.slottag:focus{background:rgba(255,255,255,.22);color:#fff}
+  button.primary:focus{background:#fff;color:#000}
+  .room:focus .rbox{stroke:var(--yellow);stroke-width:3}
+  #colme:focus,#news:focus,#log:focus,#market:focus,#jobs:focus,#dialog:focus{
+    outline:2px dashed var(--yellow);outline-offset:-2px;box-shadow:none}
+
+  /* ===== the handheld's screens =====
+     Two inches of glass will not hold the whole desktop at a size anyone can read, so here the game is
+     dealt out over five screens with one job each - the market, you, the jobs, the log, and what you can
+     do - and the number keys work whatever is in front of you. Every screen is the same three parts: a
+     line saying where you are, the screen itself, and a line of the keys that work on it. The screens are
+     built out of what the ordinary layout has already drawn (renderTiny, in the script), so the game has
+     only one set of code and only the shape changes here.
+     Nothing on a screen is smaller than 11px, and the figures the player acts on are 17px. */
+  #app{display:none}
+  button{min-height:0;padding:2px 6px;font-size:13px;text-shadow:none}
+  button.small{min-height:0;padding:1px 5px;font-size:11px}
+  h2{margin:0 0 4px;font-size:13px;letter-spacing:1px}
+
+  #tiny{position:fixed;inset:0;display:flex;flex-direction:column;gap:1px;font-size:13px;line-height:1.2;
+    padding:2px calc(3px + env(safe-area-inset-right)) 2px calc(3px + env(safe-area-inset-left))}
+  .thead{flex:none;display:flex;align-items:baseline;gap:6px;font-size:11.5px;letter-spacing:.5px;
+    color:var(--dim);text-transform:uppercase;white-space:nowrap;overflow:hidden}
+  .thead b{flex:none;color:#000;background:var(--yellow);font-weight:bold;padding:0 6px 0 4px;letter-spacing:1px}
+  .thead .where{color:var(--cyan);overflow:hidden;text-overflow:ellipsis}
+  .thead .trips{margin-left:auto;flex:none}
+  .tsum{flex:none;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line)}
+  .tsum b{font-size:17px;color:var(--green);letter-spacing:.5px}
+  .tsum span{font-size:11px;color:var(--dim);white-space:nowrap}
+  .tsum .debt{margin-left:auto}
+  .tbody{flex:1 1 auto;min-height:0;overflow-y:auto;counter-reset:n}
+  .tkeys{flex:none;border-top:1px solid var(--line);font-size:12px;color:var(--dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tkeys b{color:var(--yellow);font-weight:bold;margin:0 2px 0 7px}
+  .tkeys b:first-child{margin-left:0}
+  .tnone{color:var(--dim);font-size:12px;padding:5px 3px}
+
+  /* the market (and, at home, the stash): one line to a product, the one you are on opened up */
+  #tiny .fold{border:0;background:none;margin:0}
+  /* a fold's heading keeps the row it lays itself out in: the name on the left and the count on the right,
+     the same as the mission's heading, or the two run together when the fold is flattened into a screen */
+  #tiny summary{display:flex;align-items:center;gap:6px;padding:0 3px 1px;
+    font-size:11px;letter-spacing:1px;border:0;list-style:none}
+  #tiny summary small{margin-left:auto;font-size:11px;letter-spacing:0;color:var(--dim)}
+  #tiny summary::before{content:none}
+  #tiny .mnote,#tiny .basewrap{display:none}
+  #tiny .baseline{padding:1px 3px;font-size:11px;border:0}
+  #tiny .row{display:grid;grid-template-columns:15px minmax(0,1fr) auto;grid-template-rows:auto;
+    gap:0 6px;align-items:baseline;padding:1px 3px;border:0;font-size:13px}
+  #tiny .row>*{grid-area:auto;min-width:0}
+  #tiny .row::before{counter-increment:n;content:counter(n);color:var(--dim);font-size:11px;text-align:right}
+  #tiny .row .name{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .row .price{text-align:right;white-space:nowrap}
+  #tiny .row .sub,#tiny .row .btns{display:none}
+  /* what you are holding of it is the one line worth keeping on every row (the market's own notes are
+     dimmed, and they wait until the row is the one you are on) */
+  #tiny .row .name+.sub:not(.dim){display:block;font-size:11px;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .row.sel{background:rgba(252,238,10,.16);box-shadow:inset 3px 0 0 var(--yellow)}
+  #tiny .row.sel .name{color:#fff;font-weight:600}
+  #tiny .row.sel .sub{display:block;font-size:11px;line-height:1.2;color:var(--dim);white-space:normal}
+
+  /* you: the figures you act on, big, then the kit in a line each */
+  #tiny .meter{grid-template-columns:36px 1fr 40px;gap:5px;font-size:12px;margin:3px 0}
+  #tiny .meter span:first-child{font-size:10px;letter-spacing:.5px}
+  #tiny .meter .track{height:9px}
+  #tiny .meter .track i{box-shadow:none}
+  #tiny .figs{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-top:4px}
+  #tiny .chip{display:block;padding:0 0 0 5px;border:0;border-left:2px solid var(--accent);
+    background:none;clip-path:none}
+  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px}
+  #tiny .chip b{display:block;font-size:17px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .figs .chip:nth-child(n+7){display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+  #tiny .figs .chip:nth-child(n+7) b{font-size:12px}
+
+  /* the jobs, and the things you can do: a numbered list, one key each */
+  #tiny .job{display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:0 6px;align-items:baseline;
+    padding:2px 3px;margin:0 0 3px;font-size:13px;border-left-width:3px}
+  #tiny .job::before{counter-increment:n;content:counter(n);color:var(--yellow);font-size:11px;
+    font-weight:bold;text-align:right}
+  #tiny .job .what{overflow-wrap:anywhere}
+  #tiny .job .sub{font-size:11px}
+  #tiny .job button{font-size:11px;padding:1px 5px}
+  #tiny .jobs h3{margin:2px 0;padding:0 3px;font-size:11px;letter-spacing:1px}
+  #tiny .lead{font-size:12px;padding:1px 4px;margin-bottom:2px;border-left:3px solid var(--amber);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .jobs .none{padding:3px;font-size:11px;color:var(--dim)}
+  #tiny .acts button{display:block;width:100%;margin:0 0 2px;padding:1px 5px;text-align:left;
+    font-size:12.5px;line-height:1.35;clip-path:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts button::before{counter-increment:n;content:counter(n) "  ";color:var(--yellow);font-weight:bold}
+  #tiny .acts button:disabled{opacity:.4}
+  #tiny .acts button.primary::before{color:#000}
+
+  /* the log and the news, read a page at a time */
+  #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
+  #tiny .logs div{padding:1px 0}
+  #tiny .logs .news div{color:var(--yellow)}
+
+  /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
+  #overlay{padding:2px}
+  /* a dialogue is the same shape as a screen: the title, the part you read, and the numbered answers
+     pinned at the foot, where they can always be seen and worked. A deep run's room is the long one:
+     where you are, what just happened, what is in front of you, two meters and what you are holding. */
+  #dialog{max-width:none;max-height:100%;padding:4px 6px;border-top-width:2px;clip-path:none;animation:none;
+    font-size:12.5px;line-height:1.3;counter-reset:dbtn;
+    display:flex;flex-direction:column;overflow:hidden}
+  #dialog>*{flex:none}
+  #dialog .body{flex:1 1 auto;min-height:0;overflow-y:auto}
+  #dialog h2{margin:0 0 3px}
+  #dialog p{margin:0 0 3px}
+  /* two meters side by side (a deep run's Alert or Trace, and your Health or OpSec), so the room's
+     description and both bars are in the first screenful */
+  #dialog .meter{display:inline-grid;width:48.6%;vertical-align:top;
+    grid-template-columns:42px 1fr 32px;gap:4px;font-size:11.5px;margin:2px 0}
+  #dialog .meter span:first-child{font-size:10px;letter-spacing:.5px}
+  #dialog .meter .track{height:8px}
+  #dialog .meter .track i{box-shadow:none}
+  /* the keys are the only way in here, so the list of them is shown and the buttons wear their numbers */
+  .keyhelp{display:block;margin-top:6px;border-top:1px solid var(--line);padding-top:4px}
+  /* a dialogue's answers are a numbered list, one to a line, like every other list on this screen; a card
+     in the body that answers it (a save file, a deep run's address) is numbered in the same run */
+  .dbtns button::before,.body [data-pick]:not(.tile):not(.slottag)::before{
+    counter-increment:dbtn;content:counter(dbtn) "  ";opacity:.7;font-weight:bold}
+  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr}
+  .dbtns button{text-align:left;padding:1px 6px;line-height:1.3;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .qty{gap:4px;margin-top:3px}
+  input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
+  input[type=range]{height:18px}
+  .quick{gap:3px;margin-top:4px}
+  .total{margin-top:5px}
+  .syn{margin:0 0 5px;padding:3px 5px;border-left-width:2px}
+  .hall td{padding:1px 3px}
+  .req{font-size:11.5px;padding:1px 0}
+  .slotline{font-size:11.5px;margin-bottom:4px;gap:5px}
+  .slotline .ico{width:22px;height:22px}
+  .slotline .dim{font-size:10px}
+  .invhead{margin:5px 0 3px;font-size:11px;letter-spacing:1px}
+  .tiles{grid-template-columns:repeat(5,1fr);gap:3px;margin-bottom:4px}
+  .tile{padding:2px 2px 11px}
+  .tile .glyph{font-size:15px;letter-spacing:0}
+  .tile i{top:0;right:2px;font-size:10px}
+  .tile small{left:1px;right:1px;bottom:1px;font-size:9px;letter-spacing:0}
+  .tile.r4,.tile.on{box-shadow:none}
+  .ico{width:26px;height:26px}
+  .ico.wide{width:56px;height:24px}
+  .ico.ride{width:40px;height:24px}
+  .ico.room{width:44px;height:25px}
+  button .ico{width:20px;height:20px}
+  button .ico.ride{width:32px;height:19px}
+  button .ico.room{width:30px;height:18px}
+  button.hasico{gap:5px;padding:2px 5px}
+  .avatarbox{grid-template-columns:70px 1fr;gap:5px;margin-bottom:5px}
+  .posebox{max-width:52px;margin:0 auto 4px}
+  .posebox.wide{max-width:64px}
+  .versus{grid-template-columns:48px auto 48px;gap:6px;margin-bottom:5px}
+  .versus b{font-size:13px;text-shadow:none}
+  .versus small{font-size:10px;letter-spacing:0;margin-top:1px}
+  .stage{margin:0 auto 4px}
+  .stage .avatar{width:30%}
+  .slottag{width:33%;padding:2px 3px;font-size:10px;line-height:1.15}
+  .slottag small{font-size:9px}
+  .slottag i{font-size:9px}
+  .slottag.has{box-shadow:none}
+  .zoomable small{bottom:2px;font-size:10px;letter-spacing:0}
+
+  /* --- the Bunker's cutaway: a 364px drawing with 8px lettering is no use on a two-inch screen, so the
+         rooms are a numbered list in the Base dialog instead (M opens it); the drawing stays in the
+         dialog for a station, where it has the room to itself --- */
+  #tiny .basewrap{display:none}
+  .basewrap{max-height:96px;overflow:auto}
+  .basemap{width:364px;height:286px;max-width:none;aspect-ratio:auto;margin:-26px 0 0}
+  .baseline{padding:2px 5px;font-size:11px}
+  .rangebox{width:auto;height:112px;max-width:100%;margin:0 auto 4px}
+
+  /* --- the loading screen and the travel wipe --- */
+  #boot{padding:8px}
+  .bootbox{max-width:none}
+  .bootlogo{font-size:20px;letter-spacing:1px;text-shadow:2px 0 var(--pink),-2px 0 var(--cyan)}
+  .bootsub{margin:4px 0 6px;font-size:9px;letter-spacing:1px}
+  .bootlog div{margin:1px 0;font-size:9px}
+  .bootbar{margin-top:6px;height:7px}
+  .boothint{margin-top:5px;font-size:9px;letter-spacing:1px}
+  #travel{padding:8px}
+  .tbox{max-width:none}
+  .tlabel{font-size:14px;letter-spacing:2px}
+  .troute{margin:8px 0 4px;font-size:9.5px}
+  .troute .to{text-shadow:none}
+  .ttrack .ico.ride{width:32px;height:19px;bottom:6px}
+  .tride{margin-top:5px;font-size:9px}
+  .thex{margin-top:6px;font-size:9px}
+
+  /* --- the fight screen: the stage fills the screen at 1 screen pixel to the big pixel (layout() picks
+         K=1 from the 170px of height), with the log over the sky and the windows over the floor --- */
+  #battle{padding:0;overflow:hidden}
+  .bwrap{position:relative;max-width:none;height:100%;min-height:0;gap:0;
+    display:grid;grid-template-columns:100%;grid-template-rows:100%}
+  .bfield{grid-area:1/1;width:100%;height:100%;min-height:0;border:0}
+  .bw{padding:11px 4px 3px;font-size:11.5px;border-bottom-width:1px;box-shadow:inset 0 0 0 1px #06050d}
+  .bw[data-t]::before{left:4px;font-size:9px;line-height:10px;letter-spacing:1px;padding:0 6px 0 4px}
+  .bw::after{content:none}
+  .bmsg{position:absolute;z-index:6;left:0;top:0;width:calc(100% - 46px);height:38px;min-height:0;
+    overflow-y:auto;line-height:1.2;padding-top:11px}
+  .bspd{z-index:7;right:2px;top:2px;min-height:15px;padding:1px 5px;font-size:10px}
+  .bban{top:auto;bottom:74px;max-width:calc(100% - 16px);min-height:0;padding:1px 8px;font-size:11px;letter-spacing:0}
+  .bpanel{position:absolute;z-index:6;left:0;bottom:0;width:100%;height:72px;gap:2px;
+    grid-template-columns:78px 88px minmax(0,1fr)}
+  .bfoes{order:0;grid-area:1/1;overflow-y:auto}
+  .bstat{order:0;grid-area:1/2;overflow-y:auto}
+  .bcmd{order:0;grid-area:1/3;overflow-y:auto}
+  .bfoes .row{padding:0 2px;border:0;font-size:11px}
+  .bstat .who{font-size:11px;letter-spacing:0;margin-bottom:1px}
+  .bbar{grid-template-columns:24px 1fr auto;gap:4px;margin:2px 0;font-size:11px}
+  .bbar .lbl{font-size:9.5px;letter-spacing:0}
+  .bbar .track{height:7px}
+  .bgear{margin-top:2px;font-size:9.5px}
+  .bturn{gap:3px;margin-top:2px;font-size:9.5px;letter-spacing:0}
+  .bturn b{padding:0 3px}
+  .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
+  /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
+     instead of squeezing the label down to one letter a row */
+  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
+  .bopt small{flex:1 1 auto;min-width:0;font-size:9.5px;white-space:normal;text-align:right;overflow-wrap:anywhere}
+  .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
+  .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
+  .bsub .bopt{min-height:16px}
+  .bnote{margin:0 1px 4px;font-size:9px;line-height:1.25}
+  /* the results sit against the top of the stage, so a long list cannot hang off the bottom of the screen */
+  .bres{z-index:8;top:3px;transform:translateX(-50%);width:calc(100% - 12px);max-height:calc(100% - 6px);
+    font-size:11px;box-shadow:0 0 0 2px #04030b}
+  .bres p{margin:0 0 3px;line-height:1.2}
+  .bres .line{padding:1px;animation:none}
+  .bres .foot{margin:3px 0 2px;font-size:8px}
+  .bhint{display:none}
+  .bbig{font-size:22px;letter-spacing:2px}
+  .bpop{font-size:13px;text-shadow:1px 1px 0 #000,-1px -1px 0 #000}
+  .bpop small{font-size:8px}
+}
 </style>
 </head>
 <body>
@@ -606,29 +882,30 @@ button .ico.room{width:44px;height:26px}
 </div>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
-  <div id="colme">
+  <div id="colme" tabindex="0" role="group" aria-label="You">
   <div id="hud">
-    <div id="ava" data-act="gearmenu" title="Gear"></div>
+    <div id="ava" data-act="gearmenu" title="Gear" tabindex="0" role="button" aria-label="Gear"></div>
     <div id="hudr">
-      <div id="career" data-act="profile"></div>
+      <div id="career" data-act="profile" tabindex="0" role="button" aria-label="Profile"></div>
       <div id="dayloc"></div>
       <section id="vitals"></section>
     </div>
   </div>
   <section id="stats"></section>
   </div>
-  <section id="news"></section>
+  <section id="news" tabindex="0" role="group" aria-label="News"></section>
   <div id="coltrade">
   <div id="colmarket">
   <section id="quest"></section>
-  <section id="market"></section>
+  <section id="market" tabindex="0" role="group" aria-label="Market"></section>
   </div>
-  <section id="jobs"></section>
+  <section id="jobs" tabindex="0" role="group" aria-label="Jobs"></section>
   <nav id="actions"></nav>
   </div>
-  <section id="log"></section>
+  <section id="log" tabindex="0" role="group" aria-label="Log"></section>
 </div>
-<div id="overlay" hidden><div id="dialog"></div></div>
+<div id="tiny"></div>
+<div id="overlay" hidden><div id="dialog" tabindex="0"></div></div>
 <div id="travel" hidden></div>
 <div id="battle" hidden></div>
 <script>
@@ -1720,9 +1997,13 @@ function adoptOldSave() {
     localStorage.setItem('zdh-last', '1');
   } catch (e) {}
 }
-// The drop-downs on the main screen (syndicate mission, products, Local BBS). Which ones are open is remembered.
+// The drop-downs on the main screen (products, Local BBS). Which ones are open is remembered.
+// The syndicate mission above them is not one of these: it is always open (see render()).
 const FOLDS = store.get('zdh-folds') || {};
-const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${FOLDS[id] ? ' open' : ''}>` +
+// (on a handheld the products start open: the prices are the screen, and there is no pointer to open them
+//  with. Once it has been opened or shut by hand, what was chosen is remembered as everywhere else.)
+const foldOpen = id => (FOLDS[id] === undefined ? id === 'goods' && tinyScreen() : !!FOLDS[id]);
+const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${foldOpen(id) ? ' open' : ''}>` +
   `<summary>${label}<small>${note}</small></summary>${body}</details>`;
 document.addEventListener('toggle', e => {
   const id = e.target.dataset && e.target.dataset.fold;
@@ -2098,6 +2379,7 @@ async function hiddenInvite() {
 
 async function levelUpCheck() {
   await heistCheck();
+  await dunCheck();   // DUNGEONS: you cannot be inside a building and somewhere else
   await questCheck();
   await gigCheck();
   if (pendingLevel) {
@@ -2415,6 +2697,7 @@ const stat = kind => career.stats[kind] || 0;
 const ownedGear = () => Object.values(career.gear).concat(career.bag, career.locker || []).filter(Boolean);
 // id: [name, how to earn it, XP, test, secret (shown as ??? until earned)]. They belong to the save file.
 const KEY_ACH = 'nsa', HIDDEN_SYN = 'x404';   // the achievement that reveals the hidden syndicate
+const DUN_FLOORS = 5;   // the deepest a deep run goes (DUN.floors reads it; see DUNGEONS, further down)
 const ACH = {
   sale: ['First Score', 'Sell something at a profit', 50, () => stat('profit') > 0],
   k100: ['Six Figures', 'Hold $100,000 in cash', 100, () => S.cash >= 100000],
@@ -2477,6 +2760,12 @@ const ACH = {
   skend: ['Deep Specialist', 'Take one branch of the skill tree all the way to the end', 500,
     () => Object.keys(SK_BRANCHES).some(skBranchDone)],
   skwipe: ['Have You Tried Turning It Off', 'Reflash the kit and spend every point again', 100, () => stat('respec') >= 1],
+  // --- deep runs (see DUN) ---
+  dun1: ['Down We Go', 'Clear a deep run: reach the bottom and win', 150, () => stat('dunwin') >= 1],
+  dun10: ['Spelunker', 'Clear 10 deep runs', 500, () => stat('dunwin') >= 10],
+  dunboth: ['Body and Wire', 'Clear a building and a network dive', 300, () => stat('dunsite') >= 1 && stat('dundive') >= 1],
+  dundeep: ['Sub-Basement', `Clear a deep run ${DUN_FLOORS} floors deep`, 500, () => stat('dundeep') >= 1],
+  dunbail: ['Knowing When to Stop', 'Walk out of a deep run carrying 10 goods or more', 150, () => stat('dunbail') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -5545,6 +5834,7 @@ function newGame() {
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
+  S.leads = [];                  // DUNGEONS: addresses for deep runs (S.dun holds a run in progress)
   S.hq = {};                     // BASE: what the stations have done today (the base itself belongs to the save)
   logs = [];
   starterGear();
@@ -5569,9 +5859,11 @@ function dialog(title, html, buttons, tone) {
       el.onclick = () => { overlay.hidden = true; resolve(value); };
       box.appendChild(el);
     }
-    // Anything in the body marked data-pick="value" also answers the dialog when tapped.
+    // Anything in the body marked data-pick="value" also answers the dialog when tapped, and is a stop for
+    // the Tab key as well, so a machine with no pointer can reach it.
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
       el.onclick = () => { overlay.hidden = true; resolve(el.dataset.pick); };
+      if (!el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', 'button'); }
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
       const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
@@ -5581,6 +5873,7 @@ function dialog(title, html, buttons, tone) {
     }
     overlay.hidden = false;
     dlg.scrollTop = 0;
+    focusFirst();
   });
 }
 const confirmDlg = (title, html, yes, no) =>
@@ -5627,6 +5920,7 @@ function askQty(title, html, max, opts) {
     show();
     if (AUTO) return resolve([null, 1, max, rnd(1, max)][rnd(0, 3)]);
     overlay.hidden = false;
+    focusFirst();
   });
 }
 
@@ -6040,7 +6334,7 @@ async function inspectGear() {
   for (;;) {
     const tags = Object.entries(SLOTS).map(([slot, [label]]) => {
       const it = career.gear[slot], spare = career.bag.filter(b => b.slot === slot).length;
-      return `<div class="slottag${spare ? ' has' : ''}" data-pick="${slot}" style="${POS[slot]}"><small>${label}</small>` +
+      return `<div class="slottag${spare ? ' has' : ''}" data-pick="${slot}" tabindex="0" role="button" style="${POS[slot]}"><small>${label}</small>` +
         (it ? `<b class="r${it.rar}">${it.name}</b>` : '<b class="dim">empty</b>') +
         (spare ? `<i>${spare} in bag to swap</i>` : '') + '</div>';
     }).join('');
@@ -6130,7 +6424,10 @@ async function swapSlot(slot) {
 }
 
 // ---------- rendering ----------
-function render() {
+// Redrawing throws the focused button away, so on a handheld the focus is put back (see keepFocus); on a
+// handheld the screens built from this drawing are redrawn with it (see renderTiny).
+function render() { keepFocus(renderNow); renderTiny(); }
+function renderNow() {
   SND.sync();
   fixTags();
   const last = S.day >= DAYS;
@@ -6139,12 +6436,13 @@ function render() {
     `<span class="bar"><i style="width:${Math.floor(li.into / li.need * 100)}%"></i></span>` +
     `<span class="xp">${career.syn ? SYNDICATES[career.syn][0] : `${li.into}/${li.need} XP`}</span>`;
   const Q = quest();
-  // The syndicate mission sits above the products, folded to one line (tap to open; the fold is remembered).
-  $('#quest').innerHTML = !Q ? '' : fold('quest', `${SYNDICATES[career.syn][0].toUpperCase()} MISSION`,
-    `${Q.title} &middot; ${Q.kind === 'heist' ? heistShort(Q) : questStatus(Q)}`,   // a break-in shows its stage, even folded
+  // The syndicate mission sits above the products and the Local BBS, always open: it is the thing above what
+  // you use most, so it is kept to a heading line and one block (1.34.0; it used to be a fold, shut by default).
+  $('#quest').innerHTML = !Q ? '' : `<div class="qnow"><h3>${SYNDICATES[career.syn][0].toUpperCase()} MISSION` +
+    `<small>${Q.kind === 'heist' ? heistShort(Q) : questStatus(Q)}</small></h3>` +
     `<div class="job quest"><div><div class="what">${Q.title}</div><div class="sub">${questGoal(Q)}</div>` +
-    `<div class="sub"><span class="cyan">${questStatus(Q)}</span> &middot; pays ${questReward(Q)}</div></div>` +
-    '<button data-act="syndicate">Briefing</button></div>');
+    `<div class="sub">pays ${questReward(Q)}</div></div>` +
+    '<button data-act="syndicate">Briefing</button></div></div>';
   $('#jobs').innerHTML =
     (!S.gig || !CONTACTS[S.gig.who] ? '' : `<h3>STREET GIG &middot; ${S.gig.who.toUpperCase()}</h3>` +
     `<div class="job gig"><div><div class="what">${S.gig.title}</div><div class="sub">${gigGoal(S.gig)}</div>` +
@@ -6251,6 +6549,7 @@ function render() {
   }
   if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
+  acts += `<button data-act="dungeon">${dunButton()}</button>`;   // DUNGEONS: deep runs
   acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
   // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
   if (skLeft()) acts += `<button data-act="skills">Skill tree (${skLeft()} to spend)</button>`;
@@ -6427,7 +6726,7 @@ const ACTIONS = {
   async inventory() {
     // pick: what the dialog answers when the tile is tapped. cls: extra classes (rarity, wide, state).
     const tile = (pick, art, label, count, cls) =>
-      `<div class="tile ${cls || ''}"${pick ? ` data-pick="${pick}"` : ''}>${art}` +
+      `<div class="tile ${cls || ''}"${pick ? ` data-pick="${pick}" tabindex="0" role="button"` : ''}>${art}` +
       (count ? `<i>${count}</i>` : '') + `<small>${label}</small></div>`;
     const head = (title, note) => `<div class="invhead"><b>${title}</b><span>${note}</span></div>`;
     const none = text => `<p class="dim">${text}</p>`;
@@ -7712,12 +8011,337 @@ Object.assign(ACTIONS, {
   },
 });
 // Rooms are drawings, not buttons, so the keyboard needs telling: Enter or Space on a room is a tap.
+// Enter or Space works the focused thing that is not a button (rooms in the cutaway, tiles, gear slots,
+// the avatar, the level bar): a button does that by itself, these have to be told.
 document.addEventListener('keydown', e => {
-  const el = e.target && e.target.closest && e.target.closest('.room[data-act]');
+  const el = e.target && e.target.closest && e.target.closest('[tabindex][data-act],[tabindex][data-pick]');
   if (!el || (e.key !== 'Enter' && e.key !== ' ')) return;
   e.preventDefault();
   el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
 });
+
+// ---------- the keyboard on a handheld ----------
+// On a 320 x 170 machine (the TINY SCREENS layout) there is no mouse and no touch: the keyboard is all
+// there is. So whatever appears takes the focus on its first control, Enter works it, and the arrow keys
+// walk the controls of the screen in front of you and wrap round. Nothing here does anything at any other
+// size. The fight screen steers with the arrows itself and keeps them; so do text boxes, number boxes and
+// sliders, which need the arrows for their own value.
+const tinyScreen = () => matchMedia('(max-width:600px) and (max-height:260px)').matches;
+const FOCUS_SEL = 'button:not(:disabled),summary,input:not([type=hidden]),select,textarea,[tabindex]:not([tabindex="-1"])';
+// Inside a fold that is shut, a control still has a box (the browser keeps the layout and only hides it),
+// but it cannot be focused: leave those out, or the arrow keys walk into a wall.
+const shutAway = el => { const d = el.closest('details:not([open])'); return !!d && el.parentElement !== d; };
+// (the size is measured with a box, not offsetWidth, because the rooms in the Bunker's cutaway are SVG)
+const onScreen = el => { const b = el.getBoundingClientRect(); return !!(b.width || b.height); };
+const focusList = root => [...root.querySelectorAll(FOCUS_SEL)]
+  .filter(el => el === document.activeElement || (onScreen(el) && !shutAway(el)));
+const typing = el => el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA');
+const focusRoot = () => (overlay.hidden ? $('#app') : dlg);
+// The obvious control of whatever just opened: the button that is marked primary, else the first one there.
+// (the focus is taken on the next turn of the loop, not this instant: the key that opened this dialogue is
+//  still being delivered, and a button that took the focus mid-key would be worked by the rest of it)
+function focusFirst() {
+  if (!tinyScreen()) return;
+  setTimeout(() => {
+    const root = focusRoot();
+    if (!root) return;
+    const pick = (!overlay.hidden && dlg.querySelector('.dbtns button.primary:not(:disabled)')) || focusList(root)[0];
+    if (!pick) return;
+    pick.focus({preventScroll: true});   // (taking the focus must not scroll the title off the top)
+    if (!overlay.hidden) { const text = dlg.querySelector('.body'); if (text) text.scrollTop = 0; dlg.scrollTop = 0; }
+  }, 0);
+}
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey) return;
+  const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft', on = back || e.key === 'ArrowDown' || e.key === 'ArrowRight';
+  if (!on || typing(document.activeElement)) return;
+  const battle = $('#battle');
+  if (overlay.hidden && battle && !battle.hidden) return;   // the fight screen is steering
+  if (overlay.hidden && tinyLive()) return;                 // ...and so are the handheld's screens
+  const root = focusRoot(), all = root ? focusList(root) : [];
+  if (!all.length) return;
+  // In a dialogue that does not fit, the arrows read it: the numbers are how an answer is picked, and the
+  // answers are pinned at the foot where they can be seen the whole time.
+  if (!overlay.hidden) {
+    const text = dlg.querySelector('.body') || dlg;
+    if (text.scrollHeight > text.clientHeight + 2) {
+      e.preventDefault();
+      text.scrollTop += back ? -34 : 34;
+      return;
+    }
+  }
+  // In the products, up and down step a whole row at a time (left and right walk control by control).
+  const row = document.activeElement.closest && document.activeElement.closest('#market .row');
+  if (row && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    // (only while there is another row: off the end of the list the walk carries on out of the products,
+    //  so the keys never trap you in them)
+    const rows = [...$('#market').querySelectorAll('.row')], i = rows.indexOf(row) + (back ? -1 : 1);
+    const to = i >= 0 && i < rows.length && rows[i], btn = to && focusList(to)[0];
+    if (btn) {
+      e.preventDefault();
+      btn.focus();
+      if (btn.scrollIntoView) btn.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      return;
+    }
+  }
+  const at = all.indexOf(document.activeElement), step = back ? -1 : 1;
+  e.preventDefault();
+  // ...and if one of them still refuses the focus, go on to the next one rather than stand still.
+  let j = at < 0 ? (back ? all.length - 1 : 0) : (at + step + all.length) % all.length;
+  for (let i = 0; i < all.length; i++, j = (j + step + all.length) % all.length) {
+    const next = all[j];
+    next.focus();
+    if (document.activeElement === next) {
+      if (next.scrollIntoView) next.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      break;
+    }
+  }
+}, true);
+// The keys a player reaches for every turn, so nothing needs a walk down a list: Escape backs out, 1-9 pick
+// the numbered button in front of you, and a handful of letters open the things you use constantly. None of
+// them fire while something is being typed into, and none of them reach over the fight screen, which has its
+// own keys (it steers with WASD as well as the arrows).
+const KEY_ACTS = {b: 'buy', s: 'sell', t: 'travel', i: 'inventory', g: 'gearmenu', m: 'base'};
+// (what Escape is allowed to press: never an answer that acts, so "Leave" on its own but not "Leave it
+//  and move on", and never "Get out", which ends a deep run)
+const BACK_OUT = /^(back|close|cancel|not now|not yet|no\b|no,|never mind|stay|done|ok)\b|^leave$/i;
+const press = el => { if (el && !el.disabled) el.dispatchEvent(new MouseEvent('click', {bubbles: true})); };
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey || typing(document.activeElement)) return;
+  const battle = $('#battle'), fight = !!battle && !battle.hidden, open = !overlay.hidden, k = e.key;
+  // The handheld's own screens take their keys first (see tinyKey): the numbers, the arrows and Escape.
+  if (!open && !fight && tinyLive() && tinyKey(e)) { e.preventDefault(); return; }
+  // Escape, tapped, backs out of a dialogue. (Held down it quits the game on the handheld, so nothing here
+  // waits on it.) It never answers a dialogue with something that spends or destroys anything.
+  if (k === 'Escape') {
+    if (!open) return;
+    const outs = [...dlg.querySelectorAll('.dbtns button:not(:disabled)')].filter(b => BACK_OUT.test(b.textContent.trim()));
+    if (outs.length) { e.preventDefault(); press(outs[outs.length - 1]); }
+    return;
+  }
+  // Page up and down (and Home and End) read through whatever is in front of you: a long notice, or the
+  // pane the ring is in, since a pane on this screen scrolls inside itself.
+  if (k === 'PageDown' || k === 'PageUp' || k === 'Home' || k === 'End') {
+    const near = document.activeElement.closest && document.activeElement.closest('#tiny .tbody,.basewrap');
+    const box = open ? (dlg.querySelector('.body') || dlg) : near || (tinyEl() && tinyEl().querySelector('.tbody'));
+    if (!box) return;
+    e.preventDefault();
+    const h = Math.max(24, box.clientHeight - 12);
+    box.scrollTop = k === 'Home' ? 0 : k === 'End' ? box.scrollHeight
+      : box.scrollTop + (k === 'PageDown' ? h : -h);
+    return;
+  }
+  if (k >= '1' && k <= '9') {
+    // in a fight: whichever list is in front — the results, an open sub-menu, or the commands
+    const where = fight && (battle.querySelector('.bres:not([hidden])') || battle.querySelector('.bsub:not([hidden])')
+      || battle.querySelector('.bcmd'));
+    const list = open ? [...dlg.querySelectorAll('.body [data-pick]:not(.tile):not(.slottag),.dbtns button')]
+      : fight ? (where ? [...where.querySelectorAll('.bopt')] : [])
+      : [...$('#actions').querySelectorAll('button')];
+    if (list[+k - 1]) { e.preventDefault(); press(list[+k - 1]); }
+    return;
+  }
+  if (open || fight) return;
+  const act = KEY_ACTS[k.toLowerCase()];
+  if (!act) return;
+  if (act === 'buy' || act === 'sell') {   // B and S work the product row the ring is on
+    const row = document.activeElement.closest && document.activeElement.closest('#market .row');
+    const btn = row && [...row.querySelectorAll('.btns button')].find(b => b.dataset.act === act);
+    if (btn) { e.preventDefault(); press(btn); }
+    return;
+  }
+  const el = $(`#app [data-act="${act}"]`);
+  if (el) { e.preventDefault(); press(el); }
+}, true);
+
+// Enter or Space on the head of a fold (the products, the mission, the Local BBS) opens and shuts it. The
+// browser does this itself from a real keyboard, but not from every one: on the machine this layout is for,
+// the keys arrive from a bridge, and the fold is the only way to the prices, so it is done here outright.
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const s = document.activeElement, box = s && s.parentElement;
+  if (!s || s.tagName !== 'SUMMARY' || !box || box.tagName !== 'DETAILS') return;
+  e.preventDefault();   // (and so the browser does not open it a second time)
+  box.open = !box.open;
+}, true);
+
+// ---------- the handheld's screens ----------
+// Five screens with one job each. Each is built from what render() has already drawn into the ordinary
+// layout (which is not shown at this size), so the game has one set of code and only the shape changes.
+// The number keys work whatever is in front of you; left and right change screen; Escape comes back here.
+const TINY_VIEWS = ['MARKET', 'YOU', 'JOBS', 'LOG', 'DO'];
+let tinyAt = 0, tinyRow = 0;
+const tinyEl = () => $('#tiny');
+const tinyLive = () => tinyScreen() && !!tinyEl() && !!tinyEl().firstChild;
+// What the number keys pick on this screen: a product, a job, or something to do.
+function tinyItems() {
+  const el = tinyEl(), view = TINY_VIEWS[tinyAt];
+  if (!el) return [];
+  if (view === 'MARKET') return [...el.querySelectorAll('.tbody .row')];
+  if (view === 'JOBS') return [...el.querySelectorAll('.tbody .job')];
+  if (view === 'DO') return [...el.querySelectorAll('.tbody .acts button')];
+  return [];
+}
+// The line of keys along the foot: on the market it says what the buttons of the row you are on would do,
+// so "buy" or "store" or "dump" is never a guess.
+function tinyStrip() {
+  const view = TINY_VIEWS[tinyAt], move = '<b>&larr;&rarr;</b>screen';
+  if (view === 'MARKET') {
+    const bs = [...(tinyItems()[tinyRow] || document.createElement('i')).querySelectorAll('.btns button')];
+    const say = (b, key) => (b && !b.disabled ? `<b>${key}</b>${b.textContent.trim().toLowerCase()}` : '');
+    return `<b>1-0</b>pick${say(bs[0], 'ENT')}${say(bs[1], 'S')}<b>T</b>go ${move}`;
+  }
+  const upto = tinyItems().length > 9 ? '1-0' : '1-9';
+  if (view === 'YOU') return `<b>G</b>gear <b>I</b>kit <b>T</b>go <b>ESC</b>market ${move}`;
+  if (view === 'JOBS') return `<b>${upto}</b>take it <b>ESC</b>market ${move}`;
+  if (view === 'LOG') return `<b>&uarr;&darr;</b>read <b>ESC</b>market ${move}`;
+  return `<b>${upto}</b>do it <b>ESC</b>market ${move}`;
+}
+function tinyMark() {
+  const items = tinyItems(), el = tinyEl();
+  if (!el) return;
+  tinyRow = items.length ? Math.max(0, Math.min(tinyRow, items.length - 1)) : 0;
+  if (TINY_VIEWS[tinyAt] === 'MARKET') {
+    items.forEach((r, i) => r.classList.toggle('sel', i === tinyRow));
+    const on = items[tinyRow];
+    if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest'});
+  }
+  const strip = el.querySelector('.tkeys');
+  if (strip) strip.innerHTML = tinyStrip();
+}
+function renderTiny() {
+  const el = tinyEl();
+  if (!el) return;
+  if (!tinyScreen()) { if (el.firstChild) el.textContent = ''; return; }
+  const view = TINY_VIEWS[tinyAt], home = S.loc === BUNKER;
+  // A fold is no use when the screen is the thing it folds: it is taken apart, keeping its heading only
+  // where the screen holds more than one list. (Taking it apart also leaves the fold on the ordinary
+  // layout alone, and saves the device building a fold it would never open.)
+  const open = (html, heads) => {
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    box.querySelectorAll('.basewrap').forEach(d => d.remove());   // the cutaway is not worth building here
+    box.querySelectorAll('details').forEach(d => {
+      const flat = document.createElement('div');
+      flat.className = 'fold';
+      for (const node of [...d.childNodes]) {
+        if (node.nodeName === 'SUMMARY' && !heads) continue;
+        flat.appendChild(node);
+      }
+      d.replaceWith(flat);
+    });
+    return box;
+  };
+  let body = '';
+  if (view === 'MARKET') {
+    body = open($('#market').innerHTML).innerHTML;
+  } else if (view === 'YOU') {
+    body = $('#vitals').innerHTML + `<div class="figs">${$('#stats').innerHTML}</div>`;
+  } else if (view === 'JOBS') {
+    const box = open($('#quest').innerHTML + $('#jobs').innerHTML, true);
+    // DUNGEONS: the addresses you are holding belong with the other work on offer; one line each here,
+    // and the whole card (with what the Intel Board has read) in the Deep run dialog that opens them.
+    const leads = dunLeads().filter(L => DUN_TH[L.th]).map(L => {
+      const T = DUN_TH[L.th], here = dunHere(L);
+      // (the word for a floor says which kind it is: a dive has layers, a building has floors)
+      return `<div class="lead">${cap1(T.n)} &middot; ${L.deep} ${T.word}${L.deep === 1 ? '' : 's'} &middot; ` +
+        `${here ? '<b class="green">here</b>' : esc(dunWhere(L))}</div>`;
+    }).join('');
+    const work = box.textContent.trim() ? `<div class="jobs">${box.innerHTML}</div>` : '';
+    body = work + (leads ? `<div class="jobs"><h3>ADDRESSES &middot; DEEP RUN</h3>${leads}</div>` : '')
+      || '<div class="tnone">No work on offer here. Jobs turn up as the days go on, and the Local BBS posts them.</div>';
+  } else if (view === 'LOG') {
+    const news = $('#news').innerHTML;
+    body = `<div class="logs">${news ? `<div class="news">${news}</div>` : ''}${$('#log').innerHTML}</div>`;
+  } else {
+    // everything you can do here, ending with the buttons that live in the title bar of the wider layout
+    body = `<div class="acts">${$('#actions').innerHTML}${$('.hbtns').innerHTML}</div>`;
+  }
+  el.innerHTML =
+    `<div class="thead"><b>${view === 'MARKET' && home ? 'STASH' : view}</b>` +
+    `<span>Day ${S.day}/${DAYS}</span><span>L${levelInfo().level}</span>` +
+    `<span class="where">${esc(S.loc)}</span><span class="trips">${S.trips} trips</span></div>` +
+    `<div class="tsum"><b>${money(S.cash)}</b><span>drive ${num(used())}/${num(cap())}</span>` +
+    `<span class="debt">debt ${money(S.debt)}</span></div>` +
+    `<div class="tbody">${body}</div><div class="tkeys">${tinyStrip()}</div>`;
+  tinyMark();
+}
+// Every key on these screens. Returns true when it has taken the key.
+function tinyKey(e) {
+  const k = e.key, view = TINY_VIEWS[tinyAt], items = tinyItems();
+  if (k === 'ArrowLeft' || k === 'ArrowRight') {
+    tinyAt = (tinyAt + (k === 'ArrowRight' ? 1 : -1) + TINY_VIEWS.length) % TINY_VIEWS.length;
+    tinyRow = 0;
+    renderTiny();
+    return true;
+  }
+  if (k === 'Escape') { if (tinyAt) { tinyAt = 0; tinyRow = 0; renderTiny(); } return true; }
+  if (k === 'ArrowUp' || k === 'ArrowDown') {
+    const by = k === 'ArrowDown' ? 1 : -1;
+    if (view === 'MARKET' && items.length) { tinyRow = (tinyRow + by + items.length) % items.length; tinyMark(); }
+    else { const box = tinyEl().querySelector('.tbody'); if (box) box.scrollTop += by * 30; }
+    return true;
+  }
+  if (k >= '0' && k <= '9') {
+    const on = items[k === '0' ? 9 : +k - 1];
+    if (on) {
+      if (view === 'MARKET') { tinyRow = items.indexOf(on); tinyMark(); }
+      else press(view === 'JOBS' ? on.querySelector('button') : on);
+    }
+    return true;
+  }
+  if (view === 'MARKET' && (k === 'Enter' || k === ' ' || k.toLowerCase() === 'b' || k.toLowerCase() === 's')) {
+    const bs = [...(items[tinyRow] || document.createElement('i')).querySelectorAll('.btns button')];
+    press(k.toLowerCase() === 's' ? bs[1] : bs[0]);
+    return true;
+  }
+  return false;
+}
+
+// When a dialog or the fight screen closes, the screen behind it is what you are looking at now: if the
+// focus went with the thing that closed, put it on the first control of the screen, so Enter and the arrow
+// keys always have something to work on. (A redraw usually gets there first and keeps your place; this is
+// for the times nothing redraws.)
+function backToScreen() {
+  if (!tinyScreen() || tinyLive()) return;
+  setTimeout(() => {
+    const app = $('#app'), battle = $('#battle');
+    if (!overlay.hidden || (battle && !battle.hidden) || !app) return;
+    const now = document.activeElement;
+    if (now && now !== document.body && now.isConnected && app.contains(now)) return;
+    const first = focusList(app)[0];
+    if (first) first.focus();
+  }, 150);
+}
+for (const el of [overlay, $('#battle')]) {
+  if (el) new MutationObserver(backToScreen).observe(el, {attributes: true, attributeFilter: ['hidden']});
+}
+
+// Redrawing the main screen throws away the button you were on: put the focus back on the same one if it is
+// still there (the same action and argument), on whatever took its place if it is not, and on the first
+// control if the screen has changed under you.
+function keepFocus(run) {
+  if (!tinyScreen() || !overlay.hidden || tinyLive()) return run();   // (the screens keep their own place)
+  const was = document.activeElement, app = $('#app');
+  const inside = was && app && app.contains(was) && was !== app;
+  const key = inside && was.dataset ? `${was.dataset.act || ''}|${was.dataset.arg || ''}|${was.dataset.pick || ''}` : '';
+  const at = inside ? focusList(app).indexOf(was) : -1;
+  run();
+  if (!overlay.hidden) return;
+  const all = focusList(app);
+  if (!inside) {   // the focus was on a dialog that has just gone: start the screen off on its first control
+    const now = document.activeElement;
+    if ((!now || now === document.body || !now.isConnected) && all[0]) all[0].focus();
+    return;
+  }
+  const arg = inside && was.dataset ? was.dataset.arg : '';
+  const same = key && key !== '||' && all.find(el => `${el.dataset.act || ''}|${el.dataset.arg || ''}|${el.dataset.pick || ''}` === key);
+  // the same button has gone (it was the last one you could buy, say): stay on its row if it is still there
+  const near = !same && arg && all.find(el => el.dataset.arg === arg);
+  const pick = same || near || (at >= 0 && all[Math.min(at, all.length - 1)]) || all[0];
+  if (pick) { pick.focus(); if (pick.scrollIntoView) pick.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+}
 // ===== THE BASE (the screen, the stations' dialogs, the Range): END =====
 
 function nextDay(inside) {
@@ -7735,6 +8359,7 @@ function nextDay(inside) {
   S.drills = 0;      // the practice board is fresh again
   plantsTick();      // devices left behind on break-ins send their money home
   baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
+  dunNight();        // DUNGEONS: addresses go cold, and the Intel Board may have turned one up
   S.raided = false;
   S.mood = '';
   S.hp = Math.min(100, S.hp + 3 + bonus('regen') + skRegen());   // SKILL TREE: Field Dressing
@@ -7836,6 +8461,8 @@ async function randomEvent() {
   }
   if (S.loc !== BUNKER && Math.random() < JUMP_ODDS) return jumped();   // street muscle, waiting where you come up
   if (S.loc !== BUNKER && Math.random() < JUNKIE_ODDS) return junkie();
+  // DUNGEONS: somebody selling an address for a deep run.
+  if (S.loc !== BUNKER && Math.random() < DUN.brokerOdds) return dunBroker();
   // A street contact with a gig: only when you are free to take one and there is time left to do it.
   if (S.loc !== BUNKER && !S.gig && S.day <= DAYS - 2 && Math.random() < CONTACT_ODDS) return contact();
   if (Math.random() < 0.5) return;   // most trips are uneventful
@@ -8168,11 +8795,14 @@ const BTL = (() => {
   let cv = null, g = null, W = 256, K = 3, scn = null;   // K: screen pixels per big pixel
   let foes = [], hero = null, parts = [], tweens = [], waits = [];
   let busy = false, skipping = false, ready = Promise.resolve(), raf = 0, lastTick = -1, dirty = true;
-  let V = {};                         // stage-wide effects: flash, shake, dim, wipe, cursor
+  let frz = 0, lastNow = 0, drift = 0;   // frz: hold the picture until this moment (the hit-stop); drift: time held so far
+  const clock = () => performance.now() - drift;   // the stage's own clock: it stops during a hit-stop
+  let V = {};                         // stage-wide effects: flash, shake, dim, wipe, zoom, cursor
   let list = null;                    // the menu that has the keyboard, if any
   let aim = null, lastCmd = null, turn = 'you';
   const on = () => !AUTO && !!E;
-  const speed = () => (prefs.fast || calm ? 0.45 : 1);
+  // How long everything takes. x1 is a touch brisker than it was (1.34.0): the old pace left dead air between moves.
+  const speed = () => (prefs.fast || calm ? 0.42 : 0.8);
   const dir = a => (a.flip ? 1 : -1);   // which way someone faces: you face left, they face right
   const living = () => foes.filter(f => f.alive);
 
@@ -8186,7 +8816,7 @@ const BTL = (() => {
   }
   // Slide numbers on an object to new values. The frame loop moves them; the timer finishes them, frames or not.
   function tw(o, to, ms, ease) {
-    const mine = Object.keys(to).map(k => ({o, k, a: o[k], b: to[k], t0: performance.now(), d: Math.max(1, ms * speed()), ease: ease || 'out'}));
+    const mine = Object.keys(to).map(k => ({o, k, a: o[k], b: to[k], t0: clock(), d: Math.max(1, ms * speed()), ease: ease || 'out'}));
     tweens = tweens.filter(t => !(t.o === o && t.k in to)).concat(mine);
     kick();
     return wait(ms).then(() => {
@@ -8202,7 +8832,35 @@ const BTL = (() => {
     skipping = true;
     for (const w of waits.splice(0)) { clearTimeout(w.id); w.resolve(); }
     parts = [];
+    frz = 0;
+    V.zoom = 1;
     dirty = true;
+  }
+  // A hit-stop: a beat with the picture held exactly where it is, so a heavy hit lands instead of sliding past.
+  // Only called when nothing is part-way through a tween, since the tweens are what gets held.
+  async function freeze(ms) {
+    if (calm || skipping || !ms) return;
+    frz = performance.now() + ms * speed();
+    kick();
+    await wait(ms);
+    frz = 0;
+  }
+  // The camera leans in a little on the big moments. Off on a small screen and when motion is turned down,
+  // because it scales the whole backdrop every frame.
+  const canZoom = () => !calm && K >= 3;
+  function punch(z, ms) {
+    if (!canZoom()) return;
+    tw(V, {zoom: z}, ms || 110);
+  }
+  function unpunch(ms) {
+    if (!canZoom()) return;
+    tw(V, {zoom: 1}, ms || 240);
+  }
+  // Where the camera leans: on whoever is acting, kept inside the stage so no edge of the backdrop shows.
+  function look(a) {
+    if (!canZoom() || !a) return;
+    V.cx = Math.max(W * 0.3, Math.min(W * 0.7, a.x + a.ox));
+    V.cy = Math.max(H * 0.35, Math.min(H * 0.72, a.y - 24 * a.s));
   }
 
   // ---------- sprites: the pixel figures as bitmaps this canvas can draw ----------
@@ -8744,6 +9402,10 @@ const BTL = (() => {
   const middle = a => [a.x + a.ox, a.y + a.oy - 26 * a.s];
 
   function draw(now) {
+    // The stage runs on its own clock, which stops dead during a hit-stop and then carries on from there.
+    if (frz > now) drift += lastNow ? Math.min(100, now - lastNow) : 0;
+    lastNow = now;
+    now -= drift;
     for (const t of tweens) {
       const p = Math.min(1, Math.max(0, (now - t.t0) / t.d));
       t.o[t.k] = t.a + (t.b - t.a) * (t.ease === 'in' ? p * p : t.ease === 'lin' ? p : 1 - (1 - p) * (1 - p));
@@ -8753,7 +9415,9 @@ const BTL = (() => {
     g.globalAlpha = 1;
     R(0, 0, cv.width, cv.height, '#000');
     const sh = V.shake > 0.2 ? V.shake : 0;
-    g.setTransform(K, 0, 0, K, Math.round((Math.random() - 0.5) * 2 * sh) * K, Math.round((Math.random() - 0.5) * 2 * sh) * K);
+    const z = V.zoom > 1.001 ? V.zoom : 1;
+    const ox = Math.round((Math.random() - 0.5) * 2 * sh) * K, oy = Math.round((Math.random() - 0.5) * 2 * sh) * K;
+    g.setTransform(K * z, 0, 0, K * z, ox + K * V.cx * (1 - z), oy + K * V.cy * (1 - z));
     g.drawImage(scn.c, 0, 0);
     ambient(now, 0);
     const all = foes.concat(hero ? [hero] : []).filter(a => a.show && a.body).sort((a, b) => a.y - b.y);
@@ -8852,6 +9516,7 @@ const BTL = (() => {
     const [kind, col] = E.kind === 'raid' ? ['node', SYN_COL[E.gang] || '#3dff9a'] : S.loc === BUNKER ? ['bunker', '#fcee0a'] : SCENES[S.loc] || ['street', '#ff4fd8'];
     scn = paint(kind, W, col, {gang: E.gang, boss: foes.some(f => f.boss)});
     for (const a of foes.concat(hero ? [hero] : [])) a.x = Math.round(a.fx * W);
+    V.cx = W / 2; V.cy = H / 2; V.zoom = 1;
     dirty = true;
   }
   let sizing = 0;
@@ -8860,10 +9525,10 @@ const BTL = (() => {
   // ---------- effects: short-lived things drawn over the stage ----------
   function add(ms, draw, delay) {
     if (skipping) return;
-    parts.push({t0: performance.now() + (delay || 0) * speed(), d: Math.max(1, ms * speed()), draw});
+    parts.push({t0: clock() + (delay || 0) * speed(), d: Math.max(1, ms * speed()), draw});
     kick();
   }
-  function flash(color, strength) { if (calm) return; V.flashC = color; V.flash = strength || 0.75; tw(V, {flash: 0}, 320); }
+  function flash(color, strength, ms) { if (calm) return; V.flashC = color; V.flash = strength || 0.75; tw(V, {flash: 0}, ms || 320); }
   function shake(n) { if (calm) return; V.shake = n; tw(V, {shake: 0}, 300, 'lin'); }
   const FX = {
     tracer(x1, y1, x2, y2, c) {
@@ -8879,11 +9544,54 @@ const BTL = (() => {
       const s = big ? 5 : 3;
       add(90, t => { g.globalAlpha = 1 - t; R(x - s, y - 1, s * 2 + 1, 3, c); R(x - 1, y - s, 3, s * 2 + 1, c); R(x - 2, y - 2, 5, 5, '#ffffff'); });
     },
-    slash(x, y, c, flip) {   // a crescent that sweeps down through the target
-      add(170, t => { g.globalAlpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
+    slash(x, y, c, flip, o) {   // a crescent that sweeps through the target. o: {a0, a1, r, ms, late} to aim it
+      o = o || {};
+      const a0 = o.a0 === undefined ? -1.9 : o.a0, a1 = o.a1 === undefined ? 0.7 : o.a1, r = o.r || 15;
+      add(o.ms || 170, t => { g.globalAlpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
         const to = Math.min(1, t * 2.2);
-        for (let i = 0; i <= 22 * to; i++) { const a = -1.9 + i / 22 * 2.6, px = x + flip * Math.cos(a) * 15, py = y + Math.sin(a) * 17;
-          R(px - 1, py - 1, 3, 3, c); R(px + flip, py, 1, 1, '#ffffff'); } });
+        for (let i = 0; i <= 22 * to; i++) { const a = a0 + i / 22 * (a1 - a0), px = x + flip * Math.cos(a) * r, py = y + Math.sin(a) * (r + 2);
+          R(px - 1, py - 1, 3, 3, c); R(px + flip, py, 1, 1, '#ffffff'); } }, o.late);
+    },
+    // Casings thrown out of the breech: they bounce once off the floor.
+    shells(x, y, c, n, flip) {
+      const bits = Array.from({length: n}, () => [10 + Math.random() * 26, -30 - Math.random() * 30, Math.random() * 0.4]);
+      add(560, t => { for (const [vx, vy, late] of bits) { const k = Math.max(0, (t - late) / (1 - late)); if (!k) continue;
+        let py = vy * k + 150 * k * k; if (py > 0) py = -py * 0.3;   // the bounce
+        g.globalAlpha = 1 - k * k; R(x + flip * vx * k, y + py, 2, 1, k > 0.5 ? '#8a7a3a' : c); } });
+    },
+    // A shotgun's spread: a handful of short tracers fanned out from the muzzle.
+    pellets(x1, y1, x2, y2, c, n) {
+      const sp = Array.from({length: n}, (v, i) => (i / (n - 1) - 0.5) * 26 + (Math.random() - 0.5) * 5);
+      add(150, t => { const a = Math.max(0, t * 1.5 - 0.3), z = Math.min(1, t * 1.6);
+        g.globalAlpha = 1 - t * t;
+        for (const d of sp) { const ex = x2, ey = y2 + d;
+          pline(x1 + (ex - x1) * a, y1 + (ey - y1) * a, x1 + (ex - x1) * z, y1 + (ey - y1) * z, c, 1); } });
+    },
+    // A heavy weapon winding up: a glow at the muzzle that tightens before it goes off.
+    charge(x, y, c, ms) {
+      add(ms, t => { g.globalAlpha = 0.35 + t * 0.65; const r = Math.round(2 + (1 - t) * 7);
+        for (let k = 0; k < 10; k++) { const a = t * 9 + k * TAU / 10, d = r + 3 - t * 3; R(x + Math.cos(a) * d, y + Math.sin(a) * d, 1, 1, k % 2 ? c : '#ffffff'); }
+        disc(x, y, Math.max(1, Math.round(1 + t * 3)), t > 0.7 ? '#ffffff' : c); });
+    },
+    // Something hitting the floor hard: dust, and a few lines kicked out sideways.
+    crack(x, y, c) {
+      add(300, t => { g.globalAlpha = 1 - t; const r = 4 + t * 20;
+        for (const s of [-1, 1]) { pline(x + s * r * 0.5, y, x + s * r, y - 3 - t * 2, c, 1); pline(x + s * r * 0.4, y + 1, x + s * r * 0.8, y + 1, '#ffffff', 1); } });
+      FX.puff(x, y, '#9aa0b8', 3, 16, 320);
+    },
+    // A cone of fire, plasma or microwaves, held for as long as the trigger is down.
+    flame(x1, y1, x2, y2, c, ms) {
+      const bits = Array.from({length: 14}, (v, i) => [i / 14, (Math.random() - 0.5) * 22, 2 + Math.random() * 4]);
+      add(ms, t => { for (const [late, off, r] of bits) { const k = ((t - late) * 2.4) % 1; if (k < 0) continue;
+        g.globalAlpha = 0.8 * (1 - k); const px = x1 + (x2 - x1) * k, py = y1 + (y2 - y1) * k + off * k;
+        disc(px, py, Math.round(r * (0.4 + k)), k < 0.3 ? '#ffffff' : k < 0.7 ? c : mix(c, '#2a0a12', 0.5)); } });
+    },
+    // A blade thrown end over end.
+    spin(x1, y1, x2, y2, c, ms) {
+      add(ms, t => { const x = x1 + (x2 - x1) * t, y = y1 + (y2 - y1) * t - Math.sin(t * Math.PI) * 16, a = t * 22;
+        for (let k = 0; k < 2; k++) { const an = a + k * Math.PI;
+          pline(x, y, x + Math.cos(an) * 5, y + Math.sin(an) * 5, k ? c : '#ffffff', 1); }
+        g.globalAlpha = 0.35; R(x - (x2 - x1) * 0.04, y, 2, 1, c); });
     },
     star(x, y, c) {
       add(160, t => { g.globalAlpha = 1 - t; const r = 3 + t * 11;
@@ -9106,61 +9814,179 @@ const BTL = (() => {
   });
 
   // ---------- moves ----------
-  const hop = async (a, h) => { await tw(a, {oy: -(h || 6)}, 90); await tw(a, {oy: 0}, 90, 'in'); };
-  const home = a => tw(a, {ox: 0, oy: 0, y: a.y0, aim: a.rest, lift: 0, rot: 0}, 170);
-  // Somebody takes a hit: white, knocked back, white again.
+  // What an attack looks like. The 73 weapons come down to a dozen silhouettes, picked from the kind of weapon,
+  // how many shots it gets and a few names that have earned their own. Nothing here touches what a weapon does.
+  function style(i) {
+    const w = WEAPONS[i];
+    if (!w) return 'fist';
+    const [name, price, shots, , kind] = w;
+    if (kind === 'blade') return /Shuriken/.test(name) ? 'throw' : shots > 1 ? 'flurry' : 'slash';
+    if (kind === 'blunt') return price >= 11000 || /Sledge|Mace|Mjolnir|Monitor|Tower PC|Hammer|Brick Not/.test(name) ? 'smash' : 'club';
+    if (kind === 'gun') return shots >= 3 ? 'burst' : /Pump-Action|Sawn-Off|Double-Tap|Derringer|Shotgun/.test(name) ? 'spread' : shots === 2 ? 'spread' : 'pistol';
+    if (/Launcher|RPG|Grenade|Nuke|Potato|Orbital/.test(name)) return 'lob';
+    if (/Flame|Plasma|Tesla|Microwave|Laser|Coil/.test(name)) return 'spray';
+    return shots >= 3 ? 'autocannon' : 'beam';
+  }
+  const RANGED = {pistol: 1, spread: 1, burst: 1, beam: 1, autocannon: 1, lob: 1, spray: 1};
+  // How hard a silhouette hits, for the shake, the flash and the length of the hit-stop.
+  const PUNCH = {fist: 0.3, club: 0.55, smash: 1, slash: 0.6, flurry: 0.5, throw: 0.45,
+    pistol: 0.5, spread: 0.8, burst: 0.4, beam: 1, autocannon: 0.6, lob: 1, spray: 0.55};
+
+  const hop = async (a, h) => { await tw(a, {oy: -(h || 6)}, 85); await tw(a, {oy: 0}, 85, 'in'); };
+  const home = a => tw(a, {ox: 0, oy: 0, y: a.y0, aim: a.rest, lift: 0, rot: 0}, 160);
+  // Somebody takes a hit: white, knocked back off balance, white again.
   async function recoil(a, hard) {
     a.flash = 1; dirty = true;
-    tw(a, {ox: a.ox - dir(a) * (hard ? 7 : 4)}, 60);
-    await wait(70); a.flash = 0; dirty = true;
-    await wait(50); a.flash = 1; dirty = true;
-    await wait(50); a.flash = 0; dirty = true;
+    tw(a, {ox: a.ox - dir(a) * (hard ? 9 : 4), rot: -dir(a) * (hard ? 0.12 : 0.05)}, 55);
+    await wait(60); a.flash = 0; dirty = true;
+    tw(a, {rot: 0}, 150);
+    await wait(45); a.flash = 1; dirty = true;
+    await wait(45); a.flash = 0; dirty = true;
   }
-  // One hostile goes down: taken apart if it was done over the wire, knocked flat if it was done by hand.
-  async function drop(f, wire) {
+  // Somebody standing near the one that just went down: a step away and a flinch. Costs nothing and is not waited on.
+  function flinch(a) {
+    if (calm || !a.alive) return;
+    const d = dir(a);
+    tw(a, {ox: a.ox - d * 3, rot: -d * 0.08}, 90).then(() => tw(a, {ox: 0, rot: 0}, 230));
+  }
+  // A hit landing. p: 0 a graze, 1 the heaviest thing anyone carries. The hit-stop is what makes it read as weight.
+  async function land(t, p, col, dirt) {
+    t.flash = 1; dirty = true;
+    shake(2 + p * 5);
+    if (p > 0.7) flash('#ffffff', 0.1 + p * 0.12, 150);   // a blink, not a wash: it is over before the hold is
+    FX.sparks(t.x + t.ox, t.y - 26 * t.s, col || '#ffffff', 4 + Math.round(p * 7));
+    if (p > 0.55) FX.star(t.x + t.ox, t.y - 28 * t.s, '#ffffff');
+    if (dirt) FX.crack(t.x + t.ox, t.y - 1, '#b9c0d8');
+    if (p >= 0.9) punch(1.06, 80);
+    if (p > 0.2) await freeze(35 + p * 75); else await wait(30);   // p of 0 is a hit in the middle of a burst: no hold
+    t.flash = 0; dirty = true;
+  }
+  // One hostile goes down: taken apart if it was done over the wire, knocked off its feet if it was done by hand.
+  // last: the one that ends the fight, which gets a longer beat.
+  async function drop(f, wire, last) {
     f.alive = false; f.mark = '';
     SND.play('bdown');
-    pop(f, wire ? 'OFFLINE' : 'DOWN', 'yellow');
+    if (!wire) SND.play('thud', 0.12);
+    if (last) SND.play('bbonk', 0.02);
+    pop(f, wire ? 'OFFLINE' : last ? 'DOWN!' : 'DOWN', 'yellow');
     stat();
+    for (const o of living()) if (o !== f && Math.abs(o.x - f.x) < 70) flinch(o);
     if (wire) {
-      f.glitch = 1; await wait(170); f.glitch = 0;
-      await tw(f, {die: 1}, 430, 'lin');
+      f.glitch = 1;
+      FX.glyphs(f.x + f.ox, f.y - 30 * f.s, f.col);
+      await wait(190); f.glitch = 0;
+      await tw(f, {die: 1}, 400, 'lin');
     } else {
       await recoil(f, true);
-      await tw(f, {rot: 1.5, ox: f.ox - dir(f) * 6}, 230, 'in');
-      FX.dust(f.x - dir(f) * 12 * f.s, f.y - 2);
-      for (let i = 0; i < 3; i++) { f.alpha = 0.25; dirty = true; await wait(55); f.alpha = 1; dirty = true; await wait(55); }
-      await tw(f, {alpha: 0}, 140);
+      // off its feet: thrown back, up, and over
+      tw(f, {ox: f.ox - dir(f) * 15, rot: 1.45}, 250, 'in');
+      await tw(f, {oy: -8}, 120);
+      await tw(f, {oy: 0}, 110, 'in');
+      FX.crack(f.x + f.ox - dir(f) * 8 * f.s, f.y - 1, '#b9c0d8');
+      shake(last ? 4 : 2);
+      for (let i = 0; i < 2; i++) { f.alpha = 0.3; dirty = true; await wait(50); f.alpha = 1; dirty = true; await wait(50); }
+      await tw(f, {alpha: 0}, 130);
     }
     f.show = false;
     dirty = true;
   }
-  async function dodge(t) {
+  // A miss, and they want to be seen getting out of the way: aside, back out of reach, or turned away with what they hold.
+  async function dodge(t, close) {
     pop(t, 'MISS');
-    await tw(t, {ox: t.ox - dir(t) * 6}, 80);
-    await tw(t, {ox: 0}, 120);
+    const how = close && t.arm && t.ph % 3 === 0 ? 'block' : t.ph % 2 ? 'lean' : 'side';
+    if (how === 'block') {
+      SND.play('bbonk');
+      await tw(t, {aim: 2.2, lift: 0.7, ox: t.ox - dir(t) * 3}, 70);
+      const [bx, by] = tip(t);
+      FX.sparks(bx, by, '#fff6a0', 5);
+      shake(1);
+      await tw(t, {aim: t.rest, lift: 0, ox: 0}, 160);
+    } else if (how === 'lean') {
+      await tw(t, {rot: dir(t) * 0.3, ox: t.ox - dir(t) * 5}, 80);
+      await tw(t, {rot: 0, ox: 0}, 150);
+    } else {
+      await tw(t, {ox: t.ox - dir(t) * 9}, 75);
+      await tw(t, {ox: 0}, 130);
+    }
   }
-  // Run up to someone and swing what you are holding.
-  async function melee(a, t, lands, blade) {
-    const to = t.x + dir(t) * (9 * t.s + 8 * a.s) - a.x;
-    tw(a, {oy: -5}, 90).then(() => tw(a, {oy: 0}, 80, 'in'));
-    await tw(a, {ox: to, y: t.y + 1}, 170);
-    await tw(a, {aim: 3.5, rot: 0.14, lift: 0.6}, 80);
-    SND.play(lands ? (blade ? 'bslash' : 'bbonk') : 'miss');
-    tw(a, {aim: 0.9, rot: -0.16, lift: 0}, 70, 'in');
+  // Run in and swing what you are holding. st: 'club' a quick swipe, 'smash' a two-handed overhead with a wind-up,
+  // 'slash' a blade that carries through, 'flurry' two of them, 'throw' a blade that leaves your hand, 'fist' bare hands.
+  async function swing(a, t, lands, st) {
+    const blade = st === 'slash' || st === 'flurry', big = st === 'smash';
     const [mx, my] = middle(t);
-    if (blade) FX.slash(mx, my, a.col, dir(a)); else if (lands) FX.star(mx, my - 4, a.col);
-    await wait(70);
+    look(a);
+    if (st === 'throw') {   // stay where you are, wind up and let it go
+      await tw(a, {aim: 4.3, rot: dir(a) * 0.2, ox: a.ox + dir(a) * 4}, 110);
+      SND.play('bslash');
+      tw(a, {aim: 1.1, rot: -dir(a) * 0.2, ox: a.ox - dir(a) * 5}, 70, 'in');
+      const [tx, ty] = tip(a);
+      FX.spin(tx, ty, mx, my, a.col, 190);
+      await wait(200);
+      if (lands) FX.slash(mx, my, a.col, dir(a), {r: 13, ms: 150});
+      tw(a, {rot: 0}, 120);
+      return;
+    }
+    const to = t.x + dir(t) * (9 * t.s + 8 * a.s) - a.x;
+    tw(a, {oy: -5}, 80).then(() => tw(a, {oy: 0}, 70, 'in'));
+    await tw(a, {ox: to, y: t.y + 1}, big ? 150 : 130);
+    FX.dust(a.x + a.ox - dir(a) * 6 * a.s, a.y - 1);
+    // the wind-up: how far back it goes, and how long it waits there, is most of what tells one weapon from another
+    await tw(a, {aim: big ? 4.6 : blade ? 3.9 : 3.4, rot: dir(a) * (big ? 0.22 : 0.12), lift: big ? 1 : 0.6}, big ? 140 : 75);
+    if (big) await wait(80);
+    SND.play(lands ? (blade ? 'bslash' : 'bbonk') : 'miss');
+    if (big && lands) SND.play('thud', 0.03);
+    // through the target and out the other side
+    tw(a, {aim: big ? 0.25 : blade ? 0.45 : 0.9, rot: -dir(a) * (big ? 0.28 : 0.16), lift: 0}, big ? 65 : 55, 'in');
+    if (blade) FX.slash(mx, my, a.col, dir(a), {r: 16});
+    else FX.slash(mx, my + 2, '#cdd6ff', dir(a), {a0: -2.4, a1: 0.3, r: big ? 20 : 15, ms: 150});
+    await wait(big ? 65 : 50);
+    if (st === 'flurry' && lands) {   // a second arc, the other way about
+      await tw(a, {aim: 3.4, rot: dir(a) * 0.1}, 60);
+      SND.play('bslash');
+      tw(a, {aim: 0.7, rot: -dir(a) * 0.14}, 55, 'in');
+      FX.slash(mx, my - 5, a.col, -dir(a), {a0: -0.4, a1: -2.6, r: 14, ms: 140});
+      await wait(55);
+    }
     tw(a, {rot: 0}, 100);
   }
-  // Level the weapon and fire once. to: [x, y] where the shot ends up.
-  async function fire(a, to, heavy) {
+  // Level the weapon and let one off. to: [x, y] where the shot ends up; st the silhouette; i which shot of the volley.
+  async function fire(a, to, st, i) {
     const [mx, my] = tip(a);
-    FX.muzzle(mx, my, a.col, heavy);
-    if (heavy) FX.beam(mx, my, to[0], to[1], a.col); else FX.tracer(mx, my, to[0], to[1], a.col);
-    const back = a.ox;
-    tw(a, {aim: AIMED + 0.4, ox: back - dir(a) * 2}, 40).then(() => tw(a, {aim: AIMED, ox: back}, 80));
-    await wait(heavy ? 90 : 60);
+    const back = a.ox, d = dir(a);
+    const kick = st === 'spread' ? 6 : st === 'beam' || st === 'lob' ? 7 : st === 'autocannon' ? 2.5 : st === 'burst' ? 1.6 : 3;
+    const rise = st === 'burst' || st === 'autocannon' ? 0.12 + i * 0.07 : st === 'spread' ? 0.55 : st === 'beam' ? 0.45 : 0.4;
+    let held = 60;
+    if (st === 'spread') {
+      FX.muzzle(mx, my, a.col, true);
+      FX.pellets(mx, my, to[0], to[1], a.col, 7);
+      FX.shells(mx, my - 2, '#d8c9a8', 1, d);
+      held = 90;
+    } else if (st === 'beam') {
+      FX.charge(mx, my, a.col, 150);
+      await wait(150);
+      FX.muzzle(mx, my, '#ffffff', true);
+      FX.beam(mx, my, to[0], to[1], a.col);
+      held = 110;
+    } else if (st === 'spray') {
+      FX.flame(mx, my, to[0], to[1], a.col, 320);
+      held = 300;
+    } else if (st === 'lob') {
+      FX.muzzle(mx, my, a.col, true);
+      FX.lob(mx, my, to[0], to[1] - 6, a.col, 300);
+      held = 300;
+    } else if (st === 'autocannon' || st === 'burst') {
+      FX.muzzle(mx, my, a.col, st === 'autocannon');
+      FX.tracer(mx, my, to[0], to[1] + rnd(-3, 3), a.col);
+      FX.shells(mx, my - 2, '#d8c9a8', 1, d);
+      held = st === 'autocannon' ? 55 : 45;
+    } else {
+      FX.muzzle(mx, my, a.col, false);
+      FX.tracer(mx, my, to[0], to[1], a.col);
+      FX.shells(mx, my - 2, '#d8c9a8', 1, d);
+      held = 65;
+    }
+    tw(a, {aim: AIMED + rise, ox: back - d * kick}, 40).then(() => tw(a, {aim: AIMED, ox: back}, st === 'burst' || st === 'autocannon' ? 55 : 95));
+    await wait(held);
   }
   const over = (a, t) => [t.x - dir(t) * 46, t.y - 58 * t.s - 3 + rnd(-4, 4)];   // a shot that goes over their head and on
   const centre = who => [who.reduce((sum, f) => sum + f.x, 0) / who.length, who.reduce((sum, f) => sum + f.y, 0) / who.length];
@@ -9171,7 +9997,8 @@ const BTL = (() => {
       if (AUTO) return;
       api.close();
       E = enc; title = head; run++;
-      V = {flash: 0, flashC: '#fff', shake: 0, dim: 0, wipe: 1, amb: !!enc.ambush, cursor: null};
+      V = {flash: 0, flashC: '#fff', shake: 0, dim: 0, wipe: 1, amb: !!enc.ambush, cursor: null, zoom: 1, cx: 0, cy: H / 2};
+      frz = 0; drift = 0; lastNow = 0;
       aim = null; lastCmd = null; turn = enc.ambush ? 'foes' : 'you'; busy = true; skipping = false;
       el.innerHTML = `<div class="bwrap ${enc.kind}"><div class="bfield"><div class="bstage"><canvas></canvas><div class="bw bban"></div>` +
         '<div class="bbig"></div><div class="bw bres" data-t="RESULTS" hidden></div></div><button class="bspd small"></button></div>' +
@@ -9180,6 +10007,9 @@ const BTL = (() => {
         `<div class="bhint">${hint}</div></div>`;
       el.hidden = false;
       el.scrollTop = 0;
+      // On a handheld the focus is sitting on a button of the screen behind: let it go, so Enter belongs
+      // to the fight (which steers itself from the document, focus or no focus).
+      if (tinyScreen() && document.activeElement && document.activeElement.blur) document.activeElement.blur();
       cv = q('canvas'); g = cv.getContext('2d');
       const who = roster(enc), spots = formation(who.length, who.some(f => f.boss));
       const grunts = spots.slice(who.some(f => f.boss) ? 1 : 0);
@@ -9310,8 +10140,10 @@ const BTL = (() => {
       begin();
       turn = 'you';
       banner(label); say(msg);
-      const h = hero, wp = WEAPONS[S.weapon];
+      const h = hero;
       const down = victims(kills), front = aim && aim.alive ? aim : targets()[0];
+      // Whether this move finishes the fight, and which of them is the one that does it: that one gets the longer beat.
+      const ends = down.length >= living().length, lastOne = ends && down.length ? down[down.length - 1] : null;
       const drops = [];
       if (cmd === 'med') {
         SND.play('heal');
@@ -9342,32 +10174,45 @@ const BTL = (() => {
         await tw(front, {ox: 0}, 150);
         await wait(250);
       } else if (cmd === 'shoot') {
-        const kind = wp ? wp[4] : 'blunt', club = info.hadRounds === false;
-        if (club || kind === 'blunt' || kind === 'blade') {
+        // An empty gun gets swung like a club; otherwise the weapon's own silhouette (see style()).
+        const st = info.hadRounds === false ? 'club' : style(S.weapon);
+        const p = PUNCH[st] || 0.5;
+        if (!RANGED[st]) {
           const order = down.length ? down : [front];
           for (const t of order.slice(0, 3)) {
             const lands = down.includes(t);
-            await melee(h, t, lands, kind === 'blade' && !club);
-            if (lands) { shake(2); drops.push(drop(t, false)); await wait(90); } else await dodge(t);
+            await swing(h, t, lands, st);
+            if (lands) {
+              await land(t, p, st === 'slash' || st === 'flurry' || st === 'throw' ? h.col : '#ffffff', st === 'smash');
+              drops.push(drop(t, false, t === lastOne));
+              await wait(70);
+            } else await dodge(t, true);
           }
-          for (const t of order.slice(3)) drops.push(drop(t, false));
+          for (const t of order.slice(3)) drops.push(drop(t, false, t === lastOne));
+          unpunch();
         } else {
-          const heavy = kind === 'heavy', shots = Math.max(1, Math.min(5, info.fired || 1, Math.max(down.length, 3)));
-          await tw(h, {ox: -11}, 110);
-          await tw(h, {aim: AIMED, lift: 1}, 90);
+          const rapid = st === 'burst' || st === 'autocannon';
+          const shots = Math.max(1, Math.min(6, info.fired || 1, Math.max(down.length, rapid ? 4 : 3)));
+          look(h);
+          await tw(h, {ox: -11}, 100);
+          await tw(h, {aim: AIMED, lift: 1}, 80);
+          if (rapid) punch(1.03, 160);
           for (let i = 0; i < Math.max(shots, down.length); i++) {
             const t = down[i];
             if (i < shots) {
-              SND.play(heavy ? 'bbeam' : 'shoot');
-              await fire(h, t ? middle(t) : over(h, front.alive ? front : living()[0] || front), heavy);
+              SND.play(st === 'beam' || st === 'autocannon' || st === 'spray' || st === 'lob' ? 'bbeam' : 'shoot');
+              if (st === 'spread') SND.play('thud', 0.02);
+              await fire(h, t ? middle(t) : over(h, front.alive ? front : living()[0] || front), st, i);
             }
             if (t) {
-              if (heavy) { FX.boom(t.x, t.y - 20 * t.s, h.col); shake(4); } else FX.star(t.x, t.y - 26 * t.s, '#ffffff');
-              drops.push(drop(t, false));
+              if (st === 'lob' || st === 'beam') FX.boom(t.x, t.y - 20 * t.s, h.col);
+              await land(t, rapid && i && t !== lastOne ? 0 : i ? p * 0.6 : p, '#ffffff', st === 'lob');
+              drops.push(drop(t, false, t === lastOne));
             }
-            if (i < shots) await wait(heavy ? 150 : 85);
+            if (i < shots) await wait(rapid ? 45 : st === 'beam' ? 110 : 70);
           }
-          if (!down.length) await dodge(front);
+          if (!down.length) await dodge(front, false);
+          unpunch();
         }
       } else if (cmd === 'emp') {
         const [cx, cy] = centre(living());
@@ -9378,10 +10223,15 @@ const BTL = (() => {
         FX.lob(hx, hy - 8, cx, cy - 14, '#00e5ff', 380);
         await wait(380);
         SND.play('emp');
-        flash('#00e5ff', 0.6); shake(4);
+        SND.play('bzap', 0.04);
+        flash('#00e5ff', 0.6); shake(5);
         FX.ring(cx, cy - 12, '#00e5ff', 60, 420); FX.ring(cx, cy - 12, '#ffffff', 34, 300); FX.sparks(cx, cy - 16, '#00e5ff', 14);
-        for (const t of down) drops.push(drop(t, true));
-        await wait(200);
+        for (const t of down) { t.flash = 1; t.glitch = 0.6; }
+        dirty = true;
+        await freeze(70);
+        for (const t of down) { t.flash = 0; t.glitch = 0; }
+        for (const t of down) drops.push(drop(t, true, t === lastOne));
+        await wait(170);
       } else if (cmd === 'hack' || cmd === 'bomb' || cmd === 'zero') {
         const col = cmd === 'hack' ? '#00e5ff' : cmd === 'bomb' ? '#ff4fd8' : '#c77dff';
         SND.play(FIGHT_FX[cmd]);
@@ -9398,10 +10248,16 @@ const BTL = (() => {
         });
         await wait(cmd === 'bomb' ? 400 : 230);
         if (cmd === 'zero') { flash('#c77dff', 0.7); tw(V, {dim: 0}, 200); }
-        if (cmd === 'bomb') { flash('#ff4fd8', 0.55); shake(4); for (const t of down) FX.boom(t.x, t.y - 20 * t.s, col); }
-        for (const t of down) { FX.glyphs(t.x, t.y - 30 * t.s, col); drops.push(drop(t, true)); }
-        if (!down.length) await dodge(front);
-        await wait(160);
+        if (cmd === 'bomb') {
+          flash('#ff4fd8', 0.55); shake(5);
+          for (const t of down) { FX.boom(t.x, t.y - 20 * t.s, col); t.flash = 1; }
+          dirty = true;
+          await freeze(70);
+          for (const t of down) t.flash = 0;
+        }
+        for (const t of down) { FX.glyphs(t.x, t.y - 30 * t.s, col); drops.push(drop(t, true, t === lastOne)); }
+        if (!down.length) await dodge(front, false);
+        await wait(140);
       // ===== SKILL TREE: a script. Glyphs off you, a word over your head, then whoever it drops goes down. =====
       } else if (SK_ACT[cmd]) {
         const o = SK_ACT[cmd];
@@ -9415,13 +10271,14 @@ const BTL = (() => {
         if (down.length) {
           await wait(260);
           flash(o.col, 0.5);
-          for (const t of down) drops.push(drop(t, true));
+          for (const t of down) drops.push(drop(t, true, t === lastOne));
         }
         stat();
         await wait(220);
       }
       await Promise.all(drops);
       stat();
+      unpunch();
       await home(h);
       end();
     },
@@ -9447,34 +10304,43 @@ const BTL = (() => {
       stat();
       const squad = up.slice().sort((a, b) => b.x - a.x).slice(0, 4), h = hero, law = E.kind === 'law';
       let bangs = 0, told = false;
-      const land = final => {
+      // What it looks like on you. It is one number for the lot of them, so only the last one shows it landing hard.
+      const taken = final => {
         if (dmg) {
           recoil(h, final).then(() => tw(h, {ox: 0}, 120));
           if (!physical) { h.glitch = 1; setTimeout(() => { if (hero === h) { h.glitch = 0; dirty = true; } }, 230); }
           if (final || !told) FX.sparks(h.x, h.y - 28 * h.s, physical ? '#ff3b5c' : '#00e5ff', 6);
-          if (!told) { told = true; shake(3); pop(h, `-${dmg}<small>${physical ? 'HP' : 'SEC'}</small>`, 'red'); stat(); }
+          if (!told) {
+            told = true;
+            shake(4);
+            flash(physical ? '#ff3b5c' : '#00e5ff', 0.22, 180);
+            pop(h, `-${dmg}<small>${physical ? 'HP' : 'SEC'}</small>`, 'red');
+            stat();
+          }
         } else if (final) {
           SND.play('miss');
           pop(h, 'MISS');
-          tw(h, {ox: 7}, 80).then(() => tw(h, {ox: 0}, 130));
+          // out of the way of it, not just shoved: lean back and step off
+          tw(h, {ox: 9, rot: -0.14}, 80).then(() => tw(h, {ox: 0, rot: 0}, 150));
         }
       };
       await Promise.all(squad.map(async (f, i) => {
-        await wait(i * 140);
+        await wait(i * 120);
         const final = i === squad.length - 1;
-        const mode = !physical ? 'wire' : f.wk === 'gun' || f.wk === 'heavy' ? 'gun' : 'melee';
+        const st = physical ? style(f.weapon) : 'wire';
+        const mode = st === 'wire' ? 'wire' : RANGED[st] ? 'gun' : 'melee';
         banner(`${f.name} ${mode === 'gun' ? 'fires' : mode === 'melee' ? (f.wk === 'blade' ? 'slashes' : 'swings') : law ? 'runs a trace' : 'hacks your rig'}`);
         if (mode === 'gun') {
           await tw(f, {ox: 8}, 80);
           await tw(f, {aim: AIMED, lift: 1}, 60);
           if (bangs++ < 3) SND.play('shoot');
-          await fire(f, dmg ? middle(h) : over(f, h), f.wk === 'heavy');
-          land(final);
-          await wait(120);
+          await fire(f, dmg ? middle(h) : over(f, h), st, 0);
+          taken(final);
+          await wait(110);
         } else if (mode === 'melee') {
-          await melee(f, h, dmg > 0, f.wk === 'blade');
-          land(final);
-          await wait(100);
+          await swing(f, h, dmg > 0, st === 'fist' ? 'club' : st);
+          taken(final);
+          await wait(90);
         } else {
           hop(f, 4);
           SND.play('bzap');
@@ -9482,13 +10348,14 @@ const BTL = (() => {
           FX.glyphs(fx1, fy1 - 4, f.col);
           FX.bolt(fx1, fy1, dmg ? hx : hx + 10, dmg ? hy : hy - 44, f.col, 230);
           await wait(190);
-          land(final);
-          await wait(100);
+          taken(final);
+          await wait(90);
         }
         await home(f);
       }));
       stat();
-      await wait(dmg ? 240 : 140);
+      unpunch();
+      await wait(dmg ? 200 : 120);
       banner(title);
       end();
     },
@@ -9503,10 +10370,14 @@ const BTL = (() => {
       const h = hero, my = run, mk = figure(heroFig({mood: 'grin'}));
       h.mk = mk;
       bitmap(mk).then(B => { if (B && my === run && hero === h) { h.body = B; dirty = true; } });
+      look(h);
+      punch(1.07, 220);
       tw(h, {aim: Math.PI, lift: 1}, 160);
+      FX.ring(h.x, h.y - 2, '#fcee0a', 34, 380);
       for (const c of ['#fcee0a', '#ff4fd8', '#00e5ff']) FX.sparks(h.x + rnd(-20, 20), h.y - 60 * h.s, c, 8);
       for (let i = 0; i < 3; i++) await hop(h, 8);
-      await wait(260);
+      await wait(200);
+      unpunch(320);
       end();
     },
     // What the win was worth, one line at a time. lines: [[label, value, class]]. False if there is no stage to show it on.
@@ -9551,8 +10422,8 @@ const BTL = (() => {
         await recoil(h, true);
         h.arm = null;
         await tw(h, {rot: 1.5, ox: -Math.round(30 * h.s)}, 360, 'in');   // falls back, and far enough in to stay on the stage
-        shake(2);
-        FX.dust(h.x - 10, h.y - 2);
+        shake(5);
+        FX.crack(h.x - 20, h.y - 1, '#b9c0d8');
       }
       big(E.kind === 'law' ? 'BUSTED' : wire ? 'OWNED' : 'DEFEATED', 'bad stay');
       await wait(950);
@@ -9813,13 +10684,16 @@ async function fightRounds(E) {
       skFight.used.ice_kill = 1;
       kills = Math.min(n, SKILL.killDrop);
       if (law) heatUp(SKILL.killHeat);
-      msg = `The killswitch goes down their own link: ${kills} drop where they stand.`;
+      // (over the wire there is nobody to fall over, so say what actually happens to them)
+      msg = raid ? `The killswitch goes down their own link: ${kills} drop off the ring.`
+        : `The killswitch goes down their own link: ${kills} drop where they stand.`;
     } else if (cmd === 'sk_scrub') {
       S.opsec -= SKILL.scrubOpsec;
       skFight.used.qui_scrub = 1;
       S.heat = Math.max(0, S.heat - SKILL.scrubHeat);
       stunned = true;
-      msg = `You burn the trail while they are still looking at you: Heat down to ${S.heat}%, and they lose the thread for a beat.`;
+      msg = `You burn the trail while they are still ${raid ? 'tracing you' : 'looking at you'}: Heat down to ${S.heat}%, ` +
+        'and they lose the thread for a beat.';
     } else if (cmd === 'sk_shunt') {
       skFight.used.fle_shunt = 1;
       S.hp = Math.min(100, S.hp + SKILL.shuntHeal);
@@ -11416,6 +12290,1262 @@ async function skillSelfTest() {
 }
 // ===== SKILL TREE (self-test): END =====
 
+// ====================== DUNGEONS (deep runs): BEGIN ======================
+// A deep run is a dungeon: rooms one after another, several floors down, ending in a boss room.
+// One engine, two skins. They share the room generator, the meter, the loot and the boss; everything
+// else about them is deliberately different:
+//
+//   'site' — a building. You are in there in person. The meter is ALERT. Damage lands on Health and your
+//            armour soaks it. Loot goes straight onto your drive, so carrying space decides what comes
+//            out. A locked way on is a real lock, opened with entry tools and the lock picking skill
+//            (so the Lock Board matters). At 100% Alert somebody answers: site security, the law or a
+//            rival crew, through the ordinary battle screen. Heat behaves as it does on a break-in, and
+//            losing a fight to the law means the usual arrest, fine and prison pocket.
+//
+//   'dive' — a network dive from a terminal. Your body is safe. The meter is TRACE. Damage lands on
+//            OpSec only. The hostiles are ICE and black-ice constructs: a 'raid' fight, hacking only.
+//            A locked way on is a crypto gate, opened with a Zero-Day, a proxy chain or a Logic Bomb,
+//            or brute-forced for a lot of Trace (no picks in cyberspace). The haul is data: it does NOT
+//            go on your drive, it uploads to the Bunker stash when you get out, so the Stash's level
+//            decides how much you can bring home instead of your bags. The law barely notices a dive
+//            (Heat is divided by DUN.diveHeatCut and no patrol ever turns up), but the crew whose system
+//            it was gets angrier.
+//
+// Getting in: a LEAD (an address or a dossier). Leads come from the Intel Board in the morning, from a
+// broker on the street, from a file found inside a run, or from going looking yourself for a trip. A
+// lead names its place, its kind and how deep it goes, and goes cold after DUN.leadDays days.
+// Getting out: reach the boss and beat it, bail out at any room with everything you have taken so far,
+// or fail (the meter hits 100 and the fight goes badly, or Health/OpSec runs out). On a failure a
+// building takes back the goods and cash from that run, and a dive loses the whole upload.
+//
+// Rooms are generated per run from the tables below, from the lead's seed, so a run keeps its shape
+// across a save and reload; the rolls inside a room are live, so nothing can be memorised.
+//
+// TUNING: every number a deep run uses is in DUN, and nothing else scales them. They are set against the
+// income the 1.28/1.29 rebalance aims for (see BASE_TUNE above): about $6k a day on days 3-6, $15k-35k on
+// days 6-10, $50k-75k on days 10-15, $110k-130k on days 15-20 and about $200k after day 20, which is what
+// dayTake(day) returns. A whole deep run is meant to be a little WORSE than trading for the same trips
+// and much better for everything else: on the numbers below a four-floor run on day 12 hands over roughly
+// $7k in cash and about $15k of goods at mid price for three of the day's trips, against about $30k from
+// three trips of trading. The payoff is the gear, the XP, and goods the base's stations want. A dungeon
+// must never be the best money printer in the game: if income moves again, scale cashRoom, cashBoss and
+// lootWorth by the same factor and leave the rest alone.
+const DUN = {
+  // ---------- the shape of a run ----------
+  floors: [2, DUN_FLOORS], // floors (building) or layers (dive) a lead can be worth
+  rooms: [3, 5],           // rooms on a floor, before the way down
+  tripIn: 1,               // trips it costs to go in
+  tripDown: 1,             // trips it costs to go a floor deeper
+  maxSteps: 240,           // a hard stop, so nothing can loop for ever
+  // ---------- leads ----------
+  leadMax: 3,              // leads you can hold at once
+  leadDays: 4,             // a lead goes cold this many days after the day you got it
+  intelOdds: 0.55,         // chance the Intel Board (level 1+) has an address in the morning
+  brokerOdds: 0.06,        // chance per trip somebody offers to sell you one
+  brokerCost: 0.03,        // what it costs: this share of a day's income for each floor
+  lookTrips: 1, lookOdds: 0.7,   // going looking yourself: trips, and how often it works
+  // ---------- the meter: Alert in a building, Trace in a dive ----------
+  alarmAt: 100,
+  start: {site: 10, dive: 5},        // where it starts
+  grab: {site: 12, dive: 8},         // helping yourself to a cache
+  fightWin: {site: 8, dive: 6},      // a fight you win still leaves a mark
+  afterFight: 55,                    // where it sits once you have put down whoever answered
+  down: {site: 12, dive: 8},         // what a floor behind you takes OFF the meter
+  sneakFail: {site: 22, dive: 18},   // creeping past and being seen
+  forced: 35,                        // a door in a building taken off its hinges
+  brute: 40,                         // a dive gate forced open
+  // ---------- traps and countermeasures ----------
+  trapHp: [5, 4],          // a building trap: [0] + [1] x floor Health, before armour
+  trapOp: [6, 5],          // a dive countermeasure: [0] + [1] x floor OpSec, before your firewall
+  trapMeter: [8, 4],       // ...and [0] + [1] x floor on the meter if you walk into it
+  disarm: [42, 6],         // chance to deal with it: [0] + [1] x (lock picking level | proxy chains)
+  // ---------- fights ----------
+  foeFloor: 0.6, foeDay: 11, foeMax: 4,   // hostiles: 1 + foeFloor x floor, +1 every foeDay days, capped
+  hit: 0.32, dmg: [3, 8], bossDmg: [5, 11],
+  sneak: [40, 8],          // slipping past: [0] + half your stealth and speed bonuses - [1] x floor
+  // ---------- what is in the rooms (money is deliberately modest) ----------
+  lootWorth: 0.02,         // a cache holds goods worth this share of a day's income at mid price...
+  lootFloor: [0.6, 0.35],  // ...times [0] + [1] x floor
+  lootMax: 12,             // and never more units of one thing than this
+  cashRoom: 0.004,         // a cash find: this share of a day's income, times the floor
+  cashBoss: 0.03, bossFloor: 0.35,   // the boss pays cashBoss x (1 + bossFloor x (floors - 1))
+  xpRoom: 12,              // XP for a room dealt with, times the floor
+  xpBoss: [300, 180],      // XP for the boss: [0] + [1] x floors
+  gearBoost: [0, 8, 16, 26, 40],     // rarity boost on the boss's gear, by floors - 1
+  gearOdds: 0.16,          // chance a cache on floor 2 or deeper holds gear instead of goods
+  ammoOdds: 0.2, gadgetOdds: 0.2,    // ...or a box of ammunition, or a gadget
+  heal: [10, 4], opsec: [10, 5],     // a break room / a cache node: [0] + [1] x floor back
+  // ---------- Heat and grudges ----------
+  heatAlarm: 6, heatFloor: 1,        // Heat for an alarm, and for each floor you go down
+  diveHeatCut: 4,                    // everything a dive does to Heat is divided by this
+  opsecFloor: 20,                    // where a blown dive leaves your OpSec
+  grudge: 1,                         // how much angrier a dive makes the crew whose system it was
+};
+// The places a run can be. A theme gives a run its name, its flavour and who answers the alarm.
+// k: 'site' or 'dive'. at: the locations a lead can point to. guard: 'sec', 'law' or a syndicate key
+// ('own' means the crew that owns the system, picked per lead). word: what a floor is called.
+const DUN_TH = {
+  tower: {k: 'site', n: 'the Vexcorp tower', at: ['Datacenter Dock', 'Campus Lab', 'Con Hallway'], guard: 'sec',
+    word: 'floor', boss: 'the executive floor', bossWho: 'Corporate Response', deep: 'Sub-basement'},
+  depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley'], guard: 'sec',
+    word: 'floor', boss: 'the bonded cage', bossWho: 'Night Shift', deep: 'Loading level'},
+  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe'], guard: 'law',
+    word: 'floor', boss: 'the evidence vault', bossWho: 'the duty shift', deep: 'Basement'},
+  squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar'], guard: 'own',
+    word: 'floor', boss: 'the back room', bossWho: 'the house crew', deep: 'Cellar'},
+  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace'], guard: 'own',
+    word: 'layer', boss: 'the ledger core', bossWho: 'Vault ICE', deep: 'Cold storage'},
+  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel'], guard: 'own',
+    word: 'layer', boss: 'the control core', bossWho: 'Governor ICE', deep: 'Deep plant'},
+  archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe'], guard: 'own',
+    word: 'layer', boss: 'the index core', bossWho: 'Librarian ICE', deep: 'Dead sector'},
+  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar'], guard: 'own',
+    word: 'layer', boss: 'the clean core', bossWho: 'Black ICE', deep: 'Null space'},
+};
+const DUN_IDS = Object.keys(DUN_TH);
+// Room flavour, by skin and kind: [the room's name, one short line]. Short enough for a 320x170 screen.
+const DUN_TXT = {
+  site: {
+    loot: [['Store room', 'Shelves, boxes, and a clipboard nobody has signed since March.'],
+      ['Open-plan office', 'Forty desks. Three of them have drawers that lock, and two of those are locked.'],
+      ['Server closet', 'Warm air, blinking lights, and a shelf of spares.'],
+      ['Mail room', 'Pigeonholes, a franking machine, and a parcel addressed to nobody.']],
+    fight: [['Guard post', 'A desk, a kettle, and people who are paid to notice you.'],
+      ['Stairwell landing', 'Boots on concrete, coming up, not down.'],
+      ['Loading bay', 'The shutter is up and so are the radios.']],
+    lock: [['Fire door', 'The way on, and somebody has fitted something serious to it.'],
+      ['Secure corridor', 'A door with a reader and no handle.'],
+      ['Stair gate', 'A steel gate across the stairwell, locked for the night.']],
+    trap: [['Camera arc', 'A dome camera sweeps the corridor, slowly, like it has all night.'],
+      ['Pressure mat', 'The carpet by the door sits very slightly too high.'],
+      ['Glass wall', 'An atrium with nothing to hide behind and a long way to walk.']],
+    choice: [['Service lift', 'The lift is quick. The stairs are not.'],
+      ['Window ledge', 'Outside along the ledge, or straight through the office.'],
+      ['Ceiling void', 'Over the partition wall, or past the night cleaner.']],
+    rest: [['Break room', 'A sofa, a first aid box, and a kettle that works.'],
+      ['Changing room', 'Lockers, a bench, and a tap.']],
+    file: [['Records room', 'Boxes of paper. Somebody filed everything and told nobody.'],
+      ['Facilities office', 'Keys, plans, and a wall of other people\'s buildings.']],
+    empty: [['Corridor', 'Carpet tiles and a motivational poster about teamwork.'],
+      ['Toilets', 'Nobody. A dripping tap. You stand very still for a moment.'],
+      ['Atrium', 'A dead fountain and a plant that is doing its best.']],
+  },
+  dive: {
+    loot: [['Data store', 'Racked tables nobody has read in years. All of it is worth something.'],
+      ['Billing node', 'Invoices, card tokens and a payment queue that does not check twice.'],
+      ['Backup shard', 'Last night\'s everything, still warm.'],
+      ['Staff share', 'Spreadsheets, passwords in spreadsheets, and holiday photos.']],
+    fight: [['Watchdog node', 'Something is walking the ring, and it has turned around.'],
+      ['Sentry mesh', 'Attack constructs, drawn to the noise you just made.'],
+      ['Honeynet', 'The whole subnet was bait, and it just closed.']],
+    lock: [['Crypto gate', 'The way down is sealed. Good crypto, badly configured.'],
+      ['Auth wall', 'A gate that wants a certificate you do not have.'],
+      ['Air gap bridge', 'One link down, and it is locked at both ends.']],
+    trap: [['Trace scanner', 'A sweep crawls the segment, tagging everything it does not know.'],
+      ['Black ice shard', 'A chunk of something that bites back, left in the path on purpose.'],
+      ['Tar pit', 'The link goes thick and slow and starts asking questions.']],
+    choice: [['Fork in the fabric', 'A fast tunnel through the admin plane, or the long way round.'],
+      ['Mirror port', 'Ride their own monitoring down, or crawl the user side.'],
+      ['Stale session', 'Somebody is logged in. Borrow it, or go round.']],
+    rest: [['Quiet subnet', 'Nothing here is listening. You patch yourself up.'],
+      ['Cache node', 'Dead space you can rebuild your cover in.']],
+    file: [['Admin mailbox', 'Somebody has been emailing addresses to themselves for years.'],
+      ['Config dump', 'Hostnames, keys, and a diagram drawn in a text file.']],
+    empty: [['Empty segment', 'Routing and dust. Something used to live here.'],
+      ['Print spooler', 'Four hundred queued jobs, all the same page.'],
+      ['Status page', 'Everything green. Everything has been green for two years.']],
+  },
+};
+// Counted for the self-test: every way a deep run can go.
+const dunTally = {leads: 0, bought: 0, looked: 0, entered: 0, site: 0, dive: 0, rooms: 0, loot: 0, noroom: 0,
+  gear: 0, cash: 0, fight: 0, snuck: 0, seen: 0, lock: 0, picked: 0, forced: 0, gate: 0, bruted: 0, keyed: 0,
+  trap: 0, sprung: 0, disarmed: 0, choice: 0, rest: 0, file: 0, empty: 0, alarm: 0, won: 0, fled: 0, lost: 0,
+  down: 0, boss: 0, cleared: 0, bailed: 0, failed: 0, banked: 0, spilled: 0, walked: 0, cold: 0};
+
+// A small seeded generator, so a lead's rooms are the same every time it is opened (saves and reloads
+// included). The rolls inside a room use Math.random(), so the outcome is never known in advance.
+function dunRng(seed) {
+  let a = (seed | 0) >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const dunLeads = () => (Array.isArray(S.leads) ? S.leads : (S.leads = []));
+const dunRun = () => (S.dun && DUN_TH[S.dun.th] ? S.dun : null);
+const dunSkin = D => DUN_TH[D.th].k;
+const dunWord = D => DUN_TH[D.th].word;
+const dunMeterName = D => (dunSkin(D) === 'dive' ? 'Trace' : 'Alert');
+const dunMeter = D => meter(dunMeterName(D), D.m, 100, D.m + '%', alertClass(D.m));
+// Whose system or building it is: a syndicate key for 'own', or the theme's own answer.
+const dunGuard = L => (DUN_TH[L.th].guard === 'own' ? L.gang : DUN_TH[L.th].guard);
+// Where a lead can be opened: at its place, and a dive also from your own rig at the Bunker (Server Closet).
+const dunHere = L => S.loc === L.at || (DUN_TH[L.th].k === 'dive' && S.loc === BUNKER && lvl('rig') >= 1);
+const dunWhere = L => (DUN_TH[L.th].k === 'dive' && lvl('rig') >= 1 ? `${L.at} or your own rig` : L.at);
+
+// Make a lead. kind: 'site', 'dive' or '' for either. deep: floors, or 0 to roll one for today.
+function dunLead(kind, deep) {
+  const ids = DUN_IDS.filter(id => !kind || DUN_TH[id].k === kind);
+  const th = pick(ids), T = DUN_TH[th];
+  // How deep a lead goes climbs with the day, with a roll either side of it.
+  const floor = clampN(DUN.floors[0] + Math.floor(S.day / 7), DUN.floors[0], DUN.floors[1]);
+  const L = {th, at: pick(T.at), seed: rnd(1, 2000000000), deep: clampN(deep || rnd(floor, floor + 1), DUN.floors[0], DUN.floors[1]),
+    day: S.day, gang: pick(rivals())};
+  dunTally.leads++;
+  return L;
+}
+// What is known about a lead before you go in. The Intel Board's top levels read the first floor for you.
+function dunTip(L) {
+  const T = DUN_TH[L.th];
+  const kinds = [...new Set(dunRooms(L, 1).map(r => r.t))];
+  const names = {loot: 'caches', fight: 'guards', lock: 'locked doors', trap: 'traps', choice: 'a choice',
+    rest: 'somewhere to patch up', file: 'paperwork', empty: 'nothing much'};
+  const deep = BASE.intel.lv[eff('intel')].law;   // the Wall of Monitors and up read the first floor
+  return `<b>${cap1(T.n)}</b> &middot; ${L.deep} ${T.word}${L.deep === 1 ? '' : 's'} down &middot; ${T.k === 'dive' ? 'network dive' : 'building'}` +
+    `<br><span class="dim">${dunWhere(L)} &middot; goes cold after day ${L.day + DUN.leadDays}</span>` +
+    (deep ? `<br><span class="cyan">Intel: ${T.word} 1 has ${kinds.map(k => names[k]).join(', ')}.</span>`
+      : '<br><span class="dim">A better Intel Board would say what is on the first ' + T.word + '.</span>');
+}
+
+// ---------- the room generator ----------
+// A floor's rooms, from the lead's seed: the same list every time, for this lead and this floor.
+// Deeper floors are longer and nastier. The last room of the last floor is the boss.
+function dunRooms(L, floor) {
+  const R = dunRng(L.seed + floor * 7919), T = DUN_TH[L.th], skin = T.k;
+  const n = DUN.rooms[0] + Math.floor(R() * (DUN.rooms[1] - DUN.rooms[0] + 1)) + (floor > 2 ? 1 : 0);
+  // Weights by depth: caches and quiet rooms early, fights, traps and locks the deeper you go.
+  const W = {loot: 30, fight: 10 + 7 * floor, lock: 6 + 4 * floor, trap: 8 + 6 * floor,
+    choice: 12, rest: 10, file: 8, empty: 14 - 2 * floor};
+  const out = [];
+  let hadLock = false, hadRest = false;
+  for (let i = 0; i < n; i++) {
+    const w = Object.assign({}, W);
+    if (hadLock) w.lock = 0;             // at most one locked way on per floor
+    if (hadRest) w.rest = 0;             // ...and one place to patch up
+    if (i === 0) { w.fight = Math.round(w.fight / 2); w.trap = Math.round(w.trap / 2); }   // never straight into it
+    const total = Object.values(w).reduce((a, b) => a + b, 0);
+    let roll = R() * total, t = 'empty';
+    for (const [k, v] of Object.entries(w)) if ((roll -= v) < 0) { t = k; break; }
+    if (t === 'lock') hadLock = true;
+    if (t === 'rest') hadRest = true;
+    const pool = DUN_TXT[skin][t], [name, line] = pool[Math.floor(R() * pool.length)];
+    const room = {t, name, line};
+    if (t === 'lock' && skin === 'site') {
+      // The lock gets harder the deeper the floor is, within what the game already has.
+      const ladder = ['padlock', 'deadbolt', 'badge', 'cylinder', 'maglock'];
+      room.lock = ladder[clampN(floor - 1 + (R() < 0.3 ? 1 : 0), 0, 4)];
+    }
+    if (t === 'choice') room.alt = R() < 0.5;
+    out.push(room);
+  }
+  if (floor >= L.deep) {
+    const T2 = DUN_TH[L.th];
+    out.push({t: 'boss', name: cap1(T2.boss), line: skin === 'dive'
+      ? 'The core. It knows you are here, and it has stopped pretending otherwise.'
+      : 'The door at the end. Whatever they keep here, they keep people here to keep it.'});
+  }
+  return out;
+}
+
+// ---------- the numbers ----------
+const dunTake = () => Math.max(1000, dayTake(S.day));
+const dunCash = mult => Math.max(10, Math.round(dunTake() * DUN.cashRoom * mult / 10) * 10);
+// A cache: a good whose price suits the depth, and as many as DUN.lootWorth of a day's income buys.
+function dunLot(D) {
+  const floor = D.floor, span = GOODS.length - 1;
+  // Floor 1 deals in the cheap end, the bottom floor in the expensive end.
+  const hi = clampN(span - Math.floor((floor - 1) * 2), 1, span), lo = clampN(hi - 2, 0, hi);
+  const i = rnd(lo, hi), g = GOODS[i], mid = (g[1] + g[2]) / 2;
+  const worth = dunTake() * DUN.lootWorth * (DUN.lootFloor[0] + DUN.lootFloor[1] * floor);
+  return [g[0], clampN(Math.round(worth / mid), 1, DUN.lootMax)];
+}
+// Goods out of a room. A building puts them on your drive (so your bags decide); a dive stages them for
+// the upload at the end. Returns how many were actually taken.
+function dunGoods(D, name, qty) {
+  if (dunSkin(D) === 'dive') {
+    D.goods[name] = (D.goods[name] || 0) + qty;
+    return qty;
+  }
+  const n = Math.max(0, Math.min(qty, free()));
+  if (n < qty) dunTally.noroom++;
+  if (n) { addItems(name, n, 0); D.goods[name] = (D.goods[name] || 0) + n; }
+  return n;
+}
+function dunPay(D, cash) {
+  S.cash += cash;
+  D.cash += cash;
+  return money(cash);
+}
+// Heat from a deep run: a dive hardly registers with anyone wearing a badge.
+function dunHeat(D, n) {
+  if (dunSkin(D) === 'dive') n = Math.ceil(n / DUN.diveHeatCut);
+  return heistHeat(n);
+}
+// Move the meter. Returns true when it has hit the top.
+function dunBump(D, n) {
+  D.m = clampN(Math.round(D.m + n), 0, 100);
+  return D.m >= DUN.alarmAt;
+}
+
+// ---------- whoever answers ----------
+// The meter topped out. In a building that is an alarm and a fight in the corridor; in a dive it is the
+// black ice waking up. Returns 'won', 'fled', 'lost' or 'over' (the whole run ended).
+async function dunAlarm(D) {
+  const L = D.lead, T = DUN_TH[D.th], skin = dunSkin(D), who = dunGuard(L);
+  dunTally.alarm++;
+  D.m = 100;
+  S.mood = 'ouch';
+  SND.play('alarm');
+  const heat = dunHeat(D, DUN.heatAlarm), floor = S.heat;
+  log(`<span class="red">${skin === 'dive' ? `The ice in ${T.n} wakes up` : `The alarm goes in ${T.n}`}: Heat +${heat}%.</span>`);
+  render();
+  await alertDlg(skin === 'dive' ? 'ICE AWAKE' : 'ALARM',
+    `<p>${skin === 'dive' ? 'The whole segment turns to look at you at once.'
+      : 'Somewhere above you a bell starts, and then a radio, and then boots.'}</p>` +
+    `<p>Heat <b class="red">+${heat}%</b>.</p>`, 'danger');
+  const E = dunFoes(D, false, true);
+  await fight(E);
+  if (S.heat < floor) S.heat = floor;   // a deep run can never leave you cooler than you went in
+  const res = S.over ? 'over' : E.result === 'won' ? 'won' : E.result === 'lost' ? 'lost' : 'fled';
+  if (dunTally[res] !== undefined) dunTally[res]++;
+  if (res === 'won') D.m = DUN.afterFight;
+  return res;
+}
+// The hostiles in a room. answered: this is the alarm, so there are more of them. boss: the last room.
+function dunFoes(D, boss, answered) {
+  const L = D.lead, T = DUN_TH[D.th], skin = dunSkin(D), who = dunGuard(L);
+  let n = clampN(Math.round(1 + DUN.foeFloor * D.floor + Math.floor(S.day / DUN.foeDay) + (answered ? 1 : 0)),
+    1, DUN.foeMax + (boss ? 1 : 0));
+  const dmg = boss ? DUN.bossDmg : DUN.dmg;
+  if (skin === 'dive') {
+    const crew = SYNDICATES[who] ? SYNDICATES[who][0] : 'Unlisted';
+    return {kind: 'raid', gang: SYNDICATES[who] ? who : 'ghost', name: boss ? T.bossWho : `${crew} ICE`,
+      n, boss: !!boss, hit: DUN.hit, lo: dmg[0], hi: dmg[1] + D.floor,
+      intro: boss ? `${T.bossWho} unfolds out of the core and fills the whole segment.`
+        : `Constructs come down the ring towards you: ${n} of them, and they do not negotiate.`};
+  }
+  if (who === 'law') {
+    const tier = lawTier(), LW = LAW[tier];
+    return {kind: 'law', tier, name: LW.name, n, hit: LW.hit, lo: LW.lo, hi: LW.hi,
+      intro: `${cap1(LW.name)} is already inside ${T.n}, and they are between you and the street.`};
+  }
+  if (SYNDICATES[who]) {
+    return {kind: 'gang', gang: who, name: SYNDICATES[who][0], n, hit: DUN.hit, lo: dmg[0], hi: dmg[1] + D.floor,
+      intro: `${SYNDICATES[who][0]} keep this place, and they have noticed the draught.`};
+  }
+  return {kind: 'thug', guard: true, name: boss ? T.bossWho : 'Site security', n, seed: rnd(0, 5),
+    hit: DUN.hit, lo: dmg[0], hi: dmg[1] + D.floor,
+    intro: boss ? `${cap1(T.bossWho)} is waiting in ${T.boss}, and they were told to expect you.`
+      : `Torches come round the corner, already up and already on the radio.`};
+}
+
+// ---------- a dive's crypto gate (no picks in cyberspace) ----------
+// Returns 'open', 'forced', 'back' or 'alarm'.
+async function dunGate(D, room, head) {
+  const have = {zero: S.inv['Zero-Days'] || 0, proxy: S.proxies, bomb: S.bomb};
+  const odds = clampN(50 + 8 * S.proxies + bonus('hack') / 2 - 10 * D.floor, 10, 95);
+  for (;;) {
+    const html = (head || '') + `<p>${room.line}</p>` + dunMeter(D) + (D.note ? `<p>${D.note}</p>` : '') +
+      `<p class="dim">A Zero-Day always opens it. A Logic Bomb always opens it. Your proxy chains give ${odds}% ` +
+      `for nothing. Brute force always works and adds ${DUN.brute} Trace.</p>`;
+    const buttons = [];
+    if (have.zero) buttons.push(['Spend a Zero-Day (opens it)', 'zero', 'primary']);
+    if (have.bomb) buttons.push([`Logic Bomb (${S.bomb} left)`, 'bomb', '', miscIcon('bomb')]);
+    if (have.proxy) buttons.push([`Work the proxies (${odds}%)`, 'proxy', '', miscIcon('proxy')]);
+    buttons.push([`Brute force it (+${DUN.brute} Trace)`, 'brute', buttons.length ? 'danger' : 'primary']);
+    buttons.push(['Turn back', null, 'small']);
+    const how = await dialog(room.name, html, buttons, D.m >= 70 ? 'danger' : '');
+    D.note = '';
+    if (!how) return 'back';
+    if (how === 'zero') {
+      removeItems('Zero-Days', 1);
+      dunTally.keyed++;
+      D.note = '<span class="green">One Zero-Day, spent well. The gate opens as if it were expecting you.</span>';
+      return 'open';
+    }
+    if (how === 'bomb') {
+      S.bomb--;
+      dunTally.keyed++;
+      D.note = '<span class="green">The bomb goes off inside the gate\'s own logic. It opens, politely.</span>';
+      return 'open';
+    }
+    if (how === 'proxy') {
+      if (Math.random() * 100 < odds) {
+        dunTally.keyed++;
+        D.note = '<span class="green">Three hops, a borrowed certificate, and the gate agrees you belong here.</span>';
+        return 'open';
+      }
+      dunTally.bruted++;
+      D.note = `<span class="amber">The gate says no, and makes a note of who asked. Trace +${DUN.trapMeter[0]}.</span>`;
+      if (dunBump(D, DUN.trapMeter[0])) return 'alarm';
+      continue;
+    }
+    dunTally.bruted++;
+    dunTally.forced++;
+    D.note = `<span class="amber">You go through it with everything you have. It opens. It also screams. Trace +${DUN.brute}.</span>`;
+    if (dunBump(D, DUN.brute)) return 'alarm';
+    return 'forced';
+  }
+}
+
+// ---------- one room ----------
+// Returns 'on' (deal with the next room), 'bail' (you are leaving with what you hold),
+// 'blown' (it went wrong) or 'over' (the whole game ended).
+async function dunRoom(D, room) {
+  const skin = dunSkin(D), T = DUN_TH[D.th];
+  // Short enough to read in a small box: one line of where you are, one of what just happened, one of what
+  // is in front of you, the two meters, and one line of what you are holding.
+  const head = `<p class="dim">${T.n.toUpperCase()} &middot; ${T.word.toUpperCase()} ${D.floor}/${D.lead.deep} ` +
+    `&middot; ROOM ${D.room + 1}/${D.rooms.length}</p>`;
+  const body = () => head + (D.note ? `<p>${D.note}</p>` : '') + `<p>${room.line}</p>` + dunMeter(D) +
+    (skin === 'dive' ? meter('OpSec', S.opsec, 100, S.opsec + '%') : meter('Health', S.hp, 100, S.hp + '%'));
+  const foot = skin === 'dive'
+    ? `<p class="dim">Haul: ${dunHaul(D)}</p>`
+    : `<p class="dim">Drive ${used()}/${cap()} &middot; taken: ${dunHaul(D)}</p>`;
+  const out = ['Get out', 'bail', 'small'];
+
+  if (room.t === 'loot') {
+    const gear = D.floor >= 2 && Math.random() < DUN.gearOdds;
+    const how = await dialog(room.name, body() + foot +
+      `<p class="dim">Helping yourself adds ${DUN.grab[skin]} ${dunMeterName(D)}.</p>`,
+      [[`Empty it (+${DUN.grab[skin]} ${dunMeterName(D)})`, 'take', 'primary'], ['Leave it and move on', 'on'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'take') {
+      dunTally.loot++;
+      if (gear) {
+        dunTally.gear++;
+        D.note = '<span class="green">Somebody left something good in here and forgot about it.</span>';
+        await dropLoot(room.name.toLowerCase(), DUN.gearBoost[clampN(D.floor - 1, 0, 4)] / 2);
+      } else {
+        const r = Math.random();
+        if (r < DUN.ammoOdds && skin === 'site') {
+          const kind = pick(Object.keys(AMMO)), n = AMMO_BOX;
+          S.ammo[kind] = Math.min(AMMO_MAX, S.ammo[kind] + n);
+          D.note = `<span class="green">A box of ${AMMO[kind][4]}: ${n} rounds.</span>`;
+        } else if (r < DUN.ammoOdds + DUN.gadgetOdds) {
+          const keys = Object.keys(GADGETS).filter(k => S[k] < GADGETS[k][2]);
+          if (keys.length) {
+            const k = pick(keys);
+            S[k]++;
+            D.note = `<span class="green">In a drawer, still boxed: ${GADGETS[k][0]}.</span>`;
+          } else {
+            const cash = dunCash(D.floor);
+            D.note = `<span class="green">Petty cash, and nobody counts it. ${dunPay(D, cash)}.</span>`;
+            dunTally.cash++;
+          }
+        } else if (r < DUN.ammoOdds + DUN.gadgetOdds + 0.2) {
+          const cash = dunCash(D.floor);
+          dunTally.cash++;
+          D.note = `<span class="green">${skin === 'dive' ? 'A payment queue nobody is watching' : 'A cash box with the key in it'}. ${dunPay(D, cash)}.</span>`;
+        } else {
+          const [name, want] = dunLot(D), n = dunGoods(D, name, want);
+          D.note = n ? `<span class="green">${num(n)} ${name}.</span>${n < want ? ' The rest will not fit.' : ''}`
+            : `<span class="amber">${num(want)} ${name} in there, and nowhere to put one of them.</span>`;
+        }
+        SND.play('loot');
+      }
+      if (dunBump(D, DUN.grab[skin])) {
+        const res = await dunAlarm(D);
+        if (res === 'over') return 'over';
+        if (res !== 'won') return 'blown';
+      }
+    } else D.note = '';
+    return 'on';
+  }
+
+  if (room.t === 'fight') {
+    const odds = clampN(DUN.sneak[0] + Math.round((bonus('stealth') + bonus('speed')) / 2) - DUN.sneak[1] * D.floor, 5, 90);
+    const how = await dialog(room.name, body() + foot +
+      `<p class="dim">Creeping past: <b>${odds}%</b>. If they see you it is a fight anyway, and +${DUN.sneakFail[skin]} ${dunMeterName(D)}.</p>`,
+      [['Take them on', 'go', 'primary'], [`Creep past (${odds}%)`, 'sneak'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'sneak') {
+      if (Math.random() * 100 < odds) {
+        dunTally.snuck++;
+        D.note = '<span class="green">You go past close enough to read their crossword.</span>';
+        return 'on';
+      }
+      dunTally.seen++;
+      D.note = `<span class="amber">A head turns. Of course it does. ${dunMeterName(D)} +${DUN.sneakFail[skin]}.</span>`;
+      if (dunBump(D, DUN.sneakFail[skin])) {
+        const res = await dunAlarm(D);
+        if (res === 'over') return 'over';
+        return res === 'won' ? 'on' : 'blown';
+      }
+    }
+    dunTally.fight++;
+    const E = dunFoes(D, false, false);
+    await fight(E);
+    if (S.over) return 'over';
+    if (E.result === 'lost') return 'blown';
+    if (E.result !== 'won') {
+      D.note = '<span class="amber">You back off down the corridor you came from.</span>';
+      return 'bail';
+    }
+    const xp = gainXp(DUN.xpRoom * D.floor);
+    D.note = `<span class="green">That is that dealt with.</span>${xp} ${dunMeterName(D)} +${DUN.fightWin[skin]}.`;
+    if (dunBump(D, DUN.fightWin[skin])) {
+      const res = await dunAlarm(D);
+      if (res === 'over') return 'over';
+      if (res !== 'won') return 'blown';
+    }
+    return 'on';
+  }
+
+  if (room.t === 'lock') {
+    dunTally.lock++;
+    if (skin === 'dive') {
+      dunTally.gate++;
+      const res = await dunGate(D, room, head);
+      if (res === 'back') return 'bail';
+      if (res === 'alarm') {
+        const r = await dunAlarm(D);
+        if (r === 'over') return 'over';
+        if (r !== 'won') return 'blown';
+      }
+      return 'on';
+    }
+    // A building: the game's own lock, tools and lock picking skill, with the run's Alert as the noise.
+    const st = {alert: D.m, jam: D.jam, pts: 0};
+    const r = await lockDialog(room.lock, st, {head: head + (D.note ? `<p>${D.note}</p>` : '') + `<p>${room.line}</p>`});
+    D.m = clampN(st.alert, 0, 100);
+    D.jam = !!st.jam;
+    D.pts = (D.pts || 0) + (st.pts || 0);
+    D.note = r.last || '';
+    if (r.res === 'back') return 'bail';
+    if (r.res === 'alarm') {
+      const res = await dunAlarm(D);
+      if (res === 'over') return 'over';
+      if (res !== 'won') return 'blown';
+      D.jam = false;
+      return 'on';
+    }
+    if (r.res === 'forced') {
+      dunTally.forced++;
+      const up = dunHeat(D, DUN.heatAlarm);
+      D.note += ` <span class="amber">Alert +${DUN.forced}, Heat +${up}%.</span>`;
+      tally('forced');
+      if (dunBump(D, DUN.forced)) {
+        const res = await dunAlarm(D);
+        if (res === 'over') return 'over';
+        if (res !== 'won') return 'blown';
+      }
+    } else { dunTally.picked++; tally('picked'); }
+    D.jam = false;
+    return 'on';
+  }
+
+  if (room.t === 'trap') {
+    dunTally.trap++;
+    const skill = skin === 'dive' ? S.proxies : lockInfo().level;
+    const odds = clampN(DUN.disarm[0] + DUN.disarm[1] * skill - 6 * D.floor, 5, 95);
+    const hurt = skin === 'dive' ? DUN.trapOp[0] + DUN.trapOp[1] * D.floor : DUN.trapHp[0] + DUN.trapHp[1] * D.floor;
+    const noise = DUN.trapMeter[0] + DUN.trapMeter[1] * D.floor;
+    const how = await dialog(room.name, body() + foot +
+      `<p class="dim">Dealing with it: <b>${odds}%</b> (${skin === 'dive' ? 'proxy chains' : 'lock picking'}). ` +
+      `Walking into it costs about ${hurt}% ${skin === 'dive' ? 'OpSec' : 'Health'} and +${noise} ${dunMeterName(D)}.</p>`,
+      [[`Deal with it (${odds}%)`, 'kill', 'primary'], ['Straight through it', 'push'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'kill' && Math.random() * 100 < odds) {
+      dunTally.disarmed++;
+      const xp = gainXp(Math.round(DUN.xpRoom * D.floor / 2));
+      D.note = `<span class="green">${skin === 'dive' ? 'You feed it something it would rather look at.' : 'It comes apart in your hands, quietly.'}</span>${xp}`;
+      return 'on';
+    }
+    dunTally.sprung++;
+    const dmg = Math.max(1, Math.round(hurt * (0.7 + Math.random() * 0.6)));
+    if (skin === 'dive') {
+      const soak = Math.max(1, Math.ceil(dmg * (1 - bonus('firewall') / 100)));
+      S.opsec = Math.max(0, S.opsec - soak);
+      D.note = `<span class="red">It bites. OpSec -${soak}%.</span> Trace +${noise}.`;
+    } else {
+      const soak = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100)));
+      S.hp = Math.max(0, S.hp - soak);
+      D.note = `<span class="red">It gets you. Health -${soak}%.</span> Alert +${noise}.`;
+    }
+    SND.play('hurt');
+    S.mood = 'ouch';
+    render();
+    if ((skin === 'dive' ? S.opsec : S.hp) <= 0) return 'blown';
+    if (dunBump(D, noise)) {
+      const res = await dunAlarm(D);
+      if (res === 'over') return 'over';
+      if (res !== 'won') return 'blown';
+    }
+    return 'on';
+  }
+
+  if (room.t === 'choice') {
+    dunTally.choice++;
+    const risk = Math.round(DUN.grab[skin] * 1.5), cash = dunCash(D.floor * 1.5);
+    const how = await dialog(room.name, body() + foot +
+      `<p class="dim">The quick way saves a room and adds ${risk} ${dunMeterName(D)}. The slow way is quiet ` +
+      'and there is usually something lying about on it.</p>',
+      [[`The quick way (+${risk} ${dunMeterName(D)})`, 'fast', 'primary'], ['The slow way', 'slow'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'fast') {
+      D.room++;   // one room skipped
+      D.note = `<span class="amber">You take the short way and leave a trail doing it. ${dunMeterName(D)} +${risk}.</span>`;
+      if (dunBump(D, risk)) {
+        const res = await dunAlarm(D);
+        if (res === 'over') return 'over';
+        if (res !== 'won') return 'blown';
+      }
+      return 'on';
+    }
+    if (Math.random() < 0.6) {
+      const [name, want] = dunLot(D), n = dunGoods(D, name, Math.max(1, Math.round(want / 2)));
+      D.note = n ? `<span class="green">The long way round, and ${num(n)} ${name} on a shelf nobody uses.</span>`
+        : '<span class="amber">The long way round, past things you have no room for.</span>';
+    } else {
+      dunTally.cash++;
+      D.note = `<span class="green">The long way round, and ${dunPay(D, cash)} on the way.</span>`;
+    }
+    return 'on';
+  }
+
+  if (room.t === 'rest') {
+    dunTally.rest++;
+    const back = DUN.heal[0] + DUN.heal[1] * D.floor, op = DUN.opsec[0] + DUN.opsec[1] * D.floor;
+    const how = await dialog(room.name, body() + foot +
+      `<p class="dim">${skin === 'dive' ? `Rebuilding your cover here gives back about ${op}% OpSec.`
+        : `Five minutes and the first aid box gives back about ${back}% Health.`}</p>`,
+      [[skin === 'dive' ? `Rebuild cover (+${op}% OpSec)` : `Patch up (+${back}% Health)`, 'use', 'primary'],
+        ['Not worth the time', 'on'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'use') {
+      if (skin === 'dive') { S.opsec = Math.min(100, S.opsec + op); D.note = `<span class="green">OpSec back to ${S.opsec}%.</span>`; }
+      else { S.hp = Math.min(100, S.hp + back); D.note = `<span class="green">Health back to ${S.hp}%.</span>`; }
+      SND.play('heal');
+    } else D.note = '';
+    return 'on';
+  }
+
+  if (room.t === 'file') {
+    dunTally.file++;
+    const how = await dialog(room.name, body() + foot +
+      '<p class="dim">Reading it costs nothing but the time. People write down the strangest things.</p>',
+      [['Read it', 'read', 'primary'], ['Move on', 'on'], out]);
+    if (how === 'bail') return 'bail';
+    if (how === 'read') {
+      if (dunLeads().length < DUN.leadMax && Math.random() < 0.6) {
+        const L = dunLead('', D.lead.deep + (Math.random() < 0.4 ? 1 : 0));
+        dunLeads().push(L);
+        D.note = `<span class="cyan">An address, written down by somebody who should not have: ${cap1(DUN_TH[L.th].n)} at ${L.at}.</span>`;
+      } else {
+        dunTally.cash++;
+        D.note = `<span class="green">A password on a sticky note, and an account behind it. ${dunPay(D, dunCash(D.floor))}.</span>`;
+      }
+      SND.play('hack');
+    } else D.note = '';
+    return 'on';
+  }
+
+  if (room.t === 'boss') {
+    const how = await dialog(room.name, body() + foot +
+      `<p class="amber">This is the bottom. Beating what is in here is what the run was for.</p>`,
+      [['Go in', 'go', 'primary'], ['Not today', 'bail', 'small']]);
+    if (how !== 'go') return 'bail';
+    dunTally.boss++;
+    const E = dunFoes(D, true, false);
+    await fight(E);
+    if (S.over) return 'over';
+    if (E.result === 'lost') return 'blown';
+    if (E.result !== 'won') {
+      D.note = '<span class="amber">You get out of the room, and that is all you get out of it.</span>';
+      return 'bail';
+    }
+    D.won = true;
+    return 'bail';   // won: dunOut() pays the boss out and closes the run
+  }
+
+  // empty: pacing. Nothing here but the walk.
+  dunTally.empty++;
+  const how = await dialog(room.name, body() + foot, [['Go on', 'on', 'primary'], out]);
+  if (how === 'bail') return 'bail';
+  D.note = '';
+  return 'on';
+}
+
+// What you are holding from this run, in a few words.
+function dunHaul(D) {
+  const bits = Object.entries(D.goods).map(([n, q]) => `${num(q)} ${n}`);
+  if (D.cash) bits.unshift(money(D.cash));
+  return bits.length ? bits.join(', ') : 'nothing yet';
+}
+// A dive's data uploads to the Bunker stash. Whatever will not fit is lost: say so.
+function dunBank(D) {
+  let put = 0, lost = 0;
+  for (const [name, qty] of Object.entries(D.goods)) {
+    const room = Math.max(0, stashCap() - stashTotal()), n = Math.min(qty, room);
+    if (n > 0) {
+      const had = S.stash[name] || 0;
+      S.stashCost[name] = Math.floor(((S.stashCost[name] || 0) * had) / (had + n));
+      S.stash[name] = had + n;
+      put += n;
+    }
+    lost += qty - n;
+  }
+  if (put) dunTally.banked++;
+  if (lost) dunTally.spilled++;
+  return [put, lost];
+}
+// A building run goes wrong: whatever you picked up in there goes back where it came from, and so does
+// the cash. (Anything you were already carrying is yours; a fight with the law may still seize that.)
+function dunSeize(D) {
+  let back = 0;
+  for (const [name, qty] of Object.entries(D.goods)) {
+    const n = Math.min(qty, S.inv[name] || 0);
+    if (n > 0) { removeItems(name, n); back += n; }
+  }
+  const cash = Math.min(S.cash, D.cash);
+  S.cash -= cash;
+  return [back, cash];
+}
+
+// ---------- the way out ----------
+// why: 'won' (the boss is down), 'bail' (you walked out), 'blown' (it went wrong), 'walk' (you turned up
+// somewhere else entirely, so you must have left).
+async function dunOut(D, why) {
+  const L = D.lead, T = DUN_TH[D.th], skin = dunSkin(D), deep = D.floor >= L.deep;
+  delete S.dun;
+  const i = dunLeads().indexOf(L);
+  if (i >= 0 && (why === 'won' || why === 'blown')) dunLeads().splice(i, 1);   // that address is used up
+  if (why === 'blown') {
+    dunTally.failed++;
+    S.mood = 'ouch';
+    let lostTxt;
+    if (skin === 'dive') {
+      const held = dunHaul(D), cash = Math.min(S.cash, D.cash);
+      S.cash -= cash;
+      S.opsec = Math.max(S.opsec, DUN.opsecFloor);
+      lostTxt = `<p class="red">The upload never happened. ${held === 'nothing yet' ? 'There was nothing to lose.' : `Gone: ${held}.`}</p>` +
+        '<p class="dim">Your body never left the booth, so you keep your Health and everything on your drive. ' +
+        'The data was only ever in their machine.</p>';
+    } else {
+      const [back, cash] = dunSeize(D);
+      lostTxt = `<p class="red">${back || cash ? `They take back what you took: ${num(back)} goods and ${money(cash)}.` : 'You got out with nothing, which is at least nothing to explain.'}</p>` +
+        '<p class="dim">Anything you were carrying before you went in is still yours.</p>';
+    }
+    log(`<span class="red">The deep run into ${T.n} is blown.</span>`);
+    render();
+    if (!S.over) {
+      await alertDlg('RUN BLOWN', `<p><b>${cap1(T.n)}</b>, ${T.word} ${D.floor} of ${L.deep}.</p>` + lostTxt +
+        '<p class="dim">The address is burned. You will need another.</p>', 'danger');
+    }
+    return;
+  }
+  // Out in one piece, with or without the boss.
+  let pay = '';
+  if (why === 'won') {
+    dunTally.cleared++;
+    tally('dunwin');
+    tally(skin === 'dive' ? 'dundive' : 'dunsite');
+    if (L.deep >= DUN.floors[1]) tally('dundeep');
+    const cash = Math.max(10, Math.round(dunTake() * DUN.cashBoss * (1 + DUN.bossFloor * (L.deep - 1)) / 10) * 10);
+    dunPay(D, cash);
+    const [name, want] = dunLot(D), n = dunGoods(D, name, want * 2);
+    const xp = gainXp(DUN.xpBoss[0] + DUN.xpBoss[1] * L.deep);
+    pay = `<p><b>${cap1(T.boss)}</b> is yours: <b>${money(cash)}</b>${n ? ` and ${num(n)} ${name}` : ''}.${xp}</p>`;
+    SND.play('cash');
+  } else if (why === 'bail') {
+    dunTally.bailed++;
+    if (Object.values(D.goods).reduce((a, b) => a + b, 0) >= 10) tally('dunbail');
+  } else {
+    dunTally.walked++;
+  }
+  let bankTxt = '';
+  if (skin === 'dive') {
+    const [put, lost] = dunBank(D);
+    bankTxt = `<p>${put ? `Uploaded to the Bunker stash: <b>${num(put)}</b> goods.` : 'Nothing to upload.'}` +
+      (lost ? ` <span class="amber">${num(lost)} would not fit in the stash and are gone.</span>` : '') + '</p>' +
+      `<p class="dim">Stash ${num(stashTotal())}/${num(stashCap())}.</p>`;
+  }
+  if (D.pts) bankTxt += `<p class="dim">Lock picking: <span class="amber">+${D.pts}</span> this run.</p>`;
+  log(`<span class="${why === 'won' ? 'green' : ''}">${why === 'won' ? 'Deep run cleared' : why === 'walk' ? 'You walked out of' : 'Out of'} ${T.n}` +
+    `${why === 'won' ? '' : ` on ${T.word} ${D.floor}`}.${D.cash || Object.keys(D.goods).length ? ` You came out with ${dunHaul(D)}.` : ''}</span>`);
+  S.mood = why === 'won' ? 'grin' : S.mood;
+  render();
+  await alertDlg(why === 'won' ? 'RUN CLEARED' : why === 'walk' ? 'You left' : 'Out',
+    `<p><b>${cap1(T.n)}</b> &middot; ${T.word} ${D.floor} of ${L.deep}.</p>` + pay +
+    `<p>Carried out: ${dunHaul(D)}.</p>` + bankTxt +
+    (why === 'won' ? '' : '<p class="dim">The address is still good until it goes cold, so you can go back in another day.</p>'));
+  if (why === 'won') await dropLoot(T.boss, DUN.gearBoost[clampN(L.deep - 1, 0, 4)]);
+}
+
+// ---------- the run ----------
+async function dunPlay() {
+  let D = dunRun();
+  if (!D) return;
+  for (let step = 0; step < DUN.maxSteps; step++) {
+    D = dunRun();
+    if (!D) return;
+    if (!Array.isArray(D.rooms) || !D.rooms.length) D.rooms = dunRooms(D.lead, D.floor);
+    // The end of a floor: go down (a trip) or stop here.
+    if (D.room >= D.rooms.length) {
+      if (D.floor >= D.lead.deep) return dunOut(D, 'bail');   // nothing below the boss room
+      const skin = dunSkin(D), off = DUN.down[skin];
+      const can = S.trips >= DUN.tripDown;
+      const how = await dialog(`Down to ${dunWord(D)} ${D.floor + 1}`,
+        `<p class="dim">${dunWord(D).toUpperCase()} ${D.floor} CLEARED &middot; ${DUN_TH[D.th].n.toUpperCase()}</p>` +
+        `<p>${skin === 'dive' ? 'The next layer is open below you. It will be worse and it will be worth more.'
+          : 'The stairwell goes down. Deeper floors hold more and are held harder.'}</p>` + dunMeter(D) +
+        `<p>Carried out so far: ${dunHaul(D)}.</p>` +
+        `<p class="dim">Going down costs <b>${DUN.tripDown}</b> trip (you have ${S.trips}) and takes ` +
+        `${off} off the ${dunMeterName(D)}. Floor ${D.lead.deep} is ${DUN_TH[D.th].boss}.</p>` +
+        (can ? '' : `<p class="red">No trips left today. This is as far as you go.</p>`),
+        (can ? [[`Go down (1 trip, ${D.floor + 1} of ${D.lead.deep})`, 'down', 'primary']] : [])
+          .concat([['Get out with what you have', 'bail', can ? '' : 'primary']]),
+        D.m >= 70 ? 'danger' : '');
+      if (how !== 'down') return dunOut(D, 'bail');
+      S.trips -= DUN.tripDown;
+      D.floor++;
+      D.room = 0;
+      D.rooms = dunRooms(D.lead, D.floor);
+      D.m = clampN(D.m - off, 0, 100);
+      D.note = '';
+      dunTally.down++;
+      const up = dunHeat(D, DUN.heatFloor);
+      if (up) D.note = `<span class="dim">Another ${dunWord(D)} down. Heat +${up}%.</span>`;
+      save();
+      continue;
+    }
+    const room = D.rooms[D.room];
+    dunTally.rooms++;
+    const res = await dunRoom(D, room);
+    if (S.over) { delete S.dun; return; }
+    D = dunRun();
+    if (!D) return;
+    if (res === 'over') { delete S.dun; return; }
+    if (res === 'blown') return dunOut(D, 'blown');
+    if (res === 'bail') return dunOut(D, D.won ? 'won' : 'bail');
+    D.room++;
+    save();
+  }
+  const last = dunRun();
+  if (last) return dunOut(last, 'bail');
+}
+
+// Go in. Costs a trip; the run then lives on S.dun until it ends.
+async function dunEnter(L) {
+  if (!DUN_TH[L.th] || S.trips < DUN.tripIn || dunRun()) return;
+  S.trips -= DUN.tripIn;
+  const skin = DUN_TH[L.th].k;
+  S.dun = {th: L.th, lead: L, floor: 1, room: 0, rooms: dunRooms(L, 1), m: DUN.start[skin],
+    goods: {}, cash: 0, at: S.loc, pts: 0, note: '', jam: false, won: false};
+  dunTally.entered++;
+  dunTally[skin]++;
+  if (skin === 'dive' && SYNDICATES[L.gang]) S.grudge[L.gang] = (S.grudge[L.gang] || 0) + DUN.grudge;
+  log(`${skin === 'dive' ? 'You jack into' : 'You are inside'} ${DUN_TH[L.th].n}.`);
+  SND.play(skin === 'dive' ? 'hack' : 'imin', 0.2);
+  save();
+  return dunPlay();
+}
+
+// You cannot be inside a building and somewhere else. Anyone who was in a run and has since turned up
+// elsewhere left in a hurry: they keep what they carried, and a dive still uploads.
+async function dunCheck() {
+  const D = dunRun();
+  if (!D || S.over) return;
+  if (D.at === S.loc || (dunSkin(D) === 'dive' && (S.loc === BUNKER || S.loc === D.at))) return;
+  return dunOut(D, 'walk');
+}
+// Every morning: leads go cold, and the Intel Board may have a new address.
+function dunNight() {
+  const list = dunLeads();
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (!DUN_TH[list[i].th] || S.day - list[i].day > DUN.leadDays) { list.splice(i, 1); dunTally.cold++; }
+  }
+  if (eff('intel') >= 1 && list.length < DUN.leadMax && Math.random() < DUN.intelOdds) {
+    const L = dunLead('');
+    list.push(L);
+    notes.push(['Intel Board', `<p>Red string, two photographs and an address.</p><div class="syn">${dunTip(L)}</div>` +
+      '<p class="dim">A deep run: rooms, floors, and something worth having at the bottom. Open it from <b>Deep run</b> ' +
+      'when you are there.</p>']);
+  }
+}
+// A broker on the street, selling an address. Called from randomEvent().
+async function dunBroker() {
+  if (dunLeads().length >= DUN.leadMax) return;
+  const L = dunLead('');
+  const price = Math.max(200, Math.round(dunTake() * DUN.brokerCost * L.deep / 10) * 10);
+  if (S.cash < price) return;
+  if (await confirmDlg('An address', '<p>Somebody who does not give a name sells addresses. This one is folded into a till receipt.</p>' +
+    `<div class="syn">${dunTip(L)}</div><p>They want <b>${money(price)}</b>.</p>`, `Pay ${money(price)}`, 'Pass')) {
+    S.cash -= price;
+    dunLeads().push(L);
+    dunTally.bought++;
+    log(`Bought an address: ${DUN_TH[L.th].n} at ${L.at}.`);
+  }
+}
+const dunButton = () => {
+  const D = dunRun();
+  if (D) return `Deep run (inside: ${dunWord(D)} ${D.floor}/${D.lead.deep})`;
+  const n = dunLeads().filter(L => DUN_TH[L.th]).length, here = dunLeads().filter(dunHere).length;
+  return here ? `Deep run (${here} here)` : n ? `Deep run (${n} address${n === 1 ? '' : 'es'})` : 'Deep run';
+};
+
+Object.assign(ACTIONS, {
+  async dungeon() {
+    const D = dunRun();
+    if (D) {
+      if (D.at !== S.loc && !(dunSkin(D) === 'dive' && S.loc === BUNKER)) return dunCheck();
+      return dunPlay();
+    }
+    for (;;) {
+      const list = dunLeads().filter(L => DUN_TH[L.th]);
+      const here = list.filter(dunHere), away = list.filter(L => !dunHere(L));
+      const html = '<p class="dim">A dungeon: rooms, then a floor down, then the same again, with something worth ' +
+        'having at the bottom. A trip to go in and one for each floor down; you can walk out at any room with ' +
+        'what you are holding.</p>' +
+        (here.length ? '<p class="dim">READY HERE &middot; tap one to go in</p>' +
+          here.map(L => `<div class="syn pickable dunlead" data-pick="go:${list.indexOf(L)}">${dunTip(L)}</div>`).join('') : '') +
+        (away.length ? '<p class="dim">ADDRESSES YOU HOLD</p>' +
+          away.map(L => `<div class="syn">${dunTip(L)}</div>`).join('') : '') +
+        (list.length ? '' : '<p class="dim">You have no addresses. The Intel Board finds them, brokers sell them, ' +
+          'and they turn up in other people\'s paperwork.</p>') +
+        `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today.</p>`;
+      const buttons = here.filter(() => S.trips >= DUN.tripIn).map(L =>
+        [`Go in: ${DUN_TH[L.th].n} (${L.deep} ${DUN_TH[L.th].word}s)`, 'go:' + list.indexOf(L), 'primary']);
+      if (S.trips >= DUN.lookTrips && list.length < DUN.leadMax) {
+        buttons.push([`Go looking for an address (${DUN.lookTrips} trip)`, 'look']);
+      }
+      buttons.push(['Leave it', null, buttons.length ? 'small' : 'primary']);
+      const pickOne = await dialog('Deep run', html, buttons);
+      if (!pickOne) return;
+      if (pickOne === 'look') {
+        S.trips -= DUN.lookTrips;
+        dunTally.looked++;
+        if (Math.random() < DUN.lookOdds && dunLeads().length < DUN.leadMax) {
+          const L = dunLead('');
+          dunLeads().push(L);
+          log(`You turned up an address: ${DUN_TH[L.th].n} at ${L.at}.`);
+          await alertDlg('An address', `<p>Two hours of asking the right people the wrong questions.</p><div class="syn">${dunTip(L)}</div>`);
+        } else {
+          await alertDlg('Nothing doing', '<p>Nobody is talking today. That is a trip you will not get back.</p>');
+        }
+        render();
+        continue;
+      }
+      const L = list[Number(String(pickOne).slice(3))];
+      if (!L || !dunHere(L) || S.trips < DUN.tripIn) return;
+      return dunEnter(L);
+    }
+  },
+});
+// Start a deep run of a given kind and depth where you stand, with an address made on the spot.
+// (For the debug menu and the self-test.) kind: 'site' or 'dive'. floors: 2 to DUN.floors[1].
+async function startDungeon(kind, floors) {
+  if (dunRun()) return;
+  const L = dunLead(kind === 'dive' || kind === 'site' ? kind : '', floors);
+  L.at = S.loc;
+  if (S.trips < DUN.tripIn) S.trips = DUN.tripIn;
+  return dunEnter(L);
+}
+
+// Deep runs, step by step: the tables are whole, a lead's rooms are the same every time it is opened, each
+// kind of room does exactly what it says, a building's loot is limited by what you can carry and a dive's by
+// the stash, bailing keeps everything, failing takes the right things away, the boss pays, and a run that is
+// saved and reloaded carries on, or ends cleanly if you turn up somewhere else.
+async function dunSelfTest() {
+  const run = S, mine = career, keep = slot, random = Math.random, realFight = fight;
+  const fail = (what, ...more) => { throw new Error('Deep run test: ' + what + ' ' + JSON.stringify(more)); };
+  // Answer the dialogs with the first of these that is on offer, then with whatever comes first.
+  const want = list => {
+    autoPick = all => {
+      const v = list.find(x => all.includes(x));
+      return v === undefined ? (all.includes(true) ? true : all[0]) : v;
+    };
+  };
+  const fixed = async (v, fn) => { Math.random = () => v; try { return await fn(); } finally { Math.random = random; } };
+  const won = result => { fight = async E => { E.result = result; }; };
+  const fresh = o => {
+    career = newCareer(); fixCareer(); newGame(); setLockSkill(LOCK_MAX);
+    for (const k of Object.keys(TOOLS)) if (k !== 'clip') S[k] = GADGETS[k][2];
+    Object.assign(S, {day: 12, trips: 20, cash: 2000000, loc: 'Datacenter Dock'}, o || {});
+    rollMarket();
+    S.leads = []; delete S.dun;
+    notes.length = 0; logs = [];
+  };
+  // Put a run on the floor with exactly these rooms, so one kind of room can be played on its own.
+  const stage = (kind, rooms, floor, deep) => {
+    const L = dunLead(kind, deep || 3);
+    L.at = S.loc;
+    S.dun = {th: L.th, lead: L, floor: floor || 1, room: 0, rooms, m: DUN.start[kind], goods: {}, cash: 0,
+      at: S.loc, pts: 0, note: '', jam: false, won: false};
+    return S.dun;
+  };
+  const R = (t, o) => Object.assign({t, name: 'Test ' + t, line: 'A room for testing.'}, o || {});
+  try {
+    // ---- the tables ----
+    for (const [id, T] of Object.entries(DUN_TH)) {
+      if ((T.k !== 'site' && T.k !== 'dive') || !T.n || !T.word || !T.boss || !T.bossWho ||
+        !Array.isArray(T.at) || !T.at.length || T.at.some(l => !LOCATIONS.includes(l) || l === BUNKER) ||
+        !(T.guard === 'own' || T.guard === 'sec' || T.guard === 'law' || SYNDICATES[T.guard])) fail('theme half defined', id);
+    }
+    if (!DUN_IDS.some(id => DUN_TH[id].k === 'site') || !DUN_IDS.some(id => DUN_TH[id].k === 'dive')) fail('only one kind of dungeon');
+    for (const skin of ['site', 'dive']) {
+      for (const kind of ['loot', 'fight', 'lock', 'trap', 'choice', 'rest', 'file', 'empty']) {
+        const pool = DUN_TXT[skin][kind];
+        if (!Array.isArray(pool) || !pool.length || pool.some(p => !p[0] || !p[1] || p[1].length > 120)) fail('room flavour', skin, kind);
+      }
+    }
+    if (!(DUN.floors[0] >= 2 && DUN.floors[1] === DUN_FLOORS && DUN.gearBoost.length === DUN.floors[1])) fail('DUN shape', DUN.floors);
+
+    // ---- the generator: the same lead makes the same rooms, every floor ends somewhere, and the bottom is the boss ----
+    fresh();
+    const L0 = dunLead('site', 4);
+    for (let f = 1; f <= L0.deep; f++) {
+      const a = dunRooms(L0, f), b = dunRooms(L0, f);
+      if (JSON.stringify(a) !== JSON.stringify(b)) fail('rooms are not stable', f);
+      if (a.filter(r => r.t === 'lock').length > 1) fail('two locked doors on one floor', f);
+      if (a.some(r => r.t === 'lock' && !LOCKS[r.lock])) fail('lock without a lock', f);
+      if (a.length < DUN.rooms[0]) fail('floor too short', f, a.length);
+      if ((f === L0.deep) !== a.some(r => r.t === 'boss')) fail('boss in the wrong place', f);
+      if (a[0].t === 'boss' && f !== 1) fail('boss first');
+    }
+    // A cache never holds more than the table allows, and the money a whole run can pay stays modest.
+    for (let day = 1; day <= DAYS; day++) {
+      S.day = day;
+      for (let f = 1; f <= DUN.floors[1]; f++) {
+        S.dun = {th: 'tower', lead: L0, floor: f, room: 0, rooms: [], m: 0, goods: {}, cash: 0, at: S.loc, pts: 0};
+        const [name, qty] = dunLot(S.dun);
+        if (!GOODS.some(g => g[0] === name) || !(qty >= 1 && qty <= DUN.lootMax)) fail('cache', day, f, name, qty);
+      }
+      const boss = Math.round(dunTake() * DUN.cashBoss * (1 + DUN.bossFloor * (DUN.floors[1] - 1)));
+      if (boss > dayTake(day) * 0.25) fail('the boss pays too much', day, boss, dayTake(day));
+    }
+    delete S.dun;
+
+    // ---- a building: a cache goes on the drive, and only as much as you can carry ----
+    fresh();
+    let D = stage('site', [R('loot')], 2);
+    let before = used();
+    want(['take', 'bail']);
+    await fixed(0.8, () => dunPlay());   // 0.8: no gear, no ammo, no gadget: goods
+    if (S.dun) fail('the run did not end');
+    if (used() <= before) fail('a building cache put nothing on the drive', used(), before);
+    // ...and with no room at all, nothing comes out and the run says so.
+    fresh();
+    D = stage('site', [R('loot')], 2);
+    addItems('Warez', free(), 0);
+    const noroom = dunTally.noroom, held = used();
+    want(['take', 'bail']);
+    await fixed(0.8, () => dunPlay());
+    if (used() !== held || dunTally.noroom <= noroom) fail('a full drive still took loot', used(), held);
+
+    // ---- a dive: the haul is not on the drive, it uploads to the stash when you get out ----
+    fresh();
+    D = stage('dive', [R('loot')], 2);
+    before = used();
+    const stashWas = stashTotal();
+    want(['take', 'bail']);
+    await fixed(0.8, () => dunPlay());
+    if (used() !== before) fail('a dive put goods on the drive', used(), before);
+    if (stashTotal() <= stashWas) fail('a dive uploaded nothing to the stash', stashTotal(), stashWas);
+    if (stashTotal() > stashCap()) fail('a dive overfilled the stash', stashTotal());
+    // ...and a full stash loses the overflow rather than breaking.
+    fresh();
+    S.stash = {'Warez': stashCap()}; S.stashCost = {'Warez': 1};
+    D = stage('dive', [R('loot')], 2);
+    const spilled = dunTally.spilled;
+    want(['take', 'bail']);
+    await fixed(0.8, () => dunPlay());
+    if (stashTotal() !== stashCap() || dunTally.spilled <= spilled) fail('a full stash took the upload', stashTotal());
+
+    // ---- a locked door in a building: the game's own locks, tools and skill ----
+    for (const [tool, flag] of [['picks', 'picked'], ['crowbar', 'forced']]) {
+      fresh();
+      D = stage('site', [R('lock', {lock: 'padlock'})], 1);
+      const count = dunTally[flag], heat = S.heat;
+      want([tool, 'bail']);
+      await fixed(0, () => dunPlay());
+      if (dunTally[flag] <= count) fail('a lock did not open', tool);
+      if (tool === 'crowbar' && S.heat <= heat) fail('forcing a door cost no Heat');
+    }
+    // ...and a lock can set the alarm off, which is a fight.
+    for (const result of ['won', 'fled', 'lost']) {
+      fresh();
+      D = stage('site', [R('lock', {lock: 'maglock'}), R('empty')], 1);
+      D.m = 96;
+      const alarms = dunTally.alarm;
+      won(result);
+      want(['clip', 'bail']);
+      try { await fixed(0.99, () => dunPlay()); } finally { fight = realFight; }
+      if (dunTally.alarm <= alarms) fail('a full meter did not bring anybody', result);
+      if (dunTally[result] === undefined) fail('alarm result not counted', result);
+    }
+    // ---- a dive's crypto gate: a Zero-Day opens it, brute force opens it loudly ----
+    fresh();
+    D = stage('dive', [R('lock')], 2);
+    addItems('Zero-Days', 1, 0);
+    const keyed = dunTally.keyed;
+    want(['zero', 'bail']);
+    await dunPlay();
+    if (dunTally.keyed <= keyed || S.inv['Zero-Days']) fail('a Zero-Day did not open the gate', S.inv);
+    fresh();
+    D = stage('dive', [R('lock')], 2);
+    const bruted = dunTally.bruted;
+    want(['brute', 'bail']);
+    await dunPlay();
+    if (dunTally.bruted <= bruted) fail('brute force did nothing');
+
+    // ---- traps: one way costs you, the other is a chance to deal with it ----
+    fresh();
+    D = stage('site', [R('trap')], 2);
+    let hp = S.hp, sprung = dunTally.sprung;
+    want(['push', 'bail']);
+    await fixed(0.5, () => dunPlay());
+    if (S.hp >= hp || dunTally.sprung <= sprung) fail('a building trap did not hurt', S.hp, hp);
+    fresh();
+    D = stage('dive', [R('trap')], 2);
+    let op = S.opsec; hp = S.hp; sprung = dunTally.sprung;
+    want(['push', 'bail']);
+    await fixed(0.5, () => dunPlay());
+    if (S.opsec >= op || S.hp !== hp || dunTally.sprung <= sprung) fail('a dive trap hit the wrong thing', S.opsec, S.hp);
+    fresh();
+    D = stage('site', [R('trap')], 1);
+    const dis = dunTally.disarmed;
+    want(['kill', 'bail']);
+    await fixed(0, () => dunPlay());
+    if (dunTally.disarmed <= dis || S.hp !== 100) fail('disarming a trap went wrong', S.hp);
+
+    // ---- fights in a room: take them on, or creep past ----
+    fresh();
+    D = stage('site', [R('fight')], 2);
+    const snuck = dunTally.snuck;
+    want(['sneak', 'bail']);
+    await fixed(0, () => dunPlay());
+    if (dunTally.snuck <= snuck) fail('creeping past never works');
+    for (const result of ['won', 'fled', 'lost']) {
+      fresh();
+      D = stage('site', [R('fight'), R('empty')], 2);
+      D.goods = {}; D.cash = 0;
+      addItems('Warez', 5, 0);
+      const fights = dunTally.fight, failed = dunTally.failed, bailed = dunTally.bailed;
+      won(result);
+      want(['go', 'bail']);
+      try { await fixed(0.99, () => dunPlay()); } finally { fight = realFight; }
+      if (dunTally.fight <= fights) fail('no fight happened', result);
+      if (result === 'lost' && dunTally.failed <= failed) fail('losing a fight did not blow the run');
+      if (result === 'fled' && dunTally.bailed <= bailed) fail('running did not end the run');
+      if (S.inv['Warez'] !== 5) fail('a blown run took what you brought in', S.inv);
+    }
+    // ...and a blown building run hands back exactly what was taken in there, and nothing else.
+    fresh();
+    D = stage('site', [R('loot'), R('fight')], 2);
+    addItems('Warez', 7, 0);
+    let cash = S.cash;
+    won('lost');
+    want(['take', 'go', 'bail']);
+    try { await fixed(0.8, () => dunPlay()); } finally { fight = realFight; }
+    if (S.inv['Warez'] !== 7 || S.cash > cash) fail('a blown run gave back the wrong things', S.inv, S.cash, cash);
+    // ...and a blown dive loses the upload, and only that: your body never left the booth.
+    fresh();
+    D = stage('dive', [R('loot'), R('fight')], 2);
+    addItems('Warez', 7, 0);
+    hp = S.hp;
+    const stashBefore = stashTotal();
+    won('lost');
+    want(['take', 'go', 'bail']);
+    try { await fixed(0.8, () => dunPlay()); } finally { fight = realFight; }
+    if (S.inv['Warez'] !== 7 || S.hp !== hp || stashTotal() !== stashBefore || S.opsec < DUN.opsecFloor) {
+      fail('a blown dive took the wrong things', S.inv, S.hp, stashTotal(), S.opsec);
+    }
+
+    // ---- the boss: it pays, it counts, and it hands over gear ----
+    for (const kind of ['site', 'dive']) {
+      fresh();
+      D = stage(kind, [R('boss')], 2, 2);
+      cash = S.cash;
+      const xp = career.xp, cleared = dunTally.cleared, bag = career.bag.length;
+      won('won');
+      want(['go', 'b', 'bail']);
+      try { await dunPlay(); } finally { fight = realFight; }
+      if (S.dun || dunTally.cleared <= cleared || S.cash <= cash || career.xp <= xp) fail('the boss paid nothing', kind, S.cash - cash);
+      if (career.bag.length <= bag && !Object.values(career.gear).length) fail('the boss handed over no gear', kind);
+      if (stat('dunwin') < 1 || stat(kind === 'dive' ? 'dundive' : 'dunsite') < 1) fail('the win was not counted', kind);
+    }
+    // The deepest run counts for the achievement, and clearing one at the top depth is possible.
+    fresh();
+    D = stage('site', [R('boss')], DUN.floors[1], DUN.floors[1]);
+    won('won');
+    want(['go', 'b', 'bail']);
+    try { await dunPlay(); } finally { fight = realFight; }
+    if (stat('dundeep') < 1) fail('the deepest run was not counted');
+
+    // ---- going down a floor costs a trip, and takes the meter down with it ----
+    fresh();
+    D = stage('site', [R('empty')], 1, 3);
+    D.m = 60;
+    const trips = S.trips, downs = dunTally.down;
+    want(['on', 'down', 'bail']);
+    await dunPlay();
+    if (dunTally.down <= downs) fail('nobody went down a floor');
+    if (S.trips >= trips) fail('going down cost no trips', S.trips, trips);
+
+    // ---- a save and a reload in the middle: the run is the same, and leaving ends it cleanly ----
+    fresh();
+    D = stage('site', [R('empty'), R('empty')], 1, 3);
+    const shape = JSON.stringify(dunRooms(D.lead, 1));
+    const copy = JSON.parse(JSON.stringify(S));
+    S = copy;
+    if (!dunRun() || JSON.stringify(dunRooms(dunRun().lead, 1)) !== shape) fail('a reload lost the run');
+    const walked = dunTally.walked;
+    S.loc = 'Strip Mall';
+    want(['bail', true]);
+    await dunCheck();
+    if (S.dun || dunTally.walked <= walked) fail('turning up elsewhere did not end the run', S.dun);
+
+    // ---- leads: they come, they go cold, and a broker sells one ----
+    fresh();
+    setStation('intel', 1);
+    S.leads = [];
+    await fixed(0, () => dunNight());
+    if (!dunLeads().length) fail('the Intel Board found nothing with the odds forced');
+    const old = dunLeads()[0];
+    S.day += DUN.leadDays + 1;
+    dunNight();
+    if (dunLeads().includes(old)) fail('a cold lead was kept');
+    fresh();
+    S.leads = [];
+    const bought = dunTally.bought;
+    want([true]);
+    await dunBroker();
+    if (dunTally.bought <= bought || !dunLeads().length) fail('the broker sold nothing');
+    if (!dunTip(dunLeads()[0]).includes(DUN_TH[dunLeads()[0].th].word)) fail('a lead says nothing about itself');
+    // ...and never more than the limit, however many turn up.
+    fresh();
+    for (let i = 0; i < 20; i++) { if (dunLeads().length < DUN.leadMax) dunLeads().push(dunLead('')); dunNight(); }
+    if (dunLeads().length > DUN.leadMax) fail('too many leads', dunLeads().length);
+    // Going looking for an address costs a trip whether it works or not.
+    fresh();
+    S.leads = [];
+    const looked = dunTally.looked, had = S.trips;
+    want(['look', null]);
+    await fixed(0, () => ACTIONS.dungeon());   // keeps looking while the button is there: one trip each time
+    const tries = dunTally.looked - looked;
+    if (!tries || S.trips !== had - DUN.lookTrips * tries || dunLeads().length !== Math.min(tries, DUN.leadMax)) {
+      fail('going looking cost the wrong trips', tries, S.trips, had, dunLeads().length);
+    }
+    // The debug handle: both kinds start where you stand and cost a trip.
+    for (const kind of ['site', 'dive']) {
+      fresh();
+      const ins = dunTally.entered, t = S.trips;
+      want(['bail', 'on', true]);
+      await startDungeon(kind, 2);
+      if (dunTally.entered <= ins || S.trips >= t) fail('startDungeon', kind, S.trips, t);
+      delete S.dun;
+    }
+  } finally {
+    Math.random = random; autoPick = null; fight = realFight;
+    slot = keep; S = run; career = mine; logs = []; notes = []; pendingLevel = 0;
+  }
+}
+// ====================== DUNGEONS (deep runs): END ======================
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -11424,6 +13554,7 @@ async function selfTest(games) {
   let rideBase = [0, 0, 0, 0, 0], rideHopTally = 0;
   let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
   let skWas = {spent: 0, fired: 0};   // SKILL TREE: what the step-by-step test did does not count below
+  let dunWas = {}, dunUses = 0;   // DUNGEONS
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -11487,12 +13618,14 @@ async function selfTest(games) {
         await rideSelfTest();
         await baseSelfTest();   // BASE
         await skillSelfTest();   // SKILL TREE
+        await dunSelfTest();    // DUNGEONS
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
       if (game === 0) rideBase = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally];
       if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
       if (game === 0) skWas = {spent: skTally.spent, fired: skTally.fired};   // SKILL TREE
+      if (game === 0) dunWas = Object.assign({}, dunTally);   // DUNGEONS
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -11592,6 +13725,40 @@ async function selfTest(games) {
           }
           if (S.over) break;
         }
+        // DUNGEONS: every so often the bot opens the Deep run screen (so leads, going looking and going in
+        // through the real menu all get used), and every so often it starts a run of either kind at a random
+        // depth with the debug handle. Everything inside is answered at random, so sooner or later every room
+        // goes every way: caches full and refused, fights taken and crept past, locks picked and forced, gates
+        // keyed and brute-forced, traps sprung and disarmed, alarms answered, floors cleared, bosses beaten,
+        // runs bailed out of and runs blown. A run must always close, and must never overfill the drive.
+        if (Math.random() < 0.03 && !dunRun()) {
+          await ACTIONS.dungeon();
+          if (S.over) break;
+          if (dunRun()) throw new Error('the Deep run screen left a run open: ' + JSON.stringify(S.dun));
+        }
+        if (Math.random() < 0.035 && !dunRun()) {
+          if (Math.random() < 0.4) setLockSkill(rnd(1, LOCK_MAX));
+          for (const k of Object.keys(TOOLS)) if (k !== 'clip' && Math.random() < 0.5) S[k] = Math.max(S[k], 2);
+          if (Math.random() < 0.3) S.proxies = Math.min(MAX_PROXIES, S.proxies + 1);
+          if (Math.random() < 0.3 && free() >= 2) addItems('Zero-Days', 1, 0);
+          const stashWas = stashTotal(), fits = used() <= cap(), lock = career.lockpick;
+          // Choosing at random, a bot walks out of the first room it does not like, so most runs would end
+          // on floor 1. Most of the time it pushes on instead: it takes every cache, deals with whatever is
+          // in the way, goes down every floor and walks into the boss room, which is how a run reaching the
+          // bottom, an alarm, a boss and a blown run all get played. The rest are left to chance.
+          const push = Math.random() < 0.6 ? ['take', 'go', 'down', 'kill', 'picks', 'pickgun', 'crowbar', 'clip',
+            'zero', 'bomb', 'proxy', 'brute', 'read', 'use', 'push', 'fast', 'on', 'e', 'b'] : null;
+          if (push) autoPick = all => push.find(v => all.includes(v));
+          try {
+            await startDungeon(Math.random() < 0.5 ? 'site' : 'dive', rnd(DUN.floors[0], DUN.floors[1]));
+          } finally { autoPick = null; }
+          dunUses++;
+          if (dunRun()) throw new Error('a deep run was left open: ' + JSON.stringify(S.dun));
+          if (fits && used() > cap()) throw new Error('a deep run overfilled the drive: ' + JSON.stringify([used(), cap()]));
+          if (stashTotal() > stashCap()) throw new Error('a deep run overfilled the stash: ' + stashTotal());
+          if (career.lockpick < lock) throw new Error('a deep run took lock picking away');
+          if (S.over) break;
+        }
         // Rides: every so often the bot turns up at one of the three shops, usually with the price of something in
         // its pocket, and buys, trades in or sells whatever it taps; at the Bunker it swaps rides in the garage.
         // However many deals that was, today's trips must have moved by exactly the change in hops.
@@ -11618,6 +13785,24 @@ async function selfTest(games) {
           if (S.over) break;
           if (S.day === day && (BASE_IDS.some((b, i) => lvl(b) !== lv[i]) || (HQ().shots || 0) < shots)) throw new Error('a station changed level without a night passing: ' + JSON.stringify([id, lv, BASE_IDS.map(lvl)]));
           if (MARK_KINDS.some((k, i) => career.marks[k] < marks[i])) throw new Error('weapon skill went down');
+        }
+        // BASE: a session on the Range needs several things to line up at once (a built range with the power
+        // on, a weapon of a kind it teaches, the rounds for it, a skill still under its cap and a session
+        // left today), and left to chance 25 games can go by without one. So now and then the bot is set up
+        // for a session and sent in, and must come back having had one.
+        if (S.loc === BUNKER && eff('range') >= 1 && Math.random() < 0.12) {
+          const R = BASE.range.lv[eff('range')], kind = pick(R.kinds);
+          const w = WEAPONS.findIndex(x => x && x[4] === kind);
+          if (w > 0) {
+            S.weapon = w;
+            if (usesAmmo(WEAPONS[w])) S.ammo.std = Math.min(AMMO_MAX, Math.max(S.ammo.std, R.rounds));
+            if (markInfo(kind).level >= R.cap) setMarks(0, kind);
+            HQ().shots = 0;
+            const sessions = baseTally.sessions, why = rangeBlock();
+            autoPick = all => (all.includes('quick') ? 'quick' : all.includes('go') ? 'go' : undefined);
+            try { await ACTIONS.station('range'); } finally { autoPick = null; }
+            if (!why && baseTally.sessions === sessions) throw new Error('the Range turned the bot away: ' + JSON.stringify([kind, w, rangeBlock()]));
+          }
         }
         // SKILL TREE: the bot spends what levelling hands it, wanders the tree's screens now and then, and
         // reflashes the kit once a test run. Every point it spends has to come off the unspent count exactly.
@@ -11757,7 +13942,18 @@ async function selfTest(games) {
           Object.keys(career.skills).some(id => !SKILLS[id] || (skPrev(id) && !skHas(skPrev(id))) || level() < skGate(id)) ||
           skCount() > skIds().length || skSpent() > skTotal() || skLeft() !== skTotal() - skSpent() ||
           skTotal() !== (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus() || skSpent() > skTreeCost() ||
-          (skFight !== null);
+          (skFight !== null) ||
+          // DUNGEONS: never more addresses than the limit, each one a real theme at a real place at a real
+          // depth; and a run in progress is on a floor that exists, at a room in its own list, with its meter
+          // on the scale and whole numbers of goods taken.
+          !Array.isArray(S.leads) || S.leads.length > DUN.leadMax ||
+          S.leads.some(L => !DUN_TH[L.th] || !LOCATIONS.includes(L.at) || L.at === BUNKER || !Number.isInteger(L.seed) ||
+            !(L.deep >= DUN.floors[0] && L.deep <= DUN.floors[1]) || !(L.day >= 1 && L.day <= DAYS)) ||
+          (S.dun && !(DUN_TH[S.dun.th] && S.dun.lead && DUN_TH[S.dun.lead.th] === DUN_TH[S.dun.th] &&
+            Number.isInteger(S.dun.floor) && S.dun.floor >= 1 && S.dun.floor <= S.dun.lead.deep &&
+            Array.isArray(S.dun.rooms) && S.dun.room >= 0 && S.dun.m >= 0 && S.dun.m <= 100 &&
+            Number.isInteger(S.dun.cash) && S.dun.cash >= 0 && LOCATIONS.includes(S.dun.at) &&
+            Object.values(S.dun.goods).every(q => Number.isInteger(q) && q > 0)));
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
       if (S.over) {
@@ -11798,7 +13994,26 @@ async function selfTest(games) {
     // BASE: ...and tapped rooms, handed things in, been refused, started builds, slept through them and practised.
     const bd = {};
     for (const k of Object.keys(baseTally)) bd[k] = baseTally[k] - (baseWas[k] || 0);
-    if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && bd.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd]));
+    // (the Range is counted over the whole test, step-by-step part included: a short random run does not
+    //  always happen to practise, and that alone is no reason to call the base untouched)
+    if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && baseTally.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd, baseTally.sessions]));
+    // DUNGEONS: ...and it must have gone on deep runs of both kinds, worked its way through every kind of
+    // room, met locked doors and crypto gates, sprung traps, set alarms off, gone deeper, reached a boss,
+    // bailed out with a haul and had runs blown.
+    const dd = {};
+    for (const k of Object.keys(dunTally)) dd[k] = dunTally[k] - (dunWas[k] || 0);
+    const dmust = ['entered', 'site', 'dive', 'rooms', 'loot', 'cash', 'fight', 'snuck', 'lock', 'trap', 'sprung',
+      'disarmed', 'choice', 'rest', 'file', 'empty', 'down', 'bailed', 'failed', 'alarm', 'leads'];
+    if (games >= 20 && (dmust.some(k => !dd[k]) || !(dd.picked + dd.forced) || !(dd.keyed + dd.bruted) ||
+      !(dd.boss + dd.cleared) || !dunUses)) {
+      throw new Error('deep runs not exercised: ' + JSON.stringify(dd));
+    }
+    const dsum = ` deepruns=${dd.entered} site=${dd.site} dive=${dd.dive} rooms=${dd.rooms} floors=${dd.down}` +
+      ` bosses=${dd.boss} cleared=${dd.cleared} bailed=${dd.bailed} blown=${dd.failed} walked=${dd.walked}` +
+      ` caches=${dd.loot} nodrive=${dd.noroom} gearfound=${dd.gear} cashfinds=${dd.cash}` +
+      ` fights=${dd.fight} snuck=${dd.snuck}/${dd.seen} locks=${dd.picked}/${dd.forced} gates=${dd.keyed}/${dd.bruted}` +
+      ` traps=${dd.disarmed}/${dd.sprung} alarms=${dd.alarm} alarmfights=${dd.won}/${dd.fled}/${dd.lost}` +
+      ` uploads=${dd.banked} spilled=${dd.spilled} leads=${dd.leads} bought=${dd.bought} looked=${dd.looked} cold=${dd.cold}`;
     const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots - fireWas.shots} roundssaved=${fireTally.saved - fireWas.saved}`;
     // SKILL TREE: ...and the bot must have spent points, got some way down a branch, fired scripts in real
     // fights and reflashed the kit at least once.
@@ -11808,7 +14023,7 @@ async function selfTest(games) {
     const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
       ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum}${dsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -11950,7 +14165,19 @@ function introText() {
     'The amount on your Drive takes the colour of the bag on your back.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
-    '<p class="dim">Only cash and your cold wallet count at the end.</p>';
+    '<p class="dim">Only cash and your cold wallet count at the end.</p>' +
+    // Shown only on a handheld (the TINY SCREENS layout), where there is no pointer at all.
+    '<div class="keyhelp"><p><b class="cyan">KEYS</b></p>' +
+    '<p>The game is on five screens: <b>MARKET</b>, <b>YOU</b>, <b>JOBS</b>, <b>LOG</b> and <b>DO</b>. ' +
+    '<b>&larr;</b> and <b>&rarr;</b> change screen and <b>Esc</b> comes back to the market. The name of the ' +
+    'screen is top left, and the keys that work on it are along the bottom.</p>' +
+    '<p><b>1</b> to <b>9</b> (and <b>0</b> for the tenth) pick the numbered thing in front of you: a product, ' +
+    'a job, something to do, or a button in a dialogue.</p>' +
+    '<p>On the market, <b>&uarr;</b> and <b>&darr;</b> move from product to product and the one you are on ' +
+    'opens up. <b>Enter</b> buys it, <b>S</b> sells it. At the Bunker the same keys store and take.</p>' +
+    '<p><b>T</b> tunnels out, <b>I</b> opens your inventory, <b>G</b> your gear, <b>M</b> the Bunker\'s rooms.</p>' +
+    '<p>In a dialogue <b>Esc</b> backs out and <b>PgUp</b>/<b>PgDn</b> read a long one like this. In a fight ' +
+    'the arrows pick a move, Enter takes it, 1-9 take one outright and Esc goes back a step.</p></div>';
 }
 
 // The start menu: continue, start a new game, load a save or delete one. Returns once a save is in use.
@@ -12025,6 +14252,7 @@ async function startMenu() {
   // #selftest plays 200 random games; #selftest=30 plays 30.
   if (location.hash.startsWith('#selftest')) { bootEl.remove(); return selfTest(Number(location.hash.split('=')[1]) || 200); }
   bootEl.onclick = endBoot;
+  document.addEventListener('keydown', endBoot, {once: true});   // no pointer on a handheld: any key skips it
   setTimeout(endBoot, 2600);
   // Web version only: keep a copy for offline play.
   if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
