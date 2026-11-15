@@ -2326,9 +2326,8 @@ async function skillTree() {
     const p = skPoints();
     const html = `<p><b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
       `${skCount()} of ${skIds().length} routines running</p>` +
-      `<p class="dim">Every level-up pays ${SKILL.perLevel} skill point. Routines belong to this save, like your XP and your lock picking, ` +
-      'and they carry over between runs. A branch is a line: each routine needs the one before it and a level of its own. ' +
-      'No career spends enough for all of them, so pick a lane.</p>' +
+      // Kept to one line: on a 320x170 screen everything above the branch buttons has to be scrolled past.
+      `<p class="dim">${SKILL.perLevel} point a level. A branch is a line, and no career can afford every branch.</p>` +
       Object.entries(SK_BRANCHES).map(([b, [name, what]]) => {
         const ids = skBranch(b), on = ids.filter(skHas).length;
         return `<div class="syn skbr"><b class="${on === ids.length ? 'green' : on ? 'cyan' : ''}">${name}</b> ` +
