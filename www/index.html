@@ -126,9 +126,10 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #news div::before{content:">> ";color:var(--pink)}
 /* the syndicate mission: always open, and kept to a heading line and one block */
 #quest .qnow{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
-#quest .qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
+/* the heading is not tied to #quest: the handheld's JOBS screen copies this block out of it (see renderTiny) */
+.qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
   color:var(--pink);font-weight:normal}
-#quest .qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
+.qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
 #quest .qnow .job{margin:6px}
 #market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
 .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
