@@ -463,6 +463,15 @@ button .ico.room{width:44px;height:26px}
 @media (min-width:900px) and (min-height:500px){#market>.basewrap,#market>.baseline,#market>.baseline+.row{grid-column:1/-1}
   .basemap{width:min(100%,calc(60vh / var(--z) * 1.2727))}}
 /* ===== the base: END ===== */
+/* ===== skill tree: BEGIN =====
+   The tree is built out of plain dialogs, so it inherits the keyboard and the small-screen layout and needs
+   almost nothing of its own: one row per routine, and the little squares that show a branch's progress. */
+.sknode{border-left:2px solid var(--line)}
+.sknode.running{border-left-color:var(--green)}
+.sknode.ready{border-left-color:var(--amber)}
+.skbr .skpips{letter-spacing:2px;font-size:11px}
+.skbr b{letter-spacing:.5px}
+/* ===== skill tree: END ===== */
 /* ================= WIDE SCREENS =================
    Everything from here to the end of the style sheet only applies to a window at least 900px wide and 500px
    tall (a desktop window, a tablet on its side, a desktop browser). Below that nothing here does anything and
@@ -2014,7 +2023,8 @@ const SND = (() => {
 // stats: running counts of things you have done (see tally()). ach: achievements earned, {id: when}.
 // lockpick: lock picking skill points (see lockInfo()).
 const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats: {}, ach: {}, rep: {}, lockpick: 0,
-  base: newBase(), marks: newMarks()});   // BASE: the Bunker's stations and the weapon skills
+  base: newBase(), marks: newMarks(),   // BASE: the Bunker's stations and the weapon skills
+  skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
 function levelInfo(total) {
@@ -2024,8 +2034,9 @@ function levelInfo(total) {
 }
 const level = () => levelInfo().level;
 const inSyn = key => career.syn === key;
-const debtRate = () => inSyn('ledger') ? 0.04 : DEBT_RATE;
-const walletRate = () => inSyn('ledger') ? 0.06 : WALLET_RATE;
+// SKILL TREE: Compound Interest shifts both rates a little (skDebt, skWallet).
+const debtRate = () => Math.max(0, (inSyn('ledger') ? 0.04 : DEBT_RATE) - skDebt());
+const walletRate = () => (inSyn('ledger') ? 0.06 : WALLET_RATE) + skWallet();
 const pct = rate => Math.round(rate * 100);
 
 // Adds XP and returns a snippet to append to a log line.
@@ -2096,12 +2107,301 @@ async function levelUpCheck() {
     log(`<span class="cyan">LEVEL UP: level ${l}, ${titleFor(l)}.</span>`);
     render();
     await alertDlg('LEVEL UP', `<p>You reached <b>level ${l}</b>: <span class="cyan">${titleFor(l)}</span>.</p>` +
-      '<p class="dim">Each level (up to 10) adds 1% to your freelance job success chance.</p>');
+      '<p class="dim">Each level (up to 10) adds 1% to your freelance job success chance.</p>' +
+      // SKILL TREE: a level is a skill point, so say so here, where you cannot miss it.
+      (skLeft() ? `<p><span class="cyan">You have ${skLeft()} skill point${plural1(skLeft())} to spend.</span> ` +
+        'Your record &rarr; Skill tree.</p>' : ''));
     if (l >= 10 && !career.syn) await chooseSyndicate();
   }
   await achCheck();
   if (pendingLevel) return levelUpCheck();   // an achievement's XP was enough for another level
 }
+
+// ===== SKILL TREE: BEGIN =====
+// Every level-up hands you one skill point. You spend them on "routines": programs, exploits, daemons
+// and street tricks, laid out in five branches that pull in different directions. A daemon is passive and
+// always running; a script is a command that appears on the battle screen's menu while you can fire it.
+// A branch is a straight line: a node needs the one before it and a level of its own, so the deep ones
+// cost both an investment and the time to get there.
+//
+// The tree belongs to the save, like XP and the lock picking skill: career.skills = {id: 1}. Points are
+// never stored, only worked out from your level (see skPoints), so a save from before the tree loads with
+// exactly the right number of unspent points and nothing has to be migrated, and no point can be spent twice.
+//
+// ===== TUNING: every number the tree uses is in this one table. =====
+const SKILL = {
+  perLevel: 1,            // skill points per level gained (you start at level 1, so a level L career has L-1 of them)
+  bonus: 0,               // points every career gets on top (a knob: raise it to make the tree reachable sooner)
+  respecCash: 25000,      // wiping the build and getting every point back costs this...
+  respecHeat: 10,         // ...and raises Heat by this much
+  cost: [1, 1, 2, 3],     // what a node costs, by how deep it sits in its branch
+  gate: [2, 6, 12, 20],   // ...and the level it needs
+  // --- what the daemons do. Each number is the whole of one node's effect; nothing stacks but lockOpen. ---
+  aim: 3,                 // Hand-Eye Calibration: % added to your chance to hit with any weapon
+  dodge: 8,               // Pattern Recognition: % of their attacks that miss instead
+  overAim: 20,            // Overclock: % added to your hit chance for the rest of the fight...
+  overOpsec: 12,          // ...and the OpSec it costs to fire
+  killOpsec: 15, killHeat: 8, killDrop: 2,   // Killswitch: OpSec it costs, Heat with the law, how many drop
+  lockOpen: 4,            // Oiled Picks: % added to a quiet lock's chance of opening (Ghost Protocol adds it again)
+  lockQuiet: 20,          // Soft Shoes: % off the Alert a missed pick adds
+  inside: 6,              // Casing Eye: % added to the inside job's chance on a break-in
+  clean: 10,              // Ghost Protocol: % added to the chance of a clean exit
+  jobOdds: 4,             // Spread Sheets: % added to a freelance job's chance
+  wallet: 1, debt: 1,     // Compound Interest: % a day more on the cold wallet, % a day less from the Fixer
+  jobPay: 10,             // Paper Trail: % more from freelance jobs and break-in payouts
+  loot: 15,               // Fence Contacts: % more cash off beaten hostiles
+  heatCut: 10,            // Traffic Shaping: % off every gain of Heat
+  scrubHeat: 10, scrubOpsec: 8,     // Burn Notice: Heat it takes off, and the OpSec it costs
+  decay: 3,               // Cold Boot: Heat that comes off each night on top of the usual
+  vanishOpsec: 20, vanishHeat: 5,   // Dead Hand: what walking out of a fight on your own terms costs
+  soak: 5,                // Thick Skin: % less damage to your Health, after armour
+  regen: 2, medkit: 10,   // Field Dressing: % Health a day, and % added to what a medkit heals
+  shuntHeal: 20,          // Adrenal Shunt: % Health back, once a fight
+  windHp: 10, windHeat: 10,   // Second Wind: the Health it leaves you on, and the Heat of being seen go down
+};
+// The branches: [name, what it is for]. They map to the five things a run is actually made of.
+const SK_BRANCHES = {
+  ice: ['ICEbreaker', 'Fights: landing hits, taking fewer, and two scripts to fire mid-fight.'],
+  entry: ['Entry', 'Locks, break-ins, and leaving nothing behind.'],
+  trade: ['Arbitrage', 'Freelance work, the wallet, the Fixer, and what the beaten carry.'],
+  quiet: ['Noise Floor', 'Heat: raising less of it, shedding more, and getting out clean.'],
+  flesh: ['Meatspace', 'Your body: soaking damage, healing, and not going down.'],
+};
+// The nodes, in order within each branch: that order is the order you must buy them in, and it sets a
+// node's cost and level from SKILL.cost and SKILL.gate. k: 'daemon' (always running) or 'script' (a fight command).
+const SKILLS = {
+  ice_aim: {b: 'ice', n: 'Hand-Eye Calibration', k: 'daemon',
+    t: `Your deck learns your hands. <b>+${SKILL.aim}% to hit</b> with any weapon.`},
+  ice_read: {b: 'ice', n: 'Pattern Recognition', k: 'daemon',
+    t: `You read a muzzle before it moves. Attacks aimed at you land <b>${SKILL.dodge}% less often</b>.`},
+  ice_over: {b: 'ice', n: 'Overclock', k: 'script',
+    t: `Dump the thermal budget. Costs a turn and <b>${SKILL.overOpsec}% OpSec</b>, and adds <b>+${SKILL.overAim}% to hit</b> for the rest of the fight. Once a fight, and not over the wire.`},
+  ice_kill: {b: 'ice', n: 'Killswitch', k: 'script',
+    t: `A stolen shutdown command, straight down their link. Drops <b>${SKILL.killDrop}</b> of them. Costs <b>${SKILL.killOpsec}% OpSec</b>, and ${SKILL.killHeat}% Heat if it is the law. Once a fight.`},
+  ent_pick: {b: 'entry', n: 'Oiled Picks', k: 'daemon',
+    t: `You keep your tools properly. <b>+${SKILL.lockOpen}%</b> on a quiet lock's chance of opening.`},
+  ent_soft: {b: 'entry', n: 'Soft Shoes', k: 'daemon',
+    t: `A missed pick barely registers. <b>${SKILL.lockQuiet}% less Alert</b> from every miss.`},
+  ent_case: {b: 'entry', n: 'Casing Eye', k: 'daemon',
+    t: `You know which drawer it is in before you are in the room. <b>+${SKILL.inside}%</b> on the job itself.`},
+  ent_ghost: {b: 'entry', n: 'Ghost Protocol', k: 'daemon',
+    t: `Nobody files a report about a door that was never open. <b>+${SKILL.clean}%</b> on a clean exit, and <b>+${SKILL.lockOpen}%</b> more on quiet locks.`},
+  trd_spread: {b: 'trade', n: 'Spread Sheets', k: 'daemon',
+    t: `You read the brief twice. Freelance jobs succeed <b>${SKILL.jobOdds}% more often</b>.`},
+  trd_interest: {b: 'trade', n: 'Compound Interest', k: 'daemon',
+    t: `You argue with the Fixer in his own language. Cold wallet <b>+${SKILL.wallet}% a day</b>, debt <b>${SKILL.debt}% a day cheaper</b>.`},
+  trd_paper: {b: 'trade', n: 'Paper Trail', k: 'daemon',
+    t: `Invoices, in triplicate, for crimes. Freelance jobs and break-in payouts pay <b>${SKILL.jobPay}% more</b>.`},
+  trd_fence: {b: 'trade', n: 'Fence Contacts', k: 'daemon',
+    t: `Somebody always wants a dead operator's tooling. <b>${SKILL.loot}% more cash</b> off anyone you beat.`},
+  qui_shape: {b: 'quiet', n: 'Traffic Shaping', k: 'daemon',
+    t: `Your noise looks like everyone else's. <b>${SKILL.heatCut}% off every gain of Heat</b>.`},
+  qui_scrub: {b: 'quiet', n: 'Burn Notice', k: 'script',
+    t: `Torch the trail while they are still looking at you. <b>Heat -${SKILL.scrubHeat}%</b> and they lose a turn. Costs <b>${SKILL.scrubOpsec}% OpSec</b>. Once a fight.`},
+  qui_cold: {b: 'quiet', n: 'Cold Boot', k: 'daemon',
+    t: `Everything comes up clean in the morning. <b>${SKILL.decay}% more Heat comes off every night</b>.`},
+  qui_vanish: {b: 'quiet', n: 'Dead Hand', k: 'script',
+    t: `A prepared exit, armed before you walked in. <b>You leave the fight, always.</b> Costs <b>${SKILL.vanishOpsec}% OpSec</b> and ${SKILL.vanishHeat}% Heat. Once a fight.`},
+  fle_skin: {b: 'flesh', n: 'Thick Skin', k: 'daemon',
+    t: `Subdermal mesh and bad habits. <b>${SKILL.soak}% less damage</b> to your Health, after armour.`},
+  fle_dress: {b: 'flesh', n: 'Field Dressing', k: 'daemon',
+    t: `You patch yourself properly. <b>+${SKILL.regen}% Health a day</b>, and medkits heal <b>${SKILL.medkit}% more</b>.`},
+  fle_shunt: {b: 'flesh', n: 'Adrenal Shunt', k: 'script',
+    t: `One pull, everything at once. <b>+${SKILL.shuntHeal}% Health</b>, no medkit spent. Costs a turn. Once a fight.`},
+  fle_wind: {b: 'flesh', n: 'Second Wind', k: 'daemon',
+    t: `The first time a fight would put you down, it does not. You come back up on <b>${SKILL.windHp}% Health</b> and <b>+${SKILL.windHeat}% Heat</b>. Once a fight.`},
+};
+// ---------- reading the tree ----------
+const skIds = () => Object.keys(SKILLS);
+const skBranch = b => skIds().filter(id => SKILLS[id].b === b);
+const skDepth = id => skBranch(SKILLS[id].b).indexOf(id);
+const skAt = (table, id) => table[Math.min(table.length - 1, skDepth(id))];
+const skCost = id => skAt(SKILL.cost, id);
+const skGate = id => skAt(SKILL.gate, id);
+const skPrev = id => { const list = skBranch(SKILLS[id].b), i = list.indexOf(id); return i > 0 ? list[i - 1] : ''; };
+const skMap = () => (career.skills && typeof career.skills === 'object' ? career.skills : (career.skills = {}));
+const skHas = id => !!skMap()[id];
+const skCount = () => skIds().filter(skHas).length;
+const skSpent = () => skIds().filter(skHas).reduce((sum, id) => sum + skCost(id), 0);
+const skBonus = () => (Number.isInteger(career.skBonus) && career.skBonus > 0 ? career.skBonus : 0);
+const skTotal = () => Math.max(0, (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus());
+const skLeft = () => Math.max(0, skTotal() - skSpent());
+const skPoints = () => ({total: skTotal(), spent: skSpent(), left: skLeft()});
+const skTreeCost = () => skIds().reduce((sum, id) => sum + skCost(id), 0);
+const skBranchDone = b => skBranch(b).every(skHas);
+const plural1 = n => (n === 1 ? '' : 's');
+// Why a node cannot be unlocked right now, or '' when it can.
+function skBlock(id) {
+  if (skHas(id)) return '';
+  const prev = skPrev(id);
+  if (prev && !skHas(prev)) return `${SKILLS[prev].n} comes first.`;
+  if (level() < skGate(id)) return `It needs level ${skGate(id)}.`;
+  if (skLeft() < skCost(id)) return `It costs ${skCost(id)} point${plural1(skCost(id))} and you have ${skLeft()}.`;
+  return '';
+}
+let skTally = {spent: 0, fired: 0, wind: 0, respec: 0, deep: 0};   // counted for the self-test
+// Unlock one node. free: ignore the level, the order and the cost (that is the way in for the debug menu).
+function skUnlock(id, free) {
+  if (!SKILLS[id] || skHas(id) || (!free && skBlock(id))) return false;
+  skMap()[id] = 1;
+  skTally.spent++;
+  skTally.deep = Math.max(skTally.deep, skDepth(id));
+  saveCareer();
+  return true;
+}
+// Hand out points on top of the ones levels give (the debug menu, and the SKILL.bonus knob).
+function skGrant(n) {
+  career.skBonus = Math.max(0, skBonus() + Math.floor(n || 0));
+  saveCareer();
+  return skLeft();
+}
+// Wipe the build. Every point comes back, because points are worked out from the level, not stored.
+function skReset() { career.skills = {}; saveCareer(); }
+// Tidy whatever the save file had. A career from before the tree arrives with nothing unlocked and every
+// point of its level unspent; one with a routine the game no longer has, a routine out of order, or more
+// spent than its level pays for (the numbers in SKILL having moved) loses the deepest nodes until it fits.
+function fixSkills() {
+  const had = career.skills && typeof career.skills === 'object' ? career.skills : {};
+  career.skills = {};
+  if (!(Number.isInteger(career.skBonus) && career.skBonus > 0)) career.skBonus = 0;
+  for (const b of Object.keys(SK_BRANCHES)) {
+    for (const id of skBranch(b)) {
+      if (!had[id]) break;          // a line with a gap in it stops there
+      career.skills[id] = 1;
+    }
+  }
+  const deepest = () => skIds().filter(skHas).sort((a, b) => skDepth(b) - skDepth(a))[0];
+  while (skSpent() > skTotal()) delete career.skills[deepest()];
+}
+// ---------- what the daemons are worth, wherever the game asks ----------
+let skFight = null;   // while a fight is on: {over: Overclock is running, used: {id: 1} for the once-a-fight scripts}
+const skAim = () => (skHas('ice_aim') ? SKILL.aim : 0) + (skFight && skFight.over ? SKILL.overAim : 0);
+const skDodge = () => (skHas('ice_read') ? 1 - SKILL.dodge / 100 : 1);
+const skSoak = () => (skHas('fle_skin') ? 1 - SKILL.soak / 100 : 1);
+const skHeatMul = () => (skHas('qui_shape') ? 1 - SKILL.heatCut / 100 : 1);
+const skDecay = () => (skHas('qui_cold') ? SKILL.decay : 0);
+const skRegen = () => (skHas('fle_dress') ? SKILL.regen : 0);
+const medHeal = () => MED_HEAL + (skHas('fle_dress') ? SKILL.medkit : 0);
+const skLockOpen = () => (skHas('ent_pick') ? SKILL.lockOpen : 0) + (skHas('ent_ghost') ? SKILL.lockOpen : 0);
+const skLockQuiet = () => (skHas('ent_soft') ? 1 - SKILL.lockQuiet / 100 : 1);
+const skInside = () => (skHas('ent_case') ? SKILL.inside : 0);
+const skClean = () => (skHas('ent_ghost') ? SKILL.clean : 0);
+const skJobOdds = () => (skHas('trd_spread') ? SKILL.jobOdds : 0);
+const skJobPay = () => (skHas('trd_paper') ? 1 + SKILL.jobPay / 100 : 1);
+const skLoot = () => (skHas('trd_fence') ? 1 + SKILL.loot / 100 : 1);
+const skWallet = () => (skHas('trd_interest') ? SKILL.wallet / 100 : 0);
+const skDebt = () => (skHas('trd_interest') ? SKILL.debt / 100 : 0);
+// The scripts, in the order they appear on the fight menu: which node pays for them, the command value,
+// the label, and when they can be fired. o: {law, raid, thug} about the fight you are in.
+const SK_SCRIPTS = [
+  {id: 'ice_over', cmd: 'sk_over', label: () => `Overclock (${SKILL.overOpsec} OpSec)`,
+    ok: (f, o) => !f.used.ice_over && !f.over && !o.raid && !!WEAPONS[S.weapon] && S.opsec > SKILL.overOpsec},
+  {id: 'ice_kill', cmd: 'sk_kill', label: () => `Killswitch (${SKILL.killOpsec} OpSec)`,
+    ok: f => !f.used.ice_kill && S.opsec > SKILL.killOpsec},
+  {id: 'qui_scrub', cmd: 'sk_scrub', label: () => `Burn Notice (${SKILL.scrubOpsec} OpSec)`,
+    ok: (f, o) => !f.used.qui_scrub && S.opsec > SKILL.scrubOpsec && (o.law || S.heat > 0)},
+  {id: 'fle_shunt', cmd: 'sk_shunt', label: () => `Adrenal Shunt (+${SKILL.shuntHeal}% Health)`,
+    ok: (f, o) => !f.used.fle_shunt && !o.raid && S.hp < 100},
+  {id: 'qui_vanish', cmd: 'sk_vanish', label: () => `Dead Hand (${SKILL.vanishOpsec} OpSec)`,
+    ok: (f, o) => !f.used.qui_vanish && !o.raid && S.opsec > SKILL.vanishOpsec},
+];
+// How the battle screen plays a script: its colour, its sound, and the word that pops over you.
+const SK_ACT = {
+  sk_over: {col: '#fcee0a', snd: 'hack', pop: 'OVERCLOCK'},
+  sk_kill: {col: '#c77dff', snd: 'hack', pop: 'KILLSWITCH'},
+  sk_scrub: {col: '#00e5ff', snd: 'hack', pop: 'SCRUBBED'},
+  sk_shunt: {col: '#3dff9a', snd: 'heal', pop: 'SHUNT'},
+};
+// ---------- the screens (plain dialogs, so they work on a handheld by keyboard alone) ----------
+const skKind = id => (SKILLS[id].k === 'script' ? 'script &middot; a command in a fight' : 'daemon &middot; always running');
+const skState = id => (skHas(id) ? 'running' : skBlock(id) ? 'locked' : 'ready');
+const skRow = id => {
+  const N = SKILLS[id], st = skState(id), why = skBlock(id);
+  return `<div class="syn sknode ${st}"><b class="${st === 'running' ? 'green' : st === 'ready' ? 'amber' : 'dim'}">` +
+    `${st === 'running' ? '&#10003; ' : ''}${N.n}</b> <span class="dim">${skCost(id)} pt${plural1(skCost(id))} &middot; level ${skGate(id)} &middot; ${skKind(id)}</span>` +
+    `<br>${N.t}` + (why ? `<br><span class="amber">${why}</span>` : st === 'ready' ? '<br><span class="green">Ready to unlock.</span>' : '') + '</div>';
+};
+async function skillTree() {
+  for (;;) {
+    const p = skPoints();
+    const html = `<p><b class="cyan">${p.left}</b> point${plural1(p.left)} to spend &middot; ${p.spent} of ${skTreeCost()} spent &middot; ` +
+      `${skCount()} of ${skIds().length} routines running</p>` +
+      `<p class="dim">Every level-up pays ${SKILL.perLevel} skill point. Routines belong to this save, like your XP and your lock picking, ` +
+      'and they carry over between runs. A branch is a line: each routine needs the one before it and a level of its own. ' +
+      'No career spends enough for all of them, so pick a lane.</p>' +
+      Object.entries(SK_BRANCHES).map(([b, [name, what]]) => {
+        const ids = skBranch(b), on = ids.filter(skHas).length;
+        return `<div class="syn skbr"><b class="${on === ids.length ? 'green' : on ? 'cyan' : ''}">${name}</b> ` +
+          `<span class="dim">${on}/${ids.length}</span> <span class="skpips">${ids.map(id =>
+            `<span class="${skHas(id) ? 'green' : skState(id) === 'ready' ? 'amber' : 'dim'}">${skHas(id) ? '&#9632;' : '&#9633;'}</span>`).join('')}</span>` +
+          `<br><span class="dim">${what}</span></div>`;
+      }).join('');
+    const buttons = Object.entries(SK_BRANCHES).map(([b, [name]]) =>
+      [`${name} (${skBranch(b).filter(skHas).length}/${skBranch(b).length})`, b,
+        skBranch(b).some(id => skState(id) === 'ready') ? 'primary' : '']);
+    if (skSpent()) buttons.push([`Reflash the kit (${money(SKILL.respecCash)})`, 'respec', 'danger']);
+    buttons.push(['Close', null, 'primary']);
+    const choice = await dialog(`Skill tree${p.left ? ` (${p.left} to spend)` : ''}`, html, buttons);
+    if (!choice) return;
+    if (choice === 'respec') await skRespec();
+    else if (SK_BRANCHES[choice]) await skBranchScreen(choice);
+  }
+}
+// One branch at a time: four routines down a line, which is what fits a 320x170 screen.
+async function skBranchScreen(b) {
+  const [name, what] = SK_BRANCHES[b];
+  for (;;) {
+    const ids = skBranch(b), p = skPoints();
+    const html = `<p class="dim">${what}</p><p><b class="cyan">${p.left}</b> point${plural1(p.left)} to spend.</p>` +
+      ids.map(skRow).join('');
+    const buttons = ids.map(id => [`${SKILLS[id].n}${skHas(id) ? ' ✓' : ` (${skCost(id)} pt${plural1(skCost(id))})`}`, id,
+      skState(id) === 'ready' ? 'primary' : skHas(id) ? 'small' : '']);
+    buttons.push(['Back', null, 'primary']);
+    const id = await dialog(name, html, buttons);
+    if (!id || !SKILLS[id]) return;
+    await skNodeScreen(id);
+  }
+}
+async function skNodeScreen(id) {
+  const N = SKILLS[id], why = skBlock(id);
+  const html = skRow(id) +
+    (N.k === 'script' ? '<p class="dim">A script is a command on the fight menu. It is only listed when you can fire it, and each one fires once a fight.</p>' : '') +
+    `<p class="dim">${skLeft()} point${plural1(skLeft())} unspent &middot; ${SK_BRANCHES[N.b][0]} branch.</p>`;
+  const buttons = [];
+  if (!skHas(id) && !why) buttons.push([`Unlock (${skCost(id)} point${plural1(skCost(id))})`, 'go', 'primary']);
+  buttons.push(['Back', null, buttons.length ? '' : 'primary']);
+  if (await dialog(N.n, html, buttons) !== 'go') return;
+  if (!skUnlock(id)) return;
+  SND.play('level');
+  log(`<span class="cyan">Routine unlocked: ${N.n}.</span>`);
+  render();
+  await alertDlg('ROUTINE UNLOCKED', `<p><b class="cyan">${N.n}</b><br>${N.t}</p>` +
+    `<p class="dim">${skLeft()} point${plural1(skLeft())} left to spend.</p>`);
+  await achCheck();
+}
+// A respec: everything comes back, for money and a little Heat.
+async function skRespec() {
+  const back = skSpent();
+  if (!back) return;
+  if (S.cash < SKILL.respecCash) {
+    return alertDlg('Reflash the kit', `<p>Wiping every routine and starting the build again costs <b>${money(SKILL.respecCash)}</b>. ` +
+      `You have ${money(S.cash)}.</p>`);
+  }
+  if (!await confirmDlg('Reflash the kit',
+    `<p>Every routine is wiped and all <b>${back}</b> point${plural1(back)} come back to spend again, wherever you like.</p>` +
+    `<p>It costs <b>${money(SKILL.respecCash)}</b> and raises your Heat by ${SKILL.respecHeat}%: somebody always notices a deck ` +
+    'going dark and coming back different.</p>', 'Wipe it', 'Keep the build')) return;
+  S.cash -= SKILL.respecCash;
+  heatUp(SKILL.respecHeat);
+  skReset();
+  skTally.respec++;
+  tally('respec');
+  log(`<span class="amber">You reflashed the kit: ${back} skill point${plural1(back)} back.</span>`);
+  render();
+  await alertDlg('Kit reflashed', `<p>Everything is wiped. <b>${back}</b> point${plural1(back)} to spend again.</p>`);
+  await achCheck();
+}
+// ===== SKILL TREE: END =====
 
 // ---------- achievements ----------
 // Count something the player did. The counts feed the achievements and the current syndicate mission.
@@ -2172,6 +2472,12 @@ const ACH = {
   killhouse: ['Kill House Rules', 'Build the Range up to its top level', 400, () => lvl('range') >= topLv('range')],
   deadeye: ['Dead Centre', `Take a weapon skill to level ${MARKS.max}`, 500, () => MARK_KINDS.some(k => markInfo(k).level >= MARKS.max)],
   fullbase: ['Planning Permission Was Never Sought', 'Build every station in the Bunker to its top level', 1500, () => BASE_IDS.every(id => lvl(id) >= topLv(id))],
+  // --- the skill tree (see SKILLS) ---
+  sk1: ['Self-Modifying Code', 'Unlock your first routine', 100, () => skCount() >= 1],
+  sk5: ['Stack Overflow', 'Have 5 routines running at once', 300, () => skCount() >= 5],
+  skend: ['Deep Specialist', 'Take one branch of the skill tree all the way to the end', 500,
+    () => Object.keys(SK_BRANCHES).some(skBranchDone)],
+  skwipe: ['Have You Tried Turning It Off', 'Reflash the kit and spend every point again', 100, () => stat('respec') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -2302,6 +2608,7 @@ function fixCareer() {
   if (!Array.isArray(career.locker)) career.locker = [];
   if (!(Number.isInteger(career.lockpick) && career.lockpick >= 0)) career.lockpick = 0;   // from before lock picking: the starting skill
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
+  fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
   fixQuest();
 }
 // A standing order: a repeatable job once the chain is done.
@@ -2792,8 +3099,9 @@ function lockOdds(key, lock, edge) {
   const raw = T.loud ? B.force[0] - B.force[1] * diff + B.force[2] * lvl - (type === 'elec' ? B.force[3] : 0)
     : B.base + B.perLevel * lvl + (diff >= 4 && T.hard !== undefined ? T.hard : T.q) - B.perDiff * diff;
   const ease = 1 - B.ease * (lvl - 1);
-  return {open: clampN(Math.round(raw + (edge || 0)), B.min, B.max), brk: Math.round(T.brk * ease * 100),
-    wear: Math.round(T.wear * 100), noise: Math.max(1, Math.round(T.noise * ease))};
+  // SKILL TREE: Oiled Picks and Ghost Protocol open quiet locks more often; Soft Shoes makes a miss quieter.
+  return {open: clampN(Math.round(raw + (edge || 0) + (T.loud ? 0 : skLockOpen())), B.min, B.max), brk: Math.round(T.brk * ease * 100),
+    wear: Math.round(T.wear * 100), noise: Math.max(1, Math.round(T.noise * ease * skLockQuiet()))};
 }
 // quiet: at the practice board, where there is no Alert to add to.
 const oddsLine = (key, o, quiet) => `<span class="green">opens ${o.open}%</span>` +
@@ -2953,10 +3261,12 @@ function heistHeat(n) {
 function jobOddsIn(M, st) {
   const H = M.H, B = BREAKIN;
   const gear = H.job === 'hack' ? B.proxyEdge * S.proxies + bonus('hack') / 2 : H.job === 'rob' ? bonus('speed') / 2 : bonus('stealth') / 2;
-  const base = B.job[H.job] + gear - B.tierDrop * (H.tier - 1) + (st.cased ? B.casedEdge : 0) + (H.edge || 0);
+  // SKILL TREE: the Casing Eye knows where it is kept.
+  const base = B.job[H.job] + gear - B.tierDrop * (H.tier - 1) + (st.cased ? B.casedEdge : 0) + (H.edge || 0) + skInside();
   return {careful: clampN(Math.round(base), B.jobMin, B.jobMax), fast: clampN(Math.round(base - B.fastDrop), B.jobMin, B.jobMax)};
 }
-const cleanOdds = st => clampN(Math.round(100 - st.alert + bonus('stealth') / 2 + (st.cased ? BREAKIN.casedEdge / 2 : 0)), BREAKIN.cleanMin, BREAKIN.cleanMax);
+// SKILL TREE: Ghost Protocol adds skClean() to the chance of walking out unnoticed.
+const cleanOdds = st => clampN(Math.round(100 - st.alert + bonus('stealth') / 2 + (st.cased ? BREAKIN.casedEdge / 2 : 0) + skClean()), BREAKIN.cleanMin, BREAKIN.cleanMax);
 const fastHeat = st => BREAKIN.heat.fast[0] + Math.round(st.alert / BREAKIN.heat.fast[1]);
 // What heistHeat(n) would add right now, for telling the player before they choose.
 function heatShown(n) {
@@ -4921,6 +5231,8 @@ const fx = () => (S.fx && typeof S.fx === 'object' ? S.fx : (S.fx = {vpn: 0, dec
 // Everything that raises Heat comes through here, so a running VPN can halve it.
 function heatUp(n) {
   if (n > 0 && fx().vpn > 0) n = Math.ceil(n / 2);
+  if (n > 0) n = Math.ceil(n * skHeatMul());   // SKILL TREE: Traffic Shaping
+
   S.heat = Math.min(100, S.heat + n);
 }
 // How much Heat a Heat item would take off if used right now (0 for the ones that work over time).
@@ -5047,9 +5359,10 @@ function rollContracts() {
   // About one board in three also has a break-in on it: a device to leave somewhere, behind a lock.
   if (Math.random() < 0.33) S.contracts.push(breakinJob());
 }
-const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1));
+// SKILL TREE: Paper Trail pays more for the same job, Spread Sheets lands it more often.
+const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1) * skJobPay());
 const chanceFor = c => Math.max(10, Math.min(95,
-  c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0) + bonus('charm')));
+  c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0) + bonus('charm') + skJobOdds()));
 function log(text, cls) {
   logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
   logs.length = Math.min(logs.length, 14);
@@ -5872,6 +6185,8 @@ function render() {
     ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
       lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
   ];
+  // SKILL TREE: points waiting to be spent, shown only while there are any.
+  if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan']);
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
   if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
   if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
@@ -5939,6 +6254,8 @@ function render() {
   if (last) acts += '<button data-act="cashout">End run &amp; cash out</button>';
   acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
   acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
+  // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
+  if (skLeft()) acts += `<button data-act="skills">Skill tree (${skLeft()} to spend)</button>`;
   acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
   if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
   if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= 0 ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
@@ -6074,7 +6391,7 @@ const ACTIONS = {
   async medkit() {
     if (!S.medkits || S.hp >= 100) return;
     S.medkits--;
-    S.hp = Math.min(100, S.hp + MED_HEAL);
+    S.hp = Math.min(100, S.hp + medHeal());   // SKILL TREE: Field Dressing heals a little more
     SND.play('heal');
     log(`Used a medkit: Health back to ${S.hp}%.`);
   },
@@ -6211,7 +6528,7 @@ const ACTIONS = {
         if (act === 'load') S.loaded = arg;
       } else if (choice.startsWith('s:')) {
         const [name, text, have, most, usable] = arg === 'medkit'
-          ? ['Medkit', `heals ${MED_HEAL}% Health, even in the middle of a fight`, S.medkits, MAX_MED, S.hp < 100]
+          ? ['Medkit', `heals ${medHeal()}% Health, even in the middle of a fight`, S.medkits, MAX_MED, S.hp < 100]
           : arg === 'proxy' ? ['Proxy chain', 'powers your counter-hacks; more proxies, better odds', S.proxies, MAX_PROXIES, false]
             : [GADGETS[arg][0], GADGETS[arg][3], S[arg], GADGETS[arg][2], COOL[arg] ? !coolBlock(arg) : arg === 'fakeid' && S.heat > 0];
         const fightOnly = arg !== 'medkit' && arg !== 'fakeid' && !COOL[arg] && !TOOLS[arg];
@@ -6503,7 +6820,7 @@ const ACTIONS = {
       if (S.proxies < MAX_PROXIES) offers.push({key: 'p', art: 'proxy', name: 'Proxy chain', price: Math.round(1500 * (1 + S.proxies) * scale),
         text: `for hacking back, raids and freelance jobs (you have ${S.proxies})`});
       if (S.medkits < MAX_MED) offers.push({key: 'm', art: 'medkit', name: 'Medkit', price: Math.round(600 * scale),
-        text: `restores ${MED_HEAL}% Health any time, even mid-fight (you have ${S.medkits})`});
+        text: `restores ${medHeal()}% Health any time, even mid-fight (you have ${S.medkits})`});
       S.shop.forEach((it, i) => offers.push({key: 'g' + i, name: it.name, price: Math.round(itemValue(it) * scale),
         item: it, cls: 'r' + it.rar}));
       if (S.hp < 100) offers.push({key: 'd', art: 'doc', name: 'Street doc', price: Math.round((100 - S.hp) * 40 * scale),
@@ -6551,9 +6868,17 @@ const ACTIONS = {
       // BASE: the weapon skills, which belong to the save too.
       `<div class="syn"><b>Weapon skill</b>${MARK_KINDS.map(markLine).join('')}<span class="dim">Practice on the Range in the Bunker builds it, up to what that range can teach; real fights build it too, slowly. ` +
       `Each level adds ${MARKS.hit}% to your chance to hit with that kind of weapon. It carries over between runs.</span></div>` +
+      // SKILL TREE: one point a level, spent on routines. The tree itself is behind the button.
+      `<div class="syn"><b>Skill tree</b> <span class="dim">${skCount()} of ${skIds().length} routines running</span><br>` +
+      (skLeft() ? `<span class="cyan">${skLeft()} skill point${plural1(skLeft())} to spend.</span> ` : '') +
+      `<span class="dim">Every level-up pays ${SKILL.perLevel} point. Daemons run all the time; scripts are commands in a fight. ` +
+      `${skPoints().spent} of the ${skTreeCost()} points the whole tree costs are spent, so no career runs everything. ` +
+      'It belongs to this save and carries over between runs.</span></div>' +
       (S.plants && S.plants.length ? `<p class="dim">Devices you left behind: ${S.plants.map(p => `${p.what} at ${p.site} (${money(p.pay)} a night, ${p.left} to go)`).join('; ')}.</p>` : '');
     const buttons = [['Close', null, 'primary']];
     buttons.unshift([`Achievements (${achCount()}/${Object.keys(ACH).length})`, 'ach']);
+    buttons.unshift([`Skill tree${skLeft() ? ` (${skLeft()} to spend)` : ` (${skCount()}/${skIds().length})`}`, 'skills',
+      skLeft() ? 'primary' : '']);
     if (career.ach[KEY_ACH] && !inSyn(HIDDEN_SYN) && career.syn) buttons.unshift(['Answer the unknown sender', 'hidden']);
     if (career.syn) {
       html += `<div class="syn"><b>${SYNDICATES[career.syn][0]}</b><br>${SYNDICATES[career.syn][1]}</div>`;
@@ -6566,9 +6891,15 @@ const ACTIONS = {
     }
     const choice = await dialog('Your record', html, buttons);
     if (choice === 'join') await chooseSyndicate();
+    else if (choice === 'skills') await skillTree();   // SKILL TREE
     else if (choice === 'quest') await ACTIONS.syndicate();
     else if (choice === 'ach') await ACTIONS.achievements();
     else if (choice === 'hidden') await hiddenInvite();
+  },
+
+  // SKILL TREE: the tree, from the record screen or straight off the main screen.
+  async skills() {
+    await skillTree();
   },
 
   async achievements() {
@@ -7398,7 +7729,7 @@ function nextDay(inside) {
   S.wallet += walletGain(S.wallet);   // economy 1.28: full rate on the first slice only (ECON)
   if (S.wallet > banked) tally('interest', S.wallet - banked);
   settleMarkets();                    // economy 1.28: markets remember part of what you did to their prices
-  S.heat = Math.max(0, S.heat - HEAT_DECAY);
+  S.heat = Math.max(0, S.heat - HEAT_DECAY - skDecay());   // SKILL TREE: Cold Boot sheds a little more
   // Heat items: decoy traffic cools a little more each night, a VPN runs down, and fast fixes are fresh again.
   if (fx().decoy > 0) { S.heat = Math.max(0, S.heat - COOL.decoy.cool); S.fx.decoy--; }
   if (S.fx.vpn > 0) S.fx.vpn--;
@@ -7408,7 +7739,7 @@ function nextDay(inside) {
   baseNight();       // BASE: builds move on a night, the power is paid for, the stations do their overnight work
   S.raided = false;
   S.mood = '';
-  S.hp = Math.min(100, S.hp + 3 + bonus('regen'));
+  S.hp = Math.min(100, S.hp + 3 + bonus('regen') + skRegen());   // SKILL TREE: Field Dressing
   // Trips: what your legs give you, plus the hops of the ride you are on. Engines start the day empty and
   // are filled here, unless you are inside (a day in a cell): then the tank waits for the day you get out.
   S.gas = {}; S.tripDebt = 0;
@@ -7602,7 +7933,7 @@ function junkOffer(kind) {
   }
   if (kind === 'medkit') {
     if (S.medkits >= MAX_MED) return null;
-    return {name: 'Medkit', text: `restores ${MED_HEAL}% Health any time (you have ${S.medkits})`, list: 600 * scale,
+    return {name: 'Medkit', text: `restores ${medHeal()}% Health any time (you have ${S.medkits})`, list: 600 * scale,
       icon: miscIcon('medkit'), take() { S.medkits++; }};
   }
   if (kind === 'ammo') {
@@ -8990,7 +9321,7 @@ const BTL = (() => {
         hop(h, 4);
         await wait(160);
         h.flash = 1; dirty = true; await wait(70); h.flash = 0;
-        pop(h, `+${MED_HEAL}<small>HP</small>`, 'green');
+        pop(h, `+${medHeal()}<small>HP</small>`, 'green');
         stat();
         await wait(520);
       } else if (cmd === 'pocket') {   // nothing to see here
@@ -9073,6 +9404,23 @@ const BTL = (() => {
         for (const t of down) { FX.glyphs(t.x, t.y - 30 * t.s, col); drops.push(drop(t, true)); }
         if (!down.length) await dodge(front);
         await wait(160);
+      // ===== SKILL TREE: a script. Glyphs off you, a word over your head, then whoever it drops goes down. =====
+      } else if (SK_ACT[cmd]) {
+        const o = SK_ACT[cmd];
+        SND.play(o.snd);
+        hop(h, 5);
+        const [hx, hy] = chest(h);
+        FX.glyphs(hx - 6, hy - 6, o.col);
+        pop(h, o.pop, o.snd === 'heal' ? 'green' : 'yellow');
+        await wait(200);
+        for (const t of down) { const [tx, ty] = middle(t); FX.bolt(hx, hy, tx, ty, o.col, 260); }
+        if (down.length) {
+          await wait(260);
+          flash(o.col, 0.5);
+          for (const t of down) drops.push(drop(t, true));
+        }
+        stat();
+        await wait(220);
       }
       await Promise.all(drops);
       stat();
@@ -9275,6 +9623,7 @@ async function fight(E) {
     await pocketOut(E);   // whatever went into the prison pocket comes back out now. Most of it.
     return result;
   } finally {
+    skFight = null;   // SKILL TREE: the fight is over, so nothing is running any more
     BTL.close();
     SND.battle = null;
     SND.sync();
@@ -9283,6 +9632,8 @@ async function fight(E) {
 
 async function fightRounds(E) {
   const total = E.n, law = E.kind === 'law', raid = E.kind === 'raid', thug = E.kind === 'thug', quiet = inSyn('ghost');
+  // SKILL TREE: what this fight has used up. Each script fires once a fight; Overclock runs until it ends.
+  skFight = {over: 0, used: {}};
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
   let n = E.n, violent = false, unhurt = true;
   const heatWas = S.heat, xpWas = career.xp;   // for the results window
@@ -9303,15 +9654,24 @@ async function fightRounds(E) {
   // The hostiles' turn. Out in the open they hurt you; over the wire they hurt your rig. True when it finishes you.
   const strike = async (stunned, late) => {
     let dmg = 0;
-    const theirAim = E.hit * (inSyn(HIDDEN_SYN) ? 0.75 : 1);   // the 404 are hard to pin down
+    // SKILL TREE: Pattern Recognition means fewer of their attacks land.
+    const theirAim = E.hit * (inSyn(HIDDEN_SYN) ? 0.75 : 1) * skDodge();
     for (let i = 0; i < n && !stunned; i++) if (Math.random() < theirAim) dmg += rnd(E.lo, E.hi);
     if (dmg) unhurt = false;
     if (dmg) SND.play('hurt', late);
     if (dmg && physical) {
       // Armour soaks up part of it.
-      dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100)));
+      dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('armor') / 100) * skSoak()));   // SKILL TREE: Thick Skin, after armour
       S.hp -= dmg;
       msg += ` <span class="red">${law ? 'They open fire' : 'They jump you'}: Health -${dmg}%.</span>`;
+      // SKILL TREE: Second Wind catches you once a fight, and raises Heat: going down in public is noticed.
+      if (S.hp <= 0 && skHas('fle_wind') && skFight && !skFight.used.fle_wind) {
+        skFight.used.fle_wind = 1;
+        skTally.wind++;
+        S.hp = SKILL.windHp;
+        heatUp(SKILL.windHeat);
+        msg += ` <span class="green">You should be on the floor. You are not: Health ${S.hp}%.</span>`;
+      }
     } else if (dmg) {
       dmg = Math.max(1, Math.ceil(dmg * (1 - bonus('firewall') / 100)));
       S.opsec -= dmg;
@@ -9351,6 +9711,8 @@ async function fightRounds(E) {
     if (law) buttons.push(['Wipe drive', 'wipe', 'danger']);
     if (law && pocketRoom(E) > 0 && pocketable().length) buttons.push([`Prison pocket (${pocketRoom(E)} free)`, 'pocket']);
     if ((E.kind === 'gang' || thug) && S.cash >= payoff) buttons.push([`${thug ? 'Hand over' : 'Pay them'} ${money(payoff)}`, 'pay']);
+    // ===== SKILL TREE: the scripts you have unlocked, listed only while they can be fired (see SK_SCRIPTS). =====
+    for (const sc of SK_SCRIPTS) if (skHas(sc.id) && sc.ok(skFight, {law, raid, thug})) buttons.push([sc.label(), sc.cmd]);
     const cmd = await BTL.menu(buttons, msg);
 
     if (cmd === 'ammo') { await BTL.ammo(); continue; }   // swapping ammo does not cost a turn
@@ -9359,7 +9721,8 @@ async function fightRounds(E) {
     let kills = 0, stunned = false, fired = 0;   // fired: shots let off, for the battle screen
     const hadRounds = !W || !usesAmmo(W) || !!activeAmmo();   // false when a gun is empty and gets swung instead
     const move = buttons.find(b => b[1] === cmd)[0].replace(/\s*\(.*$/, '');   // its name, for the banner over the stage
-    physical = thug || (!raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run' || cmd === 'med'));
+    if (cmd.slice(0, 3) === 'sk_') skTally.fired++;   // SKILL TREE: counted for the self-test
+    physical = thug || (!raid && (cmd === 'shoot' || cmd === 'emp' || cmd === 'run' || cmd === 'med' || cmd === 'sk_shunt'));
     if (cmd === 'shoot' && usesAmmo(W) && !activeAmmo()) {
       // No rounds left: all you can do is swing the thing.
       if (Math.random() < 0.3 + bonus('aim') / 100) kills = 1;
@@ -9371,7 +9734,7 @@ async function fightRounds(E) {
       const round = usesAmmo(W) ? activeAmmo() : null;                    // which ammo this volley uses
       const shots = round ? Math.min(W[2], S.ammo[round]) : W[2];
       const hit = W[3] + bonus('aim') / 100 + (round ? AMMO[round][2] / 100 : 0) +   // better rounds hit more often
-        baseAim(W, E);                                                               // BASE: weapon skill, a tuned weapon, the entry drill
+        baseAim(W, E) + skAim() / 100;                 // BASE: weapon skill, a tuned weapon, the drill. SKILL TREE: skAim()
       for (let i = 0; i < shots; i++) if (Math.random() < hit) kills++;
       if (round) S.ammo[round] -= shots;
       fired = shots;
@@ -9407,7 +9770,7 @@ async function fightRounds(E) {
         : `You hit back through your proxies: ${kills} knocked offline.`;
     } else if (cmd === 'med') {
       S.medkits--;
-      S.hp = Math.min(100, S.hp + MED_HEAL);
+      S.hp = Math.min(100, S.hp + medHeal());   // SKILL TREE: Field Dressing heals a little more
       msg = `You jab a medkit: Health back to ${S.hp}%.`;
     } else if (cmd === 'zero') {
       removeItems('Zero-Days', 1);
@@ -9441,6 +9804,38 @@ async function fightRounds(E) {
     } else if (cmd === 'pocket') {
       msg = `You turn your back for a moment. ${num(hid.qty)} ${hid.name} ${hid.qty === 1 ? 'is' : 'are'} no longer on your drive, ` +
         'or anywhere else a warrant covers.';
+    // ===== SKILL TREE: the scripts. Each costs the turn it is fired in, plus what SKILL says. =====
+    } else if (cmd === 'sk_over') {
+      S.opsec -= SKILL.overOpsec;
+      skFight.used.ice_over = 1;
+      skFight.over = 1;
+      msg = `You dump the thermal budget into the deck. Everything slows down: <b>+${SKILL.overAim}% to hit</b> for the rest of this.`;
+    } else if (cmd === 'sk_kill') {
+      S.opsec -= SKILL.killOpsec;
+      skFight.used.ice_kill = 1;
+      kills = Math.min(n, SKILL.killDrop);
+      if (law) heatUp(SKILL.killHeat);
+      msg = `The killswitch goes down their own link: ${kills} drop where they stand.`;
+    } else if (cmd === 'sk_scrub') {
+      S.opsec -= SKILL.scrubOpsec;
+      skFight.used.qui_scrub = 1;
+      S.heat = Math.max(0, S.heat - SKILL.scrubHeat);
+      stunned = true;
+      msg = `You burn the trail while they are still looking at you: Heat down to ${S.heat}%, and they lose the thread for a beat.`;
+    } else if (cmd === 'sk_shunt') {
+      skFight.used.fle_shunt = 1;
+      S.hp = Math.min(100, S.hp + SKILL.shuntHeal);
+      msg = `The shunt gives you everything it has at once: Health back to ${S.hp}%.`;
+    } else if (cmd === 'sk_vanish') {
+      S.opsec -= SKILL.vanishOpsec;
+      skFight.used.qui_vanish = 1;
+      heatUp(SKILL.vanishHeat);
+      if (law) gotAway();
+      log('<span class="green">The dead hand tripped and you were never there.</span>' + gainXp(10));
+      E.result = 'fled';
+      await BTL.flee(true);
+      return alertDlg('Gone', '<p>The exit you armed before you walked in does what it was built for. ' +
+        'Lights, doors, cameras: all of it goes at once, and so do you.</p>');
     } else if (cmd === 'pay') {
       S.cash -= payoff;
       log(`<span class="amber">Paid ${E.name} ${money(payoff)} to back off.</span>`);
@@ -9452,7 +9847,7 @@ async function fightRounds(E) {
     // A hack that lands gets the voice: "I'm in."
     const hacked = kills > 0 && (cmd === 'hack' || cmd === 'bomb' || cmd === 'zero');
 
-    await BTL.act(cmd, kills, move, msg, {fired, hadRounds, hacked});
+    await BTL.act(cmd, kills, move, msg, {fired, hadRounds, hacked});   // SKILL TREE: the scripts have their own branch in there
     n -= kills;
     if (n <= 0) {
       await BTL.win();
@@ -9474,7 +9869,8 @@ async function fightRounds(E) {
         S.grudge[E.gang] += 1;
         xp = gainXp(30 * total);
       }
-      loot = Math.round(loot * (1 + bonus('luck') / 100) * (law ? ECON.lawLoot : raid ? ECON.raidLoot : thug ? ECON.thugLoot : ECON.gangLoot));
+      // SKILL TREE: Fence Contacts turns their tooling into a little more cash.
+      loot = Math.round(loot * (1 + bonus('luck') / 100) * skLoot() * (law ? ECON.lawLoot : raid ? ECON.raidLoot : thug ? ECON.thugLoot : ECON.gangLoot));
       S.cash += loot;
       if (law) {
         tally('law'); tally('lawwin');
@@ -10596,7 +10992,9 @@ async function baseSelfTest() {
     // A night: the Bunk, the cat and the Jammer.
     {
       S.hp = 10; S.opsec = 10; S.heat = 60; S.loc = BUNKER; S.day = 2;
-      const want = [Math.min(100, 10 + 3 + bonus('regen') + top('cat').hp + top('bed').heal), 10 + top('bed').opsec + top('cat').opsec, 60 - HEAT_DECAY - 20 - top('jam').cool];
+      // SKILL TREE: whatever the career's routines add to a night's healing and cooling counts here too.
+      const want = [Math.min(100, 10 + 3 + bonus('regen') + skRegen() + top('cat').hp + top('bed').heal),
+        10 + top('bed').opsec + top('cat').opsec, Math.max(0, 60 - HEAT_DECAY - skDecay() - 20 - top('jam').cool)];
       Math.random = () => 0.99;   // nobody comes in the night
       autoPick = all => (all.includes(true) ? true : all[0]);
       try { await ACTIONS.sleep(); } finally { Math.random = random; autoPick = null; }
@@ -10789,6 +11187,226 @@ async function baseSelfTest() {
 }
 // ===== THE BASE (self-test): END =====
 
+// ===== SKILL TREE (self-test): BEGIN =====
+// The tree, step by step: the table itself, what a point can and cannot buy, what every daemon is worth,
+// every script fired in a real fight, the respec, and a save from before the tree arriving with its points.
+async function skillSelfTest() {
+  const run = S, mine = career, keep = slot, get = store.get, random = Math.random, realMenu = BTL.menu;
+  const fail = (what, ...more) => { throw new Error(`Skill tree test: ${what} ` + JSON.stringify(more)); };
+  const xpFor = l => 50 * l * (l - 1);                       // the XP a level costs in all (see levelInfo)
+  const fresh = l => { career = newCareer(); career.xp = xpFor(l || 1); newGame(); notes.length = 0; };
+  const open = ids => ids.forEach(id => { if (!skUnlock(id, true)) fail('could not force', id); });
+  try {
+    // --- the table ---
+    if (!Object.keys(SK_BRANCHES).length) fail('no branches');
+    for (const b of Object.keys(SK_BRANCHES)) {
+      const ids = skBranch(b);
+      if (!ids.length) fail('empty branch', b);
+      ids.forEach((id, i) => {
+        if (skDepth(id) !== i || skPrev(id) !== (i ? ids[i - 1] : '')) fail('branch order', id);
+        if (!(skCost(id) > 0 && skGate(id) >= 1)) fail('cost or gate', id);
+        if (i && (skCost(id) < skCost(ids[i - 1]) || skGate(id) <= skGate(ids[i - 1]))) fail('the deep end is not dearer', id);
+      });
+    }
+    for (const [id, N] of Object.entries(SKILLS)) {
+      if (!SK_BRANCHES[N.b] || !N.n || !N.t || (N.k !== 'daemon' && N.k !== 'script')) fail('bad node', id);
+      if (!skRow(id).includes(N.n) || !skKind(id)) fail('no row', id);
+    }
+    const scripts = skIds().filter(id => SKILLS[id].k === 'script');
+    if (scripts.length !== SK_SCRIPTS.length) fail('scripts do not match SK_SCRIPTS', scripts.length, SK_SCRIPTS.length);
+    for (const sc of SK_SCRIPTS) if (!SKILLS[sc.id] || SKILLS[sc.id].k !== 'script') fail('script with no node', sc.id);
+    if (scripts.length * 3 < skIds().length || scripts.length * 2 > skIds().length) fail('the mix of daemons and scripts drifted', scripts.length, skIds().length);
+    // --- points: one a level, and never more spent than earned ---
+    fresh(1);
+    if (skPoints().total !== 0 || skLeft() !== 0 || skCount() !== 0) fail('a new career has points', skPoints());
+    for (let l = 2; l <= 12; l++) {
+      career.xp = xpFor(l);
+      if (level() !== l || skTotal() !== (l - 1) * SKILL.perLevel) fail('points per level', l, skTotal());
+    }
+    career.xp = xpFor(2);
+    const first = skBranch('ice')[0], second = skBranch('ice')[1], deep = skBranch('ice')[3];
+    if (skBlock(first)) fail('the first routine is not buyable at level 2', skBlock(first));
+    if (!skBlock(second).includes('level')) fail('the second is not gated by a level', skBlock(second));
+    if (!skUnlock(first) || !skHas(first) || skLeft() !== 0 || skSpent() !== skCost(first)) fail('unlocking', skPoints());
+    if (skUnlock(first)) fail('bought the same routine twice');
+    if (!skBlock(second).includes('level')) fail('the level gate went away');
+    career.xp = xpFor(SKILL.gate[1]);
+    if (!skBlock(second).includes('point')) fail('it should be short of points now', skBlock(second), skPoints());
+    career.xp = xpFor(SKILL.gate[1] + 1);
+    if (skBlock(second) || !skUnlock(second)) fail('could not buy the second', skBlock(second));
+    // ...and the order of a branch holds: you cannot reach past a routine you have not bought.
+    career.xp = xpFor(40);
+    const skipped = skBranch('entry')[1];
+    if (!skBlock(skipped).includes(SKILLS[skBranch('entry')[0]].n)) fail('bought out of order', skBlock(skipped));
+    if (skUnlock(skipped)) fail('skipped a prerequisite');
+    if (skBlock(deep)) fail('level 40 cannot afford the deep end', skBlock(deep), skPoints());
+    // The whole tree costs more than a long career earns, so a build is always a choice.
+    if (skTreeCost() <= 29 * SKILL.perLevel) fail('the tree is cheaper than a level 30 career', skTreeCost());
+    // --- fixSkills(): a gap, a routine the game no longer has, and more spent than the level pays for ---
+    fresh(40);
+    career.skills = {[skBranch('ice')[0]]: 1, [skBranch('ice')[2]]: 1, nosuchnode: 1};
+    fixSkills();
+    if (skCount() !== 1 || !skHas(skBranch('ice')[0]) || career.skills.nosuchnode) fail('fixSkills kept a gap or a ghost', career.skills);
+    fresh(1);
+    career.skills = Object.fromEntries(skBranch('ice').map(id => [id, 1]));
+    fixSkills();
+    if (skSpent() > skTotal()) fail('fixSkills left more spent than earned', skPoints());
+    // --- what every daemon is worth ---
+    fresh(40);
+    const was = {heat: 0, clean: 0, open: 0, noise: 0, job: 0, pay: 0};
+    S.heat = 0; heatUp(10);
+    was.heat = S.heat;
+    const lockWas = lockOdds('picks', 'deadbolt', 0), chanceC = {chance: 50, payout: 1000, qty: 1, good: 'Warez'};
+    was.job = chanceFor(chanceC); was.pay = payoutFor(chanceC);
+    was.clean = cleanOdds({alert: 40}); was.open = lockWas.open; was.noise = lockWas.noise;
+    const wallet = walletRate(), debt = debtRate(), heal = medHeal(), decay = skDecay(), regen = skRegen();
+    // A night in the same Bunker, before and after: the only difference is what the daemons add.
+    const night = () => { S.cash = 1e6; S.day = 2; S.heat = 60; S.hp = 50; S.loc = BUNKER; nextDay(); notes.length = 0; return [S.heat, S.hp]; };
+    const plainNight = night();
+    open(skIds());   // everything at once: the most a fully invested player can have
+    if (skCount() !== skIds().length) fail('could not open the whole tree');
+    S.heat = 0; heatUp(10);
+    if (S.heat !== Math.ceil(10 * (1 - SKILL.heatCut / 100)) || S.heat >= was.heat) fail('Traffic Shaping', S.heat, was.heat);
+    if (skDecay() !== decay + SKILL.decay || skRegen() !== regen + SKILL.regen) fail('Cold Boot or Field Dressing', skDecay(), skRegen());
+    if (medHeal() !== heal + SKILL.medkit) fail('Field Dressing does not help a medkit', medHeal());
+    const lockNow = lockOdds('picks', 'deadbolt', 0);
+    if (lockNow.open !== clampN(was.open + SKILL.lockOpen * 2, BREAKIN.min, BREAKIN.max)) fail('Oiled Picks and Ghost Protocol', lockNow.open, was.open);
+    if (lockNow.noise !== Math.max(1, Math.round(was.noise * (1 - SKILL.lockQuiet / 100)))) fail('Soft Shoes', lockNow, was.noise);
+    if (cleanOdds({alert: 40}) !== clampN(was.clean + SKILL.clean, BREAKIN.cleanMin, BREAKIN.cleanMax)) fail('Ghost Protocol', cleanOdds({alert: 40}), was.clean);
+    if (chanceFor(chanceC) !== Math.min(95, was.job + SKILL.jobOdds)) fail('Spread Sheets', chanceFor(chanceC), was.job);
+    if (payoutFor(chanceC) !== Math.round(chanceC.payout * (inSyn('red') ? 1.25 : 1) * (1 + SKILL.jobPay / 100))) fail('Paper Trail', payoutFor(chanceC));
+    if (Math.abs(walletRate() - wallet - SKILL.wallet / 100) > 1e-9 || Math.abs(debt - debtRate() - SKILL.debt / 100) > 1e-9) fail('Compound Interest', walletRate(), debtRate());
+    if (skAim() !== SKILL.aim || skDodge() !== 1 - SKILL.dodge / 100 || skSoak() !== 1 - SKILL.soak / 100 ||
+      skLoot() !== 1 + SKILL.loot / 100 || skInside() !== SKILL.inside) fail('a daemon is not worth what it says');
+    const daemonNight = night();
+    if (daemonNight[0] !== plainNight[0] - SKILL.decay || daemonNight[1] !== plainNight[1] + SKILL.regen) {
+      fail('a night with the daemons running', plainNight, daemonNight);
+    }
+    // --- the scripts, in a real fight ---
+    // A fake command menu: it checks what is on offer, then fires what the test asked for.
+    let queue = [], shot = null, offered = [], fallback = 'wipe';
+    const expect = {
+      sk_over: d => { if (d.opsec !== -SKILL.overOpsec) fail('Overclock cost', d); },
+      sk_kill: d => { if (d.opsec !== -SKILL.killOpsec ||
+        d.heat !== Math.ceil(SKILL.killHeat * (1 - SKILL.heatCut / 100))) fail('Killswitch', d); },
+      sk_scrub: d => { if (d.opsec !== -SKILL.scrubOpsec || d.heat !== -SKILL.scrubHeat) fail('Burn Notice', d); },
+      sk_shunt: d => { if (d.hp !== SKILL.shuntHeal || d.opsec !== 0) fail('Adrenal Shunt', d); },
+    };
+    const settle = () => {
+      if (!shot) return;
+      expect[shot.cmd]({opsec: S.opsec - shot.opsec, hp: S.hp - shot.hp, heat: S.heat - shot.heat});
+      shot = null;
+    };
+    const fake = (want, last) => {
+      queue = want.slice();
+      fallback = last || 'wipe';
+      shot = null;
+      BTL.menu = async buttons => {
+        const have = buttons.map(b => b[1]);
+        offered = have;
+        if (shot && have.includes(shot.cmd)) fail('a script was offered twice in one fight', shot.cmd);
+        settle();
+        const cmd = queue.length ? queue.shift() : fallback;
+        if (!have.includes(cmd)) fail('command not on the menu', cmd, have);
+        if (expect[cmd]) shot = {cmd, opsec: S.opsec, hp: S.hp, heat: S.heat};
+        return cmd;
+      };
+    };
+    // Everything unlocked, a gun in hand, the police at the door: every script is on the menu.
+    S.weapon = WEAPONS.findIndex(w => w && w[4] === 'gun');
+    S.opsec = 100; S.hp = 50; S.heat = 50; S.medkits = 0; S.emp = 0; S.smoke = 0; S.bomb = 0; S.proxies = 0;
+    const lawE = n => ({kind: 'law', tier: 0, name: LAW[0].name, n, hit: 0, lo: 1, hi: 1});
+    let E = lawE(5);
+    fake(['sk_over', 'sk_kill', 'sk_scrub', 'sk_shunt']);
+    const opsecWas = S.opsec, aimWas = skAim();
+    await fight(E);
+    settle();   // the last command's bill is settled here: there was no menu left to check it on
+    if (S.opsec !== opsecWas - SKILL.overOpsec - SKILL.killOpsec - SKILL.scrubOpsec) fail('the scripts cost the wrong OpSec', S.opsec);
+    if (E.result !== 'fled' || skFight) fail('the test fight did not end cleanly', E.result);
+    if (skAim() !== aimWas) fail('Overclock is still running after the fight', skAim());
+    // Killswitch drops exactly what it says it does: a fight with that many in it is over in one command.
+    E = lawE(SKILL.killDrop);
+    S.opsec = 100; S.hp = 50; S.heat = 50;
+    fake(['sk_kill']);
+    await fight(E);
+    settle();
+    if (E.result !== 'won') fail('Killswitch did not drop them all', E.result);
+    // ...and every script is on offer again in the fight after it.
+    E = lawE(5);
+    S.opsec = 100; S.hp = 50; S.heat = 50;
+    fake(['sk_over']);
+    await fight(E);
+    if (!SK_SCRIPTS.every(sc => sc.cmd === 'sk_over' || offered.includes(sc.cmd))) fail('the next fight did not offer the scripts again', offered);
+    // What you cannot pay for is not listed at all.
+    skFight = {over: 0, used: {}};
+    S.opsec = 4; S.hp = 100;
+    if (SK_SCRIPTS.some(sc => sc.ok(skFight, {law: true, raid: false, thug: false}))) fail('a script was offered with nothing to pay it with');
+    skFight = null;
+    // Burn Notice costs them their turn: everybody hitting, and still nothing comes off you.
+    fresh(40);
+    open(['qui_shape', 'qui_scrub']);
+    S.opsec = 100; S.hp = 100; S.heat = 50; S.weapon = 0; S.proxies = 0; S.medkits = 0; S.emp = 0; S.smoke = 0; S.bomb = 0;
+    E = {kind: 'gang', gang: 'ghost', name: 'Ghost Shell', n: 2, hit: 1, lo: 20, hi: 20};
+    fake(['sk_scrub'], 'run');
+    Math.random = () => 0;   // they always hit, and running always works
+    try { await fight(E); } finally { Math.random = random; }
+    settle();
+    if (S.opsec !== 100 - SKILL.scrubOpsec || S.heat !== 50 - SKILL.scrubHeat) fail('Burn Notice did not cost them their turn', S.opsec, S.heat);
+    // Second Wind: a hit that should put you down leaves you standing, once a fight.
+    fresh(40);
+    open(['fle_skin', 'fle_dress', 'fle_shunt', 'fle_wind']);
+    S.hp = 60; S.opsec = 100; S.heat = 0; S.medkits = 1; S.weapon = 0; S.proxies = 0; S.emp = 0; S.smoke = 0; S.bomb = 0;
+    E = {kind: 'thug', name: 'Street punks', n: 3, hit: 1, lo: 99, hi: 99};
+    fake(['med'], 'run');
+    Math.random = () => 0;
+    try { await fight(E); } finally { Math.random = random; }
+    if (S.hp !== SKILL.windHp || S.heat !== SKILL.windHeat) fail('Second Wind', S.hp, S.heat);
+    BTL.menu = realMenu;
+    // --- the respec: everything comes back, for money and a little Heat ---
+    fresh(40);
+    open([skBranch('ice')[0], skBranch('ice')[1]]);
+    const spent = skSpent(), left = skLeft();
+    S.cash = SKILL.respecCash - 1; S.heat = 0;
+    autoPick = all => (all.includes(true) ? true : all[0]);
+    try { await skRespec(); } finally { autoPick = null; }
+    if (skCount() !== 2) fail('a respec went through without the money');
+    S.cash = SKILL.respecCash + 500;
+    autoPick = all => (all.includes(true) ? true : all[0]);
+    try { await skRespec(); } finally { autoPick = null; }
+    if (skCount() || skSpent() || skLeft() !== left + spent || S.cash !== 500 ||
+      S.heat !== Math.ceil(SKILL.respecHeat)) fail('respec', skPoints(), S.cash, S.heat);
+    if (!stat('respec')) fail('the respec was not counted');
+    // --- the save file: routines survive a reload, and a career from before the tree keeps its points ---
+    fresh(40);
+    open([skBranch('trade')[0], skBranch('trade')[1], skBranch('quiet')[0]]);
+    const mineNow = JSON.stringify(career.skills);
+    const record = JSON.parse(JSON.stringify(career)), saved = JSON.parse(JSON.stringify(S));
+    store.get = key => (key === 'zdh-save' ? saved : key === 'zdh-career' ? record : null);
+    try { loadSave(0); } finally { store.get = get; slot = keep; }
+    if (JSON.stringify(career.skills) !== mineNow || skLeft() !== 39 - skSpent()) fail('a reload lost the tree', career.skills, skPoints());
+    const old = JSON.parse(JSON.stringify(record));
+    delete old.skills; delete old.skBonus;
+    old.xp = xpFor(12);
+    store.get = key => (key === 'zdh-save' ? saved : key === 'zdh-career' ? old : null);
+    try { loadSave(0); } finally { store.get = get; slot = keep; }
+    if (skCount() !== 0 || skLeft() !== 11 || skSpent() !== 0) fail('a save from before the tree', skPoints());
+    // Points handed out on top of levels (the debug menu's way in).
+    if (skGrant(3) !== 14 || skLeft() !== 14 || career.skBonus !== 3) fail('skGrant', skLeft());
+    skGrant(-99);
+    if (career.skBonus !== 0 || skLeft() !== 11) fail('skGrant does not go below nothing', career.skBonus);
+  } finally {
+    BTL.menu = realMenu;
+    Math.random = random;
+    store.get = get;
+    slot = keep;
+    S = run;
+    career = mine;
+    logs = [];
+    notes.length = 0;
+  }
+}
+// ===== SKILL TREE (self-test): END =====
+
 async function selfTest(games) {
   AUTO = true;
   const names = GOODS.map(g => g[0]);
@@ -10796,6 +11414,7 @@ async function selfTest(games) {
   let heistBase = {};   // what the step-by-step break-in test counted, so the random games are counted on their own
   let rideBase = [0, 0, 0, 0, 0], rideHopTally = 0;
   let baseWas = {}, fireWas = {shots: 0, saved: 0}, baseUses = 0;   // BASE
+  let skWas = {spent: 0, fired: 0};   // SKILL TREE: what the step-by-step test did does not count below
   try {
     // Every item type that holds something has a figure, and every backpack holds more the rarer it is.
     for (const [slot, table] of Object.entries(POCKETS)) {
@@ -10812,6 +11431,20 @@ async function selfTest(games) {
       career = {xp: rnd(0, 9000), syn: pick([null, 'ghost', 'ledger', 'null', 'red', 'x404']), gear: {}, bag: [], locker: [],
         quest: pick([null, {n: rnd(0, 9), p: 0}])};
       fixCareer();
+      // SKILL TREE: half the careers are well along, and most of them have a build: points spent in order
+      // down one branch and sometimes a second, which is how a real one is spent.
+      // (the first game is left with an empty tree: the step-by-step tests below measure a bare career)
+      if (game && game % 2) career.xp = Math.max(career.xp, 50 * 22 * 21);
+      for (const b of game ? [pick(Object.keys(SK_BRANCHES)), pick(Object.keys(SK_BRANCHES))] : []) {
+        if (Math.random() < 0.35) continue;
+        for (const id of skBranch(b)) {
+          if (skBlock(id)) break;
+          const left = skLeft(), was = skSpent();
+          if (!skUnlock(id) || skLeft() !== left - skCost(id) || skSpent() !== was + skCost(id)) {
+            throw new Error('spending a skill point went wrong: ' + JSON.stringify([id, left, skPoints()]));
+          }
+        }
+      }
       for (let i = rnd(0, 4); i > 0; i--) { const it = makeItem(rnd(0, 4)); career.gear[it.slot] = it; }
       if (game % 2) career.look = {skin: rnd(0, 5), hair: rnd(0, 4), col: rnd(0, 6), streak: rnd(0, 4)};
       newGame();
@@ -10844,11 +11477,13 @@ async function selfTest(games) {
         await lockSelfTest();
         await rideSelfTest();
         await baseSelfTest();   // BASE
+        await skillSelfTest();   // SKILL TREE
       }
       if (game === 0) coolBase = [coolBuys, coolUses, coolFires];   // what the step-by-step test did does not count below
       if (game === 0) heistBase = Object.assign({}, heistTally);
       if (game === 0) rideBase = [rideBuys, rideSwaps, rideSales, fuelTally, dryTally];
       if (game === 0) { baseWas = Object.assign({}, baseTally); fireWas = Object.assign({}, fireTally); }
+      if (game === 0) skWas = {spent: skTally.spent, fired: skTally.fired};   // SKILL TREE
       // BASE: one run in three starts in a Bunker somebody has already been building, with some practice behind it.
       if (game % 3 === 2) {
         for (const id of BASE_IDS) if (Math.random() < 0.6) setStation(id, rnd(BASE[id].start || 0, topLv(id)));
@@ -10975,6 +11610,26 @@ async function selfTest(games) {
           if (S.day === day && (BASE_IDS.some((b, i) => lvl(b) !== lv[i]) || (HQ().shots || 0) < shots)) throw new Error('a station changed level without a night passing: ' + JSON.stringify([id, lv, BASE_IDS.map(lvl)]));
           if (MARK_KINDS.some((k, i) => career.marks[k] < marks[i])) throw new Error('weapon skill went down');
         }
+        // SKILL TREE: the bot spends what levelling hands it, wanders the tree's screens now and then, and
+        // reflashes the kit once a test run. Every point it spends has to come off the unspent count exactly.
+        if (skLeft() && Math.random() < 0.25) {
+          const can = skIds().filter(id => !skBlock(id));
+          if (can.length) {
+            const id = pick(can), left = skLeft(), was = skSpent();
+            if (!skUnlock(id) || skLeft() !== left - skCost(id) || skSpent() !== was + skCost(id) || !skHas(id)) {
+              throw new Error('spending a skill point mid-run went wrong: ' + JSON.stringify([id, left, skPoints()]));
+            }
+          }
+        }
+        if (Math.random() < 0.01) await skillTree();
+        if (!skTally.respec && skSpent() >= 2 && S.cash >= SKILL.respecCash) {
+          const back = skSpent(), left = skLeft(), cash = S.cash;
+          autoPick = all => (all.includes(true) ? true : all[0]);
+          try { await skRespec(); } finally { autoPick = null; }
+          if (skCount() || skLeft() !== left + back || S.cash !== cash - SKILL.respecCash) {
+            throw new Error('a respec did not hand everything back: ' + JSON.stringify([back, left, skPoints(), cash, S.cash]));
+          }
+        }
         const trip = act === 'travel' ? [S.loc, S.day, S.trips, rideHops()] : null;
         const sold = act === 'sell' ? names[rnd(0, names.length - 1)] : '';
         const sale = sold ? [S.cash, S.inv[sold] || 0, tagged(sold), S.prices[sold]] : null;
@@ -11086,7 +11741,14 @@ async function selfTest(games) {
           Object.entries(career.base.paid).some(([id, p]) => !nextLv(id) || jobOf(id) || Object.entries(p).some(([i, q]) => !(Number.isInteger(q) && q > 0 && q <= reqAmt(nextLv(id).req[i])))) ||
           MARK_KINDS.some(k => !(Number.isInteger(career.marks[k]) && career.marks[k] >= 0 && markInfo(k).level <= MARKS.max && markHit(k) <= 10 && markSave(k) <= 20)) ||
           !((HQ().shots || 0) <= BASE.range.lv[topLv('range')].shots && (HQ().conv || 0) <= BASE.bench.lv[topLv('bench')].press && (HQ().patch || 0) <= 1 && (HQ().cook || 0) <= 1) ||
-          (S.tune && !(WEAPONS[S.tune.w] && S.tune.hit > 0 && S.tune.hit <= 5)) || raidMult() < 0.5 || raidMult() > 1 || baseUpkeep() > BASE_TUNE.upkeep * 31;
+          (S.tune && !(WEAPONS[S.tune.w] && S.tune.hit > 0 && S.tune.hit <= 5)) || raidMult() < 0.5 || raidMult() > 1 || baseUpkeep() > BASE_TUNE.upkeep * 31 ||
+          // SKILL TREE: every routine is one the game has, bought in its branch's order and at its level; the
+          // points add up to exactly what the level pays for, and nothing is spent twice or lost.
+          !career.skills || typeof career.skills !== 'object' || !Number.isInteger(career.skBonus) || career.skBonus < 0 ||
+          Object.keys(career.skills).some(id => !SKILLS[id] || (skPrev(id) && !skHas(skPrev(id))) || level() < skGate(id)) ||
+          skCount() > skIds().length || skSpent() > skTotal() || skLeft() !== skTotal() - skSpent() ||
+          skTotal() !== (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus() || skSpent() > skTreeCost() ||
+          (skFight !== null);
         if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
       }
       if (S.over) {
@@ -11127,8 +11789,15 @@ async function selfTest(games) {
     for (const k of Object.keys(baseTally)) bd[k] = baseTally[k] - (baseWas[k] || 0);
     if (games >= 20 && !(baseUses && bd.given && bd.refused && bd.started && bd.built && bd.sessions && bd.rig)) throw new Error('the base was not exercised: ' + JSON.stringify([baseUses, bd]));
     const bsum = ` baserooms=${baseUses} handedin=${bd.given} refused=${bd.refused} builds=${bd.started} built=${bd.built} rangesessions=${bd.sessions} powercuts=${bd.dark} rigoutput=${bd.rig} shots=${fireTally.shots - fireWas.shots} roundssaved=${fireTally.saved - fireWas.saved}`;
+    // SKILL TREE: ...and the bot must have spent points, got some way down a branch, fired scripts in real
+    // fights and reflashed the kit at least once.
+    if (games >= 20 && !(skTally.spent > skWas.spent && skTally.deep >= 2 && skTally.fired > skWas.fired && skTally.respec)) {
+      throw new Error('the skill tree was not exercised: ' + JSON.stringify(skTally));
+    }
+    const sksum = ` skillpoints=${skTally.spent - skWas.spent} deepestnode=${skTally.deep + 1} scriptsfired=${skTally.fired - skWas.fired}` +
+      ` secondwind=${skTally.wind} reflashes=${skTally.respec}`;
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK${hsum}${bsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK${hsum}${bsum}${sksum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -11151,7 +11820,8 @@ function loadSave(n) {
       stats: record.stats, ach: record.ach,
       rep: record.rep && typeof record.rep === 'object' ? record.rep : {},
       lockpick: record.lockpick,   // fixCareer() starts it at 0 for a save from before lock picking
-      base: record.base, marks: record.marks};   // BASE: fixCareer() fills these in for a save from before the base
+      base: record.base, marks: record.marks,   // BASE: fixCareer() fills these in for a save from before the base
+      skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
   }
