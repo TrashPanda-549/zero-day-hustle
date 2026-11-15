@@ -5932,13 +5932,13 @@ const SEC_WORD = ['open', 'noticed', 'watched', 'locked down'];
 const DISTRICTS = {
   'The Hackerspace': {who: 'the regulars', hot: 'The regulars have started quoting you silly numbers for the fun of it.'},
   'Tor Bazaar': {who: 'the stallholders', hot: 'The stallholders know your handle now, and they have compared notes.'},
-  'IRC Backchannel': {who: 'the channel', hot: 'The channel has a bot that announces when you join.'},
-  'Con Hallway': {who: 'the vendor floor', hot: 'Word went round the vendor floor. Nobody is in a hurry to deal.'},
+  'IRC Backchannel': {who: 'the channel regulars', hot: 'The channel has a bot that announces when you join.'},
+  'Con Hallway': {who: 'the vendors', hot: 'Word went round the vendor floor. Nobody is in a hurry to deal.'},
   'Campus Lab': {who: 'the postgrads', hot: 'The postgrads have worked out what you are doing. They are economists now.'},
-  'Datacenter Dock': {who: 'the loading bay', hot: 'The loading bay sees you coming and finds something else to do.'},
-  'Cyber Cafe': {who: 'the back row', hot: 'The back row has started putting prices up before you sit down.'},
-  'Paste Alley': {who: 'the alley', hot: 'The alley has priced you in. It did not take long.'},
-  'Strip Mall': {who: 'the unit next door', hot: 'The unit next door has a photo of you by the till.'},
+  'Datacenter Dock': {who: 'the loading crews', hot: 'The loading bay sees you coming and finds something else to do.'},
+  'Cyber Cafe': {who: 'the regulars in the back row', hot: 'The back row has started putting prices up before you sit down.'},
+  'Paste Alley': {who: 'the dealers in the alley', hot: 'The alley has priced you in. It did not take long.'},
+  'Strip Mall': {who: 'the traders here', hot: 'The unit next door has a photo of you by the till.'},
 };
 // The cast. kind decides what their standing does; say is one line per mood, '' meaning "whatever they
 // usually say"; look is [skin, hair colour, head gear, body gear] for the ones who had no picture before.
@@ -6047,6 +6047,16 @@ function addStanding(name, n, why) {
   saveCareer();
   return standing(name) - was;
 }
+// The same, but at most once a day, so buying four cheap things off somebody is not four days of goodwill.
+// (Gigs, favours and the Fixer's tab are real events and are not rationed.)
+function castOnce(name, n, why) {
+  if (!CAST[name]) return 0;
+  const m = memoMap()[name];
+  if (m && m.won === S.day) return 0;
+  const moved = addStanding(name, n, why);
+  if (moved) { memoMap()[name].won = S.day; saveCareer(); }
+  return moved;
+}
 // For the debug menu and the self-test: put somebody at a standing, now.
 function setStanding(name, n) {
   if (!CAST[name]) return null;
@@ -6059,9 +6069,10 @@ const castLine = (name, fallback) => (CAST[name] && CAST[name].say[standTier(nam
 // The standing line for a dialogue: the mood, the number, and the last thing you did to them.
 function castState(name) {
   const m = memoMap()[name];
+  // (the day is only shown when it belongs to the run you are in: a memory can be from an earlier career)
   return `<p class="dim">Standing: <span class="${standClass(name)}">${standWord(name)}</span> ` +
     `(${standing(name) > 0 ? '+' : ''}${standing(name)})` +
-    (m && m.w ? `<br>Last time: ${esc(m.w)} <span class="dim">(day ${num(m.d)})</span>` : '') + '</p>';
+    (m && m.w ? `<br>Last time: ${esc(m.w)}${S && m.d <= S.day ? ` <span class="dim">(day ${num(m.d)})</span>` : ''}` : '') + '</p>';
 }
 // A face and a name, for the ones who never had a picture.
 const castSvg = name => junkieSvg([name, 0, 0, ...(CAST[name].look || [0, 0, 0, 0])]);
@@ -6111,7 +6122,7 @@ function distDeal(amount) {
   d.t = clampN(Math.round((d.t + FACES.dealHeat * amount / marketSize()) * 10) / 10, 0, 100);
   d.day = S.day;
   if (was < FACES.noticed && distTrade(S.loc) >= FACES.noticed) {
-    log(`<span class="amber">${DISTRICTS[S.loc].hot}</span>`);
+    log(`<span class="amber">${(DISTRICTS[S.loc] || {}).hot || 'The locals here have started comparing notes about you.'}</span>`);
   }
 }
 // Work that brings security down on a place: break-ins, deep runs, and alarms on top of either.
@@ -6697,7 +6708,7 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
       if (!S.ammo[S.loaded]) S.loaded = 'std';
     }
     if (hot) heatUp(5);
-    if (!hot) addStanding('Pew', 1, `you bought a ${w[0]} off him`);   // FACES: Pew likes a paying customer
+    if (!hot) castOnce('Pew', 1, `you bought a ${w[0]} off him`);   // FACES: Pew likes a paying customer, once a day
     log(`Bought: ${w[0]} for ${money(price)}.`);
     render();
   }
@@ -7619,8 +7630,9 @@ const ACTIONS = {
     if (!GEAR_SPOTS.includes(S.loc) || !stuckTotal()) return;
     // FACES: Doc Wick's fee follows his opinion of you (docMult). He never refuses the job, whatever he
     // thinks: a stuck pocket kills you, and that is not a door this game closes.
-    castDoor('Doc Wick');
+    // (as with the fence, his opinion is taken on the way in: turning up hot is priced into the next visit)
     const fee = Math.max(1, Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5) * docMult())), paid = Math.min(fee, S.cash), owed = fee - paid;
+    castDoor('Doc Wick');
     const n = stuckTotal();
     if (!await confirmDlg('Doc Wick', `<div class="syn">${withIcon(miscIcon('doc'), '<b>Extraction</b><br>' +
       `removes what is stuck in your prison pocket, and patches you up from ${S.hp}% to full Health`)}</div>` +
@@ -7763,7 +7775,7 @@ const ACTIONS = {
       }
       else S.proxies++;
       // FACES: the doc in the back room is Doc Wick, and patching you up is his money.
-      if (key === 'd') addStanding('Doc Wick', 1, 'you paid him to patch you up');
+      if (key === 'd') castOnce('Doc Wick', 1, 'you paid him to patch you up');
       log(key === 'd' ? `Doc Wick patched you up for ${money(o.price)}.` : `Bought: ${o.name} for ${money(o.price)}.`);
       render();
     }
@@ -7952,17 +7964,23 @@ const ACTIONS = {
     }
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     const buttons = others.map(l =>
-      // FACES: distTag() adds the district's temperature, so the choice is made before you travel.
-      [(l === HOME ? l + ' (Fixer, wallet)' : l === BUNKER ? l + ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? l + ' (black market, arms dealer)' : l === GUN_SPOT ? l + ' (guns, ammo, clothing, bags)'
-          : rideSpot(l) ? `${l} (${rideSpot(l)[2]})` : l) + distTag(l), l]);
+      // FACES: distTag() adds the district's temperature, so the choice is made before you travel. It goes
+      // before what is sold there, because on a 320-pixel screen the end of a long label is cut off.
+      [l + distTag(l) + (l === HOME ? ' (Fixer, wallet)' : l === BUNKER ? ' (your hideout, free trip)'
+        : GEAR_SPOTS.includes(l) ? ' (black market, arms dealer)' : l === GUN_SPOT ? ' (guns, ammo, clothing, bags)'
+          : rideSpot(l) ? ` (${rideSpot(l)[2]})` : ''), l]);
     buttons.push(['Stay here', null, 'small']);
     // FACES: the state of every district, and why it is in that state. Nothing new on screen: this is the
     // travel dialogue it has always been, with the temperatures written into it.
+    // (only the ones with something to say get a block; the quiet ones are named in one line underneath,
+    //  so the list stays short on a good day and tells you everything on a bad one)
+    const streets = LOCATIONS.filter(l => l !== BUNKER);
+    const warm = streets.filter(l => distTrade(l) >= 10 || distSec(l) >= 25);
     const board = '<div class="sub dim" style="padding:6px 4px 2px">THE STREETS TODAY</div>' +
-      LOCATIONS.filter(l => l !== BUNKER).map(l =>
-        `<div class="syn"><b class="${l === S.loc ? 'cyan' : ''}">${l}</b>${l === S.loc ? ' <span class="dim">(you are here)</span>' : ''}` +
+      warm.map(l => `<div class="syn"><b class="${l === S.loc ? 'cyan' : ''}">${l}</b>${l === S.loc ? ' <span class="dim">(you are here)</span>' : ''}` +
         `${distLine(l)}</div>`).join('') +
+      (warm.length < streets.length ? `<p class="dim">Quiet and open, with nothing on you: ` +
+        `${streets.filter(l => !warm.includes(l)).join(', ')}.</p>` : '') +
       '<p class="dim">Trade one market too hard and it deals thinner for a few days. Break into a place, or run it deep, ' +
       'and the law takes an interest. Stay away and both cool off.</p>';
     const dest = await dialog('Tunnel out', (tired
@@ -9365,7 +9383,7 @@ async function junkie() {
     log(`Bought ${o.name} from ${name} for ${money(o.price)}.`);
   }
   // FACES: one point a day for buying from them, however much you bought.
-  if (bought) addStanding(name, 1, `you bought ${bought} thing${bought === 1 ? '' : 's'} off them`);
+  if (bought) castOnce(name, 1, `you bought ${bought} thing${bought === 1 ? '' : 's'} off them`);
   if (!bought) log(`You left ${name} to it.`);
 }
 
@@ -14782,6 +14800,7 @@ async function facesSelfTest() {
     const lawOdds = () => FACES.distLaw * distSec(S.loc) / 100;
     if (!(lawOdds() > 0 && lawOdds() <= FACES.distLaw)) fail('the law odds a district adds', lawOdds());
     setDistrict(S.loc, 50, 50);
+    dist(S.loc).day = 0;   // ...and then a day spent nowhere near it
     const here = [dist(S.loc).t, dist(S.loc).s];
     S.loc = BUNKER; nextDay();   // a night away from it
     if (!(distTrade('Campus Lab') === here[0] - FACES.coolTrade && distSec('Campus Lab') === here[1] - FACES.coolSec)) {
@@ -14804,7 +14823,8 @@ async function facesSelfTest() {
     await ACTIONS.travel();
     autoPick = null;
     if (!board.includes('Paste Alley') || !board.includes('thinner') || !board.includes('surface') ||
-      !board.includes(TRADE_WORD[4]) || !board.includes(SEC_WORD[3])) fail('the travel screen does not show the streets', board.length);
+      !board.includes(TRADE_WORD[4]) || !board.includes(SEC_WORD[3]) ||
+      !board.includes('Quiet and open') || !board.includes('Cyber Cafe')) fail('the travel screen does not show the streets', board.length);
     render();
     if (!$('#market').innerHTML.includes('THE BUNKER')) fail('the Bunker panel broke');
     S.loc = 'Paste Alley'; rollMarket(); render();
@@ -14988,9 +15008,10 @@ async function selfTest(games) {
         if (stuckTotal() && game % 5 !== 4 && (GEAR_SPOTS.includes(S.loc) ? Math.random() < 0.5 : Math.random() < 0.03)) {
           if (!GEAR_SPOTS.includes(S.loc)) { S.loc = GEAR_SPOTS[0]; rollMarket(); }
           const n = stuckTotal(), before = used(), tags = Object.values(S.tag).reduce((a, b) => a + b, 0), cash = S.cash, debt = S.debt;
+          const doc = docMult();   // FACES: the fee is Doc Wick's, and carries the opinion he had of you on the way in
           await ACTIONS.clinic();
           if (!stuckTotal()) {   // done: everything is back, tagged, you are patched up, and the fee was paid or put on the tab
-            const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5));
+            const now = Object.values(S.tag).reduce((a, b) => a + b, 0), fee = Math.max(1, Math.round(EXTRACT_FEE * (1 + Math.floor(effDay() / 10) * 0.5) * doc));
             if (S.hp !== 100 || S.sick || used() !== before || now !== tags + n || cash - S.cash + S.debt - debt !== fee) throw new Error('extraction went wrong');
           } else if (stuckTotal() !== n) throw new Error('extraction took only some');
         }
@@ -15255,8 +15276,9 @@ async function selfTest(games) {
           // line from a day that has happened, every district's two numbers are on their scales, and the
           // district the bot is standing in is still a market it could deal in.
           Object.entries(career.stand || {}).some(([n, v]) => !CAST[n] || !Number.isInteger(v) || v < -STAND_MAX || v > STAND_MAX) ||
+          // (a memory's day can be bigger than this run's: it may be from an earlier career)
           Object.entries(career.memo || {}).some(([n, m]) => !CAST[n] || !m || typeof m.w !== 'string' || m.w.length > 90 ||
-            !Number.isInteger(m.d) || m.d < 1 || m.d > S.day) ||
+            !Number.isInteger(m.d) || m.d < 1) ||
           Object.entries(S.dist || {}).some(([place, d]) => !LOCATIONS.includes(place) || place === BUNKER || !d ||
             !(d.t >= 0 && d.t <= 100) || !(d.s >= 0 && d.s <= 100) || !Number.isInteger(d.day) || d.day < 0 || d.day > S.day) ||
           !(distDepthMult(S.loc) >= 1 - FACES.distDepth && distDepthMult(S.loc) <= 1) ||
@@ -15303,7 +15325,20 @@ async function selfTest(games) {
             Array.isArray(S.dun.rooms) && S.dun.room >= 0 && S.dun.m >= 0 && S.dun.m <= 100 &&
             Number.isInteger(S.dun.cash) && S.dun.cash >= 0 && LOCATIONS.includes(S.dun.at) &&
             Object.values(S.dun.goods).every(q => Number.isInteger(q) && q > 0)));
-        if (bad) throw new Error('invariant broken: ' + JSON.stringify(S));
+        // FACES: the dump of S alone does not say which clause went, and the people live on `career`, which
+        // is not in it. Name whichever of the faces invariants broke, and show both maps.
+        if (bad) {
+          const why = [
+            ['standing', Object.entries(career.stand || {}).some(([n, v]) => !CAST[n] || !Number.isInteger(v) || v < -STAND_MAX || v > STAND_MAX)],
+            ['memory', Object.entries(career.memo || {}).some(([n, m]) => !CAST[n] || !m || typeof m.w !== 'string' || m.w.length > 90 || !Number.isInteger(m.d) || m.d < 1)],
+            ['districts', Object.entries(S.dist || {}).some(([place, d]) => !LOCATIONS.includes(place) || place === BUNKER || !d || !(d.t >= 0 && d.t <= 100) || !(d.s >= 0 && d.s <= 100) || !Number.isInteger(d.day) || d.day < 0 || d.day > S.day)],
+            ['depth lever', !(distDepthMult(S.loc) >= 1 - FACES.distDepth && distDepthMult(S.loc) <= 1)],
+            ['a market gone', S.loc !== BUNKER && (Object.keys(S.prices).length < 4 || GOODS.some(([g, lo, hi]) => depthOf(g) < ((lo + hi) / 2 <= ECON.streetMax ? ECON.streetDepth : ECON.minDepth)))],
+            ['kept back', !!(S.kept && !(S.kept.day === S.day && LOCATIONS.includes(S.kept.at) && S.kept.it && RARITY[S.kept.it.rar]))],
+          ].filter(([, v]) => v).map(([k]) => k);
+          throw new Error(`invariant broken${why.length ? ' (faces: ' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
+            ' career=' + JSON.stringify({stand: career.stand, memo: career.memo}));
+        }
       }
       if (S.over) {
         finished++;
