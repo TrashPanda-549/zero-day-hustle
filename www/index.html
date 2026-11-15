@@ -1042,6 +1042,10 @@ const ENDLESS = {
   fence: 0.6,             // what a fence pays for the goods you retire holding, as a share of their mid price
   retireXp: 8,            // XP a day survived, on top of the end-of-career XP a cash-out always paid
   retireXpMax: 1200,      // ...capped
+  // --- the one brake on the late economy ---
+  walletCap: 0.5,         // a night's cold-wallet interest can never beat this share of a day's take
+                          // (dayTake). Without it the wallet's rate above the first slice compounds at 1% a
+                          // day and becomes the whole late game. It never bites inside the arc.
 };
 // The money multiplier past the arc, and the "effective day" every scaling number reads.
 function lateMult(day) {
@@ -5867,7 +5871,7 @@ function depthText(name) {
   if (b.depth < 1.5) {
     return `<p class="dim">Hardly anyone here deals in ${name} yet: the market takes <b>one</b> at this price, and the next goes for ` +
       `${b.depth < 0.75 ? 'next to nothing' : 'about half'}. Buying one costs far more than selling one brings. ` +
-      `The markets deal bigger as the month goes on. ${stock}</p>`;
+      `The markets deal bigger as the days go on. ${stock}</p>`;
   }
   return `<p class="dim">This market is only so deep in ${name}: about every <b>${num(n)}</b> you sell here halves the price, ` +
     `and every ${num(n)} you buy doubles it. ${stock}</p>`;
@@ -5891,8 +5895,12 @@ function settleMarkets() {
   }
 }
 // What the cold wallet earns overnight (ECON.walletFull, ECON.walletOver).
-const walletGain = amount => Math.floor(Math.min(amount, ECON.walletFull) * walletRate() +
-  Math.max(0, amount - ECON.walletFull) * walletRate() * ECON.walletOver);
+// ENDLESS: over a 30-day run the rate above the first slice could not run away. Over a 200-day career it
+// compounds into the biggest earner in the game, so a night's interest is capped at ENDLESS.walletCap of
+// what a strong player clears in a day. Inside the arc no run is ever rich enough for the cap to bite.
+const walletGain = amount => Math.floor(Math.min(Math.min(amount, ECON.walletFull) * walletRate() +
+  Math.max(0, amount - ECON.walletFull) * walletRate() * ECON.walletOver,
+  dayTake(S.day) * ENDLESS.walletCap));
 // A drive upgrade costs more the more of them you have fitted (ECON.driveCurve). base: what the first one costs.
 const drivePrice = base => Math.round(base * Math.pow(1 + Math.max(0, S.drive - START_DRIVE) / 50, ECON.driveCurve) / 10) * 10;
 
@@ -6583,7 +6591,7 @@ function renderNow() {
   const onSale = GOODS.filter(([name]) => S.prices[name]).length, holding = Object.keys(S.inv).length;
   $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''),
     '<div class="sub dim mnote" style="padding:2px 4px 6px">Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
-    'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the month goes on.</div>' + GOODS.map(([name]) => {
+    'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the days go on: the first month fastest, and slowly after that.</div>' + GOODS.map(([name]) => {
     const price = S.prices[name], held = S.inv[name] || 0, flag = S.flags[name];
     const priceHtml = price
       ? `<span class="${flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : ''}">` +
@@ -7487,7 +7495,9 @@ const ACTIONS = {
     const cmd = await dialog('Cold wallet',
       `<p>Balance: ${money(S.wallet)}. Earns ${pct(walletRate())}% a day on the first ${money(ECON.walletFull)} and ` +
       `${pct(walletRate() * ECON.walletOver)}% a day on anything above that, and it can't be phished.</p>` +
-      `<p class="dim">Tonight it earns ${money(walletGain(S.wallet))}.</p>`,
+      `<p class="dim">Tonight it earns ${money(walletGain(S.wallet))}` +
+      (walletGain(S.wallet) >= Math.floor(dayTake(S.day) * ENDLESS.walletCap) ? ', which is all it will ever pay in a night ' +
+        'at this stage: interest never beats what the street pays.' : '.') + '</p>',
       [['Deposit', 'd', 'primary'], ['Withdraw', 'w'], ['Leave', null, 'small']]);
     if (cmd === 'd') {
       if (S.cash <= 0) return alertDlg('Cold wallet', '<p>You have no cash to deposit.</p>');
