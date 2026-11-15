@@ -189,6 +189,7 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .hall{width:100%;border-collapse:collapse;margin-top:6px}
 .hall td{padding:2px 4px}.hall td:last-child{text-align:right}
 .syn{margin:0 0 8px;padding:6px 8px;border:1px solid var(--line);border-left:2px solid var(--accent);background:rgba(23,20,46,.6)}
+.keyhelp{display:none}   /* the handheld's key list: see TINY SCREENS at the end of this style sheet */
 .syn b{color:var(--cyan)}
 
 /* gear screen */
@@ -591,6 +592,9 @@ button .ico.room{width:44px;height:26px}
    background gradients, the glitch and streak animations, the avatar's idle animations) is off here,
    because this runs on a slow handheld. */
 @media (max-width:600px) and (max-height:260px){
+  /* no mouse and no touch on a handheld: the focus ring below is the cursor. (Asking for no pointer here
+     does nothing under cage/WPE, where the compositor paints it; it is for hosts where the page is asked.) */
+  *,*::before,*::after{cursor:none!important}
   :root{--cut:none}                       /* the clipped corners cost 9px of every button and a mask per paint */
   html,body{height:100%;overflow:hidden}
   body{font-size:11px;line-height:1.25;min-height:0;background:var(--bg)}
@@ -598,9 +602,15 @@ button .ico.room{width:44px;height:26px}
   *{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
   h1,.bootlogo,.tlabel,.boothint,.basemap .blink,.av-fig,.av-bob,.avatar *{animation:none}
   #travel::before{content:none}
-  button:focus-visible,summary:focus-visible,input:focus-visible,[tabindex]:focus-visible,
-  .room:focus-visible .rbox,.tile:focus-visible,.slottag:focus-visible,.bopt:focus-visible{
-    outline:2px solid var(--yellow);outline-offset:1px}
+  /* the focus ring stands in for the pointer, so it is drawn on focus however the focus arrived, and it is
+     drawn twice: a yellow line and a black one outside it, so it reads over a panel or over the artwork */
+  button:focus,summary:focus,input:focus,[tabindex]:focus,.tile:focus,.slottag:focus,.bopt:focus{
+    outline:2px solid #fff;outline-offset:1px;box-shadow:0 0 0 4px #000}
+  button:focus,.tile:focus,.slottag:focus{background:rgba(255,255,255,.22);color:#fff}
+  button.primary:focus{background:#fff;color:#000}
+  .room:focus .rbox{stroke:var(--yellow);stroke-width:3}
+  #colme:focus,#news:focus,#log:focus,#market:focus,#jobs:focus,#dialog:focus{
+    outline:2px dashed var(--yellow);outline-offset:-2px;box-shadow:none}
 
   /* --- the play screen --- */
   #app{position:fixed;inset:0;max-width:none;margin:0;display:grid;gap:0 5px;
@@ -678,6 +688,12 @@ button .ico.room{width:44px;height:26px}
   #overlay{padding:2px}
   #dialog{max-width:none;max-height:100%;padding:4px 6px;border-top-width:2px;clip-path:none;animation:none}
   #dialog p{margin:0 0 4px}
+  /* the keys are the only way in here, so the list of them is shown and the buttons wear their numbers */
+  .keyhelp{display:block;margin-top:6px;border-top:1px solid var(--line);padding-top:4px}
+  #dialog{counter-reset:dbtn}
+  .dbtns button::before{counter-increment:dbtn;content:counter(dbtn) " ";opacity:.65;font-weight:bold}
+  #actions{counter-reset:act}
+  #actions button::before{counter-increment:act;content:counter(act) " ";opacity:.65;font-weight:bold}
   .dbtns{gap:3px;margin-top:5px;grid-template-columns:repeat(auto-fit,minmax(68px,1fr))}
   .qty{gap:4px;margin-top:3px}
   input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
@@ -1924,7 +1940,10 @@ function adoptOldSave() {
 }
 // The drop-downs on the main screen (syndicate mission, products, Local BBS). Which ones are open is remembered.
 const FOLDS = store.get('zdh-folds') || {};
-const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${FOLDS[id] ? ' open' : ''}>` +
+// (on a handheld the products start open: the prices are the screen, and there is no pointer to open them
+//  with. Once it has been opened or shut by hand, what was chosen is remembered as everywhere else.)
+const foldOpen = id => (FOLDS[id] === undefined ? id === 'goods' && tinyScreen() : !!FOLDS[id]);
+const fold = (id, label, note, body) => `<details class="fold" data-fold="${id}"${foldOpen(id) ? ' open' : ''}>` +
   `<summary>${label}<small>${note}</small></summary>${body}</details>`;
 document.addEventListener('toggle', e => {
   const id = e.target.dataset && e.target.dataset.fold;
@@ -5469,9 +5488,11 @@ function dialog(title, html, buttons, tone) {
       el.onclick = () => { overlay.hidden = true; resolve(value); };
       box.appendChild(el);
     }
-    // Anything in the body marked data-pick="value" also answers the dialog when tapped.
+    // Anything in the body marked data-pick="value" also answers the dialog when tapped, and is a stop for
+    // the Tab key as well, so a machine with no pointer can reach it.
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
       el.onclick = () => { overlay.hidden = true; resolve(el.dataset.pick); };
+      if (!el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', 'button'); }
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
       const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
@@ -5481,6 +5502,7 @@ function dialog(title, html, buttons, tone) {
     }
     overlay.hidden = false;
     dlg.scrollTop = 0;
+    focusFirst();
   });
 }
 const confirmDlg = (title, html, yes, no) =>
@@ -5527,6 +5549,7 @@ function askQty(title, html, max, opts) {
     show();
     if (AUTO) return resolve([null, 1, max, rnd(1, max)][rnd(0, 3)]);
     overlay.hidden = false;
+    focusFirst();
   });
 }
 
@@ -6030,7 +6053,9 @@ async function swapSlot(slot) {
 }
 
 // ---------- rendering ----------
-function render() {
+// Redrawing throws the focused button away, so on a handheld the focus is put back (see keepFocus).
+function render() { keepFocus(renderNow); }
+function renderNow() {
   SND.sync();
   fixTags();
   const last = S.day >= DAYS;
@@ -7602,6 +7627,185 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
   el.dispatchEvent(new MouseEvent('click', {bubbles: true}));
 });
+
+// ---------- the keyboard on a handheld ----------
+// On a 320 x 170 machine (the TINY SCREENS layout) there is no mouse and no touch: the keyboard is all
+// there is. So whatever appears takes the focus on its first control, Enter works it, and the arrow keys
+// walk the controls of the screen in front of you and wrap round. Nothing here does anything at any other
+// size. The fight screen steers with the arrows itself and keeps them; so do text boxes, number boxes and
+// sliders, which need the arrows for their own value.
+const tinyScreen = () => matchMedia('(max-width:600px) and (max-height:260px)').matches;
+const FOCUS_SEL = 'button:not(:disabled),summary,input:not([type=hidden]),select,textarea,[tabindex]:not([tabindex="-1"])';
+// Inside a fold that is shut, a control still has a box (the browser keeps the layout and only hides it),
+// but it cannot be focused: leave those out, or the arrow keys walk into a wall.
+const shutAway = el => { const d = el.closest('details:not([open])'); return !!d && el.parentElement !== d; };
+// (the size is measured with a box, not offsetWidth, because the rooms in the Bunker's cutaway are SVG)
+const onScreen = el => { const b = el.getBoundingClientRect(); return !!(b.width || b.height); };
+const focusList = root => [...root.querySelectorAll(FOCUS_SEL)]
+  .filter(el => el === document.activeElement || (onScreen(el) && !shutAway(el)));
+const typing = el => el && (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA');
+const focusRoot = () => (overlay.hidden ? $('#app') : dlg);
+// The obvious control of whatever just opened: the button that is marked primary, else the first one there.
+// (the focus is taken on the next turn of the loop, not this instant: the key that opened this dialogue is
+//  still being delivered, and a button that took the focus mid-key would be worked by the rest of it)
+function focusFirst() {
+  if (!tinyScreen()) return;
+  setTimeout(() => {
+    const root = focusRoot();
+    if (!root) return;
+    const pick = (!overlay.hidden && dlg.querySelector('.dbtns button.primary:not(:disabled)')) || focusList(root)[0];
+    if (pick) pick.focus();
+  }, 0);
+}
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey) return;
+  const back = e.key === 'ArrowUp' || e.key === 'ArrowLeft', on = back || e.key === 'ArrowDown' || e.key === 'ArrowRight';
+  if (!on || typing(document.activeElement)) return;
+  const battle = $('#battle');
+  if (overlay.hidden && battle && !battle.hidden) return;   // the fight screen is steering
+  const root = focusRoot(), all = root ? focusList(root) : [];
+  if (!all.length) return;
+  // A long notice with one button: the arrows read it, because there is nowhere else for the ring to go.
+  if (!overlay.hidden && all.length <= 1 && dlg.scrollHeight > dlg.clientHeight + 2) {
+    e.preventDefault();
+    dlg.scrollTop += back ? -34 : 34;
+    return;
+  }
+  // In the products, up and down step a whole row at a time (left and right walk control by control).
+  const row = document.activeElement.closest && document.activeElement.closest('#market .row');
+  if (row && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    // (only while there is another row: off the end of the list the walk carries on out of the products,
+    //  so the keys never trap you in them)
+    const rows = [...$('#market').querySelectorAll('.row')], i = rows.indexOf(row) + (back ? -1 : 1);
+    const to = i >= 0 && i < rows.length && rows[i], btn = to && focusList(to)[0];
+    if (btn) {
+      e.preventDefault();
+      btn.focus();
+      if (btn.scrollIntoView) btn.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      return;
+    }
+  }
+  const at = all.indexOf(document.activeElement), step = back ? -1 : 1;
+  e.preventDefault();
+  // ...and if one of them still refuses the focus, go on to the next one rather than stand still.
+  let j = at < 0 ? (back ? all.length - 1 : 0) : (at + step + all.length) % all.length;
+  for (let i = 0; i < all.length; i++, j = (j + step + all.length) % all.length) {
+    const next = all[j];
+    next.focus();
+    if (document.activeElement === next) {
+      if (next.scrollIntoView) next.scrollIntoView({block: 'nearest', inline: 'nearest'});
+      break;
+    }
+  }
+}, true);
+// The keys a player reaches for every turn, so nothing needs a walk down a list: Escape backs out, 1-9 pick
+// the numbered button in front of you, and a handful of letters open the things you use constantly. None of
+// them fire while something is being typed into, and none of them reach over the fight screen, which has its
+// own keys (it steers with WASD as well as the arrows).
+const KEY_ACTS = {b: 'buy', s: 'sell', t: 'travel', i: 'inventory', g: 'gearmenu', m: 'base'};
+const BACK_OUT = /^(back|close|cancel|not now|not yet|no\b|no,|never mind|leave|stay|done|ok)/i;
+const press = el => { if (el && !el.disabled) el.dispatchEvent(new MouseEvent('click', {bubbles: true})); };
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey || typing(document.activeElement)) return;
+  const battle = $('#battle'), fight = !!battle && !battle.hidden, open = !overlay.hidden, k = e.key;
+  // Escape, tapped, backs out of a dialogue. (Held down it quits the game on the handheld, so nothing here
+  // waits on it.) It never answers a dialogue with something that spends or destroys anything.
+  if (k === 'Escape') {
+    if (!open) return;
+    const outs = [...dlg.querySelectorAll('.dbtns button:not(:disabled)')].filter(b => BACK_OUT.test(b.textContent.trim()));
+    if (outs.length) { e.preventDefault(); press(outs[outs.length - 1]); }
+    return;
+  }
+  // Page up and down (and Home and End) read through whatever is in front of you: a long notice, or the
+  // pane the ring is in, since a pane on this screen scrolls inside itself.
+  if (k === 'PageDown' || k === 'PageUp' || k === 'Home' || k === 'End') {
+    const near = document.activeElement.closest && document.activeElement.closest('#colme,#market,#jobs,#log,#news,.basewrap');
+    const box = open ? dlg : near || $('#market');
+    if (!box) return;
+    e.preventDefault();
+    const h = Math.max(24, box.clientHeight - 12);
+    box.scrollTop = k === 'Home' ? 0 : k === 'End' ? box.scrollHeight
+      : box.scrollTop + (k === 'PageDown' ? h : -h);
+    return;
+  }
+  if (k >= '1' && k <= '9') {
+    // in a fight: whichever list is in front — the results, an open sub-menu, or the commands
+    const where = fight && (battle.querySelector('.bres:not([hidden])') || battle.querySelector('.bsub:not([hidden])')
+      || battle.querySelector('.bcmd'));
+    const list = open ? [...dlg.querySelectorAll('.dbtns button')]
+      : fight ? (where ? [...where.querySelectorAll('.bopt')] : [])
+      : [...$('#actions').querySelectorAll('button')];
+    if (list[+k - 1]) { e.preventDefault(); press(list[+k - 1]); }
+    return;
+  }
+  if (open || fight) return;
+  const act = KEY_ACTS[k.toLowerCase()];
+  if (!act) return;
+  if (act === 'buy' || act === 'sell') {   // B and S work the product row the ring is on
+    const row = document.activeElement.closest && document.activeElement.closest('#market .row');
+    const btn = row && [...row.querySelectorAll('.btns button')].find(b => b.dataset.act === act);
+    if (btn) { e.preventDefault(); press(btn); }
+    return;
+  }
+  const el = $(`#app [data-act="${act}"]`);
+  if (el) { e.preventDefault(); press(el); }
+}, true);
+
+// Enter or Space on the head of a fold (the products, the mission, the Local BBS) opens and shuts it. The
+// browser does this itself from a real keyboard, but not from every one: on the machine this layout is for,
+// the keys arrive from a bridge, and the fold is the only way to the prices, so it is done here outright.
+document.addEventListener('keydown', e => {
+  if (!tinyScreen() || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const s = document.activeElement, box = s && s.parentElement;
+  if (!s || s.tagName !== 'SUMMARY' || !box || box.tagName !== 'DETAILS') return;
+  e.preventDefault();   // (and so the browser does not open it a second time)
+  box.open = !box.open;
+}, true);
+
+// When a dialog or the fight screen closes, the screen behind it is what you are looking at now: if the
+// focus went with the thing that closed, put it on the first control of the screen, so Enter and the arrow
+// keys always have something to work on. (A redraw usually gets there first and keeps your place; this is
+// for the times nothing redraws.)
+function backToScreen() {
+  if (!tinyScreen()) return;
+  setTimeout(() => {
+    const app = $('#app'), battle = $('#battle');
+    if (!overlay.hidden || (battle && !battle.hidden) || !app) return;
+    const now = document.activeElement;
+    if (now && now !== document.body && now.isConnected && app.contains(now)) return;
+    const first = focusList(app)[0];
+    if (first) first.focus();
+  }, 150);
+}
+for (const el of [overlay, $('#battle')]) {
+  if (el) new MutationObserver(backToScreen).observe(el, {attributes: true, attributeFilter: ['hidden']});
+}
+
+// Redrawing the main screen throws away the button you were on: put the focus back on the same one if it is
+// still there (the same action and argument), on whatever took its place if it is not, and on the first
+// control if the screen has changed under you.
+function keepFocus(run) {
+  if (!tinyScreen() || !overlay.hidden) return run();
+  const was = document.activeElement, app = $('#app');
+  const inside = was && app && app.contains(was) && was !== app;
+  const key = inside && was.dataset ? `${was.dataset.act || ''}|${was.dataset.arg || ''}|${was.dataset.pick || ''}` : '';
+  const at = inside ? focusList(app).indexOf(was) : -1;
+  run();
+  if (!overlay.hidden) return;
+  const all = focusList(app);
+  if (!inside) {   // the focus was on a dialog that has just gone: start the screen off on its first control
+    const now = document.activeElement;
+    if ((!now || now === document.body || !now.isConnected) && all[0]) all[0].focus();
+    return;
+  }
+  const arg = inside && was.dataset ? was.dataset.arg : '';
+  const same = key && key !== '||' && all.find(el => `${el.dataset.act || ''}|${el.dataset.arg || ''}|${el.dataset.pick || ''}` === key);
+  // the same button has gone (it was the last one you could buy, say): stay on its row if it is still there
+  const near = !same && arg && all.find(el => el.dataset.arg === arg);
+  const pick = same || near || (at >= 0 && all[Math.min(at, all.length - 1)]) || all[0];
+  if (pick) { pick.focus(); if (pick.scrollIntoView) pick.scrollIntoView({block: 'nearest', inline: 'nearest'}); }
+}
 // ===== THE BASE (the screen, the stations' dialogs, the Range): END =====
 
 function nextDay(inside) {
@@ -9064,6 +9268,9 @@ const BTL = (() => {
         `<div class="bhint">${hint}</div></div>`;
       el.hidden = false;
       el.scrollTop = 0;
+      // On a handheld the focus is sitting on a button of the screen behind: let it go, so Enter belongs
+      // to the fight (which steers itself from the document, focus or no focus).
+      if (tinyScreen() && document.activeElement && document.activeElement.blur) document.activeElement.blur();
       cv = q('canvas'); g = cv.getContext('2d');
       const who = roster(enc), spots = formation(who.length, who.some(f => f.boss));
       const grunts = spots.slice(who.some(f => f.boss) ? 1 : 0);
@@ -11484,7 +11691,18 @@ function introText() {
     'The amount on your Drive takes the colour of the bag on your back.</p>' +
     '<p><span class="cyan">The Bunker</span> is your hideout: stash goods, lock up gear and sleep there. Rival crews cannot ' +
     'reach you at home, but the law can raid it.</p>' +
-    '<p class="dim">Only cash and your cold wallet count at the end.</p>';
+    '<p class="dim">Only cash and your cold wallet count at the end.</p>' +
+    // Shown only on a handheld (the TINY SCREENS layout), where there is no pointer at all.
+    '<div class="keyhelp"><p><b class="cyan">KEYS</b></p>' +
+    '<p><b>Arrows</b> move the white ring from one control to the next, and down the product rows. ' +
+    '<b>Tab</b> does the same. <b>Enter</b> or <b>Space</b> works the one you are on.</p>' +
+    '<p><b>1-9</b> picks the numbered button in front of you: an answer in a dialogue, somewhere to tunnel to, ' +
+    'a move in a fight, or one of the actions at the foot of the screen.</p>' +
+    '<p><b>B</b> buys and <b>S</b> sells the product your ring is on. <b>T</b> tunnels out, <b>I</b> opens your ' +
+    'inventory, <b>G</b> your gear, <b>M</b> the Bunker\'s rooms.</p>' +
+    '<p><b>Esc</b> backs out of a dialogue. <b>PgUp</b> and <b>PgDn</b> read through a long one like this, ' +
+    'and through the panes on the main screen. In a fight the arrows pick a move, Enter takes it, 1-9 take ' +
+    'one outright and Esc goes back a step.</p></div>';
 }
 
 // The start menu: continue, start a new game, load a save or delete one. Returns once a save is in use.
@@ -11559,6 +11777,7 @@ async function startMenu() {
   // #selftest plays 200 random games; #selftest=30 plays 30.
   if (location.hash.startsWith('#selftest')) { bootEl.remove(); return selfTest(Number(location.hash.split('=')[1]) || 200); }
   bootEl.onclick = endBoot;
+  document.addEventListener('keydown', endBoot, {once: true});   // no pointer on a handheld: any key skips it
   setTimeout(endBoot, 2600);
   // Web version only: keep a copy for offline play.
   if ('serviceWorker' in navigator && location.protocol === 'https:' && location.hostname !== 'localhost') {
