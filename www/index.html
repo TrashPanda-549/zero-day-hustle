@@ -16,7 +16,17 @@
 :root{--bg:#06050d;--panel:#0f0d1f;--panel2:#17142e;--line:#2b2752;--fg:#d9e2ff;--dim:#7c81ab;
   --accent:#00e5ff;--cyan:#00e5ff;--pink:#ff2a6d;--magenta:#ff4fd8;--yellow:#fcee0a;--amber:#fcee0a;
   --green:#3dff9a;--red:#ff3b5c;
-  --cut:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+  --cut:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+  /* ===== HOUSE STYLE (1.35: the main screen wears the fight screen's chrome) =====
+     One spacing scale, one border language, one timing. Everything added below is built out of these, so
+     a change here moves the whole interface and nothing has its own private numbers. */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;        /* the only spacings anything new is allowed to use */
+  --edge:#3b3f7a;                               /* the window border the fight screen has always used */
+  --glass:linear-gradient(180deg,rgba(23,20,46,.97),rgba(9,8,22,.97));
+  --sunk:inset 0 0 0 1px #06050d,inset 0 0 0 2px rgba(0,229,255,.13),0 2px 0 #000;
+  --t:150ms;                                    /* every hover and press, nothing else */
+  /* the action-tile language: a kind sets these three and everything else follows (see ACTION TILES) */
+  --tk:var(--cyan);--tk-tint:rgba(0,229,255,.09);--tk-ink:#dff6ff}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg)}
 body{color:var(--fg);font:15px/1.35 ui-monospace,Consolas,"Cascadia Mono",Menlo,"Roboto Mono",monospace;
@@ -54,6 +64,64 @@ button.primary:active:not(:disabled){background:#fff}
 button.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,42,109,.08);text-shadow:0 0 6px rgba(255,42,109,.5)}
 button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--line);color:var(--dim);
   background:transparent;text-shadow:none}
+button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,border-color var(--t) linear,
+  color var(--t) linear,box-shadow var(--t) linear}
+@media (hover:hover){button:not(:disabled):hover{background:rgba(0,229,255,.16);box-shadow:0 0 0 1px currentColor}
+  button.primary:not(:disabled):hover{background:#fff8a8}
+  button.small:not(:disabled):hover{color:var(--cyan);border-color:var(--cyan);background:rgba(0,229,255,.1)}}
+
+/* ===== PANEL CHROME =====
+   The one window the fight screen draws (.bw) is the window the whole game draws: dark glass, a cyan top
+   edge, the sunk inner rule, a yellow corner mark. .pw is the same thing for a panel that is not in a
+   fight; set --kc on it for the colour of the bottom edge (the fight screen calls that --fc). */
+.pw{position:relative;border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--kc,var(--cyan));background:var(--glass);box-shadow:var(--sunk)}
+.pw::after{content:"";position:absolute;right:3px;bottom:3px;width:6px;height:6px;border-right:1px solid var(--yellow);
+  border-bottom:1px solid var(--yellow);opacity:.75;pointer-events:none}
+
+/* ===== ACTION TILES =====
+   One tile for every choice the game offers, wherever it is offered: the row of things you can do on the
+   main screen (#actions), the options in a dialogue, a shop, a deep run or a fight (.bopts/.bopt).
+   A tile is: [glyph] [name / note] [badge]. The caller picks a KIND, not a colour:
+     .k-go    the one thing this screen is for (yellow)      .k-risk  it can go wrong (pink)
+     .k-shop  somewhere that takes your money (green)        .k-kit   something you already own (cyan)
+     .k-info  a list to look at, nothing happens (violet)
+   A kind only sets --tk (the ink and the edge), --tk-tint (the backing) and --tk-ink (the label), so a new
+   kind is three lines and nothing else has to know. Sizing lives on the grid (.tgrid), not on the tile, so
+   the same rules that keep the main screen's rows even keep a dialogue's rows even. */
+.k-go{--tk:var(--yellow);--tk-tint:rgba(252,238,10,.26);--tk-ink:#fffbdc}
+.k-risk{--tk:var(--pink);--tk-tint:rgba(255,42,109,.13);--tk-ink:#ffc2d2}
+.k-shop{--tk:var(--green);--tk-tint:rgba(61,255,154,.10);--tk-ink:#c6ffe2}
+.k-kit{--tk:var(--cyan);--tk-tint:rgba(0,229,255,.10);--tk-ink:#d4f6ff}
+.k-info{--tk:#9d8cff;--tk-tint:rgba(157,140,255,.10);--tk-ink:#d8d2ff}
+/* the grid: every tile the same height, a sensible smallest width, one gap */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tw,168px),1fr));
+  grid-auto-rows:1fr;gap:var(--s2)}
+/* the tile itself */
+.tact{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;
+  gap:var(--s2);min-height:52px;padding:var(--s1) var(--s2);text-align:left;clip-path:none;
+  color:var(--tk-ink);border:1px solid var(--tk);border-left-width:3px;
+  background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.92));
+  box-shadow:var(--sunk);text-shadow:1px 1px 0 #000;letter-spacing:.3px}
+.tact::after{content:"";position:absolute;right:3px;bottom:3px;width:5px;height:5px;
+  border-right:1px solid var(--yellow);border-bottom:1px solid var(--yellow);opacity:.6;pointer-events:none}
+.tact>.ico{align-self:center}
+.tact .tl{display:block;min-width:0}
+.tact .tn{display:block;font-size:13.5px;line-height:1.2;overflow-wrap:anywhere;hyphens:auto}
+.tact .tsub{display:block;margin-top:1px;font-size:10.5px;line-height:1.15;letter-spacing:1px;
+  text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tact.k-go{box-shadow:var(--sunk),0 0 14px -5px var(--yellow)}
+.tact.k-go .tn{font-weight:bold;letter-spacing:.8px}
+/* the badge: every count on a tile reads the same way, wherever the count came from */
+.tbadge{position:absolute;top:-1px;right:-1px;min-width:19px;padding:0 4px;font-style:normal;font-weight:bold;
+  font-size:10.5px;line-height:15px;text-align:center;color:#000;background:var(--tk);text-shadow:none;
+  clip-path:polygon(5px 0,100% 0,100% 100%,0 100%,0 5px)}
+@media (hover:hover){.tact:not(:disabled):hover{background:linear-gradient(180deg,var(--tk-tint),var(--tk-tint));
+    box-shadow:var(--sunk),0 0 10px -2px var(--tk);color:#fff}}
+.tact:active:not(:disabled){background:var(--tk);color:#000;text-shadow:none}
+.tact:active:not(:disabled) .tsub,.tact:active:not(:disabled) .tbadge{color:#000}
+.tact:active:not(:disabled) .tbadge{background:rgba(0,0,0,.25);color:#fff}
+.tact:disabled{opacity:.34;filter:saturate(.3)}
 
 /* heads-up panel: avatar, level, health */
 #hud{display:grid;grid-template-columns:66px 1fr;gap:10px;margin-top:10px;align-items:stretch}
@@ -163,11 +231,22 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .job.gig{border-left-color:var(--magenta)}
 .job.quest button{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.06)}
 .job.quest button:active:not(:disabled){background:var(--cyan);color:#000}
-#actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
-#actions button{min-height:46px}
-/* SHOP TILES: an action button's tile is small enough to leave the label its room */
-#actions button.hasico{gap:5px;padding:4px 6px}
-#actions button.hasico .ico.room{width:34px;height:20px}
+/* ===== LOCATION ART BAND =====
+   A full-width strip under the banner and above everything about you, for a picture of wherever you are.
+   NOTHING IS DRAWN HERE YET: the band is empty, and an empty band takes no room at all (:empty), so the
+   screen today looks exactly as if it were not there. Whoever draws the art fills #locart with its own
+   markup (inline SVG or CSS; there are no image files in this game) and the band appears. It is a BAND,
+   not a hero image: the main screen is dense and has to stay usable, so the height is capped here and
+   nothing inside it may push it taller. Anything put in is clipped to the band. */
+#locart{position:relative;overflow:hidden;margin:var(--s2) 0 0;height:var(--artband,72px);
+  border:1px solid var(--edge);border-top:1px solid var(--cyan);border-bottom:2px solid var(--magenta);
+  background:#06050d;box-shadow:var(--sunk)}
+#locart:empty{display:none;margin:0;border:0}
+#locart>*{max-width:100%;max-height:100%}
+
+/* what you can do here: the shared tile grid, nothing of its own but the margin and the glyph's size */
+#actions{margin-top:var(--s3);--tw:170px}
+#actions .ico.room{width:36px;height:21px}
 #log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
 #log div{padding:1px 0}
 #log div:first-child{color:var(--fg)}
@@ -533,9 +612,11 @@ button .ico.room{width:44px;height:26px}
     padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
       calc(12px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
     grid-template-columns:minmax(300px,36%) minmax(0,1fr);
-    grid-template-rows:auto auto auto minmax(96px,1fr);
-    grid-template-areas:"head head" "me trade" "news trade" "log trade"}
+    grid-template-rows:auto auto auto auto minmax(96px,1fr);
+    grid-template-areas:"head head" "art art" "me trade" "news trade" "log trade"}
   #app>header{grid-area:head;margin-bottom:10px}
+  /* LOCATION ART BAND: full width under the banner, a little taller where there is room */
+  #locart{grid-area:art;--artband:clamp(84px,12vh,132px);margin:0 0 var(--s3)}
   #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
   #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
   #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:150px}
@@ -593,8 +674,8 @@ button .ico.room{width:44px;height:26px}
 }
 @media (min-width:1200px) and (min-height:500px){
   #app{grid-template-columns:minmax(280px,23%) minmax(0,1fr) minmax(320px,27%);
-    grid-template-rows:auto auto auto minmax(0,1fr) auto;
-    grid-template-areas:"head head head" "me trade news" "me trade jobs" "me trade log" "me actions log"}
+    grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
+    grid-template-areas:"head head head" "art art art" "me trade news" "me trade jobs" "me trade log" "me actions log"}
   /* you: the avatar stands tall above the level, health and stat chips */
   #colme{display:flex;flex-direction:column}
   #hud{display:contents}
@@ -743,6 +824,24 @@ button .ico.room{width:44px;height:26px}
   #tiny .acts button.hasico{display:flex;align-items:center;gap:4px;padding:0 5px}
   #tiny .acts button.hasico .ico.room{width:26px;height:15px}
   #tiny .acts button.hasico > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  /* ACTION TILES: the big layout's tile is a card; here it is a line again, the shape this screen has
+     always drawn - number, picture, name, note, count on the end - and in this screen's own colours, not
+     the kind colours. Nothing about the handheld's layout changes. */
+  #tiny .acts .tact{display:flex;align-items:center;gap:4px;min-height:0;padding:0 5px;
+    border:1px solid var(--accent);border-left-width:1px;background:rgba(0,229,255,.06);
+    color:var(--accent);box-shadow:none;text-shadow:none}
+  #tiny .acts .tact::after{content:none}
+  #tiny .acts .tact .ico.room{width:26px;height:15px}
+  #tiny .acts .tact .tl{display:flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden}
+  #tiny .acts .tact .tn{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts .tact .tsub{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts .tact .tbadge{position:static;margin-left:auto;padding:0;background:none;color:var(--yellow);
+    clip-path:none;font-size:11px;line-height:1.2}
+  #tiny .acts .tact.k-go{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
+  #tiny .acts .tact.k-go::before,#tiny .acts .tact.k-go .tsub,#tiny .acts .tact.k-go .tbadge{color:#000}
+  #tiny .acts .tact:focus{background:rgba(255,255,255,.22);color:#fff}
+  #tiny .acts .tact.k-go:focus{background:#fff;color:#000}
 
   /* the log and the news, read a page at a time */
   #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
@@ -1013,6 +1112,9 @@ button .ico.room{width:44px;height:26px}
 </div>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
+  <!-- LOCATION ART BAND: per-location background art goes in here, drawn elsewhere. Left empty on
+       purpose; an empty band collapses to nothing (see #locart in the style sheet). -->
+  <div id="locart" aria-hidden="true"></div>
   <div id="colme" tabindex="0" role="group" aria-label="You">
   <div id="hud">
     <div id="ava" data-act="gearmenu" title="Gear" tabindex="0" role="button" aria-label="Gear"></div>
@@ -1031,7 +1133,7 @@ button .ico.room{width:44px;height:26px}
   <section id="market" tabindex="0" role="group" aria-label="Market"></section>
   </div>
   <section id="jobs" tabindex="0" role="group" aria-label="Jobs"></section>
-  <nav id="actions"></nav>
+  <nav id="actions" class="tgrid"></nav>
   </div>
   <section id="log" tabindex="0" role="group" aria-label="Log"></section>
 </div>
@@ -7831,6 +7933,114 @@ const SHOP_ART = (() => {
 const shopIcon = key => (SHOP_ART[key]
   ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key]}</svg>` : '');
 
+// ---------- ACTION TILES ----------
+// Every other thing you can do on the main screen gets a picture too, so the row of tiles is one set and
+// not two with pictures and six without. Same 88 x 50 box, same primitives and the same palette as the shop
+// tiles above; these are simpler, because on a tile they are drawn 36px wide and detail only turns to mush.
+// Built once at load. Nothing here is game state and nothing here is drawn per frame.
+const ACT_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', STEEL = '#8a8fa8', DARK = '#2a2f45', BLUE = '#0c4270', WOOD = '#6b4a2a';
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 1}"${o || ''}/>`;
+  const c = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const sk = col => ` stroke="${col}"`;
+  const sh = (d, f, st, o) => `<path d="${d}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  return {
+    // Tunnel out. Three rings of the tunnel going away from you and a packet on its way down it.
+    travel: r(6, 4, 76, 42, INK, sk('#2b2752')) +
+      r(10, 8, 68, 34, BLUE, sk('#00e5ff') + ' stroke-width=".8"') +
+      r(20, 13, 48, 24, '#101a3a', sk('#00e5ff') + ' stroke-width=".8"') +
+      r(30, 18, 28, 14, '#17142e', sk('#00e5ff') + ' stroke-width=".8"') +
+      r(39, 23, 11, 4, '#fcee0a') + p('M34 25 h-9 M59 25 h9', '#00e5ff', 1.4),
+    // Sleep. A bunk with the covers turned down, and three pixels of snoring going up.
+    sleep: r(8, 22, 4, 22, STEEL) + r(8, 26, 62, 4, '#4a5068') + r(8, 30, 62, 12, '#17142e', sk(STEEL)) +
+      r(13, 19, 17, 7, GREY) + r(10, 42, 4, 6, '#4a5068') + r(63, 42, 4, 6, '#4a5068') +
+      r(56, 14, 6, 6, '#fcee0a', ' opacity=".85"') + r(66, 8, 5, 5, '#fcee0a', ' opacity=".6"') +
+      r(75, 3, 4, 4, '#fcee0a', ' opacity=".4"'),
+    // The Bunker. A low block with lit windows, the door you come in by, and the mast on the roof.
+    base: p('M44 3 v9', '#00e5ff', 1.4) + c(44, 3, 2, '#ff3b5c') +
+      r(10, 12, 68, 4, '#4a5068') + r(10, 16, 68, 30, '#17142e', sk('#4a5068')) +
+      r(16, 22, 10, 8, BLUE, sk('#00e5ff') + ' stroke-width=".7"') + r(30, 22, 10, 8, BLUE, sk('#00e5ff') + ' stroke-width=".7"') +
+      r(44, 22, 10, 8, '#101426', sk('#4a5068') + ' stroke-width=".7"') +
+      r(60, 28, 14, 18, INK, sk('#fcee0a')) + c(71, 38, 1.4, '#fcee0a'),
+    // Hack a rival. Somebody else's rack, and a bolt straight through it.
+    raid: r(12, 6, 42, 38, '#101426', sk(STEEL)) +
+      [10, 18, 26, 34].map(y => r(16, y, 34, 5, '#17142e', sk('#4a5068') + ' stroke-width=".7"') + c(46, y + 2.5, 1.2, '#3dff9a')).join('') +
+      sh('M64 3 l-16 24 h11 l-9 20 l26 -28 h-11 z', '#fcee0a', INK),
+    // Wardriving. The van, the antenna on the roof, and what it is listening to.
+    wardrive: r(12, 24, 46, 16, BLUE, sk('#00e5ff')) + sh('M58 28 h10 l6 6 v6 h-16 z', '#17142e', '#00e5ff') +
+      r(16, 28, 10, 7, '#101a3a') + p('M30 24 v-9', GREY, 1.4) +
+      [6, 11, 16].map((rad, i) => p(`M${30 - rad} 15 a${rad} ${rad} 0 0 1 ${rad * 2} 0`, '#fcee0a', 1.2, ` opacity="${0.9 - i * 0.26}"`)).join('') +
+      c(22, 43, 4, 'none', sk(GREY) + ' stroke-width="1.6"') + c(63, 43, 4, 'none', sk(GREY) + ' stroke-width="1.6"'),
+    // Inventory. The bag's lid open and what is in it, laid out in its pockets.
+    inventory: r(10, 8, 68, 36, '#17142e', sk(STEEL)) + r(34, 3, 20, 6, '#4a5068') + p('M10 18 h68', STEEL, 1) +
+      [[16, 22, BLUE], [38, 22, '#101426'], [60, 22, BLUE], [16, 33, '#101426'], [38, 33, BLUE], [60, 33, '#101426']]
+        .map(([x, y, f]) => r(x, y, 18, 9, f, sk('#00e5ff') + ' stroke-width=".7"')).join(''),
+    // Achievements. The cup, with a star cut out of it.
+    ach: sh('M28 8 h32 v13 q0 12 -16 14 q-16 -2 -16 -14 z', '#fcee0a', INK) +
+      p('M28 11 h-8 v6 q0 6 8 7 M60 11 h8 v6 q0 6 -8 7', '#fcee0a', 1.8) +
+      r(40, 34, 8, 6, STEEL) + r(29, 40, 30, 6, STEEL, sk(INK)) +
+      sh('M44 12 l2.7 5.6 6.1 .9 -4.4 4.3 1 6.1 -5.4 -2.9 -5.4 2.9 1 -6.1 -4.4 -4.3 6.1 -.9 z', INK),
+    // Use a medkit. The case, open at the top, with the one marking it needs.
+    medkit: r(36, 9, 16, 5, STEEL) + r(13, 14, 62, 30, '#e9e9f0', sk(STEEL)) + r(13, 14, 62, 6, '#ff3b5c') +
+      r(40, 23, 8, 17, '#ff3b5c') + r(36, 27, 16, 9, '#ff3b5c'),
+    // A fake ID. A card with somebody on it who does not exist.
+    fakeid: r(8, 10, 72, 32, '#17142e', sk('#00e5ff')) + r(8, 10, 72, 6, '#00e5ff') +
+      r(14, 21, 18, 17, BLUE, sk(STEEL)) + c(23, 27, 4, GREY) + sh('M16 38 q7 -8 14 0 z', GREY) +
+      p('M38 23 h34 M38 29 h34 M38 35 h22', STEEL, 1.6),
+    // The black market. An awning, a crate, a screen with something on it and a box you do not open.
+    gear: sh('M5 6 h78 l-7 10 h-64 z', '#ff2a6d', INK) +
+      [0, 1, 2, 3, 4, 5].map(i => r(11 + i * 11, 16, 11, 4, i % 2 ? INK : '#ff2a6d')).join('') +
+      r(12, 24, 64, 3, '#4a5068') +
+      r(15, 27, 24, 17, WOOD, sk('#c98f6b')) + p('M15 27 l24 17 M39 27 l-24 17', '#c98f6b', 0.7) +
+      r(45, 30, 13, 14, '#101426', sk('#00e5ff')) + c(51.5, 37, 2, '#3dff9a') + r(62, 33, 13, 11, '#17142e', sk('#fcee0a')),
+    // The arms dealer. A crate with the lid off, and what was in it on the counter.
+    dealer: r(6, 30, 76, 14, WOOD, sk('#c98f6b')) + p('M6 30 l76 14 M82 30 l-76 14', '#c98f6b', 0.7) +
+      p('M12 20 h50 l7 -7', STEEL, 3) + r(20, 20, 11, 7, DARK) + p('M34 23 v7 h9', STEEL, 2.4) +
+      r(66, 9, 4, 13, STEEL) + c(72, 15, 3, '#ff3b5c'),
+    // The street doc. A table, a lamp over it, and the one tool you hope is clean.
+    clinic: r(5, 26, 58, 5, STEEL) + r(7, 31, 54, 12, '#17142e', sk('#4a5068')) + r(9, 20, 18, 6, GREY) +
+      r(35, 12, 5, 14, '#ff3b5c') + r(30, 16, 15, 5, '#ff3b5c') +
+      p('M70 9 v19', STEEL, 1.6) + sh('M61 4 h18 l-5 8 h-8 z', '#fcee0a', INK) + c(70, 32, 6, '#fcee0a', ' opacity=".22"'),
+    // The gun store. The thing on the counter and the boxes behind it.
+    gun: r(5, 32, 78, 12, WOOD, sk('#c98f6b')) +
+      sh('M12 13 h35 v8 h-9 l-3 10 h-9 l-2 -10 h-12 z', DARK, STEEL) +
+      [0, 1, 2].map(i => r(57 + i * 8, 14, 5, 14, '#fcee0a', sk(INK))).join(''),
+    // The outfitter. Three things on a rail, none of them your size.
+    outfit: p('M6 9 h76', STEEL, 1.6) +
+      [[22, BLUE], [45, '#5a6b3a'], [68, '#ff2a6d']].map(([x, f]) =>
+        p(`M${x} 9 v6`, STEEL, 1) + sh(`M${x - 13} 16 l13 -2 l13 2 l-3 7 l-3 -3 v22 h-14 v-22 l-3 3 z`, f, INK)).join(''),
+    // Change ammo. Four of them standing in a row.
+    ammo: [0, 1, 2, 3].map(i => {
+      const x = 15 + i * 16;
+      return sh(`M${x} 17 q5 -11 11 0 v13 h-11 z`, '#fcee0a', INK) + r(x, 30, 11, 13, '#c98f6b', sk(INK)) +
+        p(`M${x} 35 h11`, INK, 0.8);
+    }).join(''),
+    // The Fixer. A desk, the book he writes it in, and the screen that says how much.
+    broker: r(6, 28, 76, 5, '#4a5068') + r(12, 33, 10, 13, '#4a5068') + r(66, 33, 10, 13, '#4a5068') +
+      r(15, 11, 30, 17, '#17142e', sk(GREY)) + p('M19 17 h22 M19 22 h22', GREY, 1.2) +
+      r(53, 13, 22, 15, '#3dff9a', sk(INK)) + p('M64 14 v13 M59 18 h10 M59 23 h10', INK, 1.5),
+    // The cold wallet. A key you keep off the network.
+    wallet: r(16, 9, 40, 31, '#17142e', sk('#00e5ff')) + r(22, 15, 28, 13, BLUE, sk('#00e5ff') + ' stroke-width=".7"') +
+      p('M26 21 h20', '#3dff9a', 1.8) + r(30, 32, 12, 5, DARK) +
+      p('M56 23 h11', STEEL, 2) + c(72, 23, 5, 'none', sk('#fcee0a') + ' stroke-width="2"') +
+      p('M72 28 v8 M72 33 h4', '#fcee0a', 1.6),
+  };
+})();
+// A tile picture for an action, taken from either set: the places you go into, then everything else.
+const actIcon = key => (SHOP_ART[key] || ACT_ART[key]
+  ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key] || ACT_ART[key]}</svg>` : '');
+// ONE ACTION TILE. Everything on the main screen's row of tiles is built with this and nothing else, so a
+// tile cannot be a different shape from the tile beside it. See ACTION TILES in the style sheet.
+//   act/arg  what pressing it does (the usual data-act / data-arg)
+//   kind     go | risk | shop | kit | info - what sort of thing this is, which picks the colour
+//   icon     a key into SHOP_ART or ACT_ART
+//   name     the label.  note: the small dim line under it.  badge: a count, shown as a badge
+const tile = ({act, arg, kind, icon, name, note, badge, off}) =>
+  `<button class="tact k-${kind}" data-act="${act}"${arg === undefined ? '' : ` data-arg="${arg}"`}${off ? ' disabled' : ''}>` +
+  actIcon(icon) + `<span class="tl"><span class="tn">${name}</span>${note ? `<small class="tsub">${note}</small>` : ''}</span>` +
+  (badge === undefined || badge === null || badge === '' ? '' : `<i class="tbadge">${badge}</i>`) + '</button>';
+
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
 // hot: true for the black-market dealer (no background check, and every purchase adds a little Heat).
@@ -8385,39 +8595,62 @@ function renderNow() {
       <div class="price">${priceHtml}${askHtml}</div>
       <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
   }).join(''));
-  let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
+  // ===== ACTION TILES =====
+  // Every tile is built by tile() and nothing else, so no tile can be a different shape from the one next
+  // to it. What is said here is WHAT KIND of thing each one is (go / risk / shop / kit / info); the look
+  // that follows from that is in the style sheet. label() takes a name that carried its count in brackets
+  // ("Deep run (2 addresses)") and splits it, so a count is a badge everywhere and brackets nowhere.
+  const label = s => {
+    const m = /^(.*?) \((.*)\)$/.exec(s);
+    if (!m) return {name: s};
+    const n = /^(\d+)\s+(.*)$/.exec(m[2]);
+    return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
+  };
+  let acts = tile({act: 'travel', kind: 'go', icon: 'travel', name: 'Tunnel out'});
   if (S.loc === BUNKER) {
     // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
     // this one button lists every station.
     const up = BASE_IDS.filter(id => stationState(id) === 'ready').length;
-    acts += '<button data-act="sleep">Sleep (end the day)</button>' +
-      `<button data-act="base">Base${up ? ` (${up} to build)` : baseJobs().length ? ' (building)' : ''}</button>`;
+    acts += tile({act: 'sleep', kind: 'go', icon: 'sleep', name: 'Sleep', note: 'end the day'}) +
+      tile({act: 'base', kind: 'kit', icon: 'base', name: 'Base',
+        badge: up || '', note: up ? 'to build' : baseJobs().length ? 'building' : ''});
     // ENDLESS: the only ending that pays, and it is always on the Bunker's wall once it is possible.
     // (RETIRE SAFETY: it is no longer a button here, next to Tunnel out. It lives on your record, last of all.)
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
-    // SHOP TILES: each shop's own picture on its button (and so on the handheld DO screen, which copies these)
-    if (S.loc === spot) acts += `<button class="hasico" data-act="${key}shop">${shopIcon(key)}<span>${name} (${what})</span></button>`;
+    // SHOP TILES: each shop's own picture on its tile (and so on the handheld DO screen, which copies these)
+    if (S.loc === spot) acts += tile({act: `${key}shop`, kind: 'shop', icon: key, name, note: what});
   }
-  acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
-  acts += `<button class="hasico" data-act="dungeon">${shopIcon('deep')}<span>${dunButton()}</span></button>`;   // DUNGEONS: deep runs
+  acts += tile({act: 'raid', kind: 'risk', icon: 'raid', name: 'Hack a rival', off: S.raided});
+  acts += tile({act: 'dungeon', kind: 'risk', icon: 'deep', ...label(dunButton())});   // DUNGEONS: deep runs
   // WARDRIVING: the haul screen, offered once there is a scanner or anything in the bag to work on
-  if (wdKit() || wdFinds().length) acts += `<button data-act="wardrive">${wdButton()}</button>`;
-  acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
+  if (wdKit() || wdFinds().length) acts += tile({act: 'wardrive', kind: 'risk', icon: 'wardrive', ...label(wdButton())});
+  acts += tile({act: 'inventory', kind: 'info', icon: 'inventory', name: 'Inventory',
+    badge: career.bag.length, note: 'in bag'});
   // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
-  if (skLeft()) acts += `<button class="hasico" data-act="skills">${shopIcon('skills')}<span>Skill tree (${skLeft()} to spend)</span></button>`;
-  acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
-  if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
-  if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= heatFloor() ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
-  if (coolCount()) acts += `<button class="hasico" data-act="cooloff">${shopIcon('cool')}<span>Lower Heat (${coolCount()})</span></button>`;
-  if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
-  if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
-  if (S.loc === GUN_SPOT) {
-    acts += `<button data-act="gunstore">${GUN_STORE} (guns, ammo)</button>` +
-      `<button data-act="outfitter">${OUTFITTER} (clothing, bags, armour)</button>`;
+  if (skLeft()) acts += tile({act: 'skills', kind: 'kit', icon: 'skills', name: 'Skill tree', badge: skLeft(), note: 'to spend'});
+  acts += tile({act: 'achievements', kind: 'info', icon: 'ach', name: 'Achievements',
+    badge: achCount(), note: `of ${Object.keys(ACH).length}`});
+  if (S.medkits) acts += tile({act: 'medkit', kind: 'kit', icon: 'medkit', name: 'Use medkit', badge: S.medkits, off: S.hp >= 100});
+  if (S.fakeid) acts += tile({act: 'fakeid', kind: 'kit', icon: 'fakeid', name: `Use ${GADGETS.fakeid[0]}`,
+    badge: S.fakeid, off: S.heat <= heatFloor()});
+  if (coolCount()) acts += tile({act: 'cooloff', kind: 'kit', icon: 'cool', name: 'Lower Heat', badge: coolCount()});
+  if (GEAR_SPOTS.includes(S.loc)) {
+    acts += tile({act: 'gear', kind: 'shop', icon: 'gear', name: 'Black market'}) +
+      tile({act: 'dealer', kind: 'shop', icon: 'dealer', name: 'Arms dealer'});
   }
-  if (Object.values(S.ammo).some(q => q > 0)) acts += '<button data-act="ammo">Change ammo</button>';
-  if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
+  if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) {
+    acts += tile({act: 'clinic', kind: 'risk', icon: 'clinic', name: 'Street doc', note: 'get them out', badge: stuckTotal()});
+  }
+  if (S.loc === GUN_SPOT) {
+    acts += tile({act: 'gunstore', kind: 'shop', icon: 'gun', name: GUN_STORE, note: 'guns, ammo'}) +
+      tile({act: 'outfitter', kind: 'shop', icon: 'outfit', name: OUTFITTER, note: 'clothing, bags, armour'});
+  }
+  if (Object.values(S.ammo).some(q => q > 0)) acts += tile({act: 'ammo', kind: 'kit', icon: 'ammo', name: 'Change ammo'});
+  if (S.loc === HOME) {
+    acts += tile({act: 'broker', kind: 'shop', icon: 'broker', name: 'The Fixer', note: 'debt'}) +
+      tile({act: 'wallet', kind: 'shop', icon: 'wallet', name: 'Cold wallet'});
+  }
   $('#actions').innerHTML = acts;
   $('#log').innerHTML = logs.join('');
   if (S.loc === BUNKER) $('#market').innerHTML = baseHtml() + stashHtml();   // at home the market panel becomes your base and your stash
