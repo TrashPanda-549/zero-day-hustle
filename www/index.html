@@ -196,8 +196,8 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
    on a chip and the label is small and dim under it; colour is only used where it means something (HEAT
    climbing, DEBT owed, CASH in hand), and the band's own colour is a hairline on the left edge, no more. */
 #stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:var(--s1);margin-top:var(--s2)}
-.bandrule{grid-column:1/-1;display:flex;align-items:center;gap:var(--s2);margin:5px 0 0;
-  font-size:9.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--bk,var(--dim))}
+.bandrule{grid-column:1/-1;display:flex;align-items:center;gap:var(--s2);margin:4px 0 0;
+  font-size:9px;letter-spacing:2.5px;line-height:1.4;text-transform:uppercase;color:var(--bk,var(--dim))}
 .bandrule:first-child{margin-top:2px}
 .bandrule::after{content:"";flex:1 1 auto;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
 .bandrule.money{--bk:#7ad7a8}.bandrule.exposure{--bk:#e07896}.bandrule.kit{--bk:#6fc6d8}.bandrule.standing{--bk:#9d8cff}
@@ -206,7 +206,7 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
   clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%)}
 .chip[data-band=money]{--bk:rgba(61,255,154,.5)}.chip[data-band=exposure]{--bk:rgba(255,42,109,.5)}
 .chip[data-band=kit]{--bk:rgba(0,229,255,.45)}.chip[data-band=standing]{--bk:rgba(157,140,255,.45)}
-.chip small{display:block;color:var(--dim);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;line-height:1.3}
+.chip small{display:block;color:var(--dim);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;line-height:1.25}
 .chip b{display:block;font-size:15px;font-weight:600;white-space:nowrap;line-height:1.25;font-variant-numeric:tabular-nums}
 .chip.big b{font-size:17px}
 /* a figure that moved since the screen was last drawn: which way it went, and one pulse */
@@ -232,14 +232,32 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 /* the panels wear the fight screen's window: dark glass, a cyan top edge, the sunk inner rule */
 #market{margin-top:var(--s2);border:1px solid var(--edge);border-top:1px solid var(--cyan);
   border-bottom:2px solid var(--accent);background:var(--glass);box-shadow:var(--sunk)}
-.row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
-  border-bottom:1px solid var(--line)}
+/* ===== MARKET ROWS =====
+   Tighter, every other row tinted so the eye can hold its line across to the price, the dead rows (nothing
+   on sale) stepped back, and Buy/Sell as one segmented control instead of two separate buttons. */
+.row{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);align-items:center;padding:5px var(--s2);
+  border-bottom:1px solid rgba(43,39,82,.55)}
 .row:last-child{border-bottom:0}
-.row .name{font-weight:600}
-.row .sub{font-size:12px;color:var(--dim)}
-.row .price{text-align:right;white-space:nowrap}
-.row .btns{display:flex;gap:6px}
-.row .btns button{padding:6px 10px;min-width:52px}
+.row.alt{background:rgba(150,180,255,.045)}
+.row.dead{opacity:.55}
+.row.dead .name{font-weight:400;color:var(--dim)}
+@media (hover:hover){.row:hover{background:rgba(0,229,255,.05)}}
+.row .name{font-weight:600;letter-spacing:.3px}
+.row .sub{font-size:11.5px;color:var(--dim);line-height:1.3}
+.row .price{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.faint{opacity:.6}
+/* where today's price sits in this good's usual range: one dim tick, the same skew as every other bar */
+.pband{display:block;position:relative;width:54px;height:4px;margin:3px 0 1px auto;background:#05061c;
+  border:1px solid var(--edge);transform:skewX(-20deg)}
+.pband i{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--cyan);opacity:.75}
+.row .btns{display:flex;gap:0}
+.row .btns button{padding:5px 10px;min-width:52px;min-height:42px;clip-path:none}
+.row .btns button:first-child{border-right-width:0}
+.row .btns button:first-child:not(:disabled)+button:disabled{border-left-color:var(--accent)}
+/* the one-line reminder that replaced the four lines of market mechanics (ACTIONS.markethelp) */
+.mhint{display:flex;align-items:center;gap:var(--s2);padding:4px var(--s2) 6px;font-size:11.5px;color:var(--dim)}
+.mhint span{min-width:0}
+.mhint button.small{flex:none;min-height:26px;padding:2px 8px;font-size:11px;letter-spacing:.5px}
 .fold>summary{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;
   font-size:13px;letter-spacing:2px;color:var(--accent);user-select:none}
 .fold>summary::-webkit-details-marker{display:none}
@@ -685,6 +703,7 @@ button .ico.room{width:44px;height:26px}
   #market>.fold::details-content{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
   #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
   #market .mnote{grid-column:1/-1}   /* the market-depth note above the product rows spans the grid */
+  .row .btns button{min-height:34px}  /* a pointer does not need a thumb-sized target */
   /* there is room, so the product list is always open here (folding it is for phones; the choice made there is kept) */
   @supports selector(::details-content){
     #market>.fold:not([open])::details-content{content-visibility:visible}
@@ -726,8 +745,8 @@ button .ico.room{width:44px;height:26px}
   #hud{display:contents}
   #ava{flex:1 1 200px;min-height:150px;max-height:470px}
   #hudr{flex:none;margin-top:10px}
-  #stats{flex:none;gap:4px;margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
-  #stats .chip{padding:4px 8px 3px}
+  #stats{flex:none;gap:3px;margin-top:var(--s2);grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+  #stats .chip{padding:2px 7px 3px}
   #coltrade{display:contents}
   #colmarket{grid-area:trade;min-height:0}
   #news{margin:0;max-height:11em}
@@ -8637,17 +8656,27 @@ function renderNow() {
   $('#news').innerHTML = evNews().concat(S.news).map(n => `<div>${n}</div>`).join('');
   const onSale = GOODS.filter(([name]) => S.prices[name]).length, holding = Object.keys(S.inv).length;
   $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''),
-    '<div class="sub dim mnote" style="padding:2px 4px 6px">Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
-    'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the days go on: the first month fastest, and slowly after that.</div>' +
+    // The four lines on how market depth works used to sit here on every screen forever. They are in the
+    // help now (ACTIONS.markethelp, which says exactly the same thing); this is the one-line reminder.
+    '<div class="mnote mhint"><span>Deep markets only: your own dealing moves the price here.</span>' +
+    '<button class="small" data-act="markethelp">How markets work</button></div>' +
     // FACES: and this district's own temperature, which says why today's shelves look the way they do.
     // (a note, not a .row: the handheld numbers the rows, and this is not something you can act on)
     (S.loc === BUNKER ? '' : `<div class="sub mnote" style="padding:2px 4px 6px"><b class="${distTrade(S.loc) >= 60 ? 'red' : distTrade(S.loc) >= 20 ? 'amber' : 'dim'}">` +
       `${S.loc.toUpperCase()} &middot; ${distWord(S.loc)}, ${distLawWord(S.loc)}</b>${distLine(S.loc)}</div>`) +
-    GOODS.map(([name]) => {
+    GOODS.map(([name, low, high], gi) => {
     const price = S.prices[name], held = S.inv[name] || 0, flag = S.flags[name];
+    // Which way this price has gone, on EVERY row that has moved and not only the ones that spiked or
+    // crashed: a spike or a crash keeps its bright arrow, and a price simply dear or cheap for this good
+    // gets the same arrow, faint. The figures are the good's own range, which is already in GOODS.
+    const mid = (low + high) / 2, dear = price >= mid * 1.12, cheap = price && price <= mid * 0.88;
+    const arrow = flag === 'up' || dear ? '&#9650; ' : flag === 'down' || cheap ? '&#9660; ' : '';
+    const acls = flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : dear ? 'amber faint' : cheap ? 'cyan faint' : '';
+    // ...and where today's price sits in that range, as one dim tick. No history is kept anywhere in the
+    // game, so this is a position, not a line over past days.
+    const at = price ? Math.round(clampN((price - low) / (high - low), 0, 1) * 100) : 0;
     const priceHtml = price
-      ? `<span class="${flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : ''}">` +
-        `${flag === 'up' ? '&#9650; ' : flag === 'down' ? '&#9660; ' : ''}${money(price)}</span>`
+      ? `<span class="${acls}">${arrow}${money(price)}</span>`
       : '<span class="dim">no market</span>';
     let sub = '';
     if (held) {
@@ -8674,9 +8703,11 @@ function renderNow() {
     const second = held && !price
       ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
       : `<button data-act="sell" data-arg="${name}"${held && price ? '' : ' disabled'}>Sell</button>`;
-    return `<div class="row"><div><div class="name">${name}</div>${sub}</div>
-      <div class="price">${priceHtml}${askHtml}</div>
-      <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
+    return `<div class="row${gi % 2 ? ' alt' : ''}${price ? '' : ' dead'}"><div><div class="name">${name}</div>${sub}</div>
+      <div class="price">${priceHtml}${askHtml}` +
+      (price ? `<span class="pband" title="where this price sits in the usual range for ${name}"><i style="left:${at}%"></i></span>` : '') +
+      `</div>
+      <div class="btns seg"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
   }).join(''));
   // ===== ACTION TILES =====
   // Every tile is built by tile() and nothing else, so no tile can be a different shape from the one next
@@ -9538,6 +9569,18 @@ const ACTIONS = {
   async menu() {
     save();
     await startMenu();
+  },
+
+  // How market depth works. This used to be four lines at the top of the product list on every screen
+  // forever; the list keeps a one-line reminder and the words themselves live here, unchanged.
+  async markethelp() {
+    await alertDlg('How markets work',
+      '<p>Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
+      'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the days go on: ' +
+      'the first month fastest, and slowly after that.</p>' +
+      '<p class="dim">A row shows what the next one sells for. The arrow says whether that is dear or cheap for ' +
+      'that good, and the tick under it shows where the price sits in that good\'s usual range. The line under a ' +
+      'name says how many are on the shelf, and what your own dealing has done to the price today.</p>');
   },
 
   // Your syndicate's mission: the briefing, how far along you are, and anything you do from here
