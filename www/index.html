@@ -2900,6 +2900,7 @@ const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats
   base: newBase(), marks: newMarks(),   // BASE: the Bunker's stations and the weapon skills
   ends: {},   // LEGACY: the endings this save has reached, {id: when}
   nem: [], nemGone: [],   // NEMESIS: the survivors still out there, and the stories that are finished
+  street: 0, streetWhy: null, streetDay: {},   // REPUTATION: feared (-100) to trusted (+100); 0 is a stranger
   skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
@@ -3425,6 +3426,11 @@ const ACH = {
   evpro: ['Insider Trading (Unregulated)', 'Do it 25 times', 500, () => stat('evahead') >= 25],
   evlive: ['It Was a Bad Week', 'Live through 25 headlines', 300, () => stat('evseen') >= 25],
   evshut: ['Papers, Please', 'Find a district cordoned off when you wanted to be in it', 50, () => stat('evshut') >= 1],
+  // --- REPUTATION (see REP): the two ends of the street, and what each of them does for you ---
+  repfear: ['They Say It Like a Warning', 'Reach the feared end of the street', 300, () => street() <= -REP.end],
+  reptrust: ['Good for It', 'Reach the trusted end of the street', 300, () => street() >= REP.end],
+  repoff: ['They Found Something Else To Do', 'Have a crew look at you and go the other way', 200, () => stat('repbackoff') >= 1],
+  repcover: ['Somebody Covered For You', 'Have somebody on a corner hide you from the law', 200, () => stat('rephide') >= 1],
 };
 let achTally = 0;   // counted for the self-test
 const achCount = () => Object.keys(ACH).filter(id => career.ach[id]).length;
@@ -3586,6 +3592,12 @@ function fixCareer() {
     else { m.w = m.w.slice(0, 90); m.d = Number.isInteger(m.d) && m.d >= 1 ? m.d : 1; }
   }
   if (!career.ends || typeof career.ends !== 'object' || Array.isArray(career.ends)) career.ends = {};   // LEGACY: from before the endings, none have been reached
+  // REPUTATION: from before the street had an opinion, it has none: 0 is exactly the middle, so a 1.40
+  // save loads neutral and nothing it earned is lost. A junk value is thrown away, not trusted.
+  career.street = clampN(Math.round(Number(career.street) || 0), -REP_MAX, REP_MAX);
+  if (!career.streetWhy || typeof career.streetWhy !== 'object' || typeof career.streetWhy.w !== 'string') career.streetWhy = null;
+  else { career.streetWhy.w = career.streetWhy.w.slice(0, 90); career.streetWhy.n = Number(career.streetWhy.n) || 0; }
+  if (!career.streetDay || typeof career.streetDay !== 'object' || Array.isArray(career.streetDay)) career.streetDay = {};
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
   nemFix();      // NEMESIS: from before the nemeses, nobody is out there; a damaged list is tidied, not trusted
@@ -3876,6 +3888,7 @@ async function gigCheck() {
     const xp = gainXp(G.xp), before = trust(G.who);
     addTrust(G.who, 1);
     addStanding(G.who, 1, `you finished "${G.title}" on time`);   // FACES: standing moves with the trust
+    addStreet(REP.gigKept, `you finished ${G.who}'s gig on time`);   // REPUTATION: a man who turns up
     SND.play('cash');
     log(`<span class="green">Gig done for ${G.who}: ${G.title}.</span> Paid ${money(G.cash)}.${xp}`);
     render();
@@ -3888,6 +3901,7 @@ async function gigCheck() {
     S.gig = null;
     addTrust(G.who, -1);
     addStanding(G.who, -1, `you let "${G.title}" run out`);   // FACES: and it goes the other way too
+    addStreet(REP.gigLost, `you left ${G.who} waiting`);   // REPUTATION: and a man who does not
     log(`<span class="red">You ran out of time on ${G.who}'s gig: ${G.title}.</span>`);
     render();
     await alertDlg('Gig lost', `<p>The deadline for <b>${G.title}</b> has passed. ${G.who} found someone else, and will remember it.</p>` +
@@ -4367,6 +4381,12 @@ async function heistDone(M, st, clean) {
   delete M.box[M.key];
   tally('breakins');
   if (ghost) tally('cleanin');
+  // REPUTATION: how you went through the place, read off what the stage screen already recorded. A door
+  // that came off and a building you stripped are feared; a quiet job and a bag with only the prize in it
+  // are trusted. A forced door has already been counted where it was forced, so it is not counted again.
+  if ((st.grabs || 0) >= 2) addStreet(REP.blind, `you went through ${H.site} and took the lot`);
+  else if (ghost) addStreet(REP.cleanJob, `you were in and out of ${H.site} and nobody knew`);
+  else if (st.done && !st.grabs) addStreet(REP.onlyJob, `you took what you came to ${H.site} for and nothing else`);
   let pay = '';
   if (M.src === 'quest') {
     // The mission's own reward is paid by questCheck, like any other mission's. A quiet, clean job earns extra respect.
@@ -4468,6 +4488,7 @@ async function heistPlay(M) {
       st.alert = Math.min(100, st.alert + B.forced);
       note += ` <span class="amber">Alert +${B.forced}, Heat +${heistHeat(B.heat.forced)}%.</span>`;
       tally('forced');
+      addStreet(REP.forced, `you took a door off its hinges at ${H.site}`);   // REPUTATION: people hear about doors
     } else tally('picked');
     st.entry = r.res === 'forced' ? 'forced' : 'quiet';
     heistTally[st.entry]++;
@@ -4515,6 +4536,7 @@ async function heistPlay(M) {
         st.moves--;
         st.alert = Math.min(100, st.alert + B.grab);
         heistTally.grab++;
+        st.grabs = (st.grabs || 0) + 1;   // REPUTATION: heistDone() reads this to tell a job from a stripping
         const cut = st.entry === 'forced' ? B.forcedLoot : 1;
         if (Math.random() < B.grabGoods) {
           const name = GOODS[rnd(6, GOODS.length - 1)][0], want = Math.max(1, Math.round(rnd(1, 3) * cut)), n = heistGoods(name, want);
@@ -6615,8 +6637,10 @@ const castBlock = name => castHead(name) + `<p class="dim">${CAST[name].role}.</
   `<p>${castLine(name)}</p>`;
 
 // What each kind of standing is worth where it is spent.
-const fenceMult = () => 1 - FACES.fenceStep * standing('Ninepin');
-const docMult = () => 1 - FACES.docStep * standing('Doc Wick');
+// REPUTATION: and on top of what each of them personally thinks, a trusted street gets a small discount
+// off both of them (repShop(), at most REP.shopCut). Gear and a doctor's fee, never the goods market.
+const fenceMult = () => (1 - FACES.fenceStep * standing('Ninepin')) * repShop();
+const docMult = () => (1 - FACES.docStep * standing('Doc Wick')) * repShop();
 // What a junkie asks, as a share of the shop price: the fonder they are, the less.
 const junkieCut = name => [Math.max(8, JUNKIE_RATE[0] - FACES.junkStep * standing(name)),
   Math.max(14, JUNKIE_RATE[1] - FACES.junkStep * standing(name))];
@@ -6631,6 +6655,150 @@ function castDoor(name) {
   if (moved) log(`<span class="amber">${name} watched you come in at ${S.heat}% Heat, and did not like it.</span>`);
   return moved;
 }
+
+// ====================== REPUTATION: how the street sees you: START ======================
+// FACES above is sixteen people and what each of them privately thinks. This is the one thing the whole
+// street agrees on, and it is NOT a morality score: you are a criminal at both ends of it. It is a single
+// axis from FEARED (-100) to TRUSTED (+100), and both ends pay, in different currencies. The middle is
+// deliberately the widest band and the one that buys nothing, so a career is pushed to commit.
+//
+// It lives on the CAREER (career.street), not the run, for the same reason standing does: it is who you
+// are, not what you did today, and it should follow you through the retirements. A save from before this
+// existed has no field, reads 0, and is therefore exactly neutral (see fixCareer).
+//
+// NOTHING IS GATED. Every crew, shop, contact, gig and job is open at either end and in the middle. This
+// axis moves prices, reactions and endings, and nothing else. Nobody is ever locked out of content by it.
+const REP_MAX = 100;
+// ---------- the one tuning block ----------
+const REP = {
+  // --- WHAT MOVES IT, in points. Negative is feared, positive is trusted. Every one of these is read off
+  //     an event the game already fired; the comment names the place it is read from.
+  nemDown: -8,     // nemFinish(N,'down'): you finished a nemesis for good
+  nemGone: 2,      // nemFinish(N,'gone'): you let the grudge go cold instead of chasing it down
+  hitTake: -4,     // reapScreen/reapOffer: you put your name to a contract
+  hitClose: -10,   // reapHitInside(): the mark is down
+  forced: -3,      // tally('forced'), both the break-ins and the deep runs: a door that gets talked about
+  blind: -6,       // heistDone(): you helped yourself twice or more on your way through
+  stiffDoc: -3,    // the street doc's fee pushed onto the Fixer's tab instead of paid
+  tagSale: -1,     // selling "discount because reasons" goods: at most once a day (streetOnce)
+  favourNo: -4,    // junkFavour(): you walked past somebody who asked you for something
+  gigLost: -2,     // gigCheck(): you let a contact's gig run out
+  favourYes: 6,    // junkFavour(): you handed it over for nothing
+  debtPaid: 3,     // the Fixer's screen: a payment off the tab
+  debtClear: 8,    // the Fixer's screen: the whole tab, cleared
+  cleanJob: 4,     // heistDone(): quiet in, clean out
+  onlyJob: 3,      // heistDone(): you did the job you came for and left the rest alone
+  gigKept: 4,      // gigCheck(): a contact's gig finished on time
+  // --- WHAT EACH END BUYS. Everything below is scaled by feared() or trusted(), which are 0..1, so the
+  //     middle buys nothing at all.
+  // REACTIONS first, because they are the cheap ones: they change what happens, not what anything costs.
+  backOff: 0.3,    // FEARED: chance a rival crew or a set of thugs finds something else to do
+  fewer: 0.3,      // FEARED: chance one fewer of them is there when the fight starts (never below one)
+  tipOff: 0.25,    // TRUSTED: chance somebody warns you off a crew before you walk into them
+  hide: 0.3,       // TRUSTED: chance a junkie whose corner this is hides you from the law
+  hideHeat: 10,    // and the Heat that goes with them when they do
+  // PRICES second, and deliberately small. NONE of these touch the goods market or its depth, so the
+  // measured trading curve (see FACES.distDepth: $1.5M by day 30) is untouched by this whole feature.
+  payoffCut: 0.25, // FEARED: off the price of buying your way out of a fight, which is a cost, never income
+  hitPay: 0.2,     // FEARED: on top of what a closed contract pays. The ONLY income line this feature moves.
+  shopCut: 0.08,   // TRUSTED: off the fence's gear and the street doc's fee
+  // --- the ends ---
+  end: 70,         // what counts as "the feared end" or "the trusted end": the achievements and endings read this
+};
+// The ladder, feared to trusted: [below this, what they call you]. The middle band is the widest.
+const REP_LADDER = [[-67, 'a warning'], [-34, 'bad news'], [-11, 'spiky'], [11, 'a stranger'],
+  [34, 'straight'], [67, 'good for it'], [REP_MAX + 1, 'one of ours']];
+const street = () => clampN(Math.round(Number(career.street) || 0), -REP_MAX, REP_MAX);
+const streetWord = n => (REP_LADDER.find(([top]) => (n === undefined ? street() : n) < top) ||
+  REP_LADDER[REP_LADDER.length - 1])[1];
+const streetClass = () => (street() <= -REP.end ? 'red' : street() >= REP.end ? 'green'
+  : street() < -11 ? 'amber' : street() > 11 ? 'cyan' : 'dim');
+// How far out you are, each way, as 0..1. Everything either end buys is scaled by one of these.
+const feared = () => Math.max(0, -street()) / REP_MAX;
+const trusted = () => Math.max(0, street()) / REP_MAX;
+// Move it. `why` is one short line, kept for the record screen so the player can always see what did it.
+// Returns how far it actually moved, which is 0 at the ends: it is clamped and cannot run away.
+function addStreet(n, why) {
+  const was = street();
+  career.street = clampN(was + (Math.round(Number(n)) || 0), -REP_MAX, REP_MAX);
+  const moved = street() - was;
+  if (why) career.streetWhy = {w: String(why).slice(0, 90), d: (S && S.day) || 1, n: moved};
+  // The word is what the player reads, so a change of word is the one thing worth a line in the log.
+  if (moved && streetWord(was) !== streetWord()) {
+    log(`<span class="${streetClass()}">The street has changed its mind about you: you are ${streetWord()} now.</span>`);
+  }
+  saveCareer();
+  return moved;
+}
+// The same, at most once a day, for the things you can do over and over (selling tagged goods).
+function streetOnce(key, n, why) {
+  if (!career.streetDay || typeof career.streetDay !== 'object') career.streetDay = {};
+  const day = (S && S.day) || 1;
+  if (career.streetDay[key] === day) return 0;
+  const moved = addStreet(n, why);
+  if (moved) { career.streetDay[key] = day; saveCareer(); }
+  return moved;
+}
+// For the debug menu and the self-test: put the street where you want it, now. Returns the new value.
+function setStreet(n) {
+  career.street = clampN(Math.round(Number(n) || 0), -REP_MAX, REP_MAX);
+  saveCareer();
+  return street();
+}
+// One line of it for a dialogue: the word, the number, and the last thing that moved it.
+function streetState() {
+  const m = career.streetWhy;
+  return `<p class="dim">The street: <span class="${streetClass()}">${streetWord()}</span> ` +
+    `(${street() > 0 ? '+' : ''}${street()})` +
+    (m && m.w ? `<br>Last moved: ${esc(m.w)} <span class="dim">(${m.n > 0 ? '+' : ''}${m.n})</span>` : '') + '</p>';
+}
+// What a trusted street takes off the fence's gear and the doc's fee. Small, and only ever a discount.
+const repShop = () => 1 - REP.shopCut * trusted();
+// FEARED / TRUSTED: a street encounter that does not happen because of who you are. Returns true if it was
+// ducked. Both ends can duck one, for opposite reasons; the middle ducks nothing.
+function repDuck(E) {
+  if (!E || S.over || S.busted) return false;
+  if (E.kind === 'law') {
+    // TRUSTED: a junkie whose corner this is puts you out of sight until it goes past. Only where one works.
+    const who = castNames().filter(n => CAST[n].kind === 'junkie' && junkieHome(n).includes(S.loc));
+    if (!who.length || Math.random() >= REP.hide * trusted()) return false;
+    const name = pick(who);
+    tally('rephide');
+    heatDown(REP.hideHeat);
+    log(`<span class="green">${name} put you out of sight until they had gone past. Heat ${S.heat}%.</span>`);
+    notes.push(['Somebody covered for you', `<p>${name} saw them coming before you did, and did not have to be asked.</p>` +
+      `<p class="dim">On this street you are ${streetWord()}. That is what it buys.</p>`, '']);
+    return true;
+  }
+  if (E.kind !== 'gang' && E.kind !== 'thug') return false;
+  if (E.nem) return false;   // NEMESIS: a grudge is personal, and is not impressed either way
+  if (Math.random() < REP.backOff * feared()) {
+    tally('repbackoff');
+    log(`<span class="amber">${E.name} worked out who it was and found something else to do.</span>`);
+    notes.push(['They found something else to do', `<p>${E.name} had you outnumbered and went the other way anyway.</p>` +
+      `<p class="dim">Out here you are ${streetWord()}. That is what it buys.</p>`, '']);
+    return true;
+  }
+  if (Math.random() < REP.tipOff * trusted()) {
+    tally('reptip');
+    log(`<span class="green">Somebody got word to you about ${E.name} in time, and you went round.</span>`);
+    notes.push(['A word in your ear', `<p>Somebody who owes you nothing told you where ${E.name} were standing.</p>` +
+      `<p class="dim">On this street you are ${streetWord()}. That is what it buys.</p>`, '']);
+    return true;
+  }
+  return false;
+}
+// FEARED: and if it does happen, one of them may have decided not to be there. Never below one.
+function repFewer(E) {
+  if (!E || !Number.isFinite(E.n) || E.n <= 1) return false;
+  if (E.kind !== 'gang' && E.kind !== 'thug' && E.kind !== 'law') return false;
+  if (Math.random() >= REP.fewer * feared()) return false;
+  E.n--;
+  tally('repfewer');
+  log(`<span class="amber">One of ${E.name} had second thoughts and is not here.</span>`);
+  return true;
+}
+// ====================== REPUTATION: END ======================
 
 // ---------- districts ----------
 const distMap = () => (S.dist && typeof S.dist === 'object' ? S.dist : (S.dist = {}));
@@ -8269,6 +8437,9 @@ const ACTIONS = {
     removeItems(name, qty, cut);
     moveMarket(name, qty);
     if (cut) { tagSales += qty; tally('reasons', qty); }
+    // REPUTATION: a tagged stack is goods a doc cut out of somebody. Moving them is a feared thing to do,
+    // and it is rationed to once a day so that one stack sold in handfuls is not a career's worth of it.
+    if (cut) streetOnce('tag', REP.tagSale, `you moved ${name} nobody wanted to ask about`);
     addHeat(got);
     distDeal(got);   // FACES: the district notices how much you move here
     // XP for a sale is measured against what the markets move that day (ECON.xpSale), not in flat dollars.
@@ -8718,6 +8889,8 @@ const ACTIONS = {
     // FACES: paying him squares you; putting it on the Fixer's tab does not. He does not enjoy being a creditor.
     if (owed) addStanding('Doc Wick', -1, `you put ${money(owed)} of his fee on the Fixer's tab`);
     else addStanding('Doc Wick', 1, `you paid ${money(fee)} in full, on the spot`);
+    // REPUTATION: stiffing the street doc is the kind of thing a back room tells the rest of the street.
+    if (owed) addStreet(REP.stiffDoc, `you left Doc Wick holding ${money(owed)} of his own fee`);
     for (const [name, qty] of Object.entries(S.stuck)) addItems(name, qty, S.stuckCost[name] || 0, qty);
     S.stuck = {}; S.stuckCost = {}; S.sick = 0;
     S.hp = 100;
@@ -8816,6 +8989,9 @@ const ACTIONS = {
       const html = castBlock('Ninepin') +
         (fence !== 1 ? `<p class="${fence < 1 ? 'green' : 'amber'}">His list runs ${Math.abs(Math.round((fence - 1) * 100))}% ` +
           `${fence < 1 ? 'under' : 'over'} the going rate for you today.</p>` : '') +
+        // REPUTATION: say so where it changed what somebody charges.
+        (repShop() !== 1 ? `<p class="green">${pct(REP.shopCut * trusted())}% of that is the street: you are ` +
+          `${streetWord()}, and his fee and the doc's both come down for that.</p>` : '') +
         (sour ? '<p class="red">"Tools, yes. Clothes, no. Dress yourself somewhere else."</p>' : '') +
         `<p>Cash: <span class="green">${money(S.cash)}</span>.</p>` +
         (offers.length ? offers.map(o => `<div class="syn"><span class="${S.cash >= o.price ? 'amber' : 'red'}">` +
@@ -8874,6 +9050,26 @@ const ACTIONS = {
       `<span class="dim">Every level-up pays ${SKILL.perLevel} point. Daemons run all the time; scripts are commands in a fight. ` +
       `${skPoints().spent} of the ${skTreeCost()} points the whole tree costs are spent, so no career runs everything. ` +
       'It belongs to this save and carries over between runs.</span></div>' +
+      // REPUTATION: the one thing the whole street agrees on. Above the sixteen private opinions, because
+      // it is the headline: the word, the number, the last thing that moved it, and what it is buying.
+      `<div class="syn"><b>How the street sees you</b><br>` +
+      `<span class="${streetClass()}">${streetWord()}</span> <span class="dim">(${street() > 0 ? '+' : ''}${street()} ` +
+      `on a scale from ${REP_LADDER[0][1]} at ${-REP_MAX} to ${REP_LADDER[REP_LADDER.length - 1][1]} at +${REP_MAX})</span>` +
+      (career.streetWhy && career.streetWhy.w
+        ? `<br><span class="dim">Last moved: ${esc(career.streetWhy.w)} ` +
+          `(${career.streetWhy.n > 0 ? '+' : ''}${career.streetWhy.n})</span>` : '') +
+      `<br><span class="dim">${street() <= -11
+        ? `Feared buys reactions: crews back off (up to ${pct(REP.backOff * feared())}%), one of them is not there ` +
+          `(up to ${pct(REP.fewer * feared())}%). And prices: ${pct(REP.payoffCut * feared())}% off buying your way ` +
+          `out of a fight, ${pct(REP.hitPay * feared())}% over the odds on a contract.`
+        : street() >= 11
+        ? `Trusted buys reactions: somebody warns you off a crew (up to ${pct(REP.tipOff * trusted())}%), a junkie ` +
+          `on their own corner hides you from the law (up to ${pct(REP.hide * trusted())}%). And prices: ` +
+          `${pct(REP.shopCut * trusted())}% off the fence's gear and the street doc's fee.`
+        : 'In the middle the street has no opinion, and an opinion is the only thing here that pays. ' +
+          'Both ends buy something; this is the one place that buys nothing.'}` +
+      '<br>Nothing is closed to you at either end: every crew, shop, contact and job is open wherever you sit. ' +
+      'It carries over between runs.</span></div>' +
       // FACES: who remembers you, and what they remember. It belongs to the career, like the XP above it.
       `<div class="syn"><b>Who knows you</b><br>` +
       (castNames().filter(n => standing(n) || memoMap()[n]).map(n =>
@@ -9166,12 +9362,14 @@ const ACTIONS = {
       S.cash -= amt; S.debt -= amt;
       if (S.debt) {
         addStanding('The Fixer', 1, `you paid ${money(amt)} off the tab`);   // FACES: he counts every payment
+        addStreet(REP.debtPaid, `you paid ${money(amt)} off the Fixer's tab`);   // REPUTATION: so does everyone else
         log(`Paid the Fixer ${money(amt)}.`);
       } else {
         const xp = S.cleared ? '' : gainXp(50);
         S.cleared = true;
         tally('debt');
         addStanding('The Fixer', 2, 'you cleared the whole tab');
+        addStreet(REP.debtClear, 'you cleared the Fixer, in one payment');   // REPUTATION: a man who is square
         log(`<span class="green">You are clear with the Fixer!</span>${xp}`);
       }
     } else if (cmd === 'b') {
@@ -10469,6 +10667,7 @@ async function junkFavour(J, name) {
     [['Hand it over', true, 'primary'], ['Walk on', false, 'small']]);
   if (!yes) {
     addStanding(name, -1, 'you walked past when they asked');
+    addStreet(REP.favourNo, `you walked past ${name} when they asked`);   // REPUTATION: they tell the others
     log(`<span class="amber">You walked past ${name}.</span>`);
     return true;
   }
@@ -10476,6 +10675,7 @@ async function junkFavour(J, name) {
   else if (want === 'meds') S.medkits--;
   else removeItems(good, qty);
   addStanding(name, 1, 'you gave them something for nothing');
+  addStreet(REP.favourYes, `you sorted ${name} out for nothing`);   // REPUTATION: and they tell them that too
   tally('favour');
   const xp = gainXp(25);
   log(`<span class="green">You sorted ${name} out. They will remember it.</span>${xp}`);
@@ -10539,14 +10739,18 @@ function lawEncounter(intro) {
   const tier = lawTier(), L = LAW[tier];
   const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
     rnd(2, 3 + Math.floor(effDay() / 8))][tier];
-  return fight({kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi, intro: intro || undefined});
+  const E = {kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi, intro: intro || undefined};
+  if (repDuck(E)) return Promise.resolve();   // REPUTATION: trusted, and somebody on this corner covered for you
+  return fight(E);
 }
 
 function gangEncounter(key) {
   // LEGACY: a crew that recruited one of your retired operators opens with their playbook, and says so.
   const ghost = Math.random() < LEGACY.crew ? legacyTake('crew', g => g.how === 'retired') : null;
-  return fight({kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(effDay() / 8)),
-    hit: 0.3, lo: 3, hi: 8, intro: ghost ? legacyCrewLine(key, ghost) : undefined});
+  const E = {kind: 'gang', gang: key, name: SYNDICATES[key][0], n: rnd(1, 2 + Math.floor(effDay() / 8)),
+    hit: 0.3, lo: 3, hi: 8, intro: ghost ? legacyCrewLine(key, ghost) : undefined};
+  if (repDuck(E)) return Promise.resolve();   // REPUTATION: they backed off, or somebody warned you
+  return fight(E);
 }
 
 // ---------- getting jumped ----------
@@ -10562,10 +10766,12 @@ let jumpTally = 0;   // counted for the self-test
 function jumped() {
   const n = clampN(rnd(1, 2 + Math.floor(effDay() / 8)), 1, ENDLESS.foeMax), name = pick(THUG_CREWS);
   jumpTally++;
-  log(`<span class="red">${name} jumped you at ${S.loc}.</span>`);
-  return fight({kind: 'thug', name, n, hit: 0.4, lo: 4, hi: 9, seed: rnd(0, 5),
+  const E = {kind: 'thug', name, n, hit: 0.4, lo: 4, hi: 9, seed: rnd(0, 5),
     ambush: Math.random() < Math.max(0.15, 0.5 - bonus('speed') / 100),
-    intro: `You surface at ${S.loc} and walk straight into it. ${name}: ${n} of them, stepping out of the dark.`});
+    intro: `You surface at ${S.loc} and walk straight into it. ${name}: ${n} of them, stepping out of the dark.`};
+  if (repDuck(E)) return Promise.resolve();   // REPUTATION: they backed off, or somebody warned you
+  log(`<span class="red">${name} jumped you at ${S.loc}.</span>`);
+  return fight(E);
 }
 
 // ====================== NEMESIS: the ones who got away: START ======================
@@ -10862,6 +11068,10 @@ function nemFinish(N, how) {
   if (i >= 0) nemList().splice(i, 1);
   nemGoneList().push({name: N.name, gang: N.gang, how, g: N.g, met: N.met, won: N.won, day: S.day});
   while (nemGoneList().length > NEM.goneMax) nemGoneList().shift();
+  // REPUTATION: finishing one for good is the loudest thing a career can do; letting the grudge go cold is
+  // the quietest. The whole street knows which of the two you are.
+  if (how === 'down') addStreet(REP.nemDown, `you finished ${N.name} for good`);
+  else addStreet(REP.nemGone, `you let ${N.name} walk away`);
   if (how === 'down') { nemTally.down++; tally('nemdown'); } else { nemTally.retired++; tally('nemgone'); }
   saveCareer();
   log(how === 'down' ? `<span class="green">${N.name} is finished. ${nemCrew(N)} will have to find somebody else.</span>`
@@ -11232,6 +11442,7 @@ async function reapOffer() {
   const took = await dialog('A name and an address', html, [['Sign for it', true, 'primary'], ['Not this one', false, 'small']]);
   if (!took) { reapTally.refused++; return log('You handed the paperwork back.'); }
   S.hit = C;
+  addStreet(REP.hitTake, `you signed for the paperwork on ${C.mark.name}`);   // REPUTATION: signing is public enough
   log(`<span class="amber">Contract signed: ${C.mark.name}.</span> ${reapGoal(C)} by the end of day ${C.due}.`);
 }
 
@@ -11259,6 +11470,7 @@ async function reapHitInside(M, st, careful, got) {
   st.careful = careful && got;
   reapTally.closed++;
   tally('hit');   // tally() feeds questEvent, so the line's 'hit' missions count themselves
+  addStreet(REP.hitClose, `${mark.name} is not a problem for anybody now`);   // REPUTATION: the loudest line on the axis
   if (mark.nem) tally('hitnem');
   const heat = heistHeat(REAP.heat[0] + REAP.heat[1] * H.tier);
   st.took = (st.took ? st.took + ', ' : '') + 'the paperwork';
@@ -11274,15 +11486,20 @@ async function reapPaid(C, st, clean) {
   const ghost = st.entry === 'quiet' && clean;
   S.hit = null;
   if (ghost) { tally('hitclean'); reapTally.clean++; }   // tally() feeds questEvent for the line's 'hitclean' mission
-  S.cash += C.cash;
+  // REPUTATION: the one income line this feature moves. A name the firm's clients already flinch at is
+  // worth paying for, up to REP.hitPay over the odds at the far feared end, and nothing in the middle.
+  const bonus = Math.round(C.cash * REP.hitPay * feared() / 10) * 10;
+  S.cash += C.cash + bonus;
   const xp = gainXp(Math.round(C.xp * (ghost ? 1.2 : 1)));
   if (SYNDICATES[C.mark.crew]) S.grudge[C.mark.crew] = (S.grudge[C.mark.crew] || 0) + REAP.grudge;
   SND.play('cash');
-  log(`<span class="green">Contract closed: ${C.mark.name}.</span> Paid ${money(C.cash)}.${xp}`);
+  log(`<span class="green">Contract closed: ${C.mark.name}.</span> Paid ${money(C.cash + bonus)}.${xp}`);
   render();
   await alertDlg('CONTRACT CLOSED', reapHead(C.mark) +
     `<p><b>${C.mark.name}</b> &middot; ${C.mark.who}</p>` +
-    `<p>${HANDLER[REAP_SYN]} wires you <b>${money(C.cash)}</b>:${xp}.</p>` +
+    `<p>${HANDLER[REAP_SYN]} wires you <b>${money(C.cash + bonus)}</b>:${xp}.</p>` +
+    // REPUTATION: say so, where it changed what somebody paid
+    (bonus ? `<p class="amber">${money(bonus)} of that is because you are ${streetWord()}. They do not haggle with that.</p>` : '') +
     (ghost ? '<p class="green">Quiet in, clean out, and nobody in the building knows anything happened. The crew pays a fifth over for that.</p>' : '') +
     (SYNDICATES[C.mark.crew] ? `<p class="amber">${SYNDICATES[C.mark.crew][0]} kept them. They will work out who did it.</p>` : ''));
   if (C.rar >= 0) await dropLoot(HANDLER[REAP_SYN], 0, makeItem(C.rar));
@@ -13490,6 +13707,7 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
+  repFewer(E);   // REPUTATION: feared, and one of them decided not to be here. Never below one.
   S.fought = (S.fought || 0) + 1;   // LEGACY: fights this career, which is one of the things an ending reads
   // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
   SND.battle = E.kind === 'raid' || E.nem ? 'raid' : 'fight';
@@ -13585,6 +13803,10 @@ async function gunSelfTest() {
     if (!(shotNoise(heavy, 2, false) > shotNoise(gun, 2, false))) fail('military hardware is not louder');
     // --- the odds: capped, muffled by Ghost Shell and stealth gear, and zero where the rule does not apply ---
     armed('gun');
+    // The bare cap is a crew-less measurement: Ghost Shell's muffling is measured on its own further down,
+    // and the suite hands these tests whichever crew game 0 drew (see the games loop), which is not one of
+    // the things this line is about. The finally below puts the career's own crew back.
+    career.syn = null;
     if (setGunNoise(1e6) !== GUNFIRE.cap || setGunNoise(0) !== 0) fail('setGunNoise does not clamp or clear');
     setGunNoise(1e6);
     const bare = gunOdds(thugE());
@@ -13735,7 +13957,8 @@ async function fightRounds(E) {
   for (;;) {
     render();
     const W = WEAPONS[S.weapon], zeroDays = S.inv['Zero-Days'] || 0;
-    const payoff = Math.max(500, Math.floor(S.cash * 0.2));
+    // REPUTATION: feared, and they ask for less to go away. It is a cost, so this can never make money.
+    const payoff = Math.max(500, Math.floor(S.cash * 0.2 * (1 - REP.payoffCut * feared())));
     const buttons = [];
     const round = usesAmmo(W) ? activeAmmo() : null;
     if (!raid && W) {
@@ -14329,6 +14552,18 @@ const ENDINGS = {
     'You do not leave the district. You just stop going out. The Bunker keeps its lights on, the cat keeps its ' +
     'chair, and people knock: who do I call about a door, who do I call about a plate, who buys this. You take ' +
     'ten percent and never touch the goods again. On paper you are retired. Ask anyone on the street.'],
+  // REPUTATION: the two ends of the street, each wanting a career that committed and still walked away
+  // with something. Nothing above this line was touched: these sit between 'fixer' and 'specialist'.
+  feared: ['The Name They Still Use', F => F.street <= -REP.end && F.score >= 1000000,
+    'You do not leave a forwarding address, because nobody would use it. What you leave is a sentence: people ' +
+    'who never met you say it to people who are thinking about something stupid, and the thinking stops there. ' +
+    'You buy a house behind a wall in a country that likes walls, and for the rest of your life no door is ' +
+    'ever knocked on twice. You were never loved out there. You were quoted, which lasts longer.'],
+  trusted: ['Everybody Has Your Number', F => F.street >= REP.end && F.score >= 1000000,
+    'You retire and the street does not notice for a month, because nothing changes: you still answer. A flat ' +
+    'with a kettle always on, a landline nobody writes down and everybody knows, and a queue of people who ' +
+    'owe you a favour and have decided, without being asked, that you are not to be bothered by anything. ' +
+    'Nobody ever comes for you, and it is not because they are frightened.'],
   specialist: ['The Teaching Job', F => F.routines >= 12,
     'You end up teaching, which nobody saw coming, least of all you. A room above a repair shop, six kids, no ' +
     'names, and everything you worked out the hard way written on a whiteboard in the wrong order. Two of them ' +
@@ -14369,8 +14604,8 @@ const ENDINGS = {
     'it inside a month. The only trace is a story that gets shorter every time it is told, until it is four ' +
     'words: they came for them.'],
 };
-const ENDING_ORDER = ['island', 'board', 'villa', 'crewman', 'fixer', 'specialist', 'ghost', 'soldier', 'cat',
-  'broke', 'owed', 'flat'];
+const ENDING_ORDER = ['island', 'board', 'villa', 'crewman', 'fixer', 'feared', 'trusted', 'specialist',
+  'ghost', 'soldier', 'cat', 'broke', 'owed', 'flat'];
 const DOWN_ORDER = ['dysentery', 'forfeit', 'vanished'];
 let forcedEnding = null;   // the debug menu and the self-test: the next send-off uses this one
 // Everything about the career an ending is allowed to read. Gathered once, so a test cannot change it.
@@ -14382,6 +14617,8 @@ function careerFacts(score, days, how) {
     cat: lvl('cat'), crew: career.syn || null, stations: BASE_IDS.reduce((sum, id) => sum + lvl(id), 0),
     // the crew's whole line of missions finished: the one thing a syndicate alone can earn you
     inner: !!career.syn && !!career.quest && !!QUESTS[career.syn] && career.quest.n >= QUESTS[career.syn].length,
+    // REPUTATION: where the street had you when you walked away, and the word it used
+    street: street(), streetWord: streetWord(),
     routines: skCount(), topScore: board.length ? board[0].score : 0,
     topRate: legacyPool().reduce((m, g) => Math.max(m, g.rate || 0), 0)};
 }
@@ -16448,6 +16685,7 @@ async function dunRoom(D, room) {
       const up = dunHeat(D, DUN.heatAlarm);
       D.note += ` <span class="amber">Alert +${DUN.forced}, Heat +${up}%.</span>`;
       tally('forced');
+      addStreet(REP.forced, 'you forced a door on a deep run');   // REPUTATION: same door, deeper building
       if (dunBump(D, DUN.forced)) {
         const res = await dunAlarm(D);
         if (res === 'over') return 'over';
@@ -17903,6 +18141,197 @@ async function facesSelfTest() {
 }
 // ===== FACES: the step-by-step test ends =====
 
+// ====================== REPUTATION: the step-by-step test ======================
+// The tuning block holds together and the ladder covers the whole scale; the number cannot run away in
+// either direction however hard it is pushed; every one of the sixteen movers is signed the way REP says
+// it is; both ends measure true on every reaction and every price, and the middle measures as nothing at
+// all; the ducks fire at the right end and never on a nemesis, a heist guard or a corner with no junkie;
+// the record screen says the word; the endings read it; and a 1.40 save loads in the middle.
+let repTally = {up: 0, down: 0, duck: 0, fewer: 0, hide: 0};
+async function repSelfTest() {
+  const run = S, random = Math.random, mine = career, keep = slot, get = store.get;
+  const fail = (what, ...more) => { throw new Error('Reputation test: ' + what + ' ' + JSON.stringify(more)); };
+  const fresh = o => { career = newCareer(); fixCareer(); newGame(); Object.assign(S, o || {}); rollMarket(); };
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  try {
+    // --- the tuning block and the ladder ---
+    for (const k of ['nemDown', 'nemGone', 'hitTake', 'hitClose', 'forced', 'blind', 'stiffDoc', 'tagSale',
+      'favourNo', 'gigLost', 'favourYes', 'debtPaid', 'debtClear', 'cleanJob', 'onlyJob', 'gigKept',
+      'backOff', 'fewer', 'tipOff', 'hide', 'hideHeat', 'payoffCut', 'hitPay', 'shopCut', 'end']) {
+      if (!Number.isFinite(REP[k])) fail('a tuning number is missing', k);
+    }
+    const feared16 = ['nemDown', 'hitTake', 'hitClose', 'forced', 'blind', 'stiffDoc', 'tagSale', 'favourNo', 'gigLost'];
+    const trusted16 = ['nemGone', 'favourYes', 'debtPaid', 'debtClear', 'cleanJob', 'onlyJob', 'gigKept'];
+    for (const k of feared16) if (!(REP[k] < 0)) fail('a feared mover does not push the feared way', k, REP[k]);
+    for (const k of trusted16) if (!(REP[k] > 0)) fail('a trusted mover does not push the trusted way', k, REP[k]);
+    if (feared16.length + trusted16.length !== 16) fail('the movers are not the sixteen the comments claim', feared16.length, trusted16.length);
+    // The chances are chances, the cuts are fractions, and nothing either end buys is big enough to be a cliff.
+    for (const k of ['backOff', 'fewer', 'tipOff', 'hide', 'payoffCut', 'hitPay', 'shopCut']) {
+      if (!(REP[k] > 0 && REP[k] <= 0.5)) fail('what an end buys is out of its band', k, REP[k]);
+    }
+    if (!(REP.end > 0 && REP.end < REP_MAX)) fail('the ends are not inside the scale', REP.end);
+    if (REP_LADDER.length < 5) fail('the ladder is too short', REP_LADDER.length);
+    for (let i = 1; i < REP_LADDER.length; i++) if (!(REP_LADDER[i][0] > REP_LADDER[i - 1][0])) fail('the ladder is out of order', i);
+    if (REP_LADDER[REP_LADDER.length - 1][0] <= REP_MAX) fail('the top of the ladder does not reach the top of the scale');
+    const words = new Set();
+    for (let n = -REP_MAX; n <= REP_MAX; n++) {
+      const w = streetWord(n);
+      if (!w || typeof w !== 'string') fail('a value on the scale has no word', n);
+      words.add(w);
+    }
+    if (words.size !== REP_LADDER.length) fail('a rung of the ladder is unreachable', [...words]);
+    fresh();
+    // --- it starts in the middle, and the middle buys nothing ---
+    if (street() !== 0 || streetWord() !== 'a stranger') fail('a new career does not start a stranger', street(), streetWord());
+    if (feared() !== 0 || trusted() !== 0) fail('the middle is not neutral', feared(), trusted());
+    if (!near(repShop(), 1)) fail('the middle gets a discount', repShop());
+    // --- it cannot run away, in either direction ---
+    for (const n of [-999, -REP_MAX, -1, 0, 1, REP_MAX, 999, NaN, 'x', undefined]) {
+      setStreet(n);
+      if (!Number.isInteger(street()) || street() < -REP_MAX || street() > REP_MAX) fail('setStreet let it out of range', n, street());
+    }
+    setStreet(0);
+    if (addStreet(10, 'test') !== 10 || street() !== 10 || career.streetWhy.w !== 'test' || career.streetWhy.n !== 10) fail('addStreet', street(), career.streetWhy);
+    if (addStreet(99999, 'test') !== REP_MAX - 10) fail('addStreet past the trusted end', street());
+    if (street() !== REP_MAX || addStreet(1) !== 0) fail('it ran away past the trusted end', street());
+    if (addStreet(-99999) !== -2 * REP_MAX || street() !== -REP_MAX || addStreet(-50) !== 0) fail('it ran away past the feared end', street());
+    if (addStreet(0) !== 0 || addStreet(NaN) !== 0) fail('a nothing move moved it', street());
+    // Pushing the whole feared mover list a hundred times over cannot take it past the end.
+    setStreet(0);
+    for (let i = 0; i < 100; i++) for (const k of feared16) addStreet(REP[k]);
+    if (street() !== -REP_MAX) fail('a hundred feared careers did not stop at the end', street());
+    for (let i = 0; i < 100; i++) for (const k of trusted16) addStreet(REP[k]);
+    if (street() !== REP_MAX) fail('a hundred trusted careers did not stop at the end', street());
+    if (!near(feared(), 0) || !near(trusted(), 1)) fail('the ends do not read 0 and 1', feared(), trusted());
+    setStreet(-REP_MAX);
+    if (!near(feared(), 1) || !near(trusted(), 0)) fail('the feared end does not read 1', feared(), trusted());
+    // --- once a day, for the thing you can do all day ---
+    fresh({day: 5});
+    if (streetOnce('tag', REP.tagSale, 'first') !== REP.tagSale || streetOnce('tag', REP.tagSale, 'again') !== 0) fail('a rationed mover was not rationed', street());
+    S.day = 6;
+    if (streetOnce('tag', REP.tagSale, 'tomorrow') !== REP.tagSale) fail('a rationed mover never came back', street());
+    // --- the prices, measured at both ends and in the middle ---
+    fresh();
+    const shopAt = n => { setStreet(n); return repShop(); };
+    if (!(shopAt(REP_MAX) < shopAt(0) && near(shopAt(0), 1) && near(shopAt(-REP_MAX), 1) &&
+      near(shopAt(REP_MAX), 1 - REP.shopCut))) fail('the trusted discount does not measure true', shopAt(-REP_MAX), shopAt(0), shopAt(REP_MAX));
+    // The fence and the doc both carry it, and it is a discount on top of their own opinion, never instead of it.
+    setStanding('Ninepin', 0); setStanding('Doc Wick', 0);
+    setStreet(0); const fence0 = fenceMult(), doc0 = docMult();
+    setStreet(REP_MAX); const fenceT = fenceMult(), docT = docMult();
+    setStreet(-REP_MAX);
+    if (!near(fence0, 1) || !near(doc0, 1) || !near(fenceT, 1 - REP.shopCut) || !near(docT, 1 - REP.shopCut) ||
+      !near(fenceMult(), 1) || !near(docMult(), 1)) fail('the fence and the doc do not carry the street', fence0, fenceT, docT, fenceMult());
+    setStanding('Ninepin', STAND_MAX); setStreet(REP_MAX);
+    if (!(fenceMult() < 1 - FACES.fenceStep * STAND_MAX)) fail('the street does not stack on top of his own opinion', fenceMult());
+    setStanding('Ninepin', 0); setStreet(0);
+    // A contract pays over the odds at the feared end, the going rate in the middle, and never less.
+    const bonusAt = n => { setStreet(n); return Math.round(100000 * REP.hitPay * feared() / 10) * 10; };
+    if (bonusAt(0) !== 0 || bonusAt(REP_MAX) !== 0 || !(bonusAt(-REP_MAX) > 0) ||
+      bonusAt(-REP_MAX) !== Math.round(100000 * REP.hitPay / 10) * 10) fail('a contract does not pay the feared end', bonusAt(-REP_MAX), bonusAt(0), bonusAt(REP_MAX));
+    // Buying your way out of a fight is cheaper at the feared end and never dearer anywhere.
+    const payAt = n => { setStreet(n); return Math.max(500, Math.floor(1000000 * 0.2 * (1 - REP.payoffCut * feared()))); };
+    if (!(payAt(-REP_MAX) < payAt(0) && payAt(0) === payAt(REP_MAX) && payAt(0) === 200000 &&
+      payAt(-REP_MAX) === Math.floor(200000 * (1 - REP.payoffCut)))) fail('protection money does not follow the street', payAt(-REP_MAX), payAt(0), payAt(REP_MAX));
+    // --- the reactions, at both ends and in the middle ---
+    // repDuck is a coin toss, so it is driven with a fixed Math.random: at 0 every roll it makes passes.
+    const duckAt = (n, kind, v, at) => {
+      fresh({loc: at || 'Paste Alley'});
+      setStreet(n);
+      Math.random = () => v;
+      try { return repDuck({kind, name: 'Somebody', n: 3}); } finally { Math.random = random; }
+    };
+    if (duckAt(0, 'gang', 0) || duckAt(0, 'thug', 0) || duckAt(0, 'law', 0)) fail('the middle ducked something');
+    if (!duckAt(-REP_MAX, 'gang', 0) || !duckAt(-REP_MAX, 'thug', 0)) fail('the feared end does not make a crew back off');
+    if (duckAt(-REP_MAX, 'gang', 0.99)) fail('backing off is not a chance at all');
+    if (!duckAt(REP_MAX, 'gang', 0.2)) fail('the trusted end gets no word in its ear');
+    // Paste Alley is Needles' corner, so the law can be ducked there; the Bunker is nobody's.
+    if (!duckAt(REP_MAX, 'law', 0, 'Paste Alley')) fail('nobody hid you at the trusted end');
+    if (duckAt(REP_MAX, 'law', 0, BUNKER)) fail('somebody hid you where no junkie works');
+    if (duckAt(-REP_MAX, 'law', 0, 'Paste Alley')) fail('the feared end got hidden from the law');
+    // A grudge is personal: a nemesis is never impressed, either way.
+    fresh({loc: 'Paste Alley'}); setStreet(-REP_MAX);
+    Math.random = () => 0;
+    try {
+      if (repDuck({kind: 'gang', name: 'Somebody', n: 3, nem: {name: 'x'}})) fail('a nemesis backed off');
+      if (repDuck({kind: 'raid', name: 'Somebody', n: 3})) fail('a raid was ducked');
+      if (repDuck({kind: 'guard', name: 'Somebody', n: 3})) fail('a guard inside a job was ducked');
+      if (repDuck(null)) fail('nothing at all was ducked');
+      // One fewer of them, never below one, and never in the middle.
+      const E = {kind: 'gang', name: 'Somebody', n: 3};
+      if (!repFewer(E) || E.n !== 2) fail('the feared end does not thin a crew out', E);
+      const one = {kind: 'gang', name: 'Somebody', n: 1};
+      if (repFewer(one) || one.n !== 1) fail('a crew was thinned below one', one);
+      setStreet(0);
+      if (repFewer({kind: 'gang', name: 'Somebody', n: 3})) fail('the middle thinned a crew out');
+      setStreet(-REP_MAX);
+      if (repFewer({kind: 'raid', name: 'Somebody', n: 3})) fail('a raid was thinned out');
+    } finally { Math.random = random; }
+    repTally.duck++; repTally.fewer++; repTally.hide++;
+    // --- the word is on the record screen, and so is the reason ---
+    fresh({loc: BUNKER, day: 7});
+    addStreet(REP.favourYes * 10, 'the test was generous');
+    let html = '';
+    autoPick = all => { html = dlg.innerHTML; return null; };
+    try { await ACTIONS.profile(); } finally { autoPick = null; }
+    if (!html.includes('How the street sees you') || !html.includes(streetWord()) ||
+      !html.includes('the test was generous')) fail('the record screen does not say where you stand', streetWord());
+    if (!html.includes('Nothing is closed to you')) fail('the record screen does not say that nothing is gated');
+    if (!streetState().includes(streetWord())) fail('the standing line does not say the word');
+    // --- the endings read it ---
+    setStreet(-REP_MAX);
+    if (careerFacts(1, 1, 'retired').street !== -REP_MAX || careerFacts(1, 1, 'retired').streetWord !== streetWord()) fail('careerFacts does not carry the street');
+    if (!ENDINGS.feared[1]({street: -REP.end, score: 1000000}) || ENDINGS.feared[1]({street: -REP.end + 1, score: 1000000}) ||
+      !ENDINGS.trusted[1]({street: REP.end, score: 1000000}) || ENDINGS.trusted[1]({street: REP.end - 1, score: 1000000}) ||
+      ENDINGS.feared[1]({street: -REP_MAX, score: 999999})) fail('the two send-offs do not read the street');
+    if (!ENDING_ORDER.includes('feared') || !ENDING_ORDER.includes('trusted')) fail('the new send-offs are in no order');
+    // --- the achievements, at both ends ---
+    fresh();
+    setStreet(-REP.end);
+    if (!ACH.repfear[3]() || ACH.reptrust[3]()) fail('the feared achievement does not read the feared end');
+    setStreet(REP.end);
+    if (!ACH.reptrust[3]() || ACH.repfear[3]() || ACH.repoff[3]() || ACH.repcover[3]()) fail('the trusted achievement does not read the trusted end');
+    tally('repbackoff'); tally('rephide');
+    if (!ACH.repoff[3]() || !ACH.repcover[3]()) fail('the reaction achievements do not read their counters');
+    // --- nothing is gated: every crew, every shop and every contact is open at either end ---
+    for (const n of [-REP_MAX, 0, REP_MAX]) {
+      fresh({loc: GEAR_SPOTS[0], cash: 1000000, day: 4});
+      setStreet(n);
+      if (openSyns().length !== Object.keys(SYNDICATES).filter(k => !hiddenSyn(k) || HIDDEN_GATE[k]()).length) fail('the street closed a crew', n);
+      if (Object.keys(CONTACTS).some(c => !CAST[c])) fail('the street closed a contact', n);
+      if (debtLimit() <= 0 || !(junkieCut('Needles')[0] > 0)) fail('the street closed a shop', n);
+    }
+    // --- a save keeps it, and a save from before it loads in the middle ---
+    fresh({loc: 'Paste Alley', day: 9});
+    addStreet(-40, 'the test was unpleasant');
+    const now = JSON.parse(JSON.stringify(S));
+    const record = JSON.parse(JSON.stringify(career)), oldRec = JSON.parse(JSON.stringify(career));
+    delete oldRec.street; delete oldRec.streetWhy; delete oldRec.streetDay;   // exactly what a 1.40 save has
+    try {
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? record : null);
+      loadSave(0);
+      if (street() !== -40 || !career.streetWhy || career.streetWhy.w !== 'the test was unpleasant') fail('a save lost the street', street(), career.streetWhy);
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? oldRec : null);
+      loadSave(0);
+      if (street() !== 0 || streetWord() !== 'a stranger' || career.streetWhy !== null || feared() || trusted() ||
+        !near(repShop(), 1)) fail('a 1.40 save did not load neutral', street(), career.streetWhy);
+      // ...and junk is thrown away rather than believed.
+      const junk = Object.assign({}, record, {street: 9999, streetWhy: {w: 7}, streetDay: [1, 2]});
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? junk : null);
+      loadSave(0);
+      if (street() !== REP_MAX || career.streetWhy !== null || Array.isArray(career.streetDay) ||
+        typeof career.streetDay !== 'object') fail('a hand-edited street was believed', street(), career.streetWhy, career.streetDay);
+      const junk2 = Object.assign({}, record, {street: 'nonsense'});
+      store.get = key => (key === 'zdh-save' ? now : key === 'zdh-career' ? junk2 : null);
+      loadSave(0);
+      if (street() !== 0) fail('a nonsense street was believed', street());
+    } finally { store.get = get; slot = keep; career = mine; }
+  } finally {
+    Math.random = random; autoPick = null; S = run; career = mine; logs = []; notes.length = 0;
+  }
+}
+// ===== REPUTATION: the step-by-step test ends =====
+
 // ====================== LEGACY: the step-by-step test ======================
 // The ending tables are whole, every ending can be reached and the order is what picks it, retiring and
 // being taken down each write down what they worked out, a career that ended turns up in a later one in
@@ -17948,7 +18377,8 @@ async function legacySelfTest() {
     }
     // ---- every ending can be reached, and the order is what picks it ----
     const F0 = () => ({how: 'retired', score: 300000, days: 40, rate: 7500, worth: 0, heat: 60, arrests: 3,
-      fought: 10, cleared: true, cat: 0, crew: null, inner: false, stations: 14, routines: 0, topScore: 0, topRate: 0});
+      fought: 10, cleared: true, cat: 0, crew: null, inner: false, stations: 14, routines: 0, topScore: 0, topRate: 0,
+      street: 0, streetWord: 'a stranger'});   // REPUTATION: a career that never committed, which is the default
     const want = (id, over) => {
       const F = Object.assign(F0(), over), got = endingFor(F);
       if (got !== id) fail('the wrong send-off was chosen', id, got, F);
@@ -17958,6 +18388,12 @@ async function legacySelfTest() {
     want('villa', {score: 6000000, heat: 20, rate: 1});
     want('crewman', {crew: 'ghost', inner: true});
     want('fixer', {days: 130, stations: 30});
+    // REPUTATION: both ends of the street have a send-off, and the middle has neither of them.
+    want('feared', {street: -REP.end, score: 2000000});
+    want('trusted', {street: REP.end, score: 2000000});
+    want('flat', {street: -REP.end + 1, score: 2000000});
+    want('flat', {street: REP.end - 1, score: 2000000});
+    want('flat', {street: -REP_MAX, score: 999999});
     want('specialist', {routines: 12});
     want('ghost', {arrests: 0, fought: 0, heat: 10});
     want('soldier', {fought: 40});
@@ -18239,6 +18675,7 @@ async function selfTest(games) {
           await dunSelfTest();    // DUNGEONS
           await endlessSelfTest();   // ENDLESS CAREERS
           await facesSelfTest();   // FACES
+          await repSelfTest();    // REPUTATION
           await legacySelfTest();    // LEGACY: old careers in new ones, and the endings
           await nemSelfTest();    // NEMESIS
           await reapSelfTest();   // SNEAK REAPERS
@@ -18533,6 +18970,22 @@ async function selfTest(games) {
           const was = standing(who);
           addStanding(who, n, 'the bot did something');
           if (standing(who) > was) faceTally.up++; else if (standing(who) < was) faceTally.down++;
+        }
+        // REPUTATION: the bot is pushed both ways, hard and often, so that every effect either end buys is
+        // live for whole runs at a time with every invariant below watching. The drift is deliberately
+        // lopsided per game (odd games drift feared, even ones trusted) so each end is played out properly
+        // rather than averaged back into the middle, and the clamp is checked every single step.
+        if (Math.random() < 0.08) {
+          const was = street(), n = (game % 2 ? -1 : 1) * rnd(3, 12);
+          addStreet(n, 'the bot did something');
+          if (street() > was) repTally.up++; else if (street() < was) repTally.down++;
+        }
+        if (!Number.isInteger(street()) || street() < -REP_MAX || street() > REP_MAX) {
+          throw new Error('the street ran away: ' + JSON.stringify([street(), career.street]));
+        }
+        if (feared() < 0 || feared() > 1 || trusted() < 0 || trusted() > 1 || (feared() > 0 && trusted() > 0) ||
+          repShop() > 1 || repShop() < 1 - REP.shopCut || !REP_LADDER.some(([, w]) => w === streetWord())) {
+          throw new Error('the street buys something it should not: ' + JSON.stringify([street(), feared(), trusted(), repShop(), streetWord()]));
         }
         if (Math.random() < 0.01 && S.loc !== BUNKER) { S.heat = Math.max(S.heat, FACES.heatDoor + 1); castDoor(pick(['Ninepin', 'Doc Wick'])); }
         const trip = act === 'travel' ? [S.loc, S.day, S.trips, rideHops()] : null;
@@ -18852,6 +19305,12 @@ async function selfTest(games) {
     }
     const fsum = ` standingup=${faceTally.up} standingdown=${faceTally.down} favours=${faceTally.favour}` +
       ` keptback=${faceTally.kept} refused=${faceTally.refused} hotdistricts=${faceTally.hot} lockeddown=${faceTally.locked} districtscooled=${faceTally.cool}`;
+    // REPUTATION: ...and the bot must have drifted both ways, not just one, and the step-by-step test must
+    // have measured each reaction at the end that buys it.
+    if (games >= 2 && Object.entries(repTally).some(([, n]) => !n)) {
+      throw new Error('the street was not drifted both ways: ' + JSON.stringify(repTally));
+    }
+    const stsum = ` streetup=${repTally.up} streetdown=${repTally.down}`;
     // LEGACY: ...and old careers must have been met, in every place one can turn up, with every send-off
     // reached and somebody else's record passed.
     if (games >= 20 && !(legacyTally.met >= LEGACY.perCareer && legacyTally.records >= 1 &&
@@ -18870,7 +19329,7 @@ async function selfTest(games) {
       throw new Error('the self-test was not silent: ' + JSON.stringify(snd));
     }
     document.title = 'SELFTEST OK';
-    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum}${rsum}${lsum}${fsum}${wsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
+    document.body.textContent = `SELFTEST OK music=silent/${snd.nodes}nodes${hsum}${bsum}${sksum}${dsum}${esum}${nsum}${rsum}${lsum}${fsum}${stsum}${wsum} ridebuys=${rideDid[0]} rideswaps=${rideDid[1]} ridesales=${rideDid[2]} fuelpaid=${rideDid[3]} nofuel=${rideDid[4]} ridehops=${rideHopTally} heatitems=${coolUses - coolBase[1]} heatbuys=${coolBuys - coolBase[0]} heatalarms=${coolFires - coolBase[2]} finished=${finished} busted=${busted} best=${best} contracts=${contractsSeen} raids=${raids} quests=${questTally} junkies=${junkTally} achievements=${achTally} gigs=${gigTally} jumps=${jumpTally} bagswaps=${bagSwaps} nobag=${noBag} toofull=${fullTally}` +
       ` pockets=${pocketTally} stuck=${stuckTally} extracted=${extractTally} tagsales=${tagSales} sicknights=${sickTally} dysentery=${deadTally}`;
   } catch (err) {
     document.title = 'SELFTEST FAIL';
@@ -18898,6 +19357,8 @@ function loadSave(n) {
       base: record.base, marks: record.marks,   // BASE: fixCareer() fills these in for a save from before the base
       ends: record.ends,   // LEGACY: the endings reached (fixCareer tidies it for a save from before them)
       nem: record.nem, nemGone: record.nemGone,   // NEMESIS: nemFix() tidies these (see fixCareer)
+      // REPUTATION: where the street had you, and why. fixCareer() starts a save from before it at 0.
+      street: record.street, streetWhy: record.streetWhy, streetDay: record.streetDay,
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
