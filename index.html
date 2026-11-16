@@ -8359,7 +8359,7 @@ function renderNow() {
     acts += '<button data-act="sleep">Sleep (end the day)</button>' +
       `<button data-act="base">Base${up ? ` (${up} to build)` : baseJobs().length ? ' (building)' : ''}</button>`;
     // ENDLESS: the only ending that pays, and it is always on the Bunker's wall once it is possible.
-    if (!retireBlock()) acts += '<button class="danger" data-act="retire">Retire (end the career)</button>';
+    // (RETIRE SAFETY: it is no longer a button here, next to Tunnel out. It lives on your record, last of all.)
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
     // SHOP TILES: each shop's own picture on its button (and so on the handheld DO screen, which copies these)
@@ -9099,6 +9099,9 @@ const ACTIONS = {
     } else {
       html += '<p>Syndicates recruit at <b>level 10</b>, and each has its own line of missions.</p>';
     }
+    // ENDLESS: the only ending that pays. Last button of all, well away from the main screen's Tunnel out.
+    // (It is offered whenever the career is live: ACTIONS.retire says why not, when it is too soon or you owe.)
+    if (!S.over) buttons.push(['Retire (end the career)', 'retire', 'danger']);
     const choice = await dialog('Your record', html, buttons);
     if (choice === 'join') await chooseSyndicate();
     else if (choice === 'skills') await skillTree();   // SKILL TREE
@@ -9110,6 +9113,7 @@ const ACTIONS = {
         '<p class="dim">Careers that walked away. A career you lose pays nothing: retiring from the Bunker is the only ' +
         'way onto the board. The ones who were taken down are listed anyway, because the street lists them.</p>');
     }
+    else if (choice === 'retire') await ACTIONS.retire();
     else if (choice === 'hidden') await hiddenInvite();
     else if (choice === 'reapers') await reapInvite();   // SNEAK REAPERS
     else if (choice === 'reapjob') await reapScreen();
@@ -9332,7 +9336,11 @@ const ACTIONS = {
       'belong to this save and are waiting for the next career. The money is not: that is what goes in the hall of fame.</p>' +
       (stuckTotal() ? '<p class="amber">Whatever is still in your prison pocket goes with you. Nobody is paying you for it.</p>' : '') +
       legacyRecordLine();   // LEGACY: whose number is still the one to beat
-    if (await confirmDlg('Retire', parts + keeps + '<p>Walk away for good?</p>', 'Retire', 'One more day')) {
+    // RETIRE SAFETY: the focused (primary) answer is the safe one, so Enter-mashing on a handheld keeps the career,
+    // and it takes a second, plainly worded question to end it.
+    if (!await dialog('Retire', parts + keeps + '<p>Walk away for good?</p>', [['One more day', false, 'primary'], ['Retire...', true]])) return;
+    if (await dialog('Retire: last chance', `<p><b>This ends the career for good</b> and cannot be undone. You walk away with ` +
+      `<b>${money(W.total)}</b> after ${S.day} days.</p>`, [['Keep playing', false, 'primary'], ['End the career', true, 'danger']], 'danger')) {
       S.retired = true;
       S.over = true;
     }
@@ -19474,7 +19482,7 @@ function saveCard(n, meta) {
 function introText() {
   return `<p>You have ${money(S.cash)}, a ${money(START_DEBT)} debt to the Fixer that grows ${pct(debtRate())}% a day, ` +
     'and <b>no last day</b>. A career runs until you are taken down or you <span class="amber">retire</span> from the Bunker ' +
-    'and bank what you are worth.</p>' +
+    '(Profile, then the last button on your record) and bank what you are worth.</p>' +
     '<p>Buy low, sell high, and tunnel between spots. You get ' + TRIPS_PER_DAY + ' trips a day, and prices only change when ' +
     'you go home to the Bunker and sleep. That is the only thing that ends a day.</p>' +
     '<p>No market can move unlimited weight: <span class="amber">sell a lot of one thing in one place and its price sags, buy a lot and it climbs</span>. ' +
