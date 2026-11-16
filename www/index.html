@@ -20146,8 +20146,15 @@ async function selfTest(games) {
     // (honeypots are counted over the whole test, step-by-step part included: bait is a fifth of a capture
     //  at worst and the bot only cracks a handful in a run, so a test that happened not to meet one is no
     //  reason to call the feature dead. wdSelfTest walks both ways of meeting one, forced, every time.)
-    if (games >= 20 && !(wd.swept && wd.found && wd.sweeps && wd.hops && (wd.cracked + wd.failed) && wdTally.pot && wd.sold && wd.stale)) {
+    if (games >= 20 && !(wd.swept && wd.found && wd.sweeps && wd.hops && (wd.cracked + wd.failed))) {
       throw new Error('wardriving was not exercised: ' + JSON.stringify(wd));
+    }
+    // Meeting a honeypot, selling the broker an address and letting one go stale all need the bot to be
+    // holding the right thing on the right day, so any of the three can miss a twenty-five game run on a
+    // tree with nothing wrong with it. wdSelfTest walks all three step by step (and forces the honeypot
+    // every time), so random play only has to show them at a bigger sample.
+    if (games >= 50 && !(wdTally.pot && wd.sold && wd.stale)) {
+      throw new Error('wardriving: the rare paths never came up: ' + JSON.stringify(wd));
     }
     const wdsum = ` tripsswept=${wd.swept} captures=${wd.found} sweeps=${wd.sweeps} sweephops=${wd.hops}` +
       ` cracked=${wd.cracked} wouldnotopen=${wd.failed} honeypots=${wd.pot} sweepscutshort=${wd.cut}` +
