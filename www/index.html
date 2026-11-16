@@ -42,8 +42,12 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:200;
   background:repeating-linear-gradient(rgba(0,0,0,.2) 0 1px,transparent 1px 3px)}
 #app{max-width:760px;margin:0 auto;
   padding:calc(10px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))}
-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.hbtns{display:flex;gap:6px}
+header{display:flex;align-items:center;justify-content:space-between;gap:var(--s2)}
+/* TOP BAR: Menu, Sound and New run are the same chrome as everything else, not three bare words */
+.hbtns{display:flex;gap:var(--s1)}
+.hbtns button.small{min-height:28px;padding:3px var(--s3);font-size:12px;letter-spacing:1.5px;
+  text-transform:uppercase;color:#9aa6ff;border:1px solid var(--edge);border-top-color:var(--cyan);
+  background:var(--glass);box-shadow:var(--sunk)}
 h1{margin:0;font-size:18px;letter-spacing:3px;font-weight:800;font-style:italic;color:#000;background:var(--yellow);
   padding:5px 22px 5px 10px;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);
   animation:glitch 4.5s infinite steps(1)}
@@ -178,28 +182,56 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 #career .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--magenta),var(--cyan))}
 #career .xp{color:var(--dim);white-space:nowrap}
 #vitals{margin:2px 0 0}
-.meter{display:grid;grid-template-columns:64px 1fr 58px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
-.meter span:first-child{color:var(--dim);letter-spacing:1px;text-transform:uppercase;font-size:11px}
-.meter .track{height:11px;background:#000;border:1px solid var(--line);overflow:hidden;transform:skewX(-18deg)}
-.meter .track i{display:block;height:100%;transition:width .25s;box-shadow:0 0 8px currentColor}
-.meter b{text-align:right;white-space:nowrap}
+/* Health and OpSec are the same bar the fight screen draws (.bbar): the same skew, the same sunk track,
+   the same tabular figure on the end, so your vitals do not change shape when a fight starts. */
+.meter{display:grid;grid-template-columns:52px 1fr 46px;gap:var(--s2);align-items:center;font-size:12px;margin:var(--s1) 0}
+.meter span:first-child{color:#9aa6ff;letter-spacing:1px;text-transform:uppercase;font-size:10px}
+.meter .track{height:9px;background:#05061c;border:1px solid var(--edge);overflow:hidden;transform:skewX(-20deg)}
+.meter .track i{display:block;height:100%;transition:width .35s;box-shadow:0 0 8px currentColor}
+.meter b{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 
-#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(98px,1fr));gap:6px;margin-top:10px}
-.chip{background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--accent);padding:6px 8px;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)}
-.chip small{display:block;color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase}
-.chip b{font-size:15px;font-weight:600;white-space:nowrap}
-#news{margin:10px 0 0}
-#news div{color:var(--yellow);padding:2px 0}
-#news div::before{content:">> ";color:var(--pink)}
+/* ===== THE STAT COLUMN =====
+   Sixteen figures in one flat grid read as sixteen unrelated things. They are dealt into four bands -
+   money, exposure, kit, standing - with a hairline and a dim word over each. The figure is the big thing
+   on a chip and the label is small and dim under it; colour is only used where it means something (HEAT
+   climbing, DEBT owed, CASH in hand), and the band's own colour is a hairline on the left edge, no more. */
+#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:var(--s1);margin-top:var(--s2)}
+.bandrule{grid-column:1/-1;display:flex;align-items:center;gap:var(--s2);margin:5px 0 0;
+  font-size:9.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--bk,var(--dim))}
+.bandrule:first-child{margin-top:2px}
+.bandrule::after{content:"";flex:1 1 auto;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
+.bandrule.money{--bk:#7ad7a8}.bandrule.exposure{--bk:#e07896}.bandrule.kit{--bk:#6fc6d8}.bandrule.standing{--bk:#9d8cff}
+.chip{position:relative;padding:2px var(--s2) 3px;background:linear-gradient(180deg,rgba(23,20,46,.85),rgba(9,8,22,.85));
+  border:1px solid var(--edge);border-left:2px solid var(--bk,var(--edge));
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%)}
+.chip[data-band=money]{--bk:rgba(61,255,154,.5)}.chip[data-band=exposure]{--bk:rgba(255,42,109,.5)}
+.chip[data-band=kit]{--bk:rgba(0,229,255,.45)}.chip[data-band=standing]{--bk:rgba(157,140,255,.45)}
+.chip small{display:block;color:var(--dim);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;line-height:1.3}
+.chip b{display:block;font-size:15px;font-weight:600;white-space:nowrap;line-height:1.25;font-variant-numeric:tabular-nums}
+.chip.big b{font-size:17px}
+/* a figure that moved since the screen was last drawn: which way it went, and one pulse */
+.chip .dlt{position:absolute;top:3px;right:4px;font-style:normal;font-size:8px;line-height:1;color:var(--cyan);opacity:.85}
+.chip.moved{animation:chipbump .45s ease-out}
+@keyframes chipbump{from{box-shadow:inset 0 0 0 1px var(--cyan),0 0 10px -3px var(--cyan)}to{box-shadow:none}}
+@media (prefers-reduced-motion:reduce){.chip.moved{animation:none}}
+/* ===== THE RIGHT COLUMN: news and the log =====
+   Two lists of lines, so what they need is a way to tell one kind of line from another at a glance and a
+   way to tell new from old. Every line gets one prefix glyph keyed to what kind it is, a day divider goes
+   in wherever the day turned over, and the further down the log a line is the dimmer it reads. */
+#news{margin:var(--s2) 0 0}
+#news div{position:relative;color:var(--yellow);padding:2px 0 2px 17px}
+#news div::before{content:"\00BB";position:absolute;left:1px;top:2px;color:var(--pink)}
 /* the syndicate mission: always open, and kept to a heading line and one block */
-#quest .qnow{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
+#quest .qnow{margin-top:var(--s2);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--pink);background:var(--glass);box-shadow:var(--sunk)}
 /* the heading is not tied to #quest: the handheld's JOBS screen copies this block out of it (see renderTiny) */
 .qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
   color:var(--pink);font-weight:normal}
 .qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
 #quest .qnow .job{margin:6px}
-#market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
+/* the panels wear the fight screen's window: dark glass, a cyan top edge, the sunk inner rule */
+#market{margin-top:var(--s2);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--accent);background:var(--glass);box-shadow:var(--sunk)}
 .row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
   border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
@@ -215,7 +247,8 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 .fold[open]>summary::before{content:"\25BE"}
 .fold[open]>summary{border-bottom:1px solid var(--line)}
 .fold>summary small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim)}
-#jobs .fold{margin-bottom:6px;border:1px solid var(--line);border-top:2px solid var(--yellow);background:rgba(15,13,31,.92)}
+#jobs .fold{margin-bottom:var(--s1);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--yellow);background:var(--glass);box-shadow:var(--sunk)}
 #jobs .fold>summary{color:var(--yellow)}
 #jobs .fold .job{margin:6px}
 #jobs .fold .none{padding:8px 10px;font-size:12px;color:var(--dim)}
@@ -247,9 +280,21 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 /* what you can do here: the shared tile grid, nothing of its own but the margin and the glyph's size */
 #actions{margin-top:var(--s3);--tw:170px}
 #actions .ico.room{width:36px;height:21px}
-#log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
-#log div{padding:1px 0}
+#log{margin-top:var(--s3);font-size:13px;color:var(--dim);border-top:1px solid var(--edge);padding-top:var(--s2)}
+#log div{position:relative;padding:1px 0 1px 17px}
+#log div::before{content:"\00B7";position:absolute;left:3px;top:1px;color:var(--edge)}
+#log div.red::before{content:"!";color:var(--pink)}
+#log div.green::before{content:"+";color:var(--green)}
+#log div.cyan::before{content:"\203A";color:var(--cyan)}
+#log div.amber::before,#log div.yellow::before{content:"*";color:var(--yellow)}
 #log div:first-child{color:var(--fg)}
+/* older lines step back, so the top of the log is where the eye goes */
+#log div:nth-child(n+5){opacity:.82}#log div:nth-child(n+9){opacity:.62}#log div:nth-child(n+13){opacity:.45}
+/* where the day turned over (see log()) */
+#log div.daymark{margin:var(--s1) 0 2px;padding:0;display:flex;align-items:center;gap:var(--s2);
+  font-size:9.5px;letter-spacing:2.5px;color:var(--dim);text-transform:uppercase}
+#log div.daymark::before{content:none}
+#log div.daymark::after{content:"";flex:1 1 auto;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
 
 /* dialogs */
 #overlay{position:fixed;inset:0;background:rgba(3,2,10,.84);display:flex;align-items:center;justify-content:center;
@@ -799,8 +844,14 @@ button .ico.room{width:44px;height:26px}
     background:none;clip-path:none}
   #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px}
   #tiny .chip b{display:block;font-size:17px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #tiny .figs .chip:nth-child(n+7){display:flex;justify-content:space-between;align-items:baseline;gap:4px}
-  #tiny .figs .chip:nth-child(n+7) b{font-size:12px}
+  /* the band headings and the "it moved" marks belong to the big layout; this screen is a flat list, and
+     the six figures you act on stay big (.big) while everything else is a line (exactly as before) */
+  #tiny .figs .bandrule,#tiny .chip .dlt{display:none}
+  #tiny .figs .chip{display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+  #tiny .figs .chip b{font-size:12px}
+  #tiny .figs .chip.big{display:block}
+  #tiny .figs .chip.big b{font-size:17px}
+  #tiny .chip.moved{animation:none}
 
   /* the jobs, and the things you can do: a numbered list, one key each */
   #tiny .job{display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:0 6px;align-items:baseline;
@@ -847,6 +898,7 @@ button .ico.room{width:44px;height:26px}
   #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
   #tiny .logs div{padding:1px 0}
   #tiny .logs .news div{color:var(--yellow)}
+  #tiny .logs .daymark{color:var(--yellow);font-size:11px;letter-spacing:1px}
 
   /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
   #overlay{padding:2px}
@@ -6393,6 +6445,19 @@ function meter(label, value, max, text, color) {
     `<i style="width:${width}%;background:var(--${color})"></i></span><b class="${color}">${text}</b></div>`;
 }
 const vitals = () => meter('Health', S.hp, 100, S.hp + '%') + meter('OpSec', S.opsec, 100, S.opsec + '%');
+// THE STAT COLUMN: a reading aid, and nothing else. It remembers what each figure said the last time the
+// column was drawn, so a figure that has moved since can wear a small mark saying which way it went and
+// pulse once. Nothing here is saved, nothing reads it back, and it holds no game state.
+const chipWas = new Map();
+function chipDelta(label, value) {
+  const now = String(value).replace(/<[^>]*>/g, '').trim(), was = chipWas.get(label);
+  chipWas.set(label, now);
+  if (was === undefined || was === now) return '';
+  const fig = s => { const m = /-?[\d.,]+/.exec(s); return m ? Number(m[0].replace(/,/g, '')) : NaN; };
+  const a = fig(was), b = fig(now);
+  return !Number.isFinite(a) || !Number.isFinite(b) || a === b
+    ? '<i class="dlt">&#9679;</i>' : `<i class="dlt">${b > a ? '&#9650;' : '&#9660;'}</i>`;
+}
 const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
 const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && !hiddenSyn(k));   // SNEAK REAPERS: every hidden crew, not just the 404
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
@@ -7015,7 +7080,11 @@ function rollContracts() {
 const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1) * skJobPay());
 const chanceFor = c => Math.max(10, Math.min(95,
   c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0) + bonus('charm') + skJobOdds()));
+let logDay = 0;   // the day the last line was written on, so the log can rule off where the day turned over
 function log(text, cls) {
+  // A day divider goes in above the first line of a new day (never above the very first line of a run).
+  if (logs.length && logDay && S.day !== logDay) logs.unshift(`<div class="daymark"><span>Day ${num(S.day)}</span></div>`);
+  logDay = S.day;
   logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
   logs.length = Math.min(logs.length, 14);
 }
@@ -8503,52 +8572,66 @@ function renderNow() {
   $('#dayloc').innerHTML = `DAY <b>${num(S.day)}</b> &middot; <span class="cyan">${S.loc}</span>` +
     ` &middot; ${tripsHtml()}` +
     (word ? ` &middot; <span class="${press01() >= 0.66 ? 'red' : 'amber'}">${word}</span>` : '');
+  // THE STAT COLUMN: [label, figure, colour, band, big]. The band deals the chip into one of the four
+  // groups the column is laid out in (see THE STAT COLUMN in the style sheet); big is the handful of
+  // figures the handheld's VITALS screen draws large, and is exactly the six it has always drawn large.
   const chips = [
-    ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
-    ['Debt', money(S.debt), S.debt ? 'red' : ''],
+    ['Cash', money(S.cash), 'green', 'money', 1], ['Wallet', money(S.wallet), '', 'money', 1],
+    ['Debt', money(S.debt), S.debt ? 'red' : '', 'money', 1],
+    ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : '', 'exposure', 1],
+    ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
+      lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : '', 'exposure'],
+    ['Proxies', S.proxies, '', 'exposure', 1],
     // The amount takes the colour of the backpack you wear; the label goes amber when there is no room left.
-    [free() <= 0 ? '<span class="amber">Drive full</span>' : 'Drive', `${used()}/${cap()}`, bagClass()],
-    ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
-    ['Proxies', S.proxies, ''],
-    ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
+    [free() <= 0 ? '<span class="amber">Drive full</span>' : 'Drive', `${used()}/${cap()}`, bagClass(), 'kit', 1],
+    ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', '', 'kit'],
     ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
-      usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
-    ['Ride', !VEHICLES[S.ride] ? 'On foot' : tanked(S.ride) ? `+${rideHops()} a day` : 'No fuel', !VEHICLES[S.ride] ? '' : tanked(S.ride) ? 'green' : 'red'],
-    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
+      usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : '', 'kit'],
+    ['Ride', !VEHICLES[S.ride] ? 'On foot' : tanked(S.ride) ? `+${rideHops()} a day` : 'No fuel',
+      !VEHICLES[S.ride] ? '' : tanked(S.ride) ? 'green' : 'red', 'kit'],
+    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', '', 'kit'],
     // Entry tools carried, and the lock picking skill with how far along its level is.
     // (Short, so it fits a phone: the picks, and how many other tools. The inventory says which.)
-    ['Tools', toolChip(), ''],
-    ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber'],
-    ['Armour', bonus('armor') + '%', ''],
-    ['Medkits', S.medkits, ''],
-    ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
-      lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
+    ['Tools', toolChip(), '', 'kit'],
+    ['Armour', bonus('armor') + '%', '', 'kit'],
+    ['Medkits', S.medkits, '', 'kit'],
+    ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber', 'standing'],
   ];
   // ENDLESS: how hard the street is pressing, shown only once the month is over (and on the handheld too,
   // which builds its VITALS screen from these chips).
-  if (word) chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%`, press01() >= 0.66 ? 'red' : 'amber']);
+  if (word) chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%`, press01() >= 0.66 ? 'red' : 'amber', 'exposure']);
   // SKILL TREE: points waiting to be spent, shown only while there are any.
-  if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan']);
+  if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan', 'standing']);
   // FACES: how this district feels about you, shown wherever the vitals are (the handheld builds its VITALS
   // screen from these chips too). Nothing at all while the street is quiet and open.
   if (S.loc !== BUNKER && (distTrade(S.loc) >= 10 || distSec(S.loc) >= 25)) {
     chips.push(['District', `${distWord(S.loc)}${distSec(S.loc) >= 25 ? ` &middot; ${distLawWord(S.loc)}` : ''}`,
-      distTrade(S.loc) >= 60 || distSec(S.loc) >= 75 ? 'red' : 'amber']);
+      distTrade(S.loc) >= 60 || distSec(S.loc) >= 75 ? 'red' : 'amber', 'exposure']);
   }
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
-  if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
-  if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
-  if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green']);   // devices left behind on break-ins
+  if (coolCount()) chips.push(['Heat kit', coolCount(), '', 'kit']);
+  if (coverText()) chips.push(['Cover', coverText(), 'cyan', 'exposure']);
+  if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green', 'standing']);   // devices left behind on break-ins
   chips.push(...baseChips());   // BASE: builds under way, a power cut
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
     chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
-      S.sick >= 3 ? 'red' : 'amber']);
+      S.sick >= 3 ? 'red' : 'amber', 'standing']);
   }
   $('#vitals').innerHTML = vitals();
   $('#ava').innerHTML = avatarSvg({fill: true}) + rideIcon(S.ride);   // the whole figure, so everything worn shows, and your ride
-  $('#stats').innerHTML = chips.map(([k, v, cls]) =>
-    `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
+  // THE STAT COLUMN: the chips are dealt into their bands, in band order, each band under its own
+  // hairline. A chip whose figure moved since the last draw wears a mark and pulses once (chipDelta).
+  $('#stats').innerHTML = [['money', 'Money'], ['exposure', 'Exposure'], ['kit', 'Kit'], ['standing', 'Standing']]
+    .map(([band, title]) => {
+      const mine = chips.filter(ch => (ch[3] || 'standing') === band);
+      if (!mine.length) return '';
+      return `<div class="bandrule ${band}"><span>${title}</span></div>` + mine.map(([k, v, cls, , big]) => {
+        const mark = chipDelta(k, v);
+        return `<div class="chip${big ? ' big' : ''}${mark ? ' moved' : ''}" data-band="${band}">` +
+          `<small>${k}</small><b class="${cls}">${v}</b>${mark}</div>`;
+      }).join('');
+    }).join('');
   // LIVE NEWS: what is actually happening in the city goes above the market's own scarcity lines, and it
   // shows at the Bunker too, where there is no market to report on.
   $('#news').innerHTML = evNews().concat(S.news).map(n => `<div>${n}</div>`).join('');
