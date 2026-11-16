@@ -20126,8 +20126,14 @@ async function selfTest(games) {
     // of time. The gate, the invitation, the perk and the whole line are walked in reapSelfTest.
     const rd = {};
     for (const k of Object.keys(reapTally)) rd[k] = reapTally[k] - (reapWas[k] || 0);
-    if (games >= 20 && !(rd.offered && rd.refused && rd.closed && rd.drop && rd.seen && rd.clean && rd.walked && rd.expired)) {
+    if (games >= 20 && !(rd.offered && rd.refused && rd.closed && rd.drop && rd.seen && rd.clean && rd.walked)) {
       throw new Error('contracts were not exercised: ' + JSON.stringify(rd));
+    }
+    // A contract running out of time needs the bot to sign one and then leave it alone, which it does
+    // about once in twenty-five games: thin enough that this threw on trees with nothing wrong with them.
+    // reapSelfTest walks expiry step by step, so random play only has to show it at a bigger sample.
+    if (games >= 50 && !rd.expired) {
+      throw new Error('no contract ever ran out of time: ' + JSON.stringify(rd));
     }
     const rsum = ` hitsoffered=${rd.offered} hitssigned=${rd.offered - rd.refused} hitsclosed=${rd.closed}` +
       ` quietclosed=${rd.clean} gotthedrop=${rd.drop} heardthedoor=${rd.seen} marksgotaway=${rd.walked}` +
