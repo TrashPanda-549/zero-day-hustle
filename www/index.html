@@ -844,6 +844,12 @@ button .ico.room{width:44px;height:26px}
   #tiny .row::before{counter-increment:n;content:counter(n);color:var(--dim);font-size:11px;text-align:right}
   #tiny .row .name{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tiny .row .price{text-align:right;white-space:nowrap}
+  #tiny .pband,#tiny .mhint{display:none}   /* the range tick and the market hint cost a line here */
+  /* the big layout's banding and demoting do not apply: this screen is read on a cheap panel in daylight,
+     so every row keeps full contrast and no row is tinted */
+  #tiny .row.alt{background:none}
+  #tiny .row.dead{opacity:1}
+  #tiny .row.dead .name{color:inherit}
   #tiny .row .sub,#tiny .row .btns{display:none}
   /* what you are holding of it is the one line worth keeping on every row (the market's own notes are
      dimmed, and they wait until the row is the one you are on) */
