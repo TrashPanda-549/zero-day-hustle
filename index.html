@@ -1348,6 +1348,64 @@ const AMMO = {
 const AMMO_BOX = 20, AMMO_MAX = 999;
 const noAmmo = () => ({budget: 0, std: 0, hollow: 0, ap: 0, smart: 0});
 const usesAmmo = w => !!w && (w[4] === 'gun' || w[4] === 'heavy');
+// ================== GUNFIRE: the noise a shot makes, and the can that stops it: START ==================
+// EVERY NUMBER for this rule is in this one block, so it can be re-tuned in one place.
+//
+// Firing a firearm (the two kinds that take rounds, WTYPE.gun and WTYPE.heavy) in a fight whose opponents
+// are NOT already the law gets phoned in, and the law may be waiting once the fight is over. It is counted
+// PER SHOT, not per fight, because a long shootout really is louder than one round -- but it is capped, so
+// no firefight ever turns into a certainty. Melee and hacking add nothing, and a network dive is cyberspace:
+// there is no gunfire in there at all.
+//
+// Balanced against what else can bring the law down on you: getting jumped in the street is JUMP_ODDS (10%)
+// a trip and a random law encounter is rarer again. Most guns fire 1-5 shots a round and a street fight runs
+// 2-4 volleys, so an ordinary shootout lands around 30-45% and a single pistol shot around 9%. That makes a
+// gunfight the loudest thing a player can choose to do and still leaves it a coin-flip at worst. The game has
+// 73 weapons and most of them are firearms: the feel wanted here is "that was loud, and now I should move",
+// not "never fire a gun".
+const GUNFIRE = {
+  first: 6,         // % added by the first volley of a fight: the bang that somebody actually phones in
+  perShot: 3,       // ...and % added by every round that leaves the barrel after that
+  heavy: 1.5,       // military hardware counts this much more per shot (WTYPE.heavy)
+  cap: 45,          // nothing can push one fight's chance past this
+  heat: 2,          // Heat a loud volley adds on top of WTYPE's own, every volley
+  ghost: 0.5,       // Ghost Shell (SYNDICATES.ghost: "traces find you less often") halves the chance
+  stealth: 1,       // the gear 'stealth' stat takes this much of its own % off the chance (1 = all of it),
+                    // the same way it softens a deal's Heat and a break-in's: a share, never a flat subtraction,
+                    // so 22% stealth cannot wipe out a 9% call the way taking 22 points off it would
+  // --- the suppressor: bought at the gun shops, fitted to the firearm you carry ---
+  // It is fitted to the weapon, not carried: S.supp holds the WEAPONS index it is threaded onto, so
+  // changing weapons leaves it behind on the old one. That is its running cost. It also fits 'gun' only
+  // (you cannot thread a rail gun or a tactical nuke) and costs a little accuracy.
+  suppPrice: 9000,  // flat, before the day's scale and the shop's markup
+  suppHit: 5,       // % off your chance to hit while one is fitted
+  suppHeat: 1,      // Heat a suppressed volley still adds: subsonic is quiet, not silent, and nobody comes
+};
+// Which weapons can take a can, and whether the one you carry has one on it.
+const canSupp = w => !!w && w[4] === 'gun';
+const suppFitted = () => !!S.supp && S.supp === S.weapon && canSupp(WEAPONS[S.weapon]);
+// How loud this volley was, before any muffling: 0 for anything that is not a gun going off.
+const shotNoise = (w, shots, first) => (usesAmmo(w) && shots > 0
+  ? (first ? GUNFIRE.first : 0) + shots * GUNFIRE.perShot * (w[4] === 'heavy' ? GUNFIRE.heavy : 1) : 0);
+// What the fight heard so far, and what it adds up to. Lives outside fightRounds() so fight() can still read
+// it after the battle screen has closed; reset at the top of every fight.
+let gunHeard = 0;
+let gunTally = {heard: 0, jumped: 0, quiet: 0};   // counted for the self-test
+// The debug menu's way in: set the current fight's noise, or clear it with 0. Returns what it is now.
+function setGunNoise(n) {
+  gunHeard = Math.max(0, Math.min(GUNFIRE.cap, Number(n) || 0));
+  return gunHeard;
+}
+// The chance, in %, that the law is waiting outside. 0 when nothing was heard, when a can was on the
+// muzzle, or when the fight was against the law in the first place (the rule excludes itself there).
+function gunOdds(E) {
+  if (!gunHeard || !E || E.kind === 'law' || E.kind === 'raid') return 0;
+  let odds = Math.min(GUNFIRE.cap, gunHeard);
+  if (inSyn('ghost')) odds *= GUNFIRE.ghost;
+  odds *= Math.max(0, 1 - bonus('stealth') * GUNFIRE.stealth / 100);
+  return Math.max(0, Math.min(GUNFIRE.cap, Math.round(odds)));
+}
+// ================== GUNFIRE: END ==================
 // The ammo a shot will actually use: the kind you loaded if any is left, otherwise the best kind you have.
 function activeAmmo() {
   if (S.ammo[S.loaded] > 0) return S.loaded;
@@ -1930,7 +1988,7 @@ function baseGive(id, dry) {
     } else if (k === 'ammo') S.ammo[r[1]] -= q;
     else if (k === 'gadget') S[r[1]] -= q;
     else if (k === 'medkit') S.medkits -= q;
-    else if (k === 'weapon') { S.weapon = 0; delete S.tune; }
+    else if (k === 'weapon') { S.weapon = 0; delete S.tune; delete S.supp; }
     paid[i] = (paid[i] || 0) + q;
   });
   if (!dry && gone.length) { baseTally.given += gone.length; saveCareer(); }
@@ -2111,6 +2169,7 @@ let fireTally = {shots: 0, hits: 0, saved: 0};   // counted for the self-test an
 // What the base adds to the chance to hit with weapon W, as a fraction. E: the fight, so the entry drill counts once.
 function baseAim(W, E) {
   let add = markHit(W[4]) + tuneHit();
+  if (suppFitted() && WEAPONS[S.weapon] === W) add -= GUNFIRE.suppHit;   // GUNFIRE: a can moves the point of impact
   if (E && !E.drilled) { E.drilled = true; add += drillAim(); }
   return add / 100;
 }
@@ -7638,10 +7697,41 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
       html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="a:${key}"` : ''}>` + withIcon(ammoIcon(key),
         `<span class="${ok ? 'amber' : 'red'}">${money(price)}</span> &middot; <b>${name}</b><br>${hitChange(key)} &middot; you have ${S.ammo[key]}`) + '</div>';
     }
+    // ===== GUNFIRE: the suppressor. Both gun shops thread them on; the van charges its markup and its Heat,
+    // and Pew will not sell you one on a day he will not sell you a gun. =====
+    if (kinds.includes('gun')) {
+      const canPrice = Math.round(GUNFIRE.suppPrice * scale * markup);
+      const gunsOk = hot || !(standing('Pew') <= FACES.noGuns || (S.heat >= 40 && standing('Pew') < FACES.holdBack));
+      const fits = canSupp(mine), got = suppFitted();
+      const ok = gunsOk && fits && !got && S.cash >= canPrice;
+      html += '<p class="dim" style="margin:12px 0 4px"><b class="cyan">SUPPRESSORS</b><br>' +
+        'Threaded onto the firearm you carry. Gunfire in a fight gets phoned in and the law comes looking; ' +
+        `a suppressed shot does not. Costs ${GUNFIRE.suppHit}% to hit, will not fit military hardware, ` +
+        'and stays behind on the weapon it was fitted to.</p>' +
+        `<div class="syn${ok ? ' pickable' : ''}"${ok ? ' data-pick="supp"' : ''}>` +
+        `<span class="${got ? 'green' : ok ? 'amber' : 'red'}">${got ? 'fitted' : money(canPrice)}</span> &middot; <b>Mute Button</b><br>` +
+        (got ? `<span class="dim">On your ${mine[0]}, where you put it.</span>`
+          : !mine ? '<span class="dim">Nothing to fit it to: you carry no weapon.</span>'
+          : !fits ? `<span class="dim">Will not go on a ${mine[0]}. Firearms only.</span>`
+          : !gunsOk ? '<span class="dim">Same background check as the guns, same answer.</span>'
+          : S.cash < canPrice ? '<span class="dim">More than you have on you.</span>'
+          : `For your ${mine[0]}.`) + '</div>';
+    }
     html += '<p class="dim">Tap a weapon to buy it. You carry one at a time, and your old one is traded in.' +
       (hot ? ' Hardware from the van is hot: each purchase adds 5% Heat.' : '') + '</p>';
     const choice = await dialog(title, html, [['Leave', null, 'primary']]);
     if (choice === null) return;
+    if (choice === 'supp') {   // GUNFIRE: a suppressor, threaded onto the firearm you are carrying
+      const canPrice = Math.round(GUNFIRE.suppPrice * scale * markup);
+      const gunsOk = hot || !(standing('Pew') <= FACES.noGuns || (S.heat >= 40 && standing('Pew') < FACES.holdBack));
+      if (!gunsOk || !canSupp(mine) || suppFitted() || S.cash < canPrice) continue;
+      S.cash -= canPrice;
+      S.supp = S.weapon;
+      if (hot) heatUp(5);
+      log(`Bought a Mute Button for ${money(canPrice)}. <span class="green">Your ${mine[0]} is suppressed.</span>`);
+      render();
+      continue;
+    }
     if (String(choice).startsWith('a:')) {   // a box of ammo
       const key = choice.slice(2), price = Math.round(AMMO[key][1] * scale * (hot && AMMO[key][3] ? markup : 1));
       if (S.cash < price) continue;
@@ -7656,6 +7746,7 @@ async function weaponShop(title, blurb, kinds, markup, hot) {
     if (!w || index === S.weapon || S.cash < price) continue;
     S.cash -= price;
     S.weapon = index;
+    delete S.supp;   // GUNFIRE: the can goes over the counter with the gun it was threaded onto
     if (usesAmmo(w)) {   // every firearm comes with a few rounds to get you started
       S.ammo.std = Math.min(AMMO_MAX, S.ammo.std + 10);
       if (!S.ammo[S.loaded]) S.loaded = 'std';
@@ -8343,7 +8434,8 @@ const ACTIONS = {
         (stuckHtml ? head('Prison pocket', `<span class="red">${stuckTotal()}/${POCKET_CAP} stuck</span>`) + `<div class="tiles">${stuckHtml}</div>` +
           `<p class="red">Stuck. They cannot be sold, used or moved until a street doc at the black market (${docSpots()}) takes them out. ` +
           `${sickLeft() <= 1 ? 'Sleep on them again and you die of dysentery.' : `You can sleep on them ${nights(sickLeft() - 1)}.`}</p>` : '') +
-        head('Weapon &amp; ammo', w ? (WTYPE[w[4]] || [''])[0] : 'unarmed') + `<div class="tiles">${weaponHtml}</div>` +
+        head('Weapon &amp; ammo', (w ? (WTYPE[w[4]] || [''])[0] : 'unarmed') +
+          (suppFitted() ? ' <span class="green">&middot; suppressed</span>' : '')) + `<div class="tiles">${weaponHtml}</div>` +
         head('Ride', tripsHtml()) + '<div class="tiles">' + (VEHICLES[S.ride] ? tile('ride', rideIcon(S.ride), VEHICLES[S.ride][4], `+${rideHops()}`, 'wide')
           : tile('', '<b class="glyph dim">&mdash;</b>', 'On foot', '', 'wide empty')) + '</div>' +
         head('Supplies', '') + (supplies ? `<div class="tiles">${supplies}</div>` : none('No medkits, proxies or gadgets.')) +
@@ -8369,7 +8461,14 @@ const ACTIONS = {
           `${Math.round(w[3] * 100)}% to hit${w[2] > 1 ? ` &middot; ${w[2]} shots a round` : ''}`)}</div>` +
           (!usesAmmo(w) ? none('Needs no ammunition.')
             : active ? `<p>Loaded with <b>${AMMO[active][0]}</b>: ${hitChange(active)}, ${S.ammo[active]} rounds left.</p>`
-              : '<p class="red">No ammunition. It will not fire until you buy some.</p>'),
+              : '<p class="red">No ammunition. It will not fire until you buy some.</p>') +
+          // GUNFIRE: whether a can is on the muzzle, where they will look before a fight starts.
+          (!usesAmmo(w) ? ''
+            : suppFitted() ? `<p class="green">Suppressed: a Mute Button is threaded on. Shots in a fight are not ` +
+              `phoned in, at ${GUNFIRE.suppHit}% to hit.</p>`
+            : `<p class="amber">Unsuppressed: firing it in a fight gets called in, and the law may be waiting ` +
+              `afterwards. ${canSupp(w) ? `A Mute Button from ${GUN_STORE} or the arms dealer stops that.`
+                : 'Nothing threads onto military hardware.'}</p>`),
           [['Back', null, 'primary']]);
       } else if (choice === 'ride') {
         await dialog(VEHICLES[S.ride][0], `<div class="syn">${rideCard(S.ride)}</div>` +
@@ -10435,11 +10534,12 @@ async function junkie() {
 }
 
 // ---------- confrontations: the law, rival syndicates, and raids on rivals ----------
-function lawEncounter() {
+// intro: an optional opening line, for when something in particular brought them (see gunFallout).
+function lawEncounter(intro) {
   const tier = lawTier(), L = LAW[tier];
   const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
     rnd(2, 3 + Math.floor(effDay() / 8))][tier];
-  return fight({kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi});
+  return fight({kind: 'law', tier, name: L.name, n, hit: L.hit, lo: L.lo, hi: L.hi, intro: intro || undefined});
 }
 
 function gangEncounter(key) {
@@ -13394,15 +13494,173 @@ async function fight(E) {
   // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
   SND.battle = E.kind === 'raid' || E.nem ? 'raid' : 'fight';
   SND.play(E.kind === 'raid' ? 'hack' : 'alarm');
+  let result;
   try {
-    const result = await fightRounds(E);
+    result = await fightRounds(E);
     await pocketOut(E);   // whatever went into the prison pocket comes back out now. Most of it.
-    return result;
   } finally {
     skFight = null;   // SKILL TREE: the fight is over, so nothing is running any more
     BTL.close();
     SND.battle = null;
     SND.sync();
+  }
+  // GUNFIRE: and now, with the battle screen shut and this fight finished, whoever heard the shooting.
+  await gunFallout(E);
+  return result;
+}
+
+// ====================== GUNFIRE: who heard it, and what turns up ======================
+// After the fight, never in the middle of one: the user asked to be jumped afterwards, and it also keeps
+// the law out of a battle that is already resolving. It uses lawEncounter() like everything else does, so
+// what arrives is an ordinary police/FBI/NSA visit at whatever tier your Heat has earned -- which means the
+// shooting has pushed that tier up a little too (GUNFIRE.heat a volley).
+let gunBusy = false;   // the fight this starts is itself a law fight, so it can never start another
+async function gunFallout(E) {
+  const odds = gunOdds(E);
+  gunHeard = 0;
+  if (!odds || gunBusy || S.over || S.busted) return;
+  // Only when you walked away from it. Face down on the pavement, you have already been dealt with.
+  if (E.result !== 'won' && E.result !== 'fled') return;
+  if (Math.random() * 100 >= odds) return;
+  gunTally.jumped++;
+  log('<span class="red">Shots fired, and somebody called them in.</span>');
+  gunBusy = true;
+  try {
+    // Deliberately not tied to a street: a gunfight can finish in an alley, in a stairwell or three
+    // floors inside a building, and this line has to read in all of them.
+    await lawEncounter('Somebody heard the shooting and stayed on the line long enough to give them a ' +
+      'description. It was a good one.');
+  } finally { gunBusy = false; }
+}
+
+// ---------- GUNFIRE: the self test ----------
+// The rule fires where gunfire makes sense and nowhere else: a suppressed gun is left alone, a melee-only
+// fight is left alone, a fight already against the law is left alone, and a network dive cannot even offer
+// the command. Plus the tuning block holding together and the can's limits.
+async function gunSelfTest() {
+  const fail = (why, ...rest) => { throw new Error('GUNFIRE: ' + why + (rest.length ? ' ' + JSON.stringify(rest) : '')); };
+  const run = S, mine = career, random = Math.random, realMenu = BTL.menu, keepPick = autoPick, keepSyn = career.syn;
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  // One stub menu for all of it: fire `want` volleys, then leave. Any fight that offers the drive wipe is a
+  // fight with the law in it, which is how the test knows the law turned up at all.
+  let want = 1, fired = 0, sawLaw = false, lawShots = 0, shootLabel = '', seen = [];
+  const stub = () => {
+    fired = 0; sawLaw = false; shootLabel = ''; seen = [];
+    BTL.menu = async buttons => {
+      const have = buttons.map(b => b[1]);
+      seen = have;
+      const shoot = buttons.find(b => b[1] === 'shoot');
+      if (shoot && !shootLabel) shootLabel = shoot[0];   // the first one offered: a law fight that follows has its own
+      if (have.includes('wipe')) {                       // the law, and only the law, offers this
+        sawLaw = true;
+        if (lawShots > 0 && shoot) { lawShots--; return 'shoot'; }
+        return 'wipe';
+      }
+      if (shoot && fired < want) { fired++; return 'shoot'; }
+      return 'run';
+    };
+  };
+  // A fresh run holding a loaded firearm of the given kind, and nothing else to fight with.
+  const armed = kind => {
+    newGame();
+    S.weapon = WEAPONS.findIndex(w => w && w[4] === kind);
+    delete S.supp; delete S.tune;
+    S.ammo = noAmmo(); S.ammo.std = 99; S.loaded = 'std';
+    S.hp = 100; S.opsec = 100; S.heat = 20;
+    S.medkits = 0; S.emp = 0; S.smoke = 0; S.bomb = 0; S.proxies = 0;
+  };
+  const thugE = () => ({kind: 'thug', name: 'Street punks', n: 2, hit: 0, lo: 1, hi: 1});
+  try {
+    // --- the tuning block holds together ---
+    if (!(GUNFIRE.first > 0 && GUNFIRE.perShot > 0 && GUNFIRE.heavy >= 1 && GUNFIRE.heat > 0 &&
+      GUNFIRE.cap >= GUNFIRE.first + GUNFIRE.perShot && GUNFIRE.cap < 100 &&
+      GUNFIRE.ghost > 0 && GUNFIRE.ghost < 1 && GUNFIRE.suppPrice > 0 && GUNFIRE.suppHit > 0)) fail('the numbers do not hold together', GUNFIRE);
+    // --- what counts as noise: firearms only, shots only, and heavy hardware is louder ---
+    const gun = WEAPONS[WEAPONS.findIndex(w => w && w[4] === 'gun')];
+    const heavy = WEAPONS[WEAPONS.findIndex(w => w && w[4] === 'heavy')];
+    const blade = WEAPONS[WEAPONS.findIndex(w => w && w[4] === 'blade')];
+    if (shotNoise(gun, 1, true) !== GUNFIRE.first + GUNFIRE.perShot) fail('one shot', shotNoise(gun, 1, true));
+    if (shotNoise(gun, 3, false) !== 3 * GUNFIRE.perShot) fail('a later volley', shotNoise(gun, 3, false));
+    if (shotNoise(blade, 3, true) || shotNoise(gun, 0, true) || shotNoise(null, 3, true)) fail('something silent was heard');
+    if (!(shotNoise(heavy, 2, false) > shotNoise(gun, 2, false))) fail('military hardware is not louder');
+    // --- the odds: capped, muffled by Ghost Shell and stealth gear, and zero where the rule does not apply ---
+    armed('gun');
+    if (setGunNoise(1e6) !== GUNFIRE.cap || setGunNoise(0) !== 0) fail('setGunNoise does not clamp or clear');
+    setGunNoise(1e6);
+    const bare = gunOdds(thugE());
+    if (bare !== Math.round(GUNFIRE.cap * Math.max(0, 1 - bonus('stealth') * GUNFIRE.stealth / 100))) fail('the cap', bare, GUNFIRE.cap, bonus('stealth'));
+    if (bare <= 0) fail('stealth gear wiped the whole rule out', bare, bonus('stealth'));
+    if (gunOdds({kind: 'law'}) || gunOdds({kind: 'raid'}) || gunOdds(null)) fail('the rule applied to the law or to cyberspace');
+    setGunNoise(0);
+    if (gunOdds(thugE())) fail('silence drew the law');
+    // --- a street fight won with a gun: the law is waiting afterwards ---
+    // Math.random() === 0 makes every shot land, every escape work, and every roll come in under the odds,
+    // so "the law may be waiting" becomes "the law is waiting" and the test is not a dice game.
+    armed('gun');
+    want = 1; lawShots = 0; stub();
+    let was = gunTally.jumped, heardWas = gunTally.heard;
+    Math.random = () => 0;
+    try { await fight(thugE()); } finally { Math.random = random; }
+    if (gunTally.heard !== heardWas + 1) fail('the shot was not heard');
+    if (gunTally.jumped !== was + 1 || !sawLaw) fail('the law did not turn up after a gunfight', gunTally.jumped, sawLaw);
+    if (!shootLabel.includes('LOUD')) fail('the command does not say it is loud', shootLabel);
+    // --- the same fight with a melee weapon: nothing happens ---
+    armed('blade');
+    want = 1; stub();
+    was = gunTally.jumped;
+    Math.random = () => 0;
+    try { await fight(thugE()); } finally { Math.random = random; }
+    if (gunTally.jumped !== was || sawLaw) fail('a melee fight drew the law');
+    // --- the same fight with a suppressor fitted: nothing happens, and the command says so ---
+    armed('gun');
+    S.supp = S.weapon;
+    if (!suppFitted()) fail('the can did not fit a firearm');
+    want = 2; stub();
+    was = gunTally.jumped;
+    const quietWas = gunTally.quiet;
+    Math.random = () => 0;
+    try { await fight(thugE()); } finally { Math.random = random; }
+    if (gunTally.jumped !== was || sawLaw) fail('a suppressed gunfight drew the law');
+    if (gunTally.quiet !== quietWas + 1) fail('the suppressed volley was not counted');
+    if (!shootLabel.includes('suppressed')) fail('the command does not say it is suppressed', shootLabel);
+    // --- a fight already against the law: the rule excludes itself, so no second visit ---
+    armed('gun');
+    want = 0; lawShots = 2; stub();
+    was = gunTally.jumped;
+    Math.random = () => 0;
+    try { await fight({kind: 'law', tier: 0, name: LAW[0].name, n: 3, hit: 0, lo: 1, hi: 1}); } finally { Math.random = random; }
+    if (!sawLaw) fail('the law fight was not a law fight');
+    if (gunTally.jumped !== was) fail('shooting at the police called the police');
+    // --- a network dive: cyberspace, so the command is not even on the menu ---
+    armed('gun');
+    want = 1; lawShots = 0; stub();
+    was = gunTally.jumped;
+    Math.random = () => 0;
+    try { await fight({kind: 'raid', gang: 'ghost', name: 'Ghost Shell', n: 2, hit: 0, lo: 1, hi: 1}); } finally { Math.random = random; }
+    if (seen.includes('shoot')) fail('a dive offered a gun', seen);
+    if (gunTally.jumped !== was || sawLaw) fail('a network dive drew the law');
+    // --- the can's limits: firearms only, and it stays on the weapon it was fitted to ---
+    armed('heavy');
+    if (canSupp(WEAPONS[S.weapon])) fail('military hardware took a suppressor');
+    S.supp = S.weapon;
+    if (suppFitted()) fail('a can was fitted to military hardware');
+    armed('gun');
+    const plain = baseAim(WEAPONS[S.weapon], null);
+    S.supp = S.weapon;
+    if (!near(baseAim(WEAPONS[S.weapon], null), plain - GUNFIRE.suppHit / 100)) fail('the can costs no accuracy', plain);
+    S.weapon = WEAPONS.findIndex((w, i) => w && w[4] === 'gun' && i !== S.supp);
+    if (suppFitted()) fail('the can followed you to another weapon');
+    // --- Ghost Shell muffles it, as it muffles every other trace ---
+    armed('gun');
+    career.syn = 'ghost';
+    setGunNoise(GUNFIRE.cap);
+    const hushed = gunOdds(thugE());
+    career.syn = keepSyn;
+    setGunNoise(0);
+    if (!(hushed < bare)) fail('Ghost Shell did not quieten it', hushed, bare);
+  } finally {
+    Math.random = random; BTL.menu = realMenu; autoPick = keepPick;
+    S = run; career = mine; career.syn = keepSyn; logs = []; gunHeard = 0;
   }
 }
 
@@ -13412,6 +13670,8 @@ async function fightRounds(E) {
   skFight = {over: 0, used: {}};
   const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
   let n = E.n, violent = false, unhurt = true;
+  gunHeard = 0;   // GUNFIRE: nothing has been heard yet
+  let volleys = 0;   // GUNFIRE: loud or suppressed volleys so far, so the log only says it the first time
   const heatWas = S.heat, xpWas = career.xp;   // for the results window
   const gotAway = () => { tally('law'); tally('escape'); if (used() >= 50) tally('smuggle'); };
   let msg = law ? `${E.name[0].toUpperCase() + E.name.slice(1)} has a lock on you: ${plural(n, 'agent')}.`
@@ -13419,11 +13679,16 @@ async function fightRounds(E) {
     : `${E.name} crackers are inside your rig: ${plural(n, 'intruder')}.`;
   const title = law ? `!! ${E.name.replace(/^the /, '').toUpperCase()} !!`
     : raid ? `RAID: ${E.name}` : thug ? `!! ${E.name.toUpperCase()} !!` : `!! ${E.name.toUpperCase()} ATTACK !!`;
-  const hint = law
+  // GUNFIRE: say it before they pull the trigger, not after. Only where the rule can actually fire:
+  // not against the law (they are the law), and not over the wire (nobody shoots anybody in there).
+  const loudHint = law || raid ? ''
+    : suppFitted() ? ` Your ${WEAPONS[S.weapon][0]} is suppressed: shots here stay between you and them.`
+    : ' Gunfire out here is loud: every shot gets phoned in, and the law may be waiting afterwards. Blades, clubs and hacking are quiet, and a suppressor from a gun shop stops it.';
+  const hint = (law
     ? 'Shooting, EMPs and running risk your Health. Hacking risks your OpSec and keeps your Heat down. Wiping the drive loses your goods but always escapes. Your prison pocket keeps a few small goods through a search, an arrest or a wipe.'
     : raid ? 'A remote fight: only hacking tools work and only your OpSec is at risk. Jack out any time to leave empty-handed.'
     : thug ? 'They are on you in person, so whatever you do, their hits land on your Health. Fight, run, pop smoke, or hand over some cash.'
-    : 'Shooting, EMPs and running risk your Health. Hacking back risks your OpSec. Or pay them to go away.';
+    : 'Shooting, EMPs and running risk your Health. Hacking back risks your OpSec. Or pay them to go away.') + loudHint;
   let physical = thug;
   if (E.intro) msg = E.intro;
 
@@ -13474,8 +13739,11 @@ async function fightRounds(E) {
     const buttons = [];
     const round = usesAmmo(W) ? activeAmmo() : null;
     if (!raid && W) {
-      buttons.push([!usesAmmo(W) ? `Use ${W[0]}` : round ? `Fire ${W[0]} (${AMMO[round][4]} x${S.ammo[round]})`
-        : `Club them with ${W[0]} (no ammo)`, 'shoot']);
+      // GUNFIRE: the command itself says how loud it is. The tag always sits after a bracket, so `move`
+      // (which cuts at the first bracket) still reads "Fire the Glock" on the banner over the stage.
+      const loud = !law && usesAmmo(W) && round ? (suppFitted() ? ' - suppressed' : ' - LOUD') : '';
+      buttons.push([(!usesAmmo(W) ? `Use ${W[0]}` : round ? `Fire ${W[0]} (${AMMO[round][4]} x${S.ammo[round]})`
+        : `Club them with ${W[0]} (no ammo)`) + loud, 'shoot']);
       if (usesAmmo(W) && Object.values(S.ammo).filter(q => q > 0).length > 1) buttons.push(['Change ammo', 'ammo']);
     }
     if (!raid && S.emp) buttons.push([`${GADGETS.emp[0]} (${S.emp})`, 'emp']);
@@ -13519,10 +13787,25 @@ async function fightRounds(E) {
       const kept = baseVolley(W, round, shots, kills);   // BASE: rounds saved by skill; dropping people teaches
       violent = true;
       heatUp(kind[law ? 2 : 3]);   // blades are silent, guns are loud
+      // ===== GUNFIRE: a firearm going off in a fight that is not already against the law gets called in.
+      // Not against the law (they ARE the law) and not over the wire (a dive is cyberspace). Per shot,
+      // capped at GUNFIRE.cap; a suppressor stops the call outright and leaves only a trace of Heat. =====
+      let heard = '';
+      const noise = law || raid ? 0 : shotNoise(W, fired, !volleys);
+      if (noise) {
+        const can = suppFitted();
+        heatUp(can ? GUNFIRE.suppHeat : GUNFIRE.heat);
+        if (!can) gunHeard = Math.min(GUNFIRE.cap, gunHeard + noise);
+        if (!volleys) { gunTally[can ? 'quiet' : 'heard']++; }
+        heard = can ? (volleys ? '' : ' <span class="dim">The can takes it: a cough, and nothing on the radio.</span>')
+          : volleys ? ' <span class="amber">More shots, more witnesses.</span>'
+          : ' <span class="amber">That was loud. Somebody is already on the phone.</span>';
+        volleys++;
+      }
       stunned = W[4] === 'blunt' && kills > 0 && Math.random() < 0.4;
       msg = (kills ? `Your ${W[0]} drops ${kills} of them.` : `Your ${W[0]} misses.`) +
         (stunned && n - kills > 0 ? ' The rest are too rattled to hit back.' : '') +
-        (round ? ` (${S.ammo[round]} ${AMMO[round][0]} left.)` : '') + kept;
+        (round ? ` (${S.ammo[round]} ${AMMO[round][0]} left.)` : '') + kept + heard;
     } else if (cmd === 'emp') {
       S.emp--;
       kills = Math.min(n, rnd(2, 3));
@@ -13600,8 +13883,11 @@ async function fightRounds(E) {
       skFight.used.qui_scrub = 1;
       heatDown(SKILL.scrubHeat);
       stunned = true;
+      const wasHeard = gunHeard;
+      gunHeard = 0;   // GUNFIRE: the call you are burning includes the one about the shooting
       msg = `You burn the trail while they are still ${raid ? 'tracing you' : 'looking at you'}: Heat down to ${S.heat}%, ` +
-        'and they lose the thread for a beat.';
+        'and they lose the thread for a beat.' +
+        (wasHeard ? ' <span class="green">The shots-fired call goes with it.</span>' : '');
     } else if (cmd === 'sk_shunt') {
       skFight.used.fle_shunt = 1;
       S.hp = Math.min(100, S.hp + SKILL.shuntHeal);
@@ -17956,6 +18242,7 @@ async function selfTest(games) {
           await legacySelfTest();    // LEGACY: old careers in new ones, and the endings
           await nemSelfTest();    // NEMESIS
           await reapSelfTest();   // SNEAK REAPERS
+          await gunSelfTest();    // GUNFIRE
         } finally { evOff--; }
         await newsSelfTest();   // LIVE NEWS
       }
@@ -18687,6 +18974,8 @@ function loadSave(n) {
   for (const k of ['shots', 'patch', 'cook', 'conv']) S.hq[k] = Number.isInteger(S.hq[k]) && S.hq[k] > 0 ? S.hq[k] : 0;
   if (!Array.isArray(S.hq.tips)) { delete S.hq.tips; delete S.hq.tipDay; }
   if (!(S.tune && S.tune.w > 0 && S.tune.hit > 0)) delete S.tune;
+  // GUNFIRE: suppressors arrived in 1.39: an older run has none, and a saved one must still be a firearm.
+  if (!(Number.isInteger(S.supp) && S.supp > 0 && canSupp(WEAPONS[S.supp]))) delete S.supp;
   // The board you are looking at and today's market here are the same list, so a break-in posted on it keeps its place.
   if (S.loc !== BUNKER && S.markets[S.loc]) S.markets[S.loc].contracts = S.contracts;
   // Rides arrived in 1.25: an older run has none and is on foot, with the trips it had.
