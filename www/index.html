@@ -329,7 +329,26 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 #dialog.danger{border-color:var(--pink);border-top-color:var(--pink)}
 #dialog.danger h2{color:var(--pink);text-shadow:0 0 10px rgba(255,42,109,.6)}
 #dialog p{margin:0 0 10px}
-.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}
+/* A dialogue's answers are the same action tiles the main screen draws (see ACTION TILES): the same grid,
+   so the rows come out even, and the same kinds, so an answer that spends money or can go wrong says which
+   it is before it is pressed. .tfull is the answer that backs out: it sits across the foot of the grid
+   rather than orphaned on a row of its own at some other width. */
+.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr));
+  grid-auto-rows:1fr;gap:var(--s2);margin-top:14px}
+.dbtns .tfull{grid-column:1/-1}
+/* The old button classes (primary, danger, small) are still on the answers, because the keyboard and the
+   handheld find the main answer by .primary. They must not out-shout the kind, so the tile's own look is
+   restated here at a weight that wins. */
+.dbtns .tact{background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.92));
+  border-color:var(--tk);color:var(--tk-ink);font-weight:normal;text-shadow:1px 1px 0 #000}
+.dbtns .tact.k-go .tn{font-weight:bold}
+.dbtns .tact:disabled{opacity:.34;filter:saturate(.3)}
+.dbtns .tact:active:not(:disabled){background:var(--tk);color:#000;text-shadow:none}
+@media (hover:hover){.dbtns .tact:not(:disabled):hover{background:linear-gradient(180deg,var(--tk-tint),var(--tk-tint));
+    border-color:var(--tk);box-shadow:var(--sunk),0 0 10px -2px var(--tk);color:#fff}}
+.dbtns .tact .ico{width:30px;height:30px}
+.dbtns .tact .ico.room{width:44px;height:26px}
+.dbtns .tact .ico.ride{width:44px;height:26px}
 .qty{display:flex;flex-direction:column;gap:10px;margin-top:6px}
 input[type=number],input[type=text]{font:inherit;font-size:18px;color:var(--yellow);background:#000;
   border:1px solid var(--accent);padding:8px 10px;width:100%;-webkit-user-select:text;user-select:text}
@@ -399,12 +418,18 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .bturn b.on{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
 .bturn b.on.foe{background:var(--pink);border-color:var(--pink)}
 /* a list of options with a pointer on the one that is picked out */
-.bopts{display:grid;grid-template-columns:1fr;gap:1px 6px}
-.bopt{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:34px;padding:3px 6px 3px 23px;
-  cursor:pointer;line-height:1.2;border:1px solid transparent;text-shadow:1px 1px 0 #000}
+.bopts{display:grid;grid-template-columns:1fr;gap:1px 6px;grid-auto-rows:1fr}
+/* A fight's options are the same tile as everywhere else, in this window's shape: the kind sets the ink and
+   the edge (--tk), a move that can go wrong is pink, backing out is violet, and the yellow caret on .cur is
+   still the thing that says which one the keys are on. */
+.bopt{--tk:var(--cyan);--tk-tint:rgba(0,229,255,.10);--tk-ink:#d4f6ff;
+  position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:34px;padding:3px 6px 3px 23px;
+  cursor:pointer;line-height:1.2;color:var(--tk-ink);border:1px solid var(--tk);border-left-width:3px;
+  background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.88));text-shadow:1px 1px 0 #000}
 .bopt > span{min-width:0;overflow-wrap:anywhere}
-.bopt small{flex:none;color:#aab1d8;font-size:11px;white-space:nowrap}
-.bopt.danger{color:#ff8fa3}.bopt.dim{color:var(--dim)}
+.bopt small{flex:none;color:#aab1d8;font-size:11px;white-space:nowrap;letter-spacing:.5px}
+.bopt.danger{--tk:var(--pink);--tk-tint:rgba(255,42,109,.13);--tk-ink:#ffc2d2}
+.bopt.dim{--tk:#9d8cff;--tk-tint:rgba(157,140,255,.10);--tk-ink:#d8d2ff}
 .bopt.cur{background:linear-gradient(90deg,rgba(252,238,10,.18),rgba(252,238,10,.03));border-color:rgba(252,238,10,.4);color:#fff}
 .bopt.cur.danger{color:#ffb3c0}
 .bopt.cur::before{content:"";position:absolute;left:6px;top:50%;width:11px;height:12px;margin-top:-6px;background:var(--yellow);
@@ -735,7 +760,7 @@ button .ico.room{width:44px;height:26px}
 
   /* dialogs, shops, inventory, menus: centred, a little wider, never taller than the window */
   #dialog{max-width:560px;max-height:100%}
-  .dbtns{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .dbtns{grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr))}
   .bootbox{max-width:460px}
   .tbox{max-width:560px}
 }
@@ -949,9 +974,27 @@ button .ico.room{width:44px;height:26px}
      in the body that answers it (a save file, a deep run's address) is numbered in the same run */
   .dbtns button::before,.body [data-pick]:not(.tile):not(.slottag)::before{
     counter-increment:dbtn;content:counter(dbtn) "  ";opacity:.7;font-weight:bold}
-  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr}
+  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr;grid-auto-rows:auto}
   .dbtns button{text-align:left;padding:1px 6px;line-height:1.3;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* An answer is a tile everywhere else; here it goes back to being a line - number, picture, name, note -
+     exactly the shape this screen has always drawn, in this screen's own colours, not the kind colours.
+     (The same treatment #tiny .acts .tact gets, and for the same reason.) */
+  .dbtns .tact{display:flex;align-items:center;gap:4px;min-height:0;padding:0 5px;
+    border:1px solid var(--accent);border-left-width:1px;background:rgba(0,229,255,.06);
+    color:var(--accent);box-shadow:none;text-shadow:none;grid-column:auto}
+  .dbtns .tact::after{content:none}
+  .dbtns .tact .tl{display:flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden}
+  .dbtns .tact .tn{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tsub{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tbadge{position:static;margin-left:auto;padding:0;background:none;color:var(--yellow);
+    clip-path:none;font-size:11px;line-height:1.2}
+  .dbtns .tact.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,42,109,.08)}
+  .dbtns .tact.primary{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
+  .dbtns .tact.primary::before,.dbtns .tact.primary .tsub,.dbtns .tact.primary .tbadge{color:#000}
+  .dbtns .tact:focus{background:rgba(255,255,255,.22);color:#fff}
+  .dbtns .tact.primary:focus{background:#fff;color:#000}
   .qty{gap:4px;margin-top:3px}
   input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
   input[type=range]{height:18px}
@@ -1044,10 +1087,14 @@ button .ico.room{width:44px;height:26px}
   .bgear{margin-top:2px;font-size:9.5px}
   .bturn{gap:3px;margin-top:2px;font-size:9.5px;letter-spacing:0}
   .bturn b{padding:0 3px}
+  /* the handheld's command panel is four lines tall: rows stay the height of their own text here, so a
+     command that wraps does not push the one under it off the screen */
+  .bopts{grid-auto-rows:auto}
   .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
   /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
      instead of squeezing the label down to one letter a row */
-  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
+  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center;
+    border-left-width:2px}
   .bopt small{flex:1 1 auto;min-width:0;font-size:9.5px;white-space:normal;text-align:right;overflow-wrap:anywhere}
   .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
   .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
@@ -7714,14 +7761,17 @@ function dialog(title, html, buttons, tone) {
     dlg.className = tone || '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div><div class="dbtns"></div>`;
     const box = dlg.querySelector('.dbtns');
-    for (const [label, value, cls, icon] of buttons) {   // icon: optional picture shown on the button
-      const el = document.createElement('button');
-      el.textContent = label;
-      if (cls) el.className = cls;
-      if (icon) { el.insertAdjacentHTML('afterbegin', icon); el.classList.add('hasico'); }
-      el.onclick = () => { overlay.hidden = true; resolve(value); };
-      box.appendChild(el);
-    }
+    // Every answer is an action tile (btnTile), so a dialogue's choices are the same shape, and read the
+    // same way, as the choices on the main screen. A caller still writes [label, value, class, icon].
+    const opts = btnOpts(buttons);
+    box.innerHTML = opts.map(btnTile).join('');
+    // The smallest tile width follows the longest note, so a note is not cut off by a grid that split into
+    // one column too many. (Capped, so a dialogue this wide still comes out in two columns.)
+    const wide = Math.max(0, ...opts.map(o => (o.note || '').length));
+    box.style.setProperty('--tw', (wide > 15 ? Math.min(250, 96 + wide * 7) : 150) + 'px');
+    [...box.children].forEach((el, i) => {
+      el.onclick = () => { overlay.hidden = true; resolve(opts[i].value); };
+    });
     // Anything in the body marked data-pick="value" also answers the dialog when tapped, and is a stop for
     // the Tab key as well, so a machine with no pointer can reach it.
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
@@ -7729,7 +7779,7 @@ function dialog(title, html, buttons, tone) {
       if (!el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', 'button'); }
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
-      const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
+      const all = opts.map(o => o.value).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
       // ...unless it is steering: autoPick answers from what is on offer, or returns undefined to leave it to chance.
       const want = autoPick ? autoPick(all, title) : undefined;
       return resolve(want !== undefined ? want : all[rnd(0, all.length - 1)]);
@@ -7753,7 +7803,7 @@ function askQty(title, html, max, opts) {
       <input id="qs" type="range" min="1" max="${max}" value="${max}"></div>
       <div class="quick"><button data-q="1">Min</button><button data-q="h">Half</button><button data-q="m">Max</button></div>
       <div class="total" id="qt"></div>
-      <div class="dbtns"><button id="qok" class="primary">${opts.ok || 'OK'}</button><button id="qcancel">Cancel</button></div>`;
+      <div class="dbtns">${btnTile({id: 'qok', cls: 'primary', name: opts.ok || 'OK'})}${btnTile({id: 'qcancel', name: 'Cancel'})}</div>`;
     const qn = $('#qn'), qs = $('#qs'), qt = $('#qt');
     const value = () => Math.max(0, Math.min(max, Math.floor(Number(qn.value) || 0)));
     const show = () => {
@@ -7792,7 +7842,7 @@ function askText(title, html) {
     dlg.className = '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div>
       <input id="tx" type="text" maxlength="16" autocomplete="off" placeholder="anon">
-      <div class="dbtns"><button id="tok" class="primary">OK</button></div>`;
+      <div class="dbtns">${btnTile({id: 'tok', cls: 'primary', name: 'OK'})}</div>`;
     const done = () => { overlay.hidden = true; resolve($('#tx').value.trim()); };
     $('#tok').onclick = done;
     $('#tx').onkeydown = e => { if (e.key === 'Enter') done(); };
@@ -8406,6 +8456,43 @@ const tile = ({act, arg, kind, icon, name, note, badge, off}) =>
   actIcon(icon) + `<span class="tl"><span class="tn">${name}</span>${note ? `<small class="tsub">${note}</small>` : ''}</span>` +
   (badge === undefined || badge === null || badge === '' ? '' : `<i class="tbadge">${badge}</i>`) + '</button>';
 
+// A name that carried its count in brackets ("Deep run (2 addresses)", "Smoke bomb (3)") split into the
+// tile's slots, so a count is a badge everywhere and brackets nowhere. Used by the main screen's tiles and
+// by every dialogue answer that was written with a bracket on the end.
+const label = s => {
+  const m = /^(.*?) \((.*)\)$/.exec(String(s));
+  if (!m) return {name: String(s)};
+  if (/^\d+$/.test(m[2])) return {name: m[1], badge: m[2]};
+  const n = /^(\d+)\s+(.*)$/.exec(m[2]);
+  return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
+};
+// ONE DIALOGUE ANSWER, built from the same parts as a tile on the main screen. The kind is worked out from
+// what the caller already said: primary is the thing the dialogue is for, danger is the thing that can go
+// wrong, an answer that only backs out is a nothing-happens violet, and everything else is cyan.
+const DECLINE = /^(back|close|cancel|not (now|yet|today|this|right now)|no\b|no,|never ?mind|nope|leave\b|stay\b|skip\b|maybe later|done\b|walk away|forget it|get out|turn back|head for the door)/i;
+const btnKind = o => o.kind || (/\bprimary\b/.test(o.cls || '') ? 'go'
+  : /\bdanger\b/.test(o.cls || '') ? 'risk'
+  : DECLINE.test(o.name || '') || (o.value === null && /\bsmall\b/.test(o.cls || '')) ? 'info' : 'kit');
+const btnTile = o =>
+  `<button class="tact k-${btnKind(o)}${o.cls ? ' ' + o.cls : ''}${o.wide ? ' tfull' : ''}"` +
+  `${o.id ? ` id="${o.id}"` : ''}${o.off ? ' disabled' : ''}` +
+  ` title="${esc(o.name)}${o.note ? ' — ' + esc(o.note) : ''}">` +
+  (o.icon || '') + `<span class="tl"><span class="tn">${esc(o.name)}</span>` +
+  (o.note ? `<small class="tsub">${esc(o.note)}</small>` : '') + '</span>' +
+  (o.badge === undefined || o.badge === null || o.badge === '' ? '' : `<i class="tbadge">${esc(o.badge)}</i>`) +
+  '</button>';
+// A dialogue's buttons as they are written at the call sites: either the old [label, value, class, icon]
+// or, where the label needed cutting into slots by hand, {name, note, badge, kind, icon, value, cls}.
+const btnOpts = buttons => {
+  const opts = buttons.map(b => Array.isArray(b)
+    ? Object.assign(label(b[0]), {value: b[1], cls: b[2], icon: b[3]})
+    : Object.assign({}, b));
+  // The last answer, when it only backs out, goes across the foot instead of sitting alone on a short row.
+  const last = opts[opts.length - 1];
+  if (opts.length > 2 && last && last.wide === undefined && btnKind(last) === 'info') last.wide = true;
+  return opts;
+};
+
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
 // hot: true for the black-market dealer (no background check, and every purchase adds a little Heat).
@@ -8632,8 +8719,8 @@ async function rideShop(key) {
     let trade = false;
     if (mine) {
       const price = priceOf(choice), swap = Math.max(0, price - tradeIn), opts = [];
-      if (S.cash >= swap) opts.push([`Trade in the ${mine[0]}: pay ${money(swap)}`, 't', 'primary', rideIcon(S.ride)]);
-      if (!full && S.cash >= price) opts.push([`Keep it, send it home: pay ${money(price)}`, 'k']);
+      if (S.cash >= swap) opts.push({name: `Trade in the ${mine[0]}`, note: `pay ${money(swap)}`, value: 't', cls: 'primary', kind: 'shop', icon: rideIcon(S.ride)});
+      if (!full && S.cash >= price) opts.push({name: 'Keep it, send it home', note: `pay ${money(price)}`, value: 'k', kind: 'shop'});
       opts.push(['Cancel', null, 'small']);
       const how = await dialog(v[0], `<div class="syn">${rideCard(choice, `<span class="amber">${money(price)}</span>`)}</div>` +
         `<p>You came on the <b>${mine[0]}</b>. It is worth <b>${money(tradeIn)}</b> as a trade-in.</p>` +
@@ -8698,7 +8785,7 @@ async function garage() {
           : 'in a box on the floor') +
         '. It lives on one ride at a time; moving it costs nothing but the half hour. Aircraft are hopeless at it ' +
         'and nothing from the bike shop can carry it at all.</p>';
-      for (const id of fitTo) btns.push([`Bolt the scanner to the ${VEHICLES[id][4]}`, 'fit:' + id]);
+      for (const id of fitTo) btns.push({name: 'Bolt the scanner', note: `to the ${VEHICLES[id][4]}`, value: 'fit:' + id, icon: rideIcon(id)});
     }
     const choice = await dialog('Garage', html, btns);
     if (!choice) return;
@@ -8767,7 +8854,9 @@ async function bagItem(index) {
   const act = await dialog(it.name, `<div class="syn">${itemHtml(it)}${swapDiff(it)}</div>` +
     (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
-    [['Wear it', 'e', 'primary'], [`Scrap for ${money(scrapValue(it))}`, 's', 'danger'], ['Back', null, 'small']]);
+    [{name: 'Wear it', value: 'e', cls: 'primary'},
+      {name: 'Scrap', note: `for ${money(scrapValue(it))}`, value: 's', cls: 'danger'},
+      {name: 'Back', value: null, cls: 'small'}]);
   if (act === 'e' && tooFull(it.slot, it)) {
     await alertDlg('Too much to carry', tooFull(it.slot, it));
   } else if (act === 'e') {
@@ -8993,12 +9082,6 @@ function renderNow() {
   // to it. What is said here is WHAT KIND of thing each one is (go / risk / shop / kit / info); the look
   // that follows from that is in the style sheet. label() takes a name that carried its count in brackets
   // ("Deep run (2 addresses)") and splits it, so a count is a badge everywhere and brackets nowhere.
-  const label = s => {
-    const m = /^(.*?) \((.*)\)$/.exec(s);
-    if (!m) return {name: s};
-    const n = /^(\d+)\s+(.*)$/.exec(m[2]);
-    return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
-  };
   let acts = tile({act: 'travel', kind: 'go', icon: 'travel', name: 'Tunnel out'});
   if (S.loc === BUNKER) {
     // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
@@ -9081,8 +9164,9 @@ const ACTIONS = {
       const which = await dialog(`Sell ${name}`, `<p>You hold ${num(all)} ${name}. ${num(marked)} of them carry a tag:</p>` +
         `<div class="syn">${tagHtml}<br><span class="dim">Buyers pay ${pct(TAG_CUT)}% less for those: ` +
         `<s>${money(list)}</s> <b class="amber">${money(low)}</b> each. Nobody asks why. Everybody knows why.</span></div>`,
-        [[`Sell clean ones (${num(clean)}) from ${money(list)}`, 'c', 'primary'], [`Sell tagged ones (${num(marked)}) from ${money(low)}`, 't'],
-          ['Cancel', null, 'small']]);
+        [{name: 'Sell clean ones', badge: num(clean), note: `from ${money(list)}`, value: 'c', cls: 'primary'},
+          {name: 'Sell tagged ones', badge: num(marked), note: `from ${money(low)}`, value: 't'},
+          {name: 'Cancel', value: null, cls: 'small'}]);
       if (!which) return;
       cut = which === 't';
     }
@@ -9275,7 +9359,7 @@ const ACTIONS = {
         head('Gear bag', `${career.bag.length}/${BAG_SIZE}`) + `<div class="tiles">${bagHtml}</div>` +
         none('Tap anything to see it, use it, wear it or scrap it. &#9650; marks gear rarer than what you are wearing.');
       const buttons = [['Loadout', 'gear']];
-      if (junk.length) buttons.push([`Scrap ${junk.length} Common for ${money(junkCash)}`, 'junk', 'danger']);
+      if (junk.length) buttons.push({name: 'Scrap Common', badge: junk.length, note: `for ${money(junkCash)}`, value: 'junk', cls: 'danger'});
       buttons.push(['Close', null, 'primary']);
       const choice = await dialog('Inventory', html, buttons);
       if (choice === null) return;
@@ -9675,9 +9759,12 @@ const ACTIONS = {
           `So anything that makes them stop asking costs ${Math.round((hot - 1) * 100)}% more today."</p>` : '') +
           `<p class="dim">Whatever lowers Heat is in short supply: each market gets a few a day. ${QUICK_NOTE}</p>` : '') +
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
+      // SHOP TILES: everything on sale here is a shop tile (green), whatever its label used to look like.
       const buttons = offers.filter(o => S.cash >= o.price)
-        .map(o => [o.key === 'd' ? 'See Doc Wick' : `Buy ${o.name}`, o.key, o.cls, o.item ? gearIcon(o.item) : miscIcon(o.art)]);
-      if (stuckTotal()) buttons.unshift([`Doc Wick: get them out (${stuckTotal()})`, 'clinic', 'danger', miscIcon('doc')]);
+        .map(o => Object.assign(label(o.key === 'd' ? 'See Doc Wick' : `Buy ${o.name}`),
+          {value: o.key, cls: o.cls, kind: o.cls ? undefined : 'shop', icon: o.item ? gearIcon(o.item) : miscIcon(o.art)}));
+      if (stuckTotal()) buttons.unshift({name: 'Doc Wick', note: 'get them out', badge: stuckTotal(),
+        value: 'clinic', cls: 'danger', icon: miscIcon('doc')});
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
@@ -9970,17 +10057,21 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     // LIVE NEWS: a district the city has cordoned off is not on the list at all.
     const shutList = others.filter(l => evShut(l));
-    const buttons = others.filter(l => !evShut(l)).map(l =>
-      // FACES: distTag() adds the district's temperature, so the choice is made before you travel. It goes
-      // before what is sold there, because on a 320-pixel screen the end of a long label is cut off.
+    const buttons = others.filter(l => !evShut(l)).map(l => ({
+      // FACES: distTag() adds the district's temperature, so the choice is made before you travel. It is on
+      // the name, with what is sold there on the small line under it, and the headline, if there is one,
+      // last: a tile keeps the district's name whole however narrow the screen gets.
       // LIVE NEWS: and after that, whatever headline is running there.
-      [l + distTag(l) + (l === HOME ? ' (Fixer, wallet)' : l === BUNKER ? ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? ' (black market, arms dealer)' : l === GUN_SPOT ? ' (guns, ammo, clothing, bags)'
-          : rideSpot(l) ? ` (${rideSpot(l)[2]})` : '') + (evAt(l) ? ` [${evAt(l)[0]}]` : ''), l]);
+      name: l + distTag(l),
+      note: [l === HOME ? 'Fixer, wallet' : l === BUNKER ? 'your hideout, free trip'
+        : GEAR_SPOTS.includes(l) ? 'black market, arms dealer' : l === GUN_SPOT ? 'guns, ammo, clothing, bags'
+          : rideSpot(l) ? rideSpot(l)[2] : '', evAt(l) ? evAt(l)[0] : ''].filter(Boolean).join(' · '),
+      value: l,
+    }));
     // WARDRIVING: a deliberate sweep is a choice made here, beside the destinations, and only when the kit
     // is actually bolted to a car that can carry it. Otherwise it is one dim line saying why not.
-    if (wdReady()) buttons.push([`Wardrive (spend hops, finish at the Bunker)`, 'wd:go', 'primary']);
-    buttons.push(['Stay here', null, 'small']);
+    if (wdReady()) buttons.push({name: 'Wardrive', note: 'spend hops, finish at the Bunker', value: 'wd:go', cls: 'primary'});
+    buttons.push({name: 'Stay here', value: null, cls: 'small'});
     if (shutList.length) { evTally.shut++; tally('evshut'); }   // LIVE NEWS
     // FACES: the state of every district, and why it is in that state. Nothing new on screen: this is the
     // travel dialogue it has always been, with the temperatures written into it.
@@ -10453,7 +10544,7 @@ function rangeGame(kind, moving) {
       `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx" transform="translate(120 75)"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
       `<p id="rgs"></p><p class="dim">The sight drifts. ${verb === 'FIRE' ? 'Fire' : verb === 'THROW' ? 'Throw' : 'Swing'} when it crosses the middle: tap the target, or use the button. ` +
       'It drifts less the better you get.</p></div>' +
-      `<div class="dbtns"><button id="rgf" class="primary">${verb}</button><button id="rgk" class="small">Skip the aiming</button></div>`;
+      `<div class="dbtns">${btnTile({id: 'rgf', cls: 'primary', name: verb})}${btnTile({id: 'rgk', cls: 'small', name: 'Skip the aiming'})}</div>`;
     const sight = $('#rgx'), tgt = $('#rgt'), holes = $('#rgh'), say = $('#rgs');
     const status = () => { say.innerHTML = `Shot <b>${Math.min(MARKS.strings, shots.length + 1)}</b> of ${MARKS.strings} &middot; score <b class="amber">${shots.reduce((sum, h) => sum + h.score, 0)}</b>`; };
     const frame = now => {
@@ -17793,9 +17884,10 @@ Object.assign(ACTIONS, {
           'and they turn up in other people\'s paperwork.</p>') +
         `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today.</p>`;
       const buttons = here.filter(() => S.trips >= DUN.tripIn).map(L =>
-        [`Go in: ${DUN_TH[L.th].n} (${L.deep} ${DUN_TH[L.th].word}s)`, 'go:' + list.indexOf(L), 'primary']);
+        ({name: `Go in: ${DUN_TH[L.th].n}`, badge: L.deep, note: `${DUN_TH[L.th].word}s`,
+          value: 'go:' + list.indexOf(L), cls: 'primary', icon: shopIcon('deep')}));
       if (S.trips >= DUN.lookTrips && list.length < DUN.leadMax) {
-        buttons.push([`Go looking for an address (${DUN.lookTrips} trip)`, 'look']);
+        buttons.push({name: 'Go looking for an address', badge: DUN.lookTrips, note: 'trip', value: 'look'});
       }
       buttons.push(['Leave it', null, buttons.length ? 'small' : 'primary']);
       const pickOne = await dialog('Deep run', html, buttons);
@@ -18216,7 +18308,7 @@ Object.assign(ACTIONS, {
       const f = wdFinds().find(x => 'f:' + x.id === choice);
       if (!f) continue;
       const price = wdPrice(f.deep), opts = [['Crack it', 'c', 'primary']];
-      if (price) opts.push([`Sell it to the broker: ${money(price)}`, 's']);
+      if (price) opts.push({name: 'Sell it to the broker', note: money(price), value: 's', kind: 'shop'});
       opts.push(['Throw it away', 'x', 'danger'], ['Back', null, 'small']);
       const what = await dialog('A capture', `<div class="syn">${wdCard(f)}</div>` +
         '<p class="dim">Crack it and it is an address for a network dive, plus whatever scrap is lying in it. ' +
@@ -18316,9 +18408,11 @@ async function wdDrive(hops) {
 async function wdAsk() {
   if (!wdReady()) return;
   const most = S.trips, q = wdPower();
-  const opts = [[`Use the rest: ${num(most)} hop${most === 1 ? '' : 's'}, finish at the Bunker`, most, 'primary']];
-  for (const n of [1, 2, 3, 5, 8]) if (n < most) opts.push([`${n} hop${n === 1 ? '' : 's'}`, n]);
-  opts.push(['Not today', null, 'small']);
+  // The answers are tiles: the count is the badge, so every one of them is the same two tidy lines and the
+  // obvious answer is not three lines tall beside a one-line "1 hop".
+  const opts = [{name: 'Use the rest', badge: num(most), note: 'finish at the Bunker', value: most, cls: 'primary'}];
+  for (const n of [1, 2, 3, 5, 8]) if (n < most) opts.push({name: `${n} hop${n === 1 ? '' : 's'}`, value: n});
+  opts.push({name: 'Not today', value: null, cls: 'small'});
   const warm = LOCATIONS.filter(l => l !== BUNKER && distSec(l) >= 25);
   const n = await dialog('Wardrive', `<p>Antenna up, laptop in the footwell, and round the blocks until the ` +
     `${VEHICLES[S.ride][4]} needs a rest. It collects <b class="green">${wdWord(q)}</b>.</p>` +
@@ -21046,12 +21140,14 @@ async function startMenu() {
       (full ? `<p class="amber">All ${MAX_SAVES} save files are in use. Delete one to start a new game.</p>` : '');
     const buttons = [];
     if (slot && list[slot]) buttons.push(['Back to the game', 'back', 'primary']);
-    else if (ids.includes(last)) buttons.push([`Continue: ${list[last].name || 'anon'}`, `load:${last}`, 'primary']);
+    else if (ids.includes(last)) buttons.push({name: 'Continue', note: list[last].name || 'anon', value: `load:${last}`, cls: 'primary'});
     if (!full) buttons.push(['New game', 'new', buttons.length ? '' : 'primary']);
     if (ids.length) buttons.push(['Delete a save', 'del', 'small']);
     // Desktop app only (window.zdhDesktop comes from its preload script): full screen on or off, and quit.
     const desk = !AUTO && window.zdhDesktop;
-    if (desk) buttons.push([`Full screen: ${desk.isFullScreen() ? 'ON' : 'OFF'}${/Mac/.test(navigator.platform) ? '' : ' (F11)'}`, 'fullscreen', 'small'], ['Quit', 'quit', 'small']);
+    if (desk) buttons.push({name: 'Full screen', badge: desk.isFullScreen() ? 'ON' : 'OFF',
+      note: /Mac/.test(navigator.platform) ? '' : 'F11', value: 'fullscreen', cls: 'small'},
+      {name: 'Quit', value: 'quit', cls: 'small', kind: 'risk'});
     const choice = await dialog('ZERO DAY HUSTLE', html, buttons);
     if (choice === 'fullscreen') {
       desk.setFullScreen(!desk.isFullScreen());
