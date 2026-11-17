@@ -8152,22 +8152,31 @@ const LOC_ART = (() => {
   const fig = (x, y, col, o) => r(x + 5, y, 8, 7, col, op(o === undefined ? 0.5 : o)) +
     sh(`M${x} ${y + 8} h18 v${28 - 8} h-18 z`, col, op((o === undefined ? 0.5 : o) * 0.8));
   // a rack of kit with its lights down one edge: the datacenter and the bunker are both built out of these
-  const rack = (x, y, w, h, lit) => r(x, y, w, h, NIGHT) + r(x + 3, y + 3, w - 6, h - 6, DEEP, op(.85)) +
-    row(y + 7, 9, Math.floor((h - 10) / 9), yy => led(x + w - 9, yy, lit || GR, .45) + r(x + 6, yy, w - 20, 2, SEAM, op(.7)));
+  const rack = (x, y, w, h, lit) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1c1a30') +
+    r(x + 3, y + 3, w - 6, h - 6, '#07060f') +
+    row(y + 7, 9, Math.floor((h - 10) / 9), yy => led(x + w - 9, yy, lit || GR, .7) + r(x + 6, yy, w - 20, 3, '#36325e', op(.9)));
   // a CRT seen from the front, with something on it. The one shape half these rooms are furnished with
-  const crt = (x, y, w, h, col) => r(x, y, w, h, NIGHT) + r(x + 3, y + 3, w - 6, h - 8, col || BLUE, op(.35)) +
-    r(x + 4, y + h - 3, w - 8, 3, STEEL, op(.5));
+  const crt = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1c1a30') +
+    r(x + 3, y + 3, w - 6, h - 8, col || BLUE, op(.45)) + r(x + 4, y + h - 3, w - 8, 3, STEEL, op(.6));
 
   return {
     // THE HACKERSPACE. A pegboard wall, parts bins above, one bench the whole length of the room, and in the
     // middle of it a scope with a trace on it, a printer part way through a job and a lamp over a hot iron.
     'The Hackerspace': r(0, 0, 1600, 100, WALL) + r(0, 0, 1600, 54, DEEP) + r(0, 0, 1600, 54, 'url(#lapeg)') +
       p('M0 5 h1600', STEEL, 2, op(.25)) +
-      row(0, 200, 8, (x, i) => r(x + 12, 10, 72, 14, NIGHT, op(.8)) + win(x + 36, 14, 26, 6, i % 2 ? CY : YL, .12) + led(x + 20, 15, GR, .35)) +
+      // parts bins on the top shelf, and the tools hung on the board under them
+      row(0, 200, 8, (x, i) => r(x + 12, 8, 76, 16, '#06050c', op(.9)) + r(x + 14, 10, 72, 12, '#1d1a32') +
+        win(x + 36, 13, 28, 6, i % 2 ? CY : YL, .2) + led(x + 20, 14, GR, .5)) +
+      row(0, 100, 16, (x, i) => i % 2 ? p(`M${x + 30} 28 v16 M${x + 24} 44 h12`, STEEL, 2.4, op(.5))
+        : p(`M${x + 30} 28 v12 M${x + 26} 28 h8 v-4 h-8 z`, STEEL, 2.4, op(.4))) +
       r(0, 54, 1600, 3, SEAM) +
-      row(50, 180, 9, (x, i) => crt(x, 38, 52, 24, i % 2 ? BLUE : DEEP) + led(x + 44, 56, i % 2 ? CY : YL, .35)) +
-      r(0, 62, 1600, 5, PALE, op(.3)) + row(40, 150, 11, x => r(x, 67, 5, 33, SEAM, op(.55))) +
-      r(0, 67, 1600, 33, NIGHT, op(.85)) +
+      row(50, 180, 9, (x, i) => crt(x, 36, 54, 26, i % 2 ? BLUE : '#16203a') + led(x + 46, 57, i % 2 ? CY : YL, .5)) +
+      r(0, 62, 1600, 6, PALE, op(.38)) + row(40, 150, 11, x => r(x, 68, 6, 32, SEAM, op(.65))) +
+      r(0, 68, 1600, 32, '#07060f', op(.9)) +
+      // what lives under a bench: boxes of parts, a spool, and a bin that never gets emptied
+      row(0, 150, 11, (x, i) => r(x + 20, 76, 44, 24, '#171530', op(.9)) + r(x + 26, 80, 32, 5, i % 2 ? CY : YL, op(.14)) +
+        (i % 3 ? r(x + 76, 82, 30, 18, '#121020', op(.9)) + p(`M${x + 76} 86 h30`, STEEL, 2, op(.25))
+          : cs(x + 92, 88, 11, STEEL, 3, op(.3)) + cs(x + 92, 88, 4, STEEL, 2, op(.3)))) +
       crt(596, 26, 96, 36, DEEP) + p('M606 46 q10 -11 20 0 t20 0 t20 0 t20 0', GR, 2, op(.45)) +
       r(716, 20, 88, 42, NIGHT) + r(724, 28, 72, 28, DEEP, op(.85)) + r(740, 44, 40, 10, PALE, op(.22)) +
       p('M732 34 h56', CY, 2, op(.3)) + led(796, 24, MG, .45) +
@@ -8191,18 +8200,21 @@ const LOC_ART = (() => {
     // IRC BACKCHANNEL. No room at all, only the channel: a wall of lines with a nick column down the left of
     // each, a topic bar across the top, and three terminals somebody left logged in.
     'IRC Backchannel': r(0, 0, 1600, 100, '#07060f') +
-      r(0, 4, 1600, 9, DEEP, op(.9)) + row(20, 18, 86, x => r(x, 7, 10, 3, CY, op(.14))) +
-      row(0, 1, 9, (_, i) => { const y = 18 + i * 9, n = 1 + (i * 7) % 5;
-        return r(12, y, 46 + n * 8, 4, i % 3 ? CY : GR, op(.13)) +
-          r(80 + n * 8, y, 330 + ((i * 97) % 240), 4, PALE, op(.09)); }) +
-      row(0, 1, 9, (_, i) => { const y = 18 + i * 9, n = 1 + (i * 3) % 5;
-        return r(1180, y, 44 + n * 8, 4, i % 2 ? MG : CY, op(.12)) +
-          r(1248 + n * 8, y, 300 + ((i * 61) % 260), 4, PALE, op(.08)); }) +
-      crt(600, 22, 120, 56, DEEP) + row(610, 8, 6, (_, i) => r(610, 30 + i * 8, 40 + ((i * 53) % 56), 3, GR, op(.3))) +
-      crt(740, 30, 100, 48, DEEP) + row(750, 8, 5, (_, i) => r(750, 38 + i * 8, 34 + ((i * 41) % 44), 3, CY, op(.26))) +
-      crt(860, 26, 110, 52, DEEP) + row(870, 8, 5, (_, i) => r(870, 36 + i * 8, 38 + ((i * 29) % 48), 3, MG, op(.22))) +
-      r(560, 78, 470, 4, SEAM, op(.6)) + r(0, 86, 1600, 14, '#06040e', op(.8)) +
-      row(40, 160, 10, x => r(x, 90, 70, 4, PALE, op(.07))),
+      r(0, 2, 1600, 11, '#141228', op(.95)) + row(16, 20, 78, x => r(x, 5, 12, 4, CY, op(.2))) +
+      p('M0 13 h1600', SEAM, 2, op(.8)) +
+      // the channel itself, scrolling away either side of the terminals: a nick, then what they said
+      row(0, 1, 3, (_, pane) => { const x0 = [8, 560, 1066][pane], wide = pane === 1 ? 460 : 520;
+        return row(0, 1, 9, (_, i) => { const y = 20 + i * 8, n = 1 + ((i + pane) * 7) % 5;
+          return r(x0, y, 40 + n * 7, 4, i % 3 ? CY : GR, op(.2)) +
+            r(x0 + 62 + n * 7, y, Math.min(wide - 70 - n * 7, 180 + ((i * 97 + pane * 53) % 300)), 4, PALE, op(.14)); }); }) +
+      // three machines somebody left logged in, pulled up over the channel behind them
+      crt(596, 20, 124, 60, DEEP) + row(0, 1, 6, (_, i) => r(606, 28 + i * 8, 40 + ((i * 53) % 60), 3, GR, op(.45))) +
+      crt(738, 26, 104, 54, DEEP) + row(0, 1, 5, (_, i) => r(748, 34 + i * 8, 34 + ((i * 41) % 46), 3, CY, op(.4))) +
+      crt(858, 22, 116, 58, DEEP) + row(0, 1, 6, (_, i) => r(868, 30 + i * 8, 38 + ((i * 29) % 52), 3, MG, op(.32))) +
+      r(560, 84, 470, 5, SEAM, op(.75)) +
+      // the input line at the bottom, with the cursor sitting on it
+      r(0, 90, 1600, 10, '#121028', op(.9)) + p('M0 90 h1600', SEAM, 2, op(.7)) +
+      row(40, 200, 8, x => r(x, 93, 110, 4, PALE, op(.12)) + r(x + 118, 93, 5, 4, YL, op(.3))),
 
     // CON HALLWAY. A wide corridor between two tracks: a banner over it, signs for the rooms, a reg desk,
     // and the queue. Carpet you would know anywhere, and nobody standing still for long.
@@ -8227,27 +8239,35 @@ const LOC_ART = (() => {
       r(560, 12, 480, 34, '#1a2038', op(.9)) + r(572, 16, 456, 26, BLUE, op(.2)) +
       p('M596 36 l34 -14 l30 10 l40 -18 l34 12 l44 -16', CY, 2, op(.3)) +
       row(596, 1, 5, (_, i) => r(596 + i * 84, 22, 44, 3, PALE, op(.12))) +
-      r(0, 46, 1600, 4, SEAM, op(.7)) +
-      row(0, 150, 11, (x, i) => r(x + 10, 50, 130, 6, PALE, op(.2)) + row(x + 20, 60, 2, xx => r(xx, 56, 6, 16, SEAM, op(.5))) +
-        crt(x + 26, 28, 44, 20, i % 3 ? DEEP : BLUE) + r(x + 90, 40, 38, 8, '#c9d1d5', op(.12))) +
-      r(0, 72, 1600, 28, '#0e1020') + r(0, 72, 1600, 28, 'url(#latile)') +
-      row(0, 150, 11, x => sh(`M${x + 50} 74 h30 v16 h-30 z`, NIGHT, op(.55))) +
-      fig(772, 44, PALE, .26) + fig(912, 46, PALE, .2),
+      r(0, 46, 1600, 4, SEAM, op(.8)) +
+      // the bench, and on every one of them the same machine nobody owns, facing the same way
+      row(0, 150, 11, (x, i) => crt(x + 24, 26, 48, 24, i % 3 ? '#16203a' : BLUE) +
+        r(x + 88, 38, 42, 12, '#c9d1d5', op(.16)) + r(x + 88, 38, 42, 3, PALE, op(.3)) +
+        r(x + 8, 50, 134, 7, PALE, op(.28)) + r(x + 8, 57, 134, 15, '#0a0c18', op(.9)) +
+        row(x + 16, 118, 2, xx => r(xx, 57, 7, 24, SEAM, op(.6)))) +
+      r(0, 74, 1600, 26, '#0e1020') + r(0, 74, 1600, 26, 'url(#latile)') +
+      row(0, 150, 11, x => sh(`M${x + 48} 76 h34 v18 h-34 z`, '#07080f', op(.8)) + r(x + 52, 74, 26, 4, SEAM, op(.5))) +
+      fig(772, 44, PALE, .3) + fig(912, 46, PALE, .24),
 
     // DATACENTER DOCK. The goods entrance: a roller door part way up, racks waiting on pallets in the cold
     // air, cages either side and the whole row of them humming. Where the deep runs start.
     'Datacenter Dock': r(0, 0, 1600, 100, '#0a0c16') +
-      r(0, 0, 1600, 16, DEEP) + row(0, 24, 67, x => r(x, 2, 18, 12, '#171a2c', op(.9))) +
-      row(0, 200, 8, x => r(x, 16, 6, 60, STEEL, op(.3))) +
-      row(20, 190, 9, (x, i) => rack(x, 22, 54, 54, i % 3 ? GR : CY)) +
-      sh('M560 16 h480 v16 h-480 z', '#141726') + row(572, 32, 15, x => r(x, 20, 20, 8, STEEL, op(.22))) +
-      r(560, 32, 480, 4, YL, op(.14)) +
-      rack(596, 36, 62, 48, GR) + rack(670, 36, 62, 48, CY) + rack(744, 36, 62, 48, GR) +
-      rack(818, 40, 54, 44, CY) + rack(884, 40, 54, 44, GR) +
-      r(560, 84, 480, 4, PALE, op(.2)) +
-      r(948, 52, 70, 32, NIGHT, op(.9)) + p('M960 52 v-14 h40', STEEL, 3, op(.4)) + led(1006, 56, YL, .5) +
-      r(0, 88, 1600, 12, '#07080f') + row(0, 80, 20, x => r(x, 88, 54, 3, STEEL, op(.1))) +
-      p('M560 88 h480', YL, 3, op(.1)),
+      // the roller doors, part way up all the way along, and the cage uprights between the bays
+      r(0, 0, 1600, 20, '#0c0e1a') + row(0, 1, 5, (_, i) => r(0, 1 + i * 4, 1600, 3, '#1d2134', op(.9))) +
+      p('M0 20 h1600', '#2d3350', 3) +
+      row(0, 190, 9, x => r(x, 20, 7, 62, STEEL, op(.45))) +
+      row(26, 190, 9, (x, i) => rack(x, 26, 58, 56, i % 3 ? GR : CY)) +
+      // the bay you are standing in: the door higher, the racks still on their pallets, the pump truck
+      r(560, 0, 480, 14, '#0b0d18') + row(0, 1, 3, (_, i) => r(560, 1 + i * 4, 480, 3, '#232841', op(.95))) +
+      r(560, 14, 480, 5, '#3a4165') + r(560, 19, 480, 4, YL, op(.2)) +
+      rack(596, 28, 64, 54, GR) + rack(672, 28, 64, 54, CY) + rack(748, 28, 64, 54, GR) +
+      rack(824, 32, 56, 50, CY) + rack(892, 32, 56, 50, GR) +
+      row(0, 1, 5, (_, i) => r([592, 668, 744, 820, 888][i], 82, [72, 72, 72, 64, 64][i], 6, WOOD, op(.8))) +
+      r(956, 56, 72, 28, '#13162a') + r(960, 60, 64, 20, '#07080f') +
+      p('M968 56 v-16 h36', STEEL, 3, op(.5)) + led(1016, 62, YL, .6) + ci(964, 88, 5, '#05040a') + ci(1020, 88, 5, '#05040a') +
+      r(0, 88, 1600, 12, '#07080f') + p('M0 88 h1600', '#2d3350', 2, op(.8)) +
+      row(0, 80, 20, x => r(x, 92, 54, 3, STEEL, op(.14))) +
+      p('M560 88 h480', YL, 4, op(.14)),
 
     // CYBER CAFE. Booths down both sides, the sign in the window, a counter with the machine that pays for
     // the place, and screens that have all been on since before you got here.
@@ -8268,19 +8288,23 @@ const LOC_ART = (() => {
 
     // PASTE ALLEY. Round the back: brick, every flat surface papered over with whatever was dumped today, a
     // fire escape going up into nothing, a skip, and one lamp doing the work of six.
-    'Paste Alley': r(0, 0, 1600, 100, '#0d0b14') + r(0, 0, 1600, 100, 'url(#labrick)') +
-      p('M0 4 h1600', NIGHT, 8, op(.8)) +
-      p('M300 10 v70 M470 10 v70', STEEL, 3, op(.22)) + row(10, 20, 4, y => p(`M300 ${y} h170`, STEEL, 2, op(.18))) +
-      // every flat surface papered over: a sheet, and three lines of whatever was on it
-      row(0, 112, 15, (x, i) => { const y = 14 + (i % 3) * 7;
-        return r(x + 6, y, 56 + (i % 2) * 20, 30 + (i % 3) * 8, i % 4 ? '#1b1830' : '#231a2e', op(.55)) +
-          row(0, 1, 3, (_, k) => r(x + 12, y + 8 + k * 8, 34 + ((i + k) % 3) * 12, 3, i % 3 ? CY : MG, op(.1))); }) +
-      p('M940 2 v10', STEEL, 3, op(.5)) + sh('M922 12 h36 l-7 9 h-22 z', STEEL, op(.5)) +
-      ci(940, 30, 34, YL, op(.05)) + ci(940, 24, 16, YL, op(.05)) +
-      r(600, 60, 180, 36, '#1a2430', op(.9)) + r(600, 60, 180, 6, STEEL, op(.3)) +
-      p('M612 72 h156 M612 82 h156', NIGHT, 2, op(.6)) + r(640, 52, 40, 8, '#2a3038', op(.7)) +
-      r(820, 72, 60, 24, WOOD, op(.5)) + row(828, 16, 3, x => r(x, 76, 10, 16, NIGHT, op(.5))) +
-      r(0, 90, 1600, 10, '#07060c') + row(60, 180, 9, x => r(x, 92, 90, 4, BLUE, op(.08))),
+    'Paste Alley': r(0, 0, 1600, 100, '#141220') + r(0, 0, 1600, 100, 'url(#labrick)') +
+      p('M0 4 h1600', '#07060c', 9) +
+      // the fire escape, bolted on the back of somebody else's building
+      p('M300 10 v76 M470 10 v76', STEEL, 3, op(.4)) + row(14, 22, 4, y => p(`M300 ${y} h170`, STEEL, 3, op(.3))) +
+      row(14, 22, 4, y => row(306, 14, 12, x => p(`M${x} ${y} v-9`, STEEL, 1.4, op(.16)))) +
+      // every flat surface papered over with whatever was dumped today: a sheet, and lines of it
+      row(0, 108, 15, (x, i) => { const y = 12 + (i % 3) * 8, w = 56 + (i % 2) * 20, h = 32 + (i % 3) * 8;
+        return r(x + 6, y, w, h, '#06050c', op(.8)) + r(x + 8, y + 2, w - 4, h - 4, i % 4 ? '#2a2440' : '#352a44', op(.85)) +
+          row(0, 1, 3, (_, k) => r(x + 14, y + 8 + k * 9, w - 24 - ((i + k) % 3) * 10, 4, i % 3 ? CY : MG, op(.22))); }) +
+      p('M940 2 v10', STEEL, 3, op(.6)) + sh('M920 12 h40 l-8 10 h-24 z', STEEL, op(.65)) +
+      ci(940, 30, 36, YL, op(.05)) + ci(940, 24, 18, YL, op(.06)) +
+      // the skip, the bags beside it and the pallets nobody came back for
+      r(596, 54, 188, 42, '#05040a') + r(600, 56, 180, 38, '#1e2a36') + r(600, 56, 180, 7, STEEL, op(.45)) +
+      p('M612 70 h156 M612 82 h156', '#0b1118', 3) + r(640, 46, 44, 10, '#2a3442') +
+      row(812, 26, 3, x => sh(`M${x} 96 q4 -22 13 -22 q9 0 13 22 z`, '#15131f')) +
+      r(880, 68, 64, 28, WOOD, op(.7)) + row(886, 15, 4, x => r(x, 72, 9, 20, '#05040a', op(.7))) +
+      r(0, 92, 1600, 8, '#07060c') + row(40, 170, 10, x => r(x, 93, 100, 4, BLUE, op(.13))),
 
     // STRIP MALL. A run of units under one long awning, half of them still trading, a pylon sign out front
     // and the lot in between. Lit the way a car park is lit, which is badly.
@@ -8295,27 +8319,37 @@ const LOC_ART = (() => {
       r(576, 30, 448, 16, BLUE, op(.2)) + row(592, 72, 6, x => r(x, 32, 48, 12, NIGHT, op(.45))) +
       r(1100, 6, 10, 56, STEEL, op(.35)) + r(1068, 6, 74, 26, DEEP, op(.9)) +
       r(1076, 11, 58, 7, YL, op(.2)) + r(1076, 22, 40, 5, MG, op(.18)) +
-      r(0, 64, 1600, 36, '#0a0a12') + row(0, 60, 27, x => r(x + 10, 68, 3, 26, PALE, op(.05))) +
-      row(40, 160, 10, x => ci(x, 74, 14, YL, op(.04))) +
-      r(660, 76, 110, 16, DEEP, op(.7)) + r(672, 72, 70, 6, STEEL, op(.3)) + led(756, 80, RED, .3) +
-      r(860, 78, 96, 14, DEEP, op(.6)) + r(872, 74, 60, 6, STEEL, op(.25)),
+      // the lot: bays painted on it, the lamps doing what they can, and what is still parked out there
+      r(0, 64, 1600, 36, '#0a0a12') + row(0, 56, 29, x => r(x + 10, 70, 3, 26, PALE, op(.09))) +
+      row(40, 160, 10, x => ci(x, 72, 16, YL, op(.05))) +
+      row(0, 1, 5, (_, i) => { const x = [120, 640, 790, 1040, 1420][i], w = [96, 118, 104, 110, 92][i];
+        return r(x, 76, w, 18, '#05050a') + r(x + 2, 78, w - 4, 14, i % 2 ? '#1a1b2a' : '#20202e') +
+          r(x + w * .22, 70, w * .56, 8, '#12131f') + r(x + w * .24, 72, w * .52, 5, BLUE, op(.3)) +
+          led(x + 4, 82, YL, .3) + led(x + w - 7, 82, RED, .3); }),
 
     // THE BUNKER. Home: poured concrete, pipework along the ceiling, the stash stacked where you left it, the
     // rack you built, the bunk, and the door that is the only way in. The one place nobody else gets to walk.
-    'The Bunker': r(0, 0, 1600, 100, '#0e0d16') + r(0, 0, 1600, 100, 'url(#laconc)') +
-      row(0, 1, 3, (_, i) => p(`M0 ${6 + i * 7} h1600`, STEEL, 4, op(.16 - i * .03))) +
-      row(120, 320, 5, x => r(x, 4, 8, 20, STEEL, op(.2))) +
-      row(0, 190, 9, (x, i) => i % 2 ? rack(x + 10, 30, 48, 50, i % 4 ? GR : CY)
-        : r(x + 6, 46, 100, 34, NIGHT, op(.6)) + row(x + 12, 34, 3, xx => r(xx, 50, 28, 26, WOOD, op(.5)) + p(`M${xx} 50 l28 26 M${xx + 28} 50 l-28 26`, '#6b4a2a', 1, op(.3)))) +
-      r(596, 18, 84, 62, '#141320', op(.95)) + r(604, 24, 68, 50, NIGHT, op(.8)) +
-      cs(638, 48, 11, STEEL, 3, op(.4)) + p('M638 37 v22 M627 48 h22', STEEL, 2, op(.35)) +
-      r(600, 74, 76, 6, STEEL, op(.25)) +
-      rack(700, 26, 62, 54, GR) + rack(772, 30, 54, 50, CY) +
-      r(840, 56, 150, 7, PALE, op(.18)) + r(840, 63, 150, 24, NIGHT, op(.8)) +
-      r(856, 48, 54, 8, '#c9d1d5', op(.1)) + r(840, 48, 12, 8, STEEL, op(.2)) +
-      p('M1010 10 v18', CY, 2, op(.35)) + ci(1010, 10, 4, RED, op(.3)) +
-      ci(638, 48, 26, CY, op(.04)) +
-      r(0, 86, 1600, 14, '#090812') + row(0, 100, 16, x => r(x, 86, 94, 3, STEEL, op(.08))),
+    'The Bunker': r(0, 0, 1600, 100, '#16141f') + r(0, 0, 1600, 100, 'url(#laconc)') +
+      // the pipework that runs the length of the ceiling, and the one strip light hung off it
+      row(0, 1, 3, (_, i) => p(`M0 ${5 + i * 7} h1600`, STEEL, 5, op(.3 - i * .07))) +
+      row(120, 320, 5, x => r(x, 3, 9, 22, STEEL, op(.3))) +
+      row(60, 300, 6, x => r(x, 12, 150, 5, '#e9e9f0', op(.08))) +
+      // down both walls: the racks you built and the stash you have not shifted yet
+      row(0, 190, 9, (x, i) => i % 2 ? rack(x + 10, 28, 50, 52, i % 4 ? GR : CY)
+        : row(x + 10, 36, 3, xx => r(xx, 48, 32, 32, '#05040a') + r(xx + 2, 50, 28, 28, '#3a2a1c') +
+          p(`M${xx + 2} 50 l28 28 M${xx + 30} 50 l-28 28`, '#6b4a2a', 1.6, op(.5)))) +
+      // the door. The only way in, and the reason nobody else gets to walk around in here
+      r(592, 14, 92, 70, '#05040a') + r(596, 18, 84, 62, '#23202f') + r(604, 26, 68, 46, '#0b0a14') +
+      cs(638, 49, 13, STEEL, 4, op(.6)) + p('M638 36 v26 M625 49 h26', STEEL, 3, op(.5)) +
+      r(600, 74, 76, 6, STEEL, op(.35)) + ci(638, 49, 28, CY, op(.05)) +
+      rack(700, 24, 64, 56, GR) + rack(776, 28, 56, 52, CY) +
+      // the bunk, made up the way it always is
+      r(848, 44, 146, 8, '#05040a') + r(850, 46, 142, 5, PALE, op(.3)) +
+      r(848, 52, 146, 16, '#1d2a3a') + r(852, 48, 40, 8, '#c9d1d5', op(.18)) +
+      r(848, 68, 146, 5, STEEL, op(.3)) + r(852, 73, 7, 14, SEAM, op(.6)) + r(984, 73, 7, 14, SEAM, op(.6)) +
+      p('M1014 8 v20', CY, 3, op(.45)) + ci(1014, 8, 5, RED, op(.4)) +
+      r(0, 88, 1600, 12, '#0b0a13') + p('M0 88 h1600', STEEL, 2, op(.25)) +
+      row(0, 110, 15, x => r(x, 92, 96, 3, STEEL, op(.11))),
   };
 })();
 // The patterns every scene builds its walls and floors out of, and the two washes over the top of them all.
@@ -8331,18 +8365,24 @@ const LA_DEFS = '<defs>' +
   '<linearGradient id="lax" x1="0" x2="1"><stop offset="0" stop-color="#06050d" stop-opacity=".92"/>' +
   '<stop offset=".22" stop-color="#06050d" stop-opacity="0"/><stop offset=".78" stop-color="#06050d" stop-opacity="0"/>' +
   '<stop offset="1" stop-color="#06050d" stop-opacity=".92"/></linearGradient>' +
-  '<linearGradient id="lay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#06050d" stop-opacity=".75"/>' +
-  '<stop offset=".3" stop-color="#06050d" stop-opacity="0"/><stop offset=".72" stop-color="#06050d" stop-opacity="0"/>' +
-  '<stop offset="1" stop-color="#06050d" stop-opacity=".8"/></linearGradient></defs>';
+  '<linearGradient id="lay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#06050d" stop-opacity=".5"/>' +
+  '<stop offset=".22" stop-color="#06050d" stop-opacity="0"/><stop offset=".76" stop-color="#06050d" stop-opacity="0"/>' +
+  '<stop offset="1" stop-color="#06050d" stop-opacity=".62"/></linearGradient></defs>';
 // THE DISTRICT WASH. One colour over the whole band, keyed to the game's own four words for how much law is
 // on a place (SEC_WORD, which distLawWord picks with floor(security / 25)): open is cool and blue, noticed
 // and then watched warm up to amber, locked down goes red. Same artwork every time - a haze, not a filter.
-const LA_WASH = {open: ['#0c4270', .16], noticed: ['#ff8a1e', .1], watched: ['#ff8a1e', .17], 'locked down': ['#ff3b5c', .22]};
+// It is laid on as a gradient, heaviest along the top and bottom of the band and nearly gone across the
+// middle, so it reads as the light in the room rather than as a filter dropped over the whole picture.
+const LA_WASH = {open: ['#0c4270', .15], noticed: ['#ff8a1e', .1], watched: ['#ff8a1e', .17], 'locked down': ['#ff3b5c', .24]};
 const locSvg = (scene, wash) =>
   '<svg class="laband" viewBox="0 0 1600 100" preserveAspectRatio="xMidYMid slice" shape-rendering="crispEdges" aria-hidden="true">' +
-  LA_DEFS + scene +
+  LA_DEFS +
+  `<linearGradient id="lawash" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${wash[0]}" stop-opacity="${wash[1]}"/>` +
+  `<stop offset=".5" stop-color="${wash[0]}" stop-opacity="${(wash[1] * 0.3).toFixed(3)}"/>` +
+  `<stop offset="1" stop-color="${wash[0]}" stop-opacity="${wash[1]}"/></linearGradient>` +
+  scene +
   '<rect width="1600" height="100" fill="url(#lascan)"/>' +
-  `<rect width="1600" height="100" fill="${wash[0]}" opacity="${wash[1]}"/>` +
+  '<rect width="1600" height="100" fill="url(#lawash)"/>' +
   '<rect width="1600" height="100" fill="url(#lax)"/><rect width="1600" height="100" fill="url(#lay)"/></svg>';
 // Paint the band. Decoration: it is aria-hidden, it is rebuilt only when the place or its temperature has
 // actually changed, and a place with no picture leaves the band empty, which collapses it (see #locart).
