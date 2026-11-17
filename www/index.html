@@ -326,7 +326,26 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 #dialog.danger{border-color:var(--pink);border-top-color:var(--pink)}
 #dialog.danger h2{color:var(--pink);text-shadow:0 0 10px rgba(255,42,109,.6)}
 #dialog p{margin:0 0 10px}
-.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}
+/* A dialogue's answers are the same action tiles the main screen draws (see ACTION TILES): the same grid,
+   so the rows come out even, and the same kinds, so an answer that spends money or can go wrong says which
+   it is before it is pressed. .tfull is the answer that backs out: it sits across the foot of the grid
+   rather than orphaned on a row of its own at some other width. */
+.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr));
+  grid-auto-rows:1fr;gap:var(--s2);margin-top:14px}
+.dbtns .tfull{grid-column:1/-1}
+/* The old button classes (primary, danger, small) are still on the answers, because the keyboard and the
+   handheld find the main answer by .primary. They must not out-shout the kind, so the tile's own look is
+   restated here at a weight that wins. */
+.dbtns .tact{background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.92));
+  border-color:var(--tk);color:var(--tk-ink);font-weight:normal;text-shadow:1px 1px 0 #000}
+.dbtns .tact.k-go .tn{font-weight:bold}
+.dbtns .tact:disabled{opacity:.34;filter:saturate(.3)}
+.dbtns .tact:active:not(:disabled){background:var(--tk);color:#000;text-shadow:none}
+@media (hover:hover){.dbtns .tact:not(:disabled):hover{background:linear-gradient(180deg,var(--tk-tint),var(--tk-tint));
+    border-color:var(--tk);box-shadow:var(--sunk),0 0 10px -2px var(--tk);color:#fff}}
+.dbtns .tact .ico{width:30px;height:30px}
+.dbtns .tact .ico.room{width:44px;height:26px}
+.dbtns .tact .ico.ride{width:44px;height:26px}
 .qty{display:flex;flex-direction:column;gap:10px;margin-top:6px}
 input[type=number],input[type=text]{font:inherit;font-size:18px;color:var(--yellow);background:#000;
   border:1px solid var(--accent);padding:8px 10px;width:100%;-webkit-user-select:text;user-select:text}
@@ -946,9 +965,27 @@ button .ico.room{width:44px;height:26px}
      in the body that answers it (a save file, a deep run's address) is numbered in the same run */
   .dbtns button::before,.body [data-pick]:not(.tile):not(.slottag)::before{
     counter-increment:dbtn;content:counter(dbtn) "  ";opacity:.7;font-weight:bold}
-  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr}
+  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr;grid-auto-rows:auto}
   .dbtns button{text-align:left;padding:1px 6px;line-height:1.3;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* An answer is a tile everywhere else; here it goes back to being a line - number, picture, name, note -
+     exactly the shape this screen has always drawn, in this screen's own colours, not the kind colours.
+     (The same treatment #tiny .acts .tact gets, and for the same reason.) */
+  .dbtns .tact{display:flex;align-items:center;gap:4px;min-height:0;padding:0 5px;
+    border:1px solid var(--accent);border-left-width:1px;background:rgba(0,229,255,.06);
+    color:var(--accent);box-shadow:none;text-shadow:none;grid-column:auto}
+  .dbtns .tact::after{content:none}
+  .dbtns .tact .tl{display:flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden}
+  .dbtns .tact .tn{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tsub{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tbadge{position:static;margin-left:auto;padding:0;background:none;color:var(--yellow);
+    clip-path:none;font-size:11px;line-height:1.2}
+  .dbtns .tact.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,42,109,.08)}
+  .dbtns .tact.primary{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
+  .dbtns .tact.primary::before,.dbtns .tact.primary .tsub,.dbtns .tact.primary .tbadge{color:#000}
+  .dbtns .tact:focus{background:rgba(255,255,255,.22);color:#fff}
+  .dbtns .tact.primary:focus{background:#fff;color:#000}
   .qty{gap:4px;margin-top:3px}
   input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
   input[type=range]{height:18px}
@@ -7711,14 +7748,13 @@ function dialog(title, html, buttons, tone) {
     dlg.className = tone || '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div><div class="dbtns"></div>`;
     const box = dlg.querySelector('.dbtns');
-    for (const [label, value, cls, icon] of buttons) {   // icon: optional picture shown on the button
-      const el = document.createElement('button');
-      el.textContent = label;
-      if (cls) el.className = cls;
-      if (icon) { el.insertAdjacentHTML('afterbegin', icon); el.classList.add('hasico'); }
-      el.onclick = () => { overlay.hidden = true; resolve(value); };
-      box.appendChild(el);
-    }
+    // Every answer is an action tile (btnTile), so a dialogue's choices are the same shape, and read the
+    // same way, as the choices on the main screen. A caller still writes [label, value, class, icon].
+    const opts = btnOpts(buttons);
+    box.innerHTML = opts.map(btnTile).join('');
+    [...box.children].forEach((el, i) => {
+      el.onclick = () => { overlay.hidden = true; resolve(opts[i].value); };
+    });
     // Anything in the body marked data-pick="value" also answers the dialog when tapped, and is a stop for
     // the Tab key as well, so a machine with no pointer can reach it.
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
@@ -7726,7 +7762,7 @@ function dialog(title, html, buttons, tone) {
       if (!el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', 'button'); }
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
-      const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
+      const all = opts.map(o => o.value).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
       // ...unless it is steering: autoPick answers from what is on offer, or returns undefined to leave it to chance.
       const want = autoPick ? autoPick(all, title) : undefined;
       return resolve(want !== undefined ? want : all[rnd(0, all.length - 1)]);
@@ -7750,7 +7786,7 @@ function askQty(title, html, max, opts) {
       <input id="qs" type="range" min="1" max="${max}" value="${max}"></div>
       <div class="quick"><button data-q="1">Min</button><button data-q="h">Half</button><button data-q="m">Max</button></div>
       <div class="total" id="qt"></div>
-      <div class="dbtns"><button id="qok" class="primary">${opts.ok || 'OK'}</button><button id="qcancel">Cancel</button></div>`;
+      <div class="dbtns">${btnTile({id: 'qok', cls: 'primary', name: opts.ok || 'OK'})}${btnTile({id: 'qcancel', name: 'Cancel'})}</div>`;
     const qn = $('#qn'), qs = $('#qs'), qt = $('#qt');
     const value = () => Math.max(0, Math.min(max, Math.floor(Number(qn.value) || 0)));
     const show = () => {
@@ -7789,7 +7825,7 @@ function askText(title, html) {
     dlg.className = '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div>
       <input id="tx" type="text" maxlength="16" autocomplete="off" placeholder="anon">
-      <div class="dbtns"><button id="tok" class="primary">OK</button></div>`;
+      <div class="dbtns">${btnTile({id: 'tok', cls: 'primary', name: 'OK'})}</div>`;
     const done = () => { overlay.hidden = true; resolve($('#tx').value.trim()); };
     $('#tok').onclick = done;
     $('#tx').onkeydown = e => { if (e.key === 'Enter') done(); };
@@ -8130,6 +8166,41 @@ const tile = ({act, arg, kind, icon, name, note, badge, off}) =>
   `<button class="tact k-${kind}" data-act="${act}"${arg === undefined ? '' : ` data-arg="${arg}"`}${off ? ' disabled' : ''}>` +
   actIcon(icon) + `<span class="tl"><span class="tn">${name}</span>${note ? `<small class="tsub">${note}</small>` : ''}</span>` +
   (badge === undefined || badge === null || badge === '' ? '' : `<i class="tbadge">${badge}</i>`) + '</button>';
+
+// A name that carried its count in brackets ("Deep run (2 addresses)", "Smoke bomb (3)") split into the
+// tile's slots, so a count is a badge everywhere and brackets nowhere. Used by the main screen's tiles and
+// by every dialogue answer that was written with a bracket on the end.
+const label = s => {
+  const m = /^(.*?) \((.*)\)$/.exec(String(s));
+  if (!m) return {name: String(s)};
+  if (/^\d+$/.test(m[2])) return {name: m[1], badge: m[2]};
+  const n = /^(\d+)\s+(.*)$/.exec(m[2]);
+  return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
+};
+// ONE DIALOGUE ANSWER, built from the same parts as a tile on the main screen. The kind is worked out from
+// what the caller already said: primary is the thing the dialogue is for, danger is the thing that can go
+// wrong, an answer that only backs out is a nothing-happens violet, and everything else is cyan.
+const DECLINE = /^(back|close|cancel|not (now|yet|today|this|right now)|no\b|no,|never ?mind|nope|leave\b|stay\b|skip\b|maybe later|done\b|walk away|forget it)/i;
+const btnKind = o => o.kind || (/\bprimary\b/.test(o.cls || '') ? 'go'
+  : /\bdanger\b/.test(o.cls || '') ? 'risk' : DECLINE.test(o.name || '') ? 'info' : 'kit');
+const btnTile = o =>
+  `<button class="tact k-${btnKind(o)}${o.cls ? ' ' + o.cls : ''}${o.wide ? ' tfull' : ''}"` +
+  `${o.id ? ` id="${o.id}"` : ''}${o.off ? ' disabled' : ''}>` +
+  (o.icon || '') + `<span class="tl"><span class="tn">${esc(o.name)}</span>` +
+  (o.note ? `<small class="tsub">${esc(o.note)}</small>` : '') + '</span>' +
+  (o.badge === undefined || o.badge === null || o.badge === '' ? '' : `<i class="tbadge">${esc(o.badge)}</i>`) +
+  '</button>';
+// A dialogue's buttons as they are written at the call sites: either the old [label, value, class, icon]
+// or, where the label needed cutting into slots by hand, {name, note, badge, kind, icon, value, cls}.
+const btnOpts = buttons => {
+  const opts = buttons.map(b => Array.isArray(b)
+    ? Object.assign(label(b[0]), {value: b[1], cls: b[2], icon: b[3]})
+    : Object.assign({}, b));
+  // The last answer, when it only backs out, goes across the foot instead of sitting alone on a short row.
+  const last = opts[opts.length - 1];
+  if (opts.length > 2 && last && last.wide === undefined && btnKind(last) === 'info') last.wide = true;
+  return opts;
+};
 
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
@@ -8716,12 +8787,6 @@ function renderNow() {
   // to it. What is said here is WHAT KIND of thing each one is (go / risk / shop / kit / info); the look
   // that follows from that is in the style sheet. label() takes a name that carried its count in brackets
   // ("Deep run (2 addresses)") and splits it, so a count is a badge everywhere and brackets nowhere.
-  const label = s => {
-    const m = /^(.*?) \((.*)\)$/.exec(s);
-    if (!m) return {name: s};
-    const n = /^(\d+)\s+(.*)$/.exec(m[2]);
-    return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
-  };
   let acts = tile({act: 'travel', kind: 'go', icon: 'travel', name: 'Tunnel out'});
   if (S.loc === BUNKER) {
     // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
@@ -10176,7 +10241,7 @@ function rangeGame(kind, moving) {
       `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx" transform="translate(120 75)"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
       `<p id="rgs"></p><p class="dim">The sight drifts. ${verb === 'FIRE' ? 'Fire' : verb === 'THROW' ? 'Throw' : 'Swing'} when it crosses the middle: tap the target, or use the button. ` +
       'It drifts less the better you get.</p></div>' +
-      `<div class="dbtns"><button id="rgf" class="primary">${verb}</button><button id="rgk" class="small">Skip the aiming</button></div>`;
+      `<div class="dbtns">${btnTile({id: 'rgf', cls: 'primary', name: verb})}${btnTile({id: 'rgk', cls: 'small', name: 'Skip the aiming'})}</div>`;
     const sight = $('#rgx'), tgt = $('#rgt'), holes = $('#rgh'), say = $('#rgs');
     const status = () => { say.innerHTML = `Shot <b>${Math.min(MARKS.strings, shots.length + 1)}</b> of ${MARKS.strings} &middot; score <b class="amber">${shots.reduce((sum, h) => sum + h.score, 0)}</b>`; };
     const frame = now => {
