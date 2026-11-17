@@ -757,7 +757,7 @@ button .ico.room{width:44px;height:26px}
 
   /* dialogs, shops, inventory, menus: centred, a little wider, never taller than the window */
   #dialog{max-width:560px;max-height:100%}
-  .dbtns{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .dbtns{grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr))}
   .bootbox{max-width:460px}
   .tbox{max-width:560px}
 }
@@ -1084,6 +1084,9 @@ button .ico.room{width:44px;height:26px}
   .bgear{margin-top:2px;font-size:9.5px}
   .bturn{gap:3px;margin-top:2px;font-size:9.5px;letter-spacing:0}
   .bturn b{padding:0 3px}
+  /* the handheld's command panel is four lines tall: rows stay the height of their own text here, so a
+     command that wraps does not push the one under it off the screen */
+  .bopts{grid-auto-rows:auto}
   .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
   /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
      instead of squeezing the label down to one letter a row */
