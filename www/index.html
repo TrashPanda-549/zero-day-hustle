@@ -192,23 +192,27 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
 
 /* ===== THE STAT COLUMN =====
    Sixteen figures in one flat grid read as sixteen unrelated things. They are dealt into four bands -
-   money, exposure, kit, standing - with a hairline and a dim word over each. The figure is the big thing
-   on a chip and the label is small and dim under it; colour is only used where it means something (HEAT
-   climbing, DEBT owed, CASH in hand), and the band's own colour is a hairline on the left edge, no more. */
-#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:var(--s1);margin-top:var(--s2)}
-.bandrule{grid-column:1/-1;display:flex;align-items:center;gap:var(--s2);margin:4px 0 0;
-  font-size:9px;letter-spacing:2.5px;line-height:1.4;text-transform:uppercase;color:var(--bk,var(--dim))}
-.bandrule:first-child{margin-top:2px}
-.bandrule::after{content:"";flex:1 1 auto;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
+   money, exposure, kit, standing - separated by a hairline in the band's own colour. The figure is the
+   big thing on a chip and the label is small and dim under it; colour is only used where it means
+   something (HEAT climbing, DEBT owed, CASH in hand), and the band's colour is a hairline on the left
+   edge of every chip in it. The whole column has to fit 1280x800 without scrolling, so the separator
+   costs no row of its own: it is a zero-height element whose line lies in the grid gap, and the band
+   word it used to carry is kept for screen readers only. */
+#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:var(--s1);margin-top:var(--s1)}
+.bandrule{grid-column:1/-1;position:relative;height:2px;margin:0}
+.bandrule::after{content:"";position:absolute;left:0;right:0;top:1px;height:1px;
+  background:linear-gradient(90deg,var(--bk,var(--edge)),var(--bk,var(--edge)) 42%,transparent);
+  box-shadow:0 0 6px -1px var(--bk,transparent);opacity:.75}
+.bandrule span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .bandrule.money{--bk:#7ad7a8}.bandrule.exposure{--bk:#e07896}.bandrule.kit{--bk:#6fc6d8}.bandrule.standing{--bk:#9d8cff}
-.chip{position:relative;padding:2px var(--s2) 3px;background:linear-gradient(180deg,rgba(23,20,46,.85),rgba(9,8,22,.85));
+.chip{position:relative;padding:1px var(--s2) 2px;background:linear-gradient(180deg,rgba(23,20,46,.85),rgba(9,8,22,.85));
   border:1px solid var(--edge);border-left:2px solid var(--bk,var(--edge));
   clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%)}
 .chip[data-band=money]{--bk:rgba(61,255,154,.5)}.chip[data-band=exposure]{--bk:rgba(255,42,109,.5)}
 .chip[data-band=kit]{--bk:rgba(0,229,255,.45)}.chip[data-band=standing]{--bk:rgba(157,140,255,.45)}
-.chip small{display:block;color:var(--dim);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;line-height:1.25}
-.chip b{display:block;font-size:15px;font-weight:600;white-space:nowrap;line-height:1.25;font-variant-numeric:tabular-nums}
-.chip.big b{font-size:17px}
+.chip small{display:block;color:var(--dim);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;line-height:1}
+.chip b{display:block;font-size:14px;font-weight:600;white-space:nowrap;line-height:1.1;font-variant-numeric:tabular-nums}
+.chip.big b{font-size:15px}
 /* a figure that moved since the screen was last drawn: which way it went, and one pulse */
 .chip .dlt{position:absolute;top:3px;right:4px;font-style:normal;font-size:8px;line-height:1;color:var(--cyan);opacity:.85}
 .chip.moved{animation:chipbump .45s ease-out}
@@ -895,7 +899,9 @@ button .ico.room{width:44px;height:26px}
   #tiny .figs{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-top:4px}
   #tiny .chip{display:block;padding:0 0 0 5px;border:0;border-left:2px solid var(--accent);
     background:none;clip-path:none}
-  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px}
+  /* line-height is pinned here so the handheld keeps the metrics it was tuned at, whatever the big
+     layout's chips do (they were tightened to keep the stat column inside 1280x800) */
+  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px;line-height:1.25}
   #tiny .chip b{display:block;font-size:17px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* the band headings and the "it moved" marks belong to the big layout; this screen is a flat list, and
      the six figures you act on stay big (.big) while everything else is a line (exactly as before) */
@@ -9008,7 +9014,9 @@ function renderNow() {
   $('#vitals').innerHTML = vitals();
   $('#ava').innerHTML = avatarSvg({fill: true}) + rideIcon(S.ride);   // the whole figure, so everything worn shows, and your ride
   // THE STAT COLUMN: the chips are dealt into their bands, in band order, each band under its own
-  // hairline. A chip whose figure moved since the last draw wears a mark and pulses once (chipDelta).
+  // hairline in the band's colour. The band word rides along for screen readers only - it is hidden,
+  // because four heading lines cost more height than the column has at 1280x800 (see the style sheet).
+  // A chip whose figure moved since the last draw wears a mark and pulses once (chipDelta).
   $('#stats').innerHTML = [['money', 'Money'], ['exposure', 'Exposure'], ['kit', 'Kit'], ['standing', 'Standing']]
     .map(([band, title]) => {
       const mine = chips.filter(ch => (ch[3] || 'standing') === band);
