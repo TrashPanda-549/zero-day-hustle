@@ -8214,6 +8214,42 @@ const LOC_ART = (() => {
   // a CRT seen from the front, with something on it. The one shape half these rooms are furnished with
   const crt = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1c1a30') +
     r(x + 3, y + 3, w - 6, h - 8, col || BLUE, op(.45)) + r(x + 4, y + h - 3, w - 8, 3, STEEL, op(.6));
+  // a sign hung off the ceiling on two rods: a dark plate, an arrow, and a room name too small to read
+  const sign = (x, y, col) => r(x - 2, y - 2, 104, 20, '#05040b', op(.9)) + r(x, y, 100, 16, '#191330') +
+    sh(`M${x + 10} ${y + 8} l11 -6 v12 z`, col, op(.5)) + r(x + 28, y + 3, 58, 4, PALE, op(.28)) +
+    r(x + 28, y + 9, 36, 3, col, op(.34));
+  // a pull-up banner on its splayed foot. A hall is a hall; a hall lined with these is a conference
+  const banner = (x, y, h, col) => r(x - 2, y - 2, 42, h + 4, '#05040b', op(.85)) + r(x, y, 38, h, '#1e1739') +
+    r(x + 4, y + 4, 30, 12, col, op(.22)) + r(x + 5, y + 21, 28, 3, PALE, op(.2)) +
+    r(x + 5, y + 27, 17, 3, PALE, op(.14)) + r(x + 5, y + 33, 12, Math.max(4, h - 38), col, op(.16)) +
+    sh(`M${x + 8} ${y + h} h22 l8 7 h-38 z`, STEEL, op(.45));
+  // somebody with a badge on. Narrower than a fig and with legs under it, because at this size a figure
+  // without a neck and a gap between its feet reads as a cabinet. Each part sits on its own shadow.
+  const att = (x, y, col, o) => { const a = o === undefined ? .5 : o;
+    return r(x + 2, y - 1, 10, 9, '#05040b', op(.9)) + r(x - 1, y + 7, 16, 15, '#05040b', op(.9)) +
+      r(x + 1, y + 21, 6, 10, '#05040b', op(.9)) + r(x + 8, y + 21, 6, 10, '#05040b', op(.9)) +
+      r(x + 3, y, 8, 7, PALE, op(a * 1.15)) + r(x, y + 8, 14, 13, PALE, op(a * .85)) +
+      r(x + 2, y + 22, 4, 8, PALE, op(a * .6)) + r(x + 9, y + 22, 4, 8, PALE, op(a * .6)) +
+      r(x + 4, y + 12, 6, 4, col, op(.5)); };
+  // one thing drawn bigger. The nearer you are standing the larger you are, which is all the depth this needs
+  const near = (x, y, s, inner) => `<g transform="translate(${x} ${y}) scale(${s})">${inner}</g>`;
+  // a whiteboard: the palest thing in any of these rooms, with the last diagram still up and a pen tray
+  const board = (x, y, w, h) => r(x - 2, y - 2, w + 4, h + 4, '#2c3146', op(.7)) + r(x, y, w, h, '#c9d1d5', op(.17)) +
+    p(`M${x + 9} ${y + 7} h${Math.round(w * .34)} M${x + 9} ${y + 13} h${Math.round(w * .22)} M${x + 9} ${y + 19} h${Math.round(w * .3)} M${x + 9} ${y + 25} h${Math.round(w * .16)}`, '#0c1020', 2, op(.62)) +
+    p(`M${x + w - 48} ${y + 7} h26 v13 h-26 z M${x + w - 35} ${y + 20} v6 h15 M${x + w - 24} ${y + 23} l6 3 l-6 3`, '#0c1020', 2, op(.52)) +
+    r(x + 8, y + h, w - 16, 3, STEEL, op(.5));
+  // the last slide, still up on the screen at the front: a title, three bullets and a chart nobody explained
+  const slide = (x, y, w, h) => r(x - 3, y - 5, w + 6, 5, STEEL, op(.55)) + r(x, y, w, h, '#0c1a2e', op(.95)) +
+    r(x + 14, y + 7, Math.round(w * .42), 6, CY, op(.34)) +
+    row(y + 20, 9, 3, (yy, i) => r(x + 20, yy, 4, 4, YL, op(.48)) + r(x + 30, yy, Math.round(w * (.4 - i * .07)), 4, PALE, op(.44))) +
+    row(x + w - 88, 16, 5, (xx, i) => r(xx, y + h - 8 - [9, 17, 12, 22, 15][i], 10, [9, 17, 12, 22, 15][i], VI, op(.46)));
+  // a bench instrument: a box with a readout and two knobs. What makes a bench a lab bench and not a desk
+  const instr = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1b1e32') +
+    r(x + 4, y + 4, w - 20, h - 8, col, op(.32)) + ci(x + w - 8, y + 6, 3, STEEL, op(.55)) +
+    ci(x + w - 8, y + h - 6, 3, STEEL, op(.55));
+  // the back of a seat. A room with rows of them is a room somebody gets taught in
+  const seat = (x, y, w, h) => r(x, y, w, h, '#05040b', op(.9)) + r(x + 2, y + 2, w - 4, h - 4, '#272c46', op(.9)) +
+    p(`M${x + Math.round(w / 2)} ${y + h} v7`, STEEL, 2.4, op(.45));
 
   return {
     // THE HACKERSPACE. A pegboard wall, parts bins above, one bench the whole length of the room, and in the
@@ -8272,38 +8308,62 @@ const LOC_ART = (() => {
       r(0, 90, 1600, 10, '#121028', op(.9)) + p('M0 90 h1600', SEAM, 2, op(.7)) +
       row(40, 200, 8, x => r(x, 93, 110, 4, PALE, op(.12)) + r(x + 118, 93, 5, 4, YL, op(.3))),
 
-    // CON HALLWAY. A wide corridor between two tracks: a banner over it, signs for the rooms, a reg desk,
-    // and the queue. Carpet you would know anywhere, and nobody standing still for long.
+    // CON HALLWAY. The corridor between two tracks: way-finding hung off the ceiling, a pull-up banner on
+    // every pier, the registration desk with the queue still at it, and the carpet you would know anywhere.
     'Con Hallway': r(0, 0, 1600, 100, WALL) + r(0, 0, 1600, 62, ROOM) +
-      p('M0 6 h1600', STEEL, 3, op(.3)) +
-      row(0, 1, 7, (_, i) => r(60 + i * 220, 3, 90, 5, YL, op(.1))) +
-      sh('M560 8 h480 v30 h-480 z', '#1a0f2c', op(.9)) + r(588, 16, 424, 5, MG, op(.22)) +
-      r(588, 26, 300, 4, CY, op(.16)) + r(900, 26, 112, 4, YL, op(.14)) +
-      row(40, 200, 8, (x, i) => r(x, 14, 120, 40, DEEP, op(.8)) + r(x + 8, 20, 104, 10, i % 2 ? CY : MG, op(.13)) +
-        row(x + 8, 26, 4, xx => r(xx, 36, 20, 12, NIGHT, op(.7)))) +
-      r(0, 56, 1600, 6, SEAM, op(.6)) +
+      // the ceiling, and the signs that say which track is which, hung off it on their drop rods
+      r(0, 0, 1600, 7, NIGHT) + p('M0 7 h1600', STEEL, 2, op(.35)) +
+      row(0, 200, 9, (x, i) => p(`M${x + 42} 7 v6 M${x + 114} 7 v6`, STEEL, 2, op(.5)) + sign(x + 28, 13, i % 2 ? CY : YL)) +
+      // the wall it runs along: a session door in every bay, with the lamp over it on
+      row(0, 200, 9, (x, i) => r(x + 136, 16, 58, 40, '#110c20', op(.92)) +
+        r(x + 141, 21, 48, 30, i % 2 ? MG : VI, op(.09)) + led(x + 188, 36, GR, .3)) +
+      r(0, 56, 1600, 6, SEAM, op(.65)) +
       r(0, 62, 1600, 38, '#1b1026') + r(0, 62, 1600, 38, 'url(#lacarpet)') +
-      r(640, 62, 320, 10, PALE, op(.2)) + r(640, 72, 320, 20, NIGHT, op(.75)) +
-      row(652, 60, 5, x => r(x, 56, 30, 7, DEEP, op(.9)) + led(x + 12, 58, GR, .35)) +
-      row(70, 120, 13, (x, i) => fig(x + (i % 3) * 14, 58 + (i % 2) * 6, PALE, .18 + (i % 4) * .05)) +
-      fig(758, 52, PALE, .34) + fig(820, 54, PALE, .3) + fig(876, 52, PALE, .28),
+      // a banner stand everywhere there is wall to put one against, except where the desk is
+      row(0, 110, 15, (x, i) => (x + 18 > 700 && x + 18 < 1080) ? '' : banner(x + 18, 30, 40, [MG, CY, VI, YL][i % 4])) +
+      // the rest of the hall, milling about between sessions: every one of them wearing the same lanyard
+      row(56, 128, 13, (x, i) => near(x + (i % 3) * 20, 56 + (i % 3) * 5, .95 + (i % 4) * .1,
+        att(0, 0, [CY, MG, VI, YL][i % 4], .36 + (i % 3) * .07))) +
+      // REGISTRATION: the backdrop, the three of them behind it, their screens, and the counter in front
+      r(742, 16, 316, 40, '#1a1030', op(.95)) + r(746, 20, 308, 12, MG, op(.24)) +
+      row(752, 76, 4, (x, i) => r(x, 38, 64, 12, [CY, VI, YL, MG][i % 4], op(.12))) +
+      att(788, 26, CY, .46) + att(866, 24, YL, .44) + att(948, 26, MG, .42) +
+      r(756, 56, 292, 8, PALE, op(.32)) + r(756, 64, 292, 30, '#0f0a1c', op(.92)) +
+      row(756, 97, 4, x => r(x, 64, 3, 30, SEAM, op(.5))) + r(760, 88, 284, 3, CY, op(.1)) +
+      crt(776, 40, 40, 16, BLUE) + crt(856, 40, 40, 16, DEEP) + crt(936, 40, 40, 16, BLUE) +
+      // the queue for it, nearest first. It starts where you are standing and it is not moving
+      near(548, 48, 1.5, att(0, 0, MG, .58)) + near(600, 51, 1.4, att(0, 0, CY, .54)) +
+      near(648, 54, 1.3, att(0, 0, YL, .52)) + near(692, 57, 1.2, att(0, 0, VI, .5)) +
+      near(732, 60, 1.1, att(0, 0, CY, .46)) +
+      // and the stand on either side of you, close enough that you can read the top line
+      near(466, 20, 1.3, banner(0, 0, 46, CY)) + near(1082, 22, 1.25, banner(0, 0, 46, MG)),
 
-    // CAMPUS LAB. Rows of identical machines nobody owns, a projector screen still lit at the front, and the
-    // tubes overhead that never go off. Everything here is already locked down by people who read the manual.
-    'Campus Lab': r(0, 0, 1600, 100, '#121426') + r(0, 0, 1600, 46, '#161a30') +
-      row(60, 170, 10, x => r(x, 2, 110, 5, PALE, op(.16)) + r(x, 7, 110, 3, '#e9e9f0', op(.07))) +
-      r(560, 12, 480, 34, '#1a2038', op(.9)) + r(572, 16, 456, 26, BLUE, op(.2)) +
-      p('M596 36 l34 -14 l30 10 l40 -18 l34 12 l44 -16', CY, 2, op(.3)) +
-      row(596, 1, 5, (_, i) => r(596 + i * 84, 22, 44, 3, PALE, op(.12))) +
-      r(0, 46, 1600, 4, SEAM, op(.8)) +
-      // the bench, and on every one of them the same machine nobody owns, facing the same way
-      row(0, 150, 11, (x, i) => crt(x + 24, 26, 48, 24, i % 3 ? '#16203a' : BLUE) +
-        r(x + 88, 38, 42, 12, '#c9d1d5', op(.16)) + r(x + 88, 38, 42, 3, PALE, op(.3)) +
-        r(x + 8, 50, 134, 7, PALE, op(.28)) + r(x + 8, 57, 134, 15, '#0a0c18', op(.9)) +
-        row(x + 16, 118, 2, xx => r(xx, 57, 7, 24, SEAM, op(.6)))) +
-      r(0, 74, 1600, 26, '#0e1020') + r(0, 74, 1600, 26, 'url(#latile)') +
-      row(0, 150, 11, x => sh(`M${x + 48} 76 h34 v18 h-34 z`, '#07080f', op(.8)) + r(x + 52, 74, 26, 4, SEAM, op(.5))) +
-      fig(772, 44, PALE, .3) + fig(912, 46, PALE, .24),
+    // CAMPUS LAB. A teaching lab you can also be lectured in: benches stepped down in tiers toward the
+    // front, the last slide still up on the screen, a whiteboard nobody wiped, and tubes that never go off.
+    'Campus Lab': r(0, 0, 1600, 100, '#121426') + r(0, 0, 1600, 54, '#161a30') +
+      row(60, 170, 10, x => r(x, 1, 110, 4, PALE, op(.16)) + r(x, 5, 110, 3, '#e9e9f0', op(.07))) +
+      // the front wall: a whiteboard in every bay and a door at the end of each, nobody uses either
+      row(0, 300, 6, (x, i) => board(x + 30, 12, 130, 30) + r(x + 212, 10, 40, 44, '#0c0e1a', op(.9)) +
+        r(x + 216, 14, 32, 32, BLUE, op(.1)) + led(x + 246, 32, GR, .3)) +
+      // the screen over the middle of it, the board beside it, and the projector that is still on
+      r(530, 0, 344, 54, CY, op(.03)) + slide(540, 8, 320, 40) + board(900, 12, 150, 30) +
+      r(688, 0, 34, 9, '#0f1222') + r(694, 2, 24, 5, STEEL, op(.35)) + led(716, 3, RED, .45) +
+      // two who stayed behind at the back bench, seen over the top of it
+      near(748, 22, 1, att(0, 0, CY, .42)) + near(898, 24, 1, att(0, 0, VI, .38)) +
+      // the back tier: one bench the width of the room, the same machine on every place, a meter between
+      r(0, 50, 1600, 7, PALE, op(.26)) + r(0, 57, 1600, 13, '#0a0c18', op(.9)) +
+      row(0, 150, 11, (x, i) => crt(x + 18, 32, 44, 18, i % 3 ? '#16203a' : BLUE) +
+        instr(x + 78, 36, 38, 14, i % 2 ? CY : GR)) +
+      row(40, 150, 11, x => r(x, 57, 7, 13, SEAM, op(.5))) +
+      p('M0 70 h1600', PALE, 2, op(.22)) +
+      // the front tier, one step down and nearer, so its kit stands in front of the last bench's skirt
+      row(0, 150, 11, (x, i) => crt(x + 115, 52, 52, 20, i % 3 ? BLUE : '#16203a') +
+        instr(x + 183, 56, 46, 16, i % 2 ? GR : CY)) +
+      r(0, 72, 1600, 8, PALE, op(.3)) + r(0, 80, 1600, 20, '#090b16', op(.92)) +
+      row(0, 150, 11, x => r(x + 120, 73, 44, 5, '#c9d1d5', op(.18))) +
+      row(115, 150, 11, x => r(x, 80, 8, 20, SEAM, op(.5))) +
+      // and the row in front of you, from behind, which nobody has sat in yet
+      row(0, 118, 15, x => seat(x + 20, 86, 58, 14)),
 
     // DATACENTER DOCK. The goods entrance: a roller door part way up, racks waiting on pallets in the cold
     // air, cages either side and the whole row of them humming. Where the deep runs start.
