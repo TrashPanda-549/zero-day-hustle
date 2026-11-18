@@ -8234,15 +8234,16 @@ const LOC_ART = (() => {
   // one thing drawn bigger. The nearer you are standing the larger you are, which is all the depth this needs
   const near = (x, y, s, inner) => `<g transform="translate(${x} ${y}) scale(${s})">${inner}</g>`;
   // a whiteboard: the palest thing in any of these rooms, with the last diagram still up and a pen tray
-  const board = (x, y, w, h) => r(x - 2, y - 2, w + 4, h + 4, '#2c3146', op(.7)) + r(x, y, w, h, '#c9d1d5', op(.17)) +
-    p(`M${x + 9} ${y + 7} h${Math.round(w * .34)} M${x + 9} ${y + 13} h${Math.round(w * .22)} M${x + 9} ${y + 19} h${Math.round(w * .3)} M${x + 9} ${y + 25} h${Math.round(w * .16)}`, '#0c1020', 2, op(.62)) +
-    p(`M${x + w - 48} ${y + 7} h26 v13 h-26 z M${x + w - 35} ${y + 20} v6 h15 M${x + w - 24} ${y + 23} l6 3 l-6 3`, '#0c1020', 2, op(.52)) +
+  const board = (x, y, w, h) => r(x - 2, y - 2, w + 4, h + 4, '#2c3146', op(.55)) + r(x, y, w, h, '#c9d1d5', op(.105)) +
+    p(`M${x + 9} ${y + 7} h${Math.round(w * .34)} M${x + 9} ${y + 13} h${Math.round(w * .22)} M${x + 9} ${y + 19} h${Math.round(w * .3)} M${x + 9} ${y + 25} h${Math.round(w * .16)}`, '#0c1020', 2, op(.5)) +
+    p(`M${x + w - 48} ${y + 7} h26 v13 h-26 z M${x + w - 35} ${y + 20} v6 h15 M${x + w - 24} ${y + 23} l6 3 l-6 3`, '#0c1020', 2, op(.44)) +
     r(x + 8, y + h, w - 16, 3, STEEL, op(.5));
   // the last slide, still up on the screen at the front: a title, three bullets and a chart nobody explained
-  const slide = (x, y, w, h) => r(x - 3, y - 5, w + 6, 5, STEEL, op(.55)) + r(x, y, w, h, '#0c1a2e', op(.95)) +
+  const slide = (x, y, w, h) => r(x - 3, y - 5, w + 6, 5, STEEL, op(.6)) + r(x - 2, y - 2, w + 4, h + 4, STEEL, op(.3)) +
+    r(x, y, w, h, '#0c1a2e') + r(x, y, w, h, '#cfe6ff', op(.07)) +
     r(x + 14, y + 7, Math.round(w * .42), 6, CY, op(.34)) +
     row(y + 20, 9, 3, (yy, i) => r(x + 20, yy, 4, 4, YL, op(.48)) + r(x + 30, yy, Math.round(w * (.4 - i * .07)), 4, PALE, op(.44))) +
-    row(x + w - 88, 16, 5, (xx, i) => r(xx, y + h - 8 - [9, 17, 12, 22, 15][i], 10, [9, 17, 12, 22, 15][i], VI, op(.46)));
+    row(x + w - 88, 16, 5, (xx, i) => r(xx, y + h - 8 - [9, 17, 12, 22, 15][i], 10, [9, 17, 12, 22, 15][i], VI, op(.36)));
   // a bench instrument: a box with a readout and two knobs. What makes a bench a lab bench and not a desk
   const instr = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1b1e32') +
     r(x + 4, y + 4, w - 20, h - 8, col, op(.32)) + ci(x + w - 8, y + 6, 3, STEEL, op(.55)) +
@@ -8344,9 +8345,9 @@ const LOC_ART = (() => {
       row(60, 170, 10, x => r(x, 1, 110, 4, PALE, op(.16)) + r(x, 5, 110, 3, '#e9e9f0', op(.07))) +
       // the front wall: a whiteboard in every bay and a door at the end of each, nobody uses either
       row(0, 300, 6, (x, i) => board(x + 30, 12, 130, 30) + r(x + 212, 10, 40, 44, '#0c0e1a', op(.9)) +
-        r(x + 216, 14, 32, 32, BLUE, op(.1)) + led(x + 246, 32, GR, .3)) +
+        r(x + 216, 14, 32, 36, '#15182c', op(.9)) + r(x + 220, 18, 11, 18, BLUE, op(.16)) + led(x + 243, 32, STEEL, .5)) +
       // the screen over the middle of it, the board beside it, and the projector that is still on
-      r(530, 0, 344, 54, CY, op(.03)) + slide(540, 8, 320, 40) + board(900, 12, 150, 30) +
+      r(526, 0, 352, 56, CY, op(.045)) + slide(540, 8, 320, 40) + board(900, 12, 150, 30) +
       r(688, 0, 34, 9, '#0f1222') + r(694, 2, 24, 5, STEEL, op(.35)) + led(716, 3, RED, .45) +
       // two who stayed behind at the back bench, seen over the top of it
       near(748, 22, 1, att(0, 0, CY, .42)) + near(898, 24, 1, att(0, 0, VI, .38)) +
