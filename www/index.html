@@ -20044,6 +20044,34 @@ async function selfTest(games) {
               S.hit.cash > 0 && S.hit.xp > 0 && S.hit.due >= 1 && S.hit.due < S.day + 30))],
             ['the Reapers are a rival', rivals().includes(REAP_SYN) || S.grudge[REAP_SYN] !== undefined],
             ['the Reapers opened early', openSyns().includes(REAP_SYN) && !reapGate()],
+            // `bad` is a hundred clauses long and the named ones above only cover the faces and the Reapers,
+            // so a break anywhere else threw a dump of S with no reason attached and nothing to go on. These
+            // coarse probes say which part of the state went, which is the difference between a diagnosis
+            // and a shrug. A probe that throws is reported rather than swallowed.
+            ...[
+              ['money', () => S.cash < 0 || S.wallet < 0 || S.debt < 0 || [S.cash, S.wallet, S.debt].some(v => !Number.isInteger(v))],
+              ['what you can carry', () => used() < 0 || !Number.isInteger(cap()) || cap() < S.drive || !Number.isInteger(S.drive)],
+              ['rides', () => !Array.isArray(S.rides) || S.rides.length > garageSize() || new Set(S.rides).size !== S.rides.length ||
+                S.rides.some(id => !VEHICLES[id]) || (S.ride !== '' && !S.rides.includes(S.ride))],
+              ['trips', () => !Number.isInteger(S.trips) || tripsMax() > TRIPS_PER_DAY + MAX_HOPS || !(S.trips >= 0 && S.trips <= tripsMax())],
+              ['health and heat', () => !Number.isInteger(S.hp) || S.hp < 0 || S.hp > 100 || S.heat < 0 || S.heat > 100 ||
+                !Number.isInteger(S.heat) || S.opsec < 0 || S.opsec > 100],
+              ['gear and bag', () => career.bag.length > BAG_SIZE || career.locker.length > lockerSize() ||
+                Object.values(career.gear).some(it => !it || !RARITY[it.rar] || !Object.keys(it.stats).length)],
+              ['the stash', () => stashTotal() > stashCap() || Object.values(S.stash).some(q => !(q > 0)) || Object.values(S.inv).some(q => !(q > 0))],
+              ['the base', () => BASE_IDS.some(id => !(Number.isInteger(lvl(id)) && lvl(id) >= (BASE[id].start || 0) && lvl(id) <= topLv(id) && eff(id) <= lvl(id)))],
+              ['the skill tree', () => skLeft() !== skTotal() - skSpent() || skSpent() > skTreeCost() ||
+                skTotal() !== (level() - 1) * SKILL.perLevel + SKILL.bonus + skBonus()],
+              ['a nemesis', () => !Array.isArray(career.nem) || career.nem.length > NEM.cap ||
+                new Set(career.nem.map(N => N.name)).size !== career.nem.length],
+              ['the news', () => !Array.isArray(S.ev) || S.ev.length > NEWS.maxRun || S.ev.some(E => !NEWS_EVENTS[E.id])],
+              ['the markets', () => S.loc !== BUNKER && Object.keys(S.prices).length < 4],
+              ['leads', () => !Array.isArray(S.leads) || S.leads.length > DUN.leadMax ||
+                S.leads.some(L => !DUN_TH[L.th] || !LOCATIONS.includes(L.at))],
+              ['wardriving', () => !!(S.wd && (!Array.isArray(S.wd.finds) || S.wd.finds.length > WARDRIVE.hold ||
+                S.wd.finds.some(f => !LOCATIONS.includes(f.at))))],
+              ['a deep run', () => !!(S.dun && !(DUN_TH[S.dun.th] && LOCATIONS.includes(S.dun.at)))],
+            ].map(([k, fn]) => { try { return [k, fn()]; } catch (e) { return [k + ' (probe threw: ' + e.message + ')', true]; } }),
           ].filter(([, v]) => v).map(([k]) => k);
           throw new Error(`invariant broken${why.length ? ' (' + why.join(', ') + ')' : ''}: ` + JSON.stringify(S) +
             ' career=' + JSON.stringify({stand: career.stand, memo: career.memo}));
