@@ -8100,7 +8100,7 @@ const COACH = [
       'your Heat cools. The dialogue says by exactly how much before you agree to it.</p>' +
       '<p>It is also the one moment the law can reach you at home, and the hotter you are the likelier that ' +
       'is. Sleeping cheap means sleeping cool.</p>' +
-      '<p class="dim">Your debt grows overnight too. The Fixer, at the Hackerspace, is who you owe.</p>',
+      `<p class="dim">Your debt grows overnight too. The Fixer, at ${HOME}, is who you owe.</p>`,
     want: (b) => S.day > b.day},
 ];
 const coachAt = () => (S.tut && COACH[S.tut.n]) || null;
