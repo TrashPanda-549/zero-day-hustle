@@ -1872,7 +1872,10 @@ function wakeRide() {
 function rideTooFull(id) {
   const room = cap() - rideCargo() + rideTwist(id, 'cargo'), over = used() - room;
   if (over <= 0) return '';
-  return `<p>You are carrying <b>${num(used())}</b> goods, and ${rideCargo()} of that room is the ${VEHICLES[S.ride][0]}. ` +
+  // On foot there is no ride holding any of that room, and VEHICLES[''] does not exist: saying so crashed
+  // the shop for anyone who walked in carrying more than the ride they were looking at could take.
+  const mine = S.ride && VEHICLES[S.ride] ? `, and ${rideCargo()} of that room is the ${VEHICLES[S.ride][0]}` : '';
+  return `<p>You are carrying <b>${num(used())}</b> goods${mine}. ` +
     `${id ? `On the ${VEHICLES[id][0]}` : 'On foot'} you could only carry <b>${num(room)}</b>.</p>` +
     `<p class="dim">Sell, stash or dump ${num(over)} first.</p>`;
 }
