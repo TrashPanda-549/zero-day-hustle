@@ -1314,7 +1314,8 @@ const GOODS = [
     'A release group dumped its whole archive. Warez are basically free!'],
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
-  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'Teardown Yard', 'Repair Arcade', 'The Bunker'];
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'Teardown Yard', 'Repair Arcade',
+  'Swapmeet Field', 'The Bunker'];
 const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
@@ -6253,6 +6254,21 @@ function backdrop(loc) {
       '<rect x="8" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="158" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="0" y="240" width="56" height="92" fill="#15132c"/><rect x="144" y="240" width="56" height="92" fill="#15132c"/>',
+    'Swapmeet Field':
+      '<path d="M0 88 h200" stroke="#1b2033" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-width="2">' +
+      '<path d="M26 88 V18" stroke-opacity=".45"/><path d="M26 34 l-18 54 M26 34 l18 54" stroke-opacity=".16"/>' +
+      '<path d="M6 16 h40" stroke-opacity=".45"/>' +
+      [10, 20, 30, 40].map((x, i) => `<path d="M${x} ${16 - [13, 11, 9, 7][i]} v${[13, 11, 9, 7][i] * 2}" stroke-opacity=".4"/>`).join('') +
+      '<path d="M120 34 v54 M192 34 v54" stroke-opacity=".3"/></g>' +
+      '<path d="M112 20 h88 l-9 14 h-79 z" fill="#1a1526"/>' +
+      '<rect x="114" y="58" width="84" height="6" fill="#3a2a1c"/>' +
+      '<rect x="122" y="38" width="30" height="20" fill="#1b1e32"/><rect x="126" y="42" width="18" height="11" fill="#fcee0a" fill-opacity=".28"/>' +
+      '<rect x="158" y="42" width="28" height="16" fill="#1b1e32"/><rect x="162" y="46" width="16" height="8" fill="#3dff9a" fill-opacity=".26"/>' +
+      '<rect x="0" y="212" width="80" height="8" fill="#3a2a1c"/>' +
+      '<rect x="8" y="188" width="30" height="24" fill="#1b1e32"/><rect x="46" y="194" width="28" height="18" fill="#1b1e32"/>' +
+      '<rect x="124" y="224" width="76" height="8" fill="#3a2a1c"/>' +
+      '<rect x="132" y="202" width="28" height="22" fill="#1b1e32"/>',
     'Repair Arcade':
       '<path d="M0 22 h200" stroke="#2b2752" stroke-width="3"/>' +
       '<rect x="0" y="28" width="86" height="22" fill="#1a1430"/><rect x="8" y="33" width="70" height="12" fill="#ff4fd8" fill-opacity=".2"/>' +
@@ -6773,6 +6789,7 @@ const DISTRICTS = {
   'Strip Mall': {who: 'the traders here', hot: 'The unit next door has a photo of you by the till.'},
   'Teardown Yard': {who: 'the yard crew', hot: 'The yard weighs everything twice when you are in it, and never the way you would.'},
   'Repair Arcade': {who: 'the counter staff', hot: 'Every counter on the row has gone back to the laminated price. The laminated price went up.'},
+  'Swapmeet Field': {who: 'the table holders', hot: 'Word went down the tables. Everything you want has just become a collector\'s piece.'},
 };
 // The cast. kind decides what their standing does; say is one line per mood, '' meaning "whatever they
 // usually say"; look is [skin, hair colour, head gear, body gear] for the ones who had no picture before.
@@ -6856,7 +6873,7 @@ const CAST = {
   'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock', 'Teardown Yard'], say: [
     'He gets back in the skip and pulls the lid down.', 'He shows you one drive at a time.', '',
     '"Good stuff today. For you, good price."', '"I go through it twice now. Once for me, once for you."']},
-  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace'], say: [
+  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace', 'Swapmeet Field'], say: [
     'The blanket is folded up before you reach it.', 'Nothing on the blanket has a price today.', '',
     '"The hat says you are fine."', '"The hat says you are one of us."']},
 };
@@ -8472,6 +8489,39 @@ const LOC_ART = (() => {
         return r(x, 76, w, 18, '#05050a') + r(x + 2, 78, w - 4, 14, i % 2 ? '#1a1b2a' : '#20202e') +
           r(x + w * .22, 70, w * .56, 8, '#12131f') + r(x + w * .24, 72, w * .52, 5, BLUE, op(.3)) +
           led(x + 4, 82, YL, .3) + led(x + w - 7, 82, RED, .3); }),
+
+    // SWAPMEET FIELD. A radio rally on a showground, early: trestle tables of other people's workshops,
+    // estate cars backed up to them, a marquee over the good stuff, and a beam on a mast nobody is using.
+    'Swapmeet Field': r(0, 0, 1600, 100, '#0a0c18') + r(0, 0, 1600, 44, '#0c0f1c') +
+      // the masts on the far side of the field, guyed, with a lamp on the top of each
+      row(0, 230, 8, (x, i) => p(`M${x} 44 v-${26 + (i % 3) * 8}`, STEEL, 2, op(.2)) +
+        p(`M${x} ${18 - (i % 3) * 8} l-16 ${26 + (i % 3) * 8} M${x} ${18 - (i % 3) * 8} l16 ${26 + (i % 3) * 8}`, STEEL, 1, op(.11)) +
+        led(x - 1, 16 - (i % 3) * 8, RED, .28)) +
+      p('M0 44 h1600', '#1b2033', 3) +
+      // the rows: a trestle table, somebody else's workshop laid out on it, and the coat standing behind it
+      row(0, 164, 11, (x, i) => r(x + 10, 60, 136, 6, WOOD, op(.55)) +
+        p(`M${x + 22} 66 v22 M${x + 134} 66 v22`, WOOD, 2.4, op(.35)) +
+        row(x + 16, 34, 4, (xx, k) => r(xx, 48, 28, 12, '#05040a') + r(xx + 2, 50, 24, 8, (i + k) % 3 ? '#1c1f31' : '#232739') +
+          led(xx + 19, 53, (i + k) % 2 ? GR : YL, .28)) +
+        fig(x + 62, 30, PALE, .13) +
+        (i % 3 ? '' : r(x + 102, 54, 54, 26, '#141726', op(.9)) + r(x + 106, 48, 46, 8, STEEL, op(.26)))) +
+      // the marquee over the tables worth queueing for, and what is on them
+      sh('M548 20 h266 l-15 16 h-236 z', '#1a1526') + p('M548 20 h266', STEEL, 2.4, op(.38)) +
+      row(0, 1, 9, (_, i) => sh(`M${556 + i * 29} 36 l7 8 l7 -8 z`, '#241c34')) +
+      p('M562 36 v52 M798 36 v52', STEEL, 2.4, op(.3)) +
+      r(554, 60, 254, 7, WOOD, op(.65)) + r(554, 67, 254, 23, '#0a0a14', op(.85)) +
+      instr(572, 38, 56, 22, YL) + instr(640, 40, 48, 20, GR) + instr(700, 36, 62, 24, CY) +
+      att(774, 36, YL, .32) +
+      // the tannoy on its pole, aimed at nobody in particular
+      p('M864 88 v-56', STEEL, 2.6, op(.38)) + sh('M852 24 l26 -8 v26 l-26 -8 z', STEEL, op(.4)) +
+      // the mast, guyed into the grass, with a beam on it that is bigger than the field needs
+      p('M986 88 v-72', STEEL, 3, op(.45)) + p('M986 26 l-56 62 M986 26 l56 62', STEEL, 1.4, op(.16)) +
+      p('M940 16 h94', STEEL, 2.4, op(.4)) +
+      row(0, 1, 6, (_, i) => { const x = 944 + i * 18, h = [13, 12, 10, 9, 8, 7][i];
+        return p(`M${x} ${16 - h} v${h * 2}`, STEEL, 2, op(.36)); }) +
+      // the grass, and the ruts the cars have already put in it
+      r(0, 88, 1600, 12, '#0a0e12') + p('M0 88 h1600', '#1b2033', 2, op(.8)) +
+      row(0, 120, 14, x => r(x, 93, 72, 3, '#2a2f22', op(.28))),
 
     // REPAIR ARCADE. A mall floor of unlock-and-screen counters: lit fascias, a pegboard of everything that
     // is not a phone, glass cases full of handsets that are, and a man who can do yours in twenty minutes.
@@ -13257,7 +13307,8 @@ const BTL = (() => {
   const SCENES = {'The Hackerspace': ['racks', '#c77dff'], 'Tor Bazaar': ['market', '#3dff9a'], 'IRC Backchannel': ['alley', '#00e5ff'],
     'Con Hallway': ['market', '#fcee0a'], 'Campus Lab': ['racks', '#3dff9a'], 'Datacenter Dock': ['racks', '#00e5ff'],
     'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8'],
-    'Teardown Yard': ['racks', '#fcee0a'], 'Repair Arcade': ['market', '#00e5ff']};
+    'Teardown Yard': ['racks', '#fcee0a'], 'Repair Arcade': ['market', '#00e5ff'],
+    'Swapmeet Field': ['market', '#fcee0a']};
   function paint(kind, w, col, o) {
     const c = document.createElement('canvas');
     c.width = w; c.height = H;
@@ -17219,11 +17270,11 @@ const DUN_TH = {
     word: 'floor', boss: 'the back room', bossWho: 'the house crew', deep: 'Cellar'},
   bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace'], guard: 'own',
     word: 'layer', boss: 'the ledger core', bossWho: 'Vault ICE', deep: 'Cold storage'},
-  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel'], guard: 'own',
+  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the control core', bossWho: 'Governor ICE', deep: 'Deep plant'},
   archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe', 'Teardown Yard'], guard: 'own',
     word: 'layer', boss: 'the index core', bossWho: 'Librarian ICE', deep: 'Dead sector'},
-  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar'], guard: 'own',
+  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the clean core', bossWho: 'Black ICE', deep: 'Null space'},
 };
 const DUN_IDS = Object.keys(DUN_TH);
@@ -18183,6 +18234,7 @@ const WD_DIST = {
   'Strip Mall': {rich: 1.25, deep: 0, why: 'tills, signage and a nail bar with the password on the wall'},
   'Teardown Yard': {rich: 0.6, deep: 2, why: 'nine hundred machines, none of them plugged in, and one weighbridge that is'},
   'Repair Arcade': {rich: 1.3, deep: 0, why: 'thirty counters, thirty routers, and one password on thirty laminated cards'},
+  'Swapmeet Field': {rich: 0.75, deep: 2, why: 'a field, and three hundred people who built the thing they are transmitting with'},
 };
 let wdTally = {swept: 0, hops: 0, found: 0, cracked: 0, failed: 0, pot: 0, sold: 0, dived: 0, stale: 0,
   full: 0, sweeps: 0, cut: 0, nokit: 0};   // counted for the self-test
