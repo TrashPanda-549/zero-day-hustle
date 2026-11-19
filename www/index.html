@@ -21382,6 +21382,7 @@ function loadSave(n) {
       nem: record.nem, nemGone: record.nemGone,   // NEMESIS: nemFix() tidies these (see fixCareer)
       // REPUTATION: where the street had you, and why. fixCareer() starts a save from before it at 0.
       street: record.street, streetWhy: record.streetWhy, streetDay: record.streetDay,
+      taught: record.taught,   // TEACHING: the explainers this save has been shown (fixCareer tidies it)
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
@@ -21413,6 +21414,9 @@ function loadSave(n) {
   S.shop = S.shop || [];
   for (const k of ['stuck', 'stuckCost', 'tag', 'stashTag']) S[k] = S[k] && typeof S[k] === 'object' ? S[k] : {};
   S.sick = Number.isInteger(S.sick) ? S.sick : 0;
+  // TEACHING: a guided first day that was running when the game was shut carries on; anything else there
+  // is junk and is thrown away, so a bad save cannot leave a step strip pointing at nothing.
+  if (!(S.tut && Number.isInteger(S.tut.n) && S.tut.n >= 0 && S.tut.n < COACH.length)) S.tut = null;
   fixTags();
   for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
   if (S.armor && !career.gear.body) {
