@@ -8529,24 +8529,28 @@ const LOC_ART = (() => {
       // the bays: the front of a coach in each one, the blind over it, and the bay number above that
       row(0, 152, 11, (x, i) => r(x + 10, 30, 128, 56, '#05040a', op(.85)) + r(x + 14, 32, 120, 52, '#1a1b28') +
         r(x + 22, 36, 104, 9, i % 3 === 2 ? STEEL : YL, op(i % 3 === 2 ? .09 : .13)) +
-        r(x + 22, 50, 104, 18, BLUE, op(.17)) +
+        r(x + 22, 50, 104, 18, BLUE, op(.11)) +
         r(x + 20, 74, 20, 6, YL, op(.15)) + r(x + 108, 74, 20, 6, YL, op(.15)) +
         r(x + 60, 20, 28, 10, '#05040a', op(.9)) + r(x + 62, 22, 24, 6, CY, op(.11))) +
-      // the board. Three services, and the one in red that is not running
-      r(596, 18, 250, 40, '#05040a', op(.95)) + r(600, 20, 242, 36, '#0a0a14') +
-      p('M620 18 v-4 M822 18 v-4', STEEL, 2.4, op(.45)) +
-      row(26, 11, 3, (y, i) => r(610, y, 34, 5, YL, op(.26)) +
-        r(654, y, 104 - i * 22, 5, i === 2 ? RED : YL, op(i === 2 ? .26 : .19)) +
-        r(790, y, 40, 5, i === 2 ? RED : CY, op(.17))) +
+      // the board, hung off the canopy. Three services, and the one in red that is not running
+      r(620, 16, 206, 38, '#05040a', op(.95)) + r(624, 18, 198, 34, '#0a0a14') +
+      p('M644 16 v-4 M802 16 v-4', STEEL, 2.4, op(.4)) +
+      row(24, 11, 3, (y, i) => r(632, y, 28, 5, YL, op(.17)) +
+        r(668, y, 86 - i * 18, 5, i === 2 ? RED : YL, op(i === 2 ? .2 : .13)) +
+        r(778, y, 34, 5, i === 2 ? RED : CY, op(.12))) +
       // the one at the stand in front of you, with its blind lit and its door standing open
-      r(862, 26, 170, 62, '#05040a') + r(866, 28, 162, 58, '#1d1e2c') +
-      r(876, 32, 142, 11, YL, op(.18)) + r(876, 48, 142, 22, BLUE, op(.2)) +
-      r(874, 76, 24, 7, YL, op(.2)) + r(996, 76, 24, 7, YL, op(.2)) +
-      r(934, 48, 26, 38, '#0b0b14', op(.9)) +
-      // the bench, whoever is on it at this hour, and the machine that still only takes coins
-      seat(556, 70, 54, 14) + seat(616, 70, 54, 14) + seat(676, 70, 54, 14) +
-      att(574, 44, CY, .28) + att(700, 46, MG, .24) +
-      r(772, 50, 44, 38, '#05040a') + r(775, 52, 38, 34, '#17182a') + win(779, 56, 30, 16, CY, .13) +
+      r(862, 24, 174, 64, '#05040a') + r(866, 26, 166, 60, '#1d1e2c') +
+      r(878, 30, 142, 12, YL, op(.26)) + r(878, 48, 142, 22, BLUE, op(.2)) +
+      r(876, 76, 24, 7, YL, op(.26)) + r(1000, 76, 24, 7, YL, op(.26)) +
+      r(936, 46, 26, 40, '#0b0b14', op(.95)) + r(938, 50, 22, 24, CY, op(.07)) +
+      // whoever is still waiting at this hour, and the bench they are bolted to
+      att(590, 44, CY, .28) + att(690, 46, MG, .24) +
+      r(556, 60, 190, 4, STEEL, op(.2)) + r(556, 70, 190, 5, STEEL, op(.26)) +
+      p('M566 75 v11 M736 75 v11', STEEL, 2.4, op(.22)) +
+      // the machine that still only takes coins
+      r(770, 44, 42, 44, '#05040a') + r(774, 46, 34, 40, '#17182a') +
+      r(778, 50, 26, 22, CY, op(.08)) + row(778, 9, 3, x => r(x, 52, 7, 18, '#07060f', op(.8))) +
+      r(778, 76, 26, 5, STEEL, op(.22)) +
       // the concourse, and the line you are not meant to stand the far side of
       r(0, 86, 1600, 14, '#09090f') + p('M0 86 h1600', '#2a2a3a', 2, op(.65)) +
       r(0, 91, 1600, 3, YL, op(.09)),
