@@ -7974,9 +7974,10 @@ const TEACH = {
   heat: {t: 'Heat', tone: '', h: () =>
     `<p>Your Heat is <b class="amber">${S.heat}%</b>. That is the line: from 40% the file belongs to the FBI, ` +
     'and from 75% to the NSA. Higher Heat means more stops, bigger ones, and a worse night at home.</p>' +
-    `<p>It comes off every deal you make &mdash; big money moving, not the number of trades &mdash; off alarms, ` +
-    'gunfire and anything the city notices. A night in the Bunker takes ' +
-    `<b>${HEAT_DECAY + 12}</b> points off it${heatFloor() ? `, but never below ${heatFloor()}%` : ''}.</p>` +
+    '<p>It comes off every deal you make &mdash; big money moving, not the number of trades &mdash; off alarms, ' +
+    'gunfire and anything the city notices. A night in the Bunker is the biggest single thing that takes it ' +
+    `back down${heatFloor() ? `, though a career this long never goes below ${heatFloor()}%` : ''}; the Sleep ` +
+    'dialogue says how far before you commit to it.</p>' +
     '<p>If you cannot wait that long: <b>Lower Heat</b> uses what you carry (burner phones, a VPN, a lie-low ' +
     'kit), the black market sells more of it, and a fake ID starts you over as somebody else.</p>'},
   // ===== break-ins: the Alert economy, read off BREAKIN.
@@ -8096,7 +8097,7 @@ const COACH = [
   {id: 'bed', hi: 'sleep', strip: 'Press <b>Sleep</b> to end the day.',
     t: 'Sleep on it', h: () =>
       '<p><b>Sleep</b> ends the day. Every market in the city rerolls, your Health and OpSec come back, and ' +
-      `your Heat drops ${HEAT_DECAY + 12} points.</p>` +
+      'your Heat cools. The dialogue says by exactly how much before you agree to it.</p>' +
       '<p>It is also the one moment the law can reach you at home, and the hotter you are the likelier that ' +
       'is. Sleeping cheap means sleeping cool.</p>' +
       '<p class="dim">Your debt grows overnight too. The Fixer, at the Hackerspace, is who you owe.</p>',
