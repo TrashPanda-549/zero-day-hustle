@@ -1315,7 +1315,7 @@ const GOODS = [
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
   'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'Teardown Yard', 'Repair Arcade',
-  'Swapmeet Field', 'Multi-storey', 'The Bunker'];
+  'Swapmeet Field', 'Multi-storey', 'Coach Station', 'The Bunker'];
 const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
@@ -6254,6 +6254,19 @@ function backdrop(loc) {
       '<rect x="8" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="158" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="0" y="240" width="56" height="92" fill="#15132c"/><rect x="144" y="240" width="56" height="92" fill="#15132c"/>',
+    'Coach Station':
+      '<path d="M0 18 h200" stroke="#2a2a3a" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-opacity=".18" stroke-width="1.6">' +
+      [0, 40, 80, 120, 160].map(x => `<path d="M${x} 18 l20 -16 M${x + 20} 18 l-20 -16"/>`).join('') + '</g>' +
+      '<rect x="4" y="30" width="78" height="60" fill="#1a1b28"/><rect x="12" y="36" width="62" height="10" fill="#fcee0a" fill-opacity=".16"/>' +
+      '<rect x="12" y="52" width="62" height="20" fill="#0c4270" fill-opacity=".3"/>' +
+      '<rect x="10" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/><rect x="60" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/>' +
+      '<rect x="118" y="34" width="78" height="56" fill="#1a1b28"/><rect x="126" y="40" width="62" height="10" fill="#fcee0a" fill-opacity=".12"/>' +
+      '<rect x="126" y="56" width="62" height="18" fill="#0c4270" fill-opacity=".25"/>' +
+      '<rect x="58" y="112" width="88" height="42" fill="#0a0a14" stroke="#2b2752"/>' +
+      [122, 132, 142].map((y, i) => `<path d="M66 ${y} h26 M100 ${y} h${36 - i * 9}" stroke="${i === 2 ? '#ff3b5c' : '#fcee0a'}" stroke-opacity=".28" stroke-width="4"/>`).join('') +
+      '<rect x="0" y="250" width="70" height="10" fill="#272c46"/><rect x="4" y="260" width="8" height="42" fill="#4a5068" fill-opacity=".4"/>' +
+      '<rect x="150" y="238" width="50" height="62" fill="#17182a" stroke="#2b2752"/><rect x="158" y="246" width="34" height="22" fill="#00e5ff" fill-opacity=".14"/>',
     'Multi-storey':
       '<path d="M0 24 h200" stroke="#282838" stroke-width="3"/>' +
       '<path d="M0 8 h200 M0 15 h200" stroke="#4a5068" stroke-opacity=".2" stroke-width="3"/>' +
@@ -6805,6 +6818,7 @@ const DISTRICTS = {
   'Repair Arcade': {who: 'the counter staff', hot: 'Every counter on the row has gone back to the laminated price. The laminated price went up.'},
   'Swapmeet Field': {who: 'the table holders', hot: 'Word went down the tables. Everything you want has just become a collector\'s piece.'},
   'Multi-storey': {who: 'the people who park up here', hot: 'Two cars start up and leave every time you come up the ramp.'},
+  'Coach Station': {who: 'the night staff', hot: 'The night staff have a description of you now, and it is an accurate one.'},
 };
 // The cast. kind decides what their standing does; say is one line per mood, '' meaning "whatever they
 // usually say"; look is [skin, hair colour, head gear, body gear] for the ones who had no picture before.
@@ -6882,7 +6896,7 @@ const CAST = {
   'Brass': {kind: 'junkie', at: ['Strip Mall', 'Multi-storey'], say: [
     'He rattles off down the alley before you can speak.', 'He keeps one hand in a pocket.', '',
     '"Fell off a truck. Your truck, if you like."', '"Boxes are open. Count them yourself. I trust you."']},
-  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel'], say: [
+  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel', 'Coach Station'], say: [
     '"Nothing is your size. Nothing will ever be your size."', 'She pushes the trolley past you.', '',
     '"Your size, and I kept the tags on."', '"I hold things back for you. You know I do."']},
   'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock', 'Teardown Yard'], say: [
@@ -8504,6 +8518,38 @@ const LOC_ART = (() => {
         return r(x, 76, w, 18, '#05050a') + r(x + 2, 78, w - 4, 14, i % 2 ? '#1a1b2a' : '#20202e') +
           r(x + w * .22, 70, w * .56, 8, '#12131f') + r(x + w * .24, 72, w * .52, 5, BLUE, op(.3)) +
           led(x + 4, 82, YL, .3) + led(x + w - 7, 82, RED, .3); }),
+
+    // COACH STATION. Half past two under the canopy: coaches nose-in along the bays, a board with three
+    // services on it and one that is not running, a bench bolted down, and a machine that only takes coins.
+    'Coach Station': r(0, 0, 1600, 100, '#0d0c18') +
+      // the canopy, the trusses holding it up, and the strips that are still lit at this hour
+      r(0, 0, 1600, 16, '#13131f') +
+      row(0, 80, 21, x => p(`M${x} 16 l20 -14 M${x + 20} 16 l-20 -14`, STEEL, 1.4, op(.15))) +
+      p('M0 16 h1600', '#2a2a3a', 3) + row(40, 200, 8, x => r(x, 18, 120, 3, '#e9e9f0', op(.06))) +
+      // the bays: the front of a coach in each one, the blind over it, and the bay number above that
+      row(0, 152, 11, (x, i) => r(x + 10, 30, 128, 56, '#05040a', op(.85)) + r(x + 14, 32, 120, 52, '#1a1b28') +
+        r(x + 22, 36, 104, 9, i % 3 === 2 ? STEEL : YL, op(i % 3 === 2 ? .09 : .13)) +
+        r(x + 22, 50, 104, 18, BLUE, op(.17)) +
+        r(x + 20, 74, 20, 6, YL, op(.15)) + r(x + 108, 74, 20, 6, YL, op(.15)) +
+        r(x + 60, 20, 28, 10, '#05040a', op(.9)) + r(x + 62, 22, 24, 6, CY, op(.11))) +
+      // the board. Three services, and the one in red that is not running
+      r(596, 18, 250, 40, '#05040a', op(.95)) + r(600, 20, 242, 36, '#0a0a14') +
+      p('M620 18 v-4 M822 18 v-4', STEEL, 2.4, op(.45)) +
+      row(26, 11, 3, (y, i) => r(610, y, 34, 5, YL, op(.26)) +
+        r(654, y, 104 - i * 22, 5, i === 2 ? RED : YL, op(i === 2 ? .26 : .19)) +
+        r(790, y, 40, 5, i === 2 ? RED : CY, op(.17))) +
+      // the one at the stand in front of you, with its blind lit and its door standing open
+      r(862, 26, 170, 62, '#05040a') + r(866, 28, 162, 58, '#1d1e2c') +
+      r(876, 32, 142, 11, YL, op(.18)) + r(876, 48, 142, 22, BLUE, op(.2)) +
+      r(874, 76, 24, 7, YL, op(.2)) + r(996, 76, 24, 7, YL, op(.2)) +
+      r(934, 48, 26, 38, '#0b0b14', op(.9)) +
+      // the bench, whoever is on it at this hour, and the machine that still only takes coins
+      seat(556, 70, 54, 14) + seat(616, 70, 54, 14) + seat(676, 70, 54, 14) +
+      att(574, 44, CY, .28) + att(700, 46, MG, .24) +
+      r(772, 50, 44, 38, '#05040a') + r(775, 52, 38, 34, '#17182a') + win(779, 56, 30, 16, CY, .13) +
+      // the concourse, and the line you are not meant to stand the far side of
+      r(0, 86, 1600, 14, '#09090f') + p('M0 86 h1600', '#2a2a3a', 2, op(.65)) +
+      r(0, 91, 1600, 3, YL, op(.09)),
 
     // MULTI-STOREY. Level six, which nobody uses: poured concrete, services clipped to the soffit, the city
     // a long way off through the gap in the wall, and two cars nose to tail in the end bay with one running.
@@ -13364,7 +13410,8 @@ const BTL = (() => {
     'Con Hallway': ['market', '#fcee0a'], 'Campus Lab': ['racks', '#3dff9a'], 'Datacenter Dock': ['racks', '#00e5ff'],
     'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8'],
     'Teardown Yard': ['racks', '#fcee0a'], 'Repair Arcade': ['market', '#00e5ff'],
-    'Swapmeet Field': ['market', '#fcee0a'], 'Multi-storey': ['street', '#00e5ff']};
+    'Swapmeet Field': ['market', '#fcee0a'], 'Multi-storey': ['street', '#00e5ff'],
+    'Coach Station': ['street', '#c77dff']};
   function paint(kind, w, col, o) {
     const c = document.createElement('canvas');
     c.width = w; c.height = H;
@@ -17320,11 +17367,11 @@ const DUN_TH = {
     word: 'floor', boss: 'the executive floor', bossWho: 'Corporate Response', deep: 'Sub-basement'},
   depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley', 'Teardown Yard', 'Multi-storey'], guard: 'sec',
     word: 'floor', boss: 'the bonded cage', bossWho: 'Night Shift', deep: 'Loading level'},
-  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe', 'Multi-storey'], guard: 'law',
+  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe', 'Multi-storey', 'Coach Station'], guard: 'law',
     word: 'floor', boss: 'the evidence vault', bossWho: 'the duty shift', deep: 'Basement'},
   squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar', 'Repair Arcade'], guard: 'own',
     word: 'floor', boss: 'the back room', bossWho: 'the house crew', deep: 'Cellar'},
-  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace'], guard: 'own',
+  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace', 'Coach Station'], guard: 'own',
     word: 'layer', boss: 'the ledger core', bossWho: 'Vault ICE', deep: 'Cold storage'},
   grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the control core', bossWho: 'Governor ICE', deep: 'Deep plant'},
@@ -18292,6 +18339,7 @@ const WD_DIST = {
   'Repair Arcade': {rich: 1.3, deep: 0, why: 'thirty counters, thirty routers, and one password on thirty laminated cards'},
   'Swapmeet Field': {rich: 0.75, deep: 2, why: 'a field, and three hundred people who built the thing they are transmitting with'},
   'Multi-storey': {rich: 1.0, deep: 1, why: 'six decks of nothing, and whatever the offices next door leak down the stairwell'},
+  'Coach Station': {rich: 1.15, deep: 0, why: 'free wifi, a departure board, and four hundred phones that only stop here'},
 };
 let wdTally = {swept: 0, hops: 0, found: 0, cracked: 0, failed: 0, pot: 0, sold: 0, dived: 0, stale: 0,
   full: 0, sweeps: 0, cut: 0, nokit: 0};   // counted for the self-test
