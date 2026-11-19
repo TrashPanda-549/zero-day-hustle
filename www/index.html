@@ -1339,7 +1339,8 @@ const GOODS = [
     'A release group dumped its whole archive. Warez are basically free!'],
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
-  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'The Bunker'];
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'Teardown Yard', 'Repair Arcade',
+  'Swapmeet Field', 'Multi-storey', 'Coach Station', 'The Bunker'];
 const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
@@ -6291,6 +6292,75 @@ function backdrop(loc) {
       '<rect x="8" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="158" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="0" y="240" width="56" height="92" fill="#15132c"/><rect x="144" y="240" width="56" height="92" fill="#15132c"/>',
+    'Coach Station':
+      '<path d="M0 18 h200" stroke="#2a2a3a" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-opacity=".18" stroke-width="1.6">' +
+      [0, 40, 80, 120, 160].map(x => `<path d="M${x} 18 l20 -16 M${x + 20} 18 l-20 -16"/>`).join('') + '</g>' +
+      '<rect x="4" y="30" width="78" height="60" fill="#1a1b28"/><rect x="12" y="36" width="62" height="10" fill="#fcee0a" fill-opacity=".16"/>' +
+      '<rect x="12" y="52" width="62" height="20" fill="#0c4270" fill-opacity=".3"/>' +
+      '<rect x="10" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/><rect x="60" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/>' +
+      '<rect x="118" y="34" width="78" height="56" fill="#1a1b28"/><rect x="126" y="40" width="62" height="10" fill="#fcee0a" fill-opacity=".12"/>' +
+      '<rect x="126" y="56" width="62" height="18" fill="#0c4270" fill-opacity=".25"/>' +
+      '<rect x="58" y="112" width="88" height="42" fill="#0a0a14" stroke="#2b2752"/>' +
+      [122, 132, 142].map((y, i) => `<path d="M66 ${y} h26 M100 ${y} h${36 - i * 9}" stroke="${i === 2 ? '#ff3b5c' : '#fcee0a'}" stroke-opacity=".28" stroke-width="4"/>`).join('') +
+      '<rect x="0" y="250" width="70" height="10" fill="#272c46"/><rect x="4" y="260" width="8" height="42" fill="#4a5068" fill-opacity=".4"/>' +
+      '<rect x="150" y="238" width="50" height="62" fill="#17182a" stroke="#2b2752"/><rect x="158" y="246" width="34" height="22" fill="#00e5ff" fill-opacity=".14"/>',
+    'Multi-storey':
+      '<path d="M0 24 h200" stroke="#282838" stroke-width="3"/>' +
+      '<path d="M0 8 h200 M0 15 h200" stroke="#4a5068" stroke-opacity=".2" stroke-width="3"/>' +
+      '<rect x="0" y="30" width="200" height="20" fill="#07080f"/>' +
+      [4, 26, 48, 70, 92, 114, 136, 158, 180].map((x, i) =>
+        `<rect x="${x}" y="${32 + (i % 3) * 3}" width="16" height="${18 - (i % 3) * 3}" fill="#0c0e18"/>` +
+        `<rect x="${x + 4}" y="${36 + (i % 3) * 3}" width="4" height="8" fill="${i % 2 ? '#00e5ff' : '#fcee0a'}" fill-opacity=".1"/>`).join('') +
+      '<rect x="0" y="50" width="200" height="10" fill="#16161f"/><path d="M0 50 h200" stroke="#2a2a3a" stroke-width="2"/>' +
+      '<rect x="4" y="24" width="26" height="82" fill="#1b1b28"/><rect x="4" y="56" width="26" height="12" fill="#fcee0a" fill-opacity=".1"/>' +
+      '<rect x="170" y="24" width="26" height="82" fill="#1b1b28"/><rect x="170" y="56" width="26" height="12" fill="#fcee0a" fill-opacity=".1"/>' +
+      '<rect x="0" y="238" width="76" height="44" fill="#1c1d2b"/><rect x="10" y="228" width="56" height="12" fill="#0e1424"/>' +
+      '<rect x="0" y="260" width="16" height="7" fill="#ff3b5c" fill-opacity=".3"/>' +
+      '<rect x="128" y="248" width="72" height="40" fill="#1a1b27"/><rect x="138" y="238" width="54" height="12" fill="#0e1424"/>' +
+      '<path d="M0 302 h200" stroke="#282838" stroke-width="4"/>',
+    'Swapmeet Field':
+      '<path d="M0 88 h200" stroke="#1b2033" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-width="2">' +
+      '<path d="M26 88 V18" stroke-opacity=".45"/><path d="M26 34 l-18 54 M26 34 l18 54" stroke-opacity=".16"/>' +
+      '<path d="M6 16 h40" stroke-opacity=".45"/>' +
+      [10, 20, 30, 40].map((x, i) => `<path d="M${x} ${16 - [13, 11, 9, 7][i]} v${[13, 11, 9, 7][i] * 2}" stroke-opacity=".4"/>`).join('') +
+      '<path d="M120 34 v54 M192 34 v54" stroke-opacity=".3"/></g>' +
+      '<path d="M112 20 h88 l-9 14 h-79 z" fill="#1a1526"/>' +
+      '<rect x="114" y="58" width="84" height="6" fill="#3a2a1c"/>' +
+      '<rect x="122" y="38" width="30" height="20" fill="#1b1e32"/><rect x="126" y="42" width="18" height="11" fill="#fcee0a" fill-opacity=".28"/>' +
+      '<rect x="158" y="42" width="28" height="16" fill="#1b1e32"/><rect x="162" y="46" width="16" height="8" fill="#3dff9a" fill-opacity=".26"/>' +
+      '<rect x="0" y="212" width="80" height="8" fill="#3a2a1c"/>' +
+      '<rect x="8" y="188" width="30" height="24" fill="#1b1e32"/><rect x="46" y="194" width="28" height="18" fill="#1b1e32"/>' +
+      '<rect x="124" y="224" width="76" height="8" fill="#3a2a1c"/>' +
+      '<rect x="132" y="202" width="28" height="22" fill="#1b1e32"/>',
+    'Repair Arcade':
+      '<path d="M0 22 h200" stroke="#2b2752" stroke-width="3"/>' +
+      '<rect x="0" y="28" width="86" height="22" fill="#1a1430"/><rect x="8" y="33" width="70" height="12" fill="#ff4fd8" fill-opacity=".2"/>' +
+      '<rect x="114" y="28" width="86" height="22" fill="#1a1430"/><rect x="122" y="33" width="70" height="12" fill="#00e5ff" fill-opacity=".18"/>' +
+      '<rect x="6" y="62" width="78" height="54" fill="#15122a" stroke="#2b2752"/>' +
+      [70, 86, 102].map(y => `<path d="M12 ${y} h66" stroke="#c77dff" stroke-opacity=".22" stroke-width="7"/>`).join('') +
+      '<rect x="116" y="70" width="78" height="46" fill="#15122a" stroke="#2b2752"/>' +
+      [78, 94, 110].map(y => `<path d="M122 ${y} h66" stroke="#00e5ff" stroke-opacity=".18" stroke-width="7"/>`).join('') +
+      '<rect x="0" y="236" width="74" height="10" fill="#6f7694" fill-opacity=".25"/>' +
+      '<rect x="0" y="246" width="74" height="86" fill="#0b0918"/>' +
+      '<rect x="126" y="244" width="74" height="10" fill="#6f7694" fill-opacity=".2"/>' +
+      '<rect x="126" y="254" width="74" height="78" fill="#0b0918"/>' +
+      [8, 28, 48].map(x => `<rect x="${x}" y="252" width="14" height="10" fill="#00e5ff" fill-opacity=".18"/>`).join(''),
+    'Teardown Yard':
+      '<g fill="none" stroke="#2b2752" stroke-width="1.5">' +
+      [10, 22, 34, 46].map(y => `<path d="M0 ${y} h200"/>`).join('') +
+      [14, 38, 62, 86, 110, 134, 158, 182].map(x => `<path d="M${x} 2 v52"/>`).join('') + '</g>' +
+      '<path d="M0 56 h200" stroke="#2b2752" stroke-width="3"/>' +
+      '<rect x="6" y="64" width="62" height="15" fill="#1d1e30"/><rect x="6" y="83" width="62" height="15" fill="#191a2c"/>' +
+      '<rect x="4" y="102" width="66" height="6" fill="#3a2a1c"/>' +
+      '<rect x="132" y="72" width="62" height="15" fill="#1d1e30"/><rect x="132" y="91" width="62" height="15" fill="#191a2c"/>' +
+      '<rect x="130" y="110" width="66" height="6" fill="#3a2a1c"/>' +
+      '<path d="M84 58 h58 l-11 19 h-36 z" fill="#151624" stroke="#4a5068" stroke-opacity=".5"/>' +
+      '<rect x="10" y="202" width="56" height="42" fill="#1d2a33" stroke="#4a5068" stroke-opacity=".45"/>' +
+      '<rect x="138" y="214" width="54" height="36" fill="#191a28" stroke="#4a5068" stroke-opacity=".4"/>' +
+      '<rect x="148" y="222" width="32" height="15" fill="#fcee0a" fill-opacity=".16"/>' +
+      '<path d="M0 284 h200" stroke="#2b2752" stroke-width="4"/>',
     'Paste Alley':
       '<g stroke="#2b2752" fill="none">' + [20, 44, 68, 92, 116, 140, 164, 188, 212, 236, 260, 284, 308].map((y, i) =>
         `<path d="M0 ${y} h54 M146 ${y} h54 M${i % 2 ? 18 : 36} ${y} v24 M${i % 2 ? 164 : 182} ${y} v24"/>`).join('') + '</g>' +
@@ -6782,6 +6852,11 @@ const DISTRICTS = {
   'Cyber Cafe': {who: 'the regulars in the back row', hot: 'The back row has started putting prices up before you sit down.'},
   'Paste Alley': {who: 'the dealers in the alley', hot: 'The alley has priced you in. It did not take long.'},
   'Strip Mall': {who: 'the traders here', hot: 'The unit next door has a photo of you by the till.'},
+  'Teardown Yard': {who: 'the yard crew', hot: 'The yard weighs everything twice when you are in it, and never the way you would.'},
+  'Repair Arcade': {who: 'the counter staff', hot: 'Every counter on the row has gone back to the laminated price. The laminated price went up.'},
+  'Swapmeet Field': {who: 'the table holders', hot: 'Word went down the tables. Everything you want has just become a collector\'s piece.'},
+  'Multi-storey': {who: 'the people who park up here', hot: 'Two cars start up and leave every time you come up the ramp.'},
+  'Coach Station': {who: 'the night staff', hot: 'The night staff have a description of you now, and it is an accurate one.'},
 };
 // The cast. kind decides what their standing does; say is one line per mood, '' meaning "whatever they
 // usually say"; look is [skin, hair colour, head gear, body gear] for the ones who had no picture before.
@@ -6850,22 +6925,22 @@ const CAST = {
       '"You pay. I appreciate a man who pays."',
       '"Take more if you need it. I know where you sleep anyway."']},
   // --- the junkies, each on the same corner every single day
-  'Twitch': {kind: 'junkie', at: ['Campus Lab', 'Cyber Cafe'], say: [
+  'Twitch': {kind: 'junkie', at: ['Campus Lab', 'Cyber Cafe', 'Repair Arcade'], say: [
     '"Not you. You got me jumped, man."', 'He keeps the backpack zipped.', '',
     '"You always buy. Here. Cheaper."', '"Saved you the one that works."']},
   'Needles': {kind: 'junkie', at: ['Paste Alley'], say: [
     '"Walk on. I have nothing for you."', 'The coat stays shut.', '',
     '"Sterile, for you. Properly sterile."', '"I put something aside. Do not tell the others."']},
-  'Brass': {kind: 'junkie', at: ['Strip Mall'], say: [
+  'Brass': {kind: 'junkie', at: ['Strip Mall', 'Multi-storey'], say: [
     'He rattles off down the alley before you can speak.', 'He keeps one hand in a pocket.', '',
     '"Fell off a truck. Your truck, if you like."', '"Boxes are open. Count them yourself. I trust you."']},
-  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel'], say: [
+  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel', 'Coach Station'], say: [
     '"Nothing is your size. Nothing will ever be your size."', 'She pushes the trolley past you.', '',
     '"Your size, and I kept the tags on."', '"I hold things back for you. You know I do."']},
-  'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock'], say: [
+  'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock', 'Teardown Yard'], say: [
     'He gets back in the skip and pulls the lid down.', 'He shows you one drive at a time.', '',
     '"Good stuff today. For you, good price."', '"I go through it twice now. Once for me, once for you."']},
-  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace'], say: [
+  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace', 'Swapmeet Field'], say: [
     'The blanket is folded up before you reach it.', 'Nothing on the blanket has a price today.', '',
     '"The hat says you are fine."', '"The hat says you are one of us."']},
 };
@@ -8764,6 +8839,182 @@ const LOC_ART = (() => {
         return r(x, 76, w, 18, '#05050a') + r(x + 2, 78, w - 4, 14, i % 2 ? '#1a1b2a' : '#20202e') +
           r(x + w * .22, 70, w * .56, 8, '#12131f') + r(x + w * .24, 72, w * .52, 5, BLUE, op(.3)) +
           led(x + 4, 82, YL, .3) + led(x + w - 7, 82, RED, .3); }),
+
+    // COACH STATION. Half past two under the canopy: coaches nose-in along the bays, a board with three
+    // services on it and one that is not running, a bench bolted down, and a machine that only takes coins.
+    'Coach Station': r(0, 0, 1600, 100, '#0d0c18') +
+      // the canopy, the trusses holding it up, and the strips that are still lit at this hour
+      r(0, 0, 1600, 16, '#13131f') +
+      row(0, 80, 21, x => p(`M${x} 16 l20 -14 M${x + 20} 16 l-20 -14`, STEEL, 1.4, op(.15))) +
+      p('M0 16 h1600', '#2a2a3a', 3) + row(40, 200, 8, x => r(x, 18, 120, 3, '#e9e9f0', op(.06))) +
+      // the bays: the front of a coach in each one, the blind over it, and the bay number above that
+      row(0, 152, 11, (x, i) => r(x + 10, 30, 128, 56, '#05040a', op(.85)) + r(x + 14, 32, 120, 52, '#1a1b28') +
+        r(x + 22, 36, 104, 9, i % 3 === 2 ? STEEL : YL, op(i % 3 === 2 ? .09 : .13)) +
+        r(x + 22, 50, 104, 18, BLUE, op(.11)) +
+        r(x + 20, 74, 20, 6, YL, op(.15)) + r(x + 108, 74, 20, 6, YL, op(.15)) +
+        r(x + 60, 20, 28, 10, '#05040a', op(.9)) + r(x + 62, 22, 24, 6, CY, op(.11))) +
+      // the board, hung off the canopy. Three services, and the one in red that is not running
+      r(620, 16, 206, 38, '#05040a', op(.95)) + r(624, 18, 198, 34, '#0a0a14') +
+      p('M644 16 v-4 M802 16 v-4', STEEL, 2.4, op(.4)) +
+      row(24, 11, 3, (y, i) => r(632, y, 28, 5, YL, op(.17)) +
+        r(668, y, 86 - i * 18, 5, i === 2 ? RED : YL, op(i === 2 ? .2 : .13)) +
+        r(778, y, 34, 5, i === 2 ? RED : CY, op(.12))) +
+      // the one at the stand in front of you, with its blind lit and its door standing open
+      r(862, 24, 174, 64, '#05040a') + r(866, 26, 166, 60, '#1d1e2c') +
+      r(878, 30, 142, 12, YL, op(.26)) + r(878, 48, 142, 22, BLUE, op(.2)) +
+      r(876, 76, 24, 7, YL, op(.26)) + r(1000, 76, 24, 7, YL, op(.26)) +
+      r(936, 46, 26, 40, '#0b0b14', op(.95)) + r(938, 50, 22, 24, CY, op(.07)) +
+      // whoever is still waiting at this hour, and the bench they are bolted to
+      att(590, 44, CY, .28) + att(690, 46, MG, .24) +
+      r(556, 60, 190, 4, STEEL, op(.2)) + r(556, 70, 190, 5, STEEL, op(.26)) +
+      p('M566 75 v11 M736 75 v11', STEEL, 2.4, op(.22)) +
+      // the machine that still only takes coins
+      r(770, 44, 42, 44, '#05040a') + r(774, 46, 34, 40, '#17182a') +
+      r(778, 50, 26, 22, CY, op(.08)) + row(778, 9, 3, x => r(x, 52, 7, 18, '#07060f', op(.8))) +
+      r(778, 76, 26, 5, STEEL, op(.22)) +
+      // the concourse, and the line you are not meant to stand the far side of
+      r(0, 86, 1600, 14, '#09090f') + p('M0 86 h1600', '#2a2a3a', 2, op(.65)) +
+      r(0, 91, 1600, 3, YL, op(.09)),
+
+    // MULTI-STOREY. Level six, which nobody uses: poured concrete, services clipped to the soffit, the city
+    // a long way off through the gap in the wall, and two cars nose to tail in the end bay with one running.
+    'Multi-storey': r(0, 0, 1600, 100, '#101018') + r(0, 0, 1600, 100, 'url(#laconc)') +
+      // the deck above you, what is clipped to it, and the tubes that are still lit
+      r(0, 0, 1600, 22, '#15151f') +
+      row(0, 1, 2, (_, i) => p(`M0 ${7 + i * 6} h1600`, STEEL, 3, op(.2 - i * .07))) +
+      row(60, 240, 7, x => r(x, 14, 110, 4, '#e9e9f0', op(.07))) +
+      p('M0 22 h1600', '#282838', 3) +
+      // the gap over the perimeter wall, and the city it is a long way above
+      r(0, 28, 1600, 22, '#07080f') +
+      row(0, 46, 35, (x, i) => r(x, 30 + (i % 4) * 3, 22, 20 - (i % 4) * 3, '#0c0e18', op(.9)) +
+        row(x + 4, 8, 2, (xx, k) => win(xx, 34 + (i % 4) * 3, 4, 9, (i + k) % 3 ? CY : YL, .07))) +
+      r(0, 50, 1600, 12, '#16161f') + p('M0 50 h1600', '#2a2a3a', 2.4, op(.8)) +
+      // the columns, numbered, every one of them exactly the same as the last one
+      row(0, 190, 9, x => r(x + 10, 22, 30, 60, '#05040a', op(.8)) + r(x + 13, 22, 24, 60, '#1b1b28') +
+        r(x + 13, 44, 24, 11, YL, op(.1)) + r(x + 16, 60, 18, 3, PALE, op(.13))) +
+      // the end bay: two tubes still lit over it, and the lines painted on the deck
+      r(548, 62, 512, 38, YL, op(.028)) +
+      p('M556 96 v-30 M806 96 v-30 M1046 96 v-30', PALE, 3, op(.1)) +
+      // the one that is running: a body, a cabin on it, glass, and the lamps you can see from the ramp
+      r(582, 66, 206, 22, '#05040a') + r(586, 68, 198, 18, '#1f2131') +
+      r(620, 50, 130, 18, '#05040a') + r(624, 52, 122, 14, '#161a2a') + r(630, 55, 110, 8, BLUE, op(.3)) +
+      r(590, 74, 24, 7, RED, op(.34)) + r(756, 74, 24, 7, RED, op(.34)) +
+      r(586, 86, 198, 4, RED, op(.06)) +
+      ci(618, 88, 9, '#05040a') + ci(752, 88, 9, '#05040a') +
+      cs(618, 88, 5, STEEL, 2, op(.25)) + cs(752, 88, 5, STEEL, 2, op(.25)) +
+      // and the one that has been on level six since Tuesday
+      r(826, 68, 186, 20, '#05040a') + r(830, 70, 178, 16, '#1a1b27') +
+      r(860, 54, 116, 16, '#05040a') + r(864, 56, 108, 12, '#12141f') + r(870, 59, 96, 6, '#0e1424', op(.6)) +
+      r(834, 76, 20, 6, RED, op(.12)) + r(984, 76, 20, 6, RED, op(.12)) +
+      ci(858, 88, 8, '#05040a') + ci(980, 88, 8, '#05040a') +
+      // whoever is waiting between them, and the machine that will not take a note
+      near(790, 36, 1.55, att(0, 0, CY, .3)) +
+      r(1030, 40, 20, 48, '#05040a') + r(1032, 42, 16, 44, '#1e1f2c') + win(1035, 46, 10, 11, GR, .22) +
+      // the deck itself, and the arrow that says the only way off it is down
+      r(0, 88, 1600, 12, '#0c0c14') + p('M0 88 h1600', '#282838', 2, op(.6)) +
+      row(0, 190, 9, x => sh(`M${x + 44} 92 h14 v-3 l9 5 l-9 5 v-3 h-14 z`, PALE, op(.08))),
+
+    // SWAPMEET FIELD. A radio rally on a showground, early: trestle tables of other people's workshops,
+    // estate cars backed up to them, a marquee over the good stuff, and a beam on a mast nobody is using.
+    'Swapmeet Field': r(0, 0, 1600, 100, '#0a0c18') + r(0, 0, 1600, 44, '#0c0f1c') +
+      // the masts on the far side of the field, guyed, with a lamp on the top of each
+      row(0, 230, 8, (x, i) => p(`M${x} 44 v-${26 + (i % 3) * 8}`, STEEL, 2, op(.2)) +
+        p(`M${x} ${18 - (i % 3) * 8} l-16 ${26 + (i % 3) * 8} M${x} ${18 - (i % 3) * 8} l16 ${26 + (i % 3) * 8}`, STEEL, 1, op(.11)) +
+        led(x - 1, 16 - (i % 3) * 8, RED, .28)) +
+      p('M0 44 h1600', '#1b2033', 3) +
+      // the rows: a trestle table, somebody else's workshop laid out on it, and the coat standing behind it
+      row(0, 164, 11, (x, i) => r(x + 10, 60, 136, 6, WOOD, op(.55)) +
+        p(`M${x + 22} 66 v22 M${x + 134} 66 v22`, WOOD, 2.4, op(.35)) +
+        row(x + 16, 34, 4, (xx, k) => r(xx, 48, 28, 12, '#05040a') + r(xx + 2, 50, 24, 8, (i + k) % 3 ? '#1c1f31' : '#232739') +
+          led(xx + 19, 53, (i + k) % 2 ? GR : YL, .28)) +
+        fig(x + 62, 30, PALE, .13) +
+        (i % 3 ? '' : r(x + 102, 54, 54, 26, '#141726', op(.9)) + r(x + 106, 48, 46, 8, STEEL, op(.26)))) +
+      // the marquee over the tables worth queueing for, and what is on them
+      sh('M548 20 h266 l-15 16 h-236 z', '#1a1526') + p('M548 20 h266', STEEL, 2.4, op(.38)) +
+      row(0, 1, 9, (_, i) => sh(`M${556 + i * 29} 36 l7 8 l7 -8 z`, '#241c34')) +
+      p('M562 36 v52 M798 36 v52', STEEL, 2.4, op(.3)) +
+      r(554, 60, 254, 7, WOOD, op(.65)) + r(554, 67, 254, 23, '#0a0a14', op(.85)) +
+      `<g opacity=".34">${instr(572, 38, 56, 22, YL) + instr(640, 40, 48, 20, GR) + instr(700, 36, 62, 24, CY)}</g>` +
+      att(774, 36, YL, .32) +
+      // the tannoy on its pole, aimed at nobody in particular
+      p('M864 88 v-56', STEEL, 2.6, op(.35)) + sh('M852 24 l26 -8 v26 l-26 -8 z', STEEL, op(.28)) +
+      // the mast, guyed into the grass, with a beam on it that is bigger than the field needs
+      p('M986 88 v-72', STEEL, 3, op(.45)) + p('M986 26 l-56 62 M986 26 l56 62', STEEL, 1.4, op(.16)) +
+      p('M940 16 h94', STEEL, 2.4, op(.4)) +
+      row(0, 1, 6, (_, i) => { const x = 944 + i * 18, h = [13, 12, 10, 9, 8, 7][i];
+        return p(`M${x} ${16 - h} v${h * 2}`, STEEL, 2, op(.36)); }) +
+      // the grass, and the ruts the cars have already put in it
+      r(0, 88, 1600, 12, '#0a0e12') + p('M0 88 h1600', '#1b2033', 2, op(.8)) +
+      row(0, 120, 14, x => r(x, 93, 72, 3, '#2a2f22', op(.28))),
+
+    // REPAIR ARCADE. A mall floor of unlock-and-screen counters: lit fascias, a pegboard of everything that
+    // is not a phone, glass cases full of handsets that are, and a man who can do yours in twenty minutes.
+    'Repair Arcade': r(0, 0, 1600, 100, '#121020') +
+      // the suspended ceiling, the tubes sitting in it, and the dead space under them
+      r(0, 0, 1600, 18, '#171428') + r(0, 0, 1600, 18, 'url(#latile)') +
+      row(30, 180, 10, x => r(x, 6, 116, 4, '#e9e9f0', op(.06))) +
+      p('M0 18 h1600', SEAM, 2, op(.6)) + r(0, 18, 1600, 8, '#06050d', op(.85)) +
+      // the row: a dim fascia, a dark unit behind it, a glass case and somebody sitting the day out
+      row(0, 148, 11, (x, i) => r(x + 4, 26, 140, 74, '#06050d', op(.85)) + r(x + 8, 26, 132, 16, '#19142c') +
+        r(x + 16, 30, 116, 8, i % 3 === 2 ? CY : (i % 2 ? MG : VI), op(.11)) +
+        r(x + 8, 44, 132, 28, '#0e0b1a', op(.9)) +
+        row(x + 14, 40, 3, xx => r(xx, 48, 30, 8, i % 2 ? CY : YL, op(.07))) +
+        fig(x + 92, 46, PALE, .12) +
+        r(x + 8, 72, 132, 4, PALE, op(.12)) + r(x + 8, 76, 132, 24, '#0a0814', op(.95)) +
+        row(x + 18, 34, 3, xx => r(xx, 80, 24, 12, '#101428', op(.9)) + r(xx + 3, 83, 18, 6, CY, op(.07)))) +
+      // the counter in front of you: it stands forward of the row, so its fascia is taller
+      r(548, 22, 504, 78, '#06050d', op(.92)) + r(552, 24, 496, 20, '#1d1636') +
+      r(572, 29, 180, 10, MG, op(.16)) + r(766, 29, 116, 10, CY, op(.13)) + r(896, 29, 136, 10, YL, op(.1)) +
+      // the pegboard behind it, hung with everything in the trade that is not a phone
+      r(556, 46, 488, 24, '#15122a', op(.95)) + r(556, 46, 488, 24, 'url(#lapeg)') +
+      row(564, 31, 16, (x, i) => r(x, 49, 20, 18, '#07060f', op(.9)) + r(x + 3, 52, 14, 12, i % 3 ? VI : CY, op(.1))) +
+      att(636, 42, CY, .3) + att(748, 44, MG, .24) +
+      // the glass: one pale edge the length of the counter, and the trays laid out under it
+      r(556, 70, 488, 5, PALE, op(.22)) + r(556, 75, 488, 25, '#0b0918', op(.95)) +
+      row(566, 56, 5, (x, i) => r(x, 79, 44, 16, '#101428') +
+        row(x + 4, 11, 4, xx => r(xx, 82, 7, 9, i % 2 ? CY : MG, op(.13)))) +
+      // the lamp pulled over the one he has open, which is the only bright thing on the floor
+      p('M872 46 v10 h14', STEEL, 2.4, op(.45)) + sh('M882 56 h28 l-6 9 h-16 z', STEEL, op(.45)) +
+      ci(898, 78, 24, YL, op(.055)) + r(887, 72, 22, 4, CY, op(.22)) +
+      // and whoever is standing at the glass, nearer than anything else on the row
+      near(946, 30, 1.55, att(0, 0, YL, .3)) +
+      p('M0 98 h1600', SEAM, 2, op(.5)),
+
+    // TEARDOWN YARD. Behind the wire: pallets of machines nobody is switching on again, the conveyor that
+    // feeds the shredder, the skip it fills, and the portacabin with the kettle on beside the weighbridge.
+    'Teardown Yard': r(0, 0, 1600, 100, '#0a0b12') +
+      // the fence down the back of the yard, and the coil of wire along the top of it
+      r(0, 0, 1600, 36, '#0c0d16') + r(0, 0, 1600, 36, 'url(#lagrid)') +
+      row(0, 100, 17, x => r(x, 4, 4, 32, STEEL, op(.2))) +
+      row(0, 44, 37, x => cs(x, 6, 6, STEEL, 1.3, op(.15))) +
+      p('M0 36 h1600', STEEL, 2.4, op(.3)) +
+      // the stacks: three dead machines to a pallet, and the pallet holding them off the mud
+      row(0, 176, 10, (x, i) => row(0, 1, 3, (_, k) =>
+          r(x + 12, 58 - k * 15, 76, 14, '#05040a') + r(x + 14, 60 - k * 15, 72, 10, (i + k) % 2 ? '#191a2c' : '#1e1f33') +
+          row(x + 18, 10, 6, xx => r(xx, 63 - k * 15, 6, 4, '#07080f', op(.9))) +
+          led(x + 80, 63 - k * 15, STEEL, .22)) +
+        r(x + 10, 73, 80, 5, WOOD, op(.6)) + row(x + 14, 25, 4, xx => r(xx, 78, 8, 6, WOOD, op(.4)))) +
+      // the conveyor climbing into the hopper, with a box on it every other slat
+      p('M548 88 L706 50', STEEL, 4, op(.45)) + p('M548 96 L706 58', STEEL, 4, op(.35)) +
+      row(0, 1, 8, (_, i) => { const x = 556 + i * 21, y = 86 - i * 5;
+        return p(`M${x} ${y} l0 8`, STEEL, 1.6, op(.28)) +
+          (i % 2 ? r(x - 7, y - 12, 17, 12, '#05040a') + r(x - 5, y - 10, 13, 8, '#1b1c2d') + r(x - 3, y - 8, 9, 3, CY, op(.14)) : ''); }) +
+      // the shredder: a hopper that takes it, a body that does it, and two lights that say so
+      sh('M694 28 h134 l-23 26 h-88 z', '#151624') + p('M694 28 h134', STEEL, 2.4, op(.4)) +
+      r(710, 54, 100, 34, '#05040a') + r(714, 56, 92, 30, '#1a1b2b') +
+      row(720, 14, 6, x => r(x, 60, 7, 22, '#07080f', op(.9))) +
+      led(796, 60, YL, .45) + led(796, 70, RED, .3) +
+      // the skip it fills, and the bales stacked out of it
+      r(834, 50, 126, 38, '#05040a') + r(838, 52, 118, 34, '#1d2a33') + r(838, 52, 118, 6, STEEL, op(.38)) +
+      row(844, 27, 4, x => r(x, 62, 21, 20, '#0d1218', op(.9))) +
+      // the portacabin: the one lit window in the yard, and whoever is sitting in it
+      r(972, 34, 104, 52, '#05040a') + r(976, 36, 96, 48, '#191a28') +
+      r(976, 36, 96, 5, STEEL, op(.32)) + win(986, 46, 44, 20, YL, .15) + fig(1000, 48, PALE, .24) +
+      r(1044, 48, 20, 36, '#0f1018') + r(976, 84, 96, 4, STEEL, op(.28)) +
+      // the mud, and the weighbridge plate set into it
+      r(0, 88, 1600, 12, '#07080e') + p('M0 88 h1600', STEEL, 2, op(.28)) +
+      r(842, 90, 228, 8, '#12131d') + p('M842 90 h228 M842 98 h228', STEEL, 1.6, op(.3)) +
+      row(0, 90, 18, x => r(x, 94, 46, 2, STEEL, op(.09))),
 
     // THE BUNKER. Home: poured concrete, pipework along the ceiling, the stash stacked where you left it, the
     // rack you built, the bunk, and the door that is the only way in. The one place nobody else gets to walk.
@@ -11295,7 +11546,10 @@ document.addEventListener('keydown', e => {
   // answers are pinned at the foot where they can be seen the whole time.
   if (!overlay.hidden) {
     const text = dlg.querySelector('.body') || dlg;
-    if (text.scrollHeight > text.clientHeight + 2) {
+    // ...but only while there is still something to read THAT WAY. At either end the key carries on to the
+    // walk below, so a dialogue with more answers than there are number keys can still be answered by one.
+    const more = back ? text.scrollTop > 2 : text.scrollTop + text.clientHeight < text.scrollHeight - 2;
+    if (more && text.scrollHeight > text.clientHeight + 2) {
       e.preventDefault();
       text.scrollTop += back ? -34 : 34;
       return;
@@ -13495,7 +13749,10 @@ const BTL = (() => {
   const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   const SCENES = {'The Hackerspace': ['racks', '#c77dff'], 'Tor Bazaar': ['market', '#3dff9a'], 'IRC Backchannel': ['alley', '#00e5ff'],
     'Con Hallway': ['market', '#fcee0a'], 'Campus Lab': ['racks', '#3dff9a'], 'Datacenter Dock': ['racks', '#00e5ff'],
-    'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8']};
+    'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8'],
+    'Teardown Yard': ['racks', '#fcee0a'], 'Repair Arcade': ['market', '#00e5ff'],
+    'Swapmeet Field': ['market', '#fcee0a'], 'Multi-storey': ['street', '#00e5ff'],
+    'Coach Station': ['street', '#c77dff']};
   function paint(kind, w, col, o) {
     const c = document.createElement('canvas');
     c.width = w; c.height = H;
@@ -17453,21 +17710,21 @@ const DUN = {
 // k: 'site' or 'dive'. at: the locations a lead can point to. guard: 'sec', 'law' or a syndicate key
 // ('own' means the crew that owns the system, picked per lead). word: what a floor is called.
 const DUN_TH = {
-  tower: {k: 'site', n: 'the Vexcorp tower', at: ['Datacenter Dock', 'Campus Lab', 'Con Hallway'], guard: 'sec',
+  tower: {k: 'site', n: 'the Vexcorp tower', at: ['Datacenter Dock', 'Campus Lab', 'Con Hallway', 'Repair Arcade'], guard: 'sec',
     word: 'floor', boss: 'the executive floor', bossWho: 'Corporate Response', deep: 'Sub-basement'},
-  depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley'], guard: 'sec',
+  depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley', 'Teardown Yard', 'Multi-storey'], guard: 'sec',
     word: 'floor', boss: 'the bonded cage', bossWho: 'Night Shift', deep: 'Loading level'},
-  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe'], guard: 'law',
+  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe', 'Multi-storey', 'Coach Station'], guard: 'law',
     word: 'floor', boss: 'the evidence vault', bossWho: 'the duty shift', deep: 'Basement'},
-  squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar'], guard: 'own',
+  squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar', 'Repair Arcade'], guard: 'own',
     word: 'floor', boss: 'the back room', bossWho: 'the house crew', deep: 'Cellar'},
-  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace'], guard: 'own',
+  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace', 'Coach Station'], guard: 'own',
     word: 'layer', boss: 'the ledger core', bossWho: 'Vault ICE', deep: 'Cold storage'},
-  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel'], guard: 'own',
+  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the control core', bossWho: 'Governor ICE', deep: 'Deep plant'},
-  archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe'], guard: 'own',
+  archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe', 'Teardown Yard'], guard: 'own',
     word: 'layer', boss: 'the index core', bossWho: 'Librarian ICE', deep: 'Dead sector'},
-  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar'], guard: 'own',
+  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the clean core', bossWho: 'Black ICE', deep: 'Null space'},
 };
 const DUN_IDS = Object.keys(DUN_TH);
@@ -18426,6 +18683,11 @@ const WD_DIST = {
   'Cyber Cafe': {rich: 1.2, deep: 0, why: 'a street of cafes, each with a router from the box it came in'},
   'Paste Alley': {rich: 1.1, deep: 1, why: 'flats over the lockups, and a lot of cameras on a lot of wifi'},
   'Strip Mall': {rich: 1.25, deep: 0, why: 'tills, signage and a nail bar with the password on the wall'},
+  'Teardown Yard': {rich: 0.6, deep: 2, why: 'nine hundred machines, none of them plugged in, and one weighbridge that is'},
+  'Repair Arcade': {rich: 1.3, deep: 0, why: 'thirty counters, thirty routers, and one password on thirty laminated cards'},
+  'Swapmeet Field': {rich: 0.75, deep: 2, why: 'a field, and three hundred people who built the thing they are transmitting with'},
+  'Multi-storey': {rich: 1.0, deep: 1, why: 'six decks of nothing, and whatever the offices next door leak down the stairwell'},
+  'Coach Station': {rich: 1.15, deep: 0, why: 'free wifi, a departure board, and four hundred phones that only stop here'},
 };
 let wdTally = {swept: 0, hops: 0, found: 0, cracked: 0, failed: 0, pot: 0, sold: 0, dived: 0, stale: 0,
   full: 0, sweeps: 0, cut: 0, nokit: 0};   // counted for the self-test
