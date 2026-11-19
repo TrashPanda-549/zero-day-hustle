@@ -3254,6 +3254,7 @@ async function levelUpCheck() {
       // SKILL TREE: a level is a skill point, so say so here, where you cannot miss it.
       (skLeft() ? `<p><span class="cyan">You have ${skLeft()} skill point${plural1(skLeft())} to spend.</span> ` +
         'Your record &rarr; Skill tree.</p>' : ''));
+    if (skLeft()) await teach('skills');   // TEACHING: the first point you can actually spend
     if (l >= 10 && !career.syn) await chooseSyndicate();
   }
   await achCheck();
@@ -4437,6 +4438,7 @@ const toolsFor = (lock, st) => Object.keys(TOOLS).filter(k => !toolBlock(k, lock
 // o: {head (a line above everything), edge (bonus to the chance), practice}.
 // Returns {res: 'open' | 'forced' | 'back' | 'alarm', key (the tool that did it), last (what the last try did)}.
 async function lockDialog(lock, st, o) {
+  await teach('lock');   // TEACHING: the first lock, at a door or at the practice board
   const name = LOCKS[lock][0];
   let last = '';
   for (;;) {
@@ -4697,6 +4699,7 @@ async function heistDone(M, st, clean) {
 // Play a break-in from wherever it stands. Returns when it is done, blown, or you back off.
 async function heistPlay(M) {
   if (!M || !heistReady(M)) return;
+  await teach('heist');   // TEACHING: the first break-in, and the Alert meter that runs through it
   const H = M.H, B = BREAKIN, st = heistState(M);
   st.loc = S.loc;
   let note = '';   // what the last stage did, shown at the top of the next one
@@ -7772,6 +7775,7 @@ function newGame() {
     dist: {}, kept: null,   // FACES: each district's temperature, and what the fence is holding back for you
     rides: [], ride: '', gas: {}, tripDebt: 0,   // rides owned, the one you are on, tanks filled today (see VEHICLES)
     over: false, busted: false, retired: false};   // ENDLESS: retired is the one ending that pays
+  S.tut = null;   // TEACHING: the guided first day, while one is running (see COACH)
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
@@ -7885,6 +7889,286 @@ function askText(title, html) {
     overlay.hidden = false;
     $('#tx').focus();
   });
+}
+
+// ====================== TEACHING: the guided first day, and the first-time explainers ======================
+// Two things live here and nothing else does. Neither one changes a rule, a number or a signature: every
+// word below is read off the tuning blocks that already decide the thing being explained, so re-tuning the
+// game re-words the lesson and cannot leave it lying.
+//
+//   PART 1, the guided first day (COACH). A new save is offered one walk through one REAL day: out of the
+//   Bunker, buy somewhere cheap, carry it, sell it somewhere dear, come home, sleep. The player keeps what
+//   they earn and keeps what they lose. Each step is a short dialogue saying what just happened and what to
+//   press, plus a strip above the tiles (#coach) and a ring round the tile the step wants (.coachme). It is
+//   skippable from the first dialogue and from every step after it, and skipping leaves nothing half done.
+//
+//   PART 2, the first-time explainers (TEACH). The first time a mechanic actually happens to you, one modal
+//   says what happened, what it costs and what you can do. Once ever, written into the save the moment it
+//   is shown (career.taught, the same {id: day} shape as career.ach), so it never comes back -- and an old
+//   save that already has a career behind it is marked as taught everywhere and notices no difference.
+//
+// The self-test is left alone: nothing here runs under AUTO.
+const taughtIds = () => Object.keys(TEACH).concat(['tour']);
+const taughtAll = () => { for (const id of taughtIds()) career.taught[id] = career.taught[id] || 0; };
+const wasTaught = id => !!(career.taught && career.taught[id] !== undefined);
+// Write it down BEFORE the dialogue opens: a player who closes the window, reloads or dies mid-lesson has
+// still had it, and a lesson that cannot be shown twice cannot be shown twice by accident either.
+function markTaught(id) {
+  if (!career.taught || typeof career.taught !== 'object') career.taught = {};
+  career.taught[id] = S && S.day ? S.day : 0;
+  saveCareer();
+}
+// One explainer, once. Returns true if it was actually shown.
+async function teach(id) {
+  if (AUTO || !TEACH[id] || wasTaught(id)) return false;
+  markTaught(id);
+  const T = TEACH[id];
+  await alertDlg(T.t, T.h(), T.tone);
+  return true;
+}
+// The two that have no single call site of their own: they are conditions, so they are watched after every
+// action the player takes (see the click handler).
+async function teachWatch() {
+  if (AUTO || S.over) return;
+  if (S.heat >= 40 && !wasTaught('heat')) await teach('heat');
+  if (skLeft() > 0 && !wasTaught('skills')) await teach('skills');
+}
+
+// ---------- the explainers ----------
+// Short. What just happened, what it costs, what you can do. Every figure comes from the block that owns it.
+const TEACH = {
+  // ===== GUNFIRE: the one the player asked for by name. Everything here is read off the GUNFIRE block and
+  // gunFallout(): per shot, not per fight; capped; the law excluded from its own rule; the can fits 'gun'.
+  fight: {t: 'Fighting', tone: '', h: () => {
+    const can = money(GUNFIRE.suppPrice);
+    return '<p>A fight is volleys. Each round you choose one thing &mdash; swing or shoot, throw something, ' +
+      'run a script, or run &mdash; and everyone still standing answers. Health does not come back on its own: ' +
+      'a medkit, a street doc or a night in the Bunker, and nothing else.</p>' +
+      '<p>Running is a real answer and usually works. Losing a street fight costs you cash and goods; ' +
+      'losing to the law costs you more than that.</p>' +
+      `<div class="syn"><b class="amber">Weapons make noise, and noise brings the law</b><br>` +
+      `<span class="dim">Fire a gun at anyone who is not the police, the FBI or the NSA and somebody phones it in. ` +
+      `It is counted per shot, not per fight: <b>+${GUNFIRE.first}%</b> for the first volley, ` +
+      `<b>+${GUNFIRE.perShot}%</b> for every round that leaves the barrel after it, ` +
+      `${GUNFIRE.heavy}&times; that for military hardware, and never more than <b>${GUNFIRE.cap}%</b> for one fight. ` +
+      `If it comes up, the law is waiting when the fight is over, at whatever tier your Heat has earned.</span></div>` +
+      '<p>A blade, a bat and your hands are silent. So is hacking, and so is a network dive: there is no ' +
+      'gunfire in cyberspace. Shooting at the law does not count either &mdash; they are already here.</p>' +
+      `<p>A <b>suppressor</b> takes the rule off you completely. From ${can} at ${GUN_STORE} in ${GUN_SPOT}, ` +
+      `or the arms dealer's van at a markup. It costs <b>${GUNFIRE.suppHit}%</b> off your chance to hit, it is ` +
+      'threaded onto the one gun you were carrying when you bought it, and it will not fit military hardware.</p>';
+  }},
+  // ===== the law, at the first stop. The numbers are lawTier(), LAW and what an arrest actually does.
+  law: {t: 'The law', tone: 'danger', h: () =>
+    '<p>Heat is a figure the law reads. Under <b>40%</b> it is the Metro Cyber Unit. From 40% the FBI have ' +
+    'the file. From <b>75%</b> it is the NSA, and they do not fine people.</p>' +
+    '<p>You can fight them or run from them, same as anyone. Lose to the police and they seize every good ' +
+    'you carry, take <b>25%</b> of your cash and put you away for 2 days. The FBI take half your cash and ' +
+    '4 days. Lose to the NSA and the run is over.</p>' +
+    '<p class="dim">Two things survive an arrest: the cold wallet, which they never find, and anything in ' +
+    'your prison pocket. The Bunker stash does not travel with you, which is the point of it.</p>'},
+  // ===== Heat crossing 40%, where the tier changes and the stop stops being a police matter.
+  heat: {t: 'Heat', tone: '', h: () =>
+    `<p>Your Heat is <b class="amber">${S.heat}%</b>. That is the line: from 40% the file belongs to the FBI, ` +
+    'and from 75% to the NSA. Higher Heat means more stops, bigger ones, and a worse night at home.</p>' +
+    `<p>It comes off every deal you make &mdash; big money moving, not the number of trades &mdash; off alarms, ` +
+    'gunfire and anything the city notices. A night in the Bunker takes ' +
+    `<b>${HEAT_DECAY + 12}</b> points off it${heatFloor() ? `, but never below ${heatFloor()}%` : ''}.</p>` +
+    '<p>If you cannot wait that long: <b>Lower Heat</b> uses what you carry (burner phones, a VPN, a lie-low ' +
+    'kit), the black market sells more of it, and a fake ID starts you over as somebody else.</p>'},
+  // ===== break-ins: the Alert economy, read off BREAKIN.
+  heist: {t: 'Breaking in', tone: '', h: () =>
+    `<p>A break-in is four stages: the approach, the lock, the job inside, the way out. One meter runs ` +
+    `through all of them &mdash; <b>Alert</b>, and at <b>${BREAKIN.alarmAt || 100}%</b> somebody answers the alarm.</p>` +
+    `<p><b>Case it</b> costs a trip and buys you ${BREAKIN.casedEdge}% on the lock and the job, an easier way out ` +
+    `and a clean meter. <b>Go in blind</b> costs nothing and starts you at ${BREAKIN.blind}% because you do not ` +
+    'know where the cameras are.</p>' +
+    '<p>Every miss at the lock, every rushed job and every shelf you help yourself to puts the meter up. ' +
+    'Backing out before the alarm costs nothing but the trip, and the place settles overnight.</p>'},
+  // ===== the lock itself: tools, odds, what a miss costs. Fires at a door or at the practice board.
+  lock: {t: 'Locks', tone: '', h: () =>
+    `<p>A lock is a list of tools and a percentage each. The chance is <b>${BREAKIN.base}%</b>, plus ` +
+    `${BREAKIN.perLevel}% a lock-picking level and whatever the tool itself is worth, minus ` +
+    `${BREAKIN.perDiff}% for each pip of difficulty on the lock.</p>` +
+    '<p>Quiet tools are picks, a paperclip, a bump key, a pick gun, an RFID cloner for electronic locks. ' +
+    'A <b>crowbar</b> opens almost anything and is not quiet: a forced door is heard, and it costs you ' +
+    `${BREAKIN.forced}% Alert on the spot.</p>` +
+    '<p>A miss costs the try, some Alert, and sometimes the tool: a pick that snaps leaves its tip in the ' +
+    'lock about a third of the time, and that lock is finished for the night. Hits and misses both teach ' +
+    `you: lock picking is the one skill that levels by doing. The <b>lock board</b> in the Bunker gives you ` +
+    `${BREAKIN.drills} free tries a day with no alarm attached.</p>`},
+  // ===== deep runs, read off DUN.
+  deep: {t: 'Deep runs', tone: '', h: () =>
+    `<p>A deep run is an address, floor by floor. ${DUN.tripIn} trip to go in, ${DUN.tripDown} more for each ` +
+    'floor down. Deeper floors hold better things and harder ones.</p>' +
+    '<p>One meter again: <b>Alert</b> in a building, <b>Trace</b> in a network dive. It climbs when you force ' +
+    'a door, botch a sneak or loot a cache, and it comes down a little each time you go deeper. At 100% ' +
+    'whatever lives there knows exactly where you are.</p>' +
+    '<p>You can walk out at the end of any floor and keep everything you are carrying. Addresses go cold ' +
+    `after ${DUN.leadDays} days, and you can hold ${DUN.leadMax} at a time, so an address is a thing to spend, ` +
+    'not a thing to save.</p>'},
+  // ===== wardriving and the honeypot, read off WARDRIVE.
+  wardrive: {t: 'Wardriving', tone: '', h: () =>
+    '<p>A scanner bolted to a ride listens on every trip you take, whatever you went out for. What it ' +
+    'collects is <b>captures</b>: a street, a network, a depth. A deliberate <b>sweep</b> spends trips doing ' +
+    `nothing else and collects about ${WARDRIVE.sweepMult}&times; as fast. Captures go stale after ` +
+    `${WARDRIVE.keepDays} days and you can hold ${WARDRIVE.hold}.</p>` +
+    `<p>Cracking one costs a trip and some ${WARDRIVE.crackGood}, or two trips and worse odds if you have none. ` +
+    'What comes out is salvage, or an address for a deep run.</p>' +
+    '<div class="syn"><b class="amber">Honeypots</b><br><span class="dim">Some captures are bait: a network ' +
+    'left open to see who walks in. The chance is printed on the card before you touch it ' +
+    `(about ${WARDRIVE.bait[0]}% at the surface, +${WARDRIVE.bait[1]}% per depth, less your stealth gear). ` +
+    `Crack one and it hands the law your plate, your route and the times you drove it: a stop, ` +
+    `+${WARDRIVE.potHeat}% Heat, and the district remembers.</span></div>`},
+  // ===== the prison pocket, at the moment it is first offered. STUCK_ODDS and SICK_DAYS own these numbers.
+  pocket: {t: 'The prison pocket', tone: 'danger', h: () =>
+    `<p>There is one place on you nobody searches. It holds <b>${POCKET_CAP}</b> small things, and what goes ` +
+    'in survives a search, an arrest and a drive wipe.</p>' +
+    `<p>It costs you the round. And about <b>${Math.round(STUCK_ODDS * 100)}%</b> of the time, some of what ` +
+    'went in does not come back out.</p>' +
+    '<p class="red">Goods stuck in there cannot be sold, used or moved, and they still count as carried. ' +
+    `Sleeping on them makes you ill: ${SICK_DAYS} nights, and the last one is dysentery, which kills you and ` +
+    `ends the run.</p><p>A <b>street doc</b> at the black market (${docSpots()}) takes them out for ` +
+    `${money(EXTRACT_FEE)} and patches you to full Health while he is in there. Go before you sleep.</p>`},
+  // ===== the first unspent skill point.
+  skills: {t: 'Skill points', tone: '', h: () =>
+    `<p>You have <b class="cyan">${skLeft()}</b> skill point${plural1(skLeft())} to spend. Every level hands ` +
+    'you one, and they carry over between runs: they belong to the save, not to the day.</p>' +
+    '<p>They buy <b>routines</b> &mdash; daemons that are always running, scripts that appear on the battle ' +
+    'screen, street tricks. Five branches that pull in different directions, each one a straight line: a ' +
+    'node needs the one before it and a level of its own.</p>' +
+    '<p>Nothing expires, so an unspent point is not wasted. The <b>Skill tree</b> tile shows up while you ' +
+    'have any; after that it lives on your record.</p>'},
+};
+
+// ---------- PART 1: the guided first day ----------
+// One real day, in six steps. Each step: what to say, what to press, and the condition that means they did
+// it. `want` is given the world as it was before the last action, so "they bought something" and "they sold
+// something" are read off what actually changed and no game code had to be touched to report it.
+const COACH = [
+  {id: 'out', hi: 'travel', strip: 'Nothing is sold in the Bunker. Press <b>Tunnel out</b> and pick a district.',
+    t: 'Day one', h: () =>
+      '<p>You wake up in the Bunker owing money. Nothing is bought or sold in here: this is where you sleep, ' +
+      'where the stash sits, and where the law has to find you first.</p>' +
+      `<p>The markets are out there. Press <b>Tunnel out</b> and pick a district. You have <b>${S.trips}</b> ` +
+      'trips today, and every district has its own prices.</p>',
+    want: () => S.loc !== BUNKER},
+  {id: 'buy', hi: '#market', strip: 'Find a good with a cyan <b>&#9660;</b> and press <b>Buy</b>.',
+    t: 'Buy low', h: () =>
+      '<p><b>PRODUCTS</b> is this district\'s price list, rolled fresh this morning. A cyan ' +
+      '<span class="cyan">&#9660;</span> is cheap for that good, an amber <span class="amber">&#9650;</span> ' +
+      'is dear, and the tick under the price shows where today sits in that good\'s usual range.</p>' +
+      `<p>Find a <span class="cyan">&#9660;</span> and press <b>Buy</b>. Your drive holds ` +
+      `<b>${used()}/${cap()}</b> &mdash; one unit, one slot &mdash; and you have <b>${money(S.cash)}</b>.</p>` +
+      '<p class="dim">Nobody here pays more than they are asking. The profit is in another district.</p>',
+    want: (b) => Object.keys(S.inv).length > b.held || (S.cash < b.cash && Object.keys(S.inv).length > 0)},
+  {id: 'move', hi: 'travel', strip: 'You are holding stock, not profit. <b>Tunnel out</b> somewhere else.',
+    t: 'Carry it', h: () =>
+      '<p>You are holding stock, not profit. The same good is priced differently in every district, and the ' +
+      'only way to know is to be standing there.</p>' +
+      `<p>Press <b>Tunnel out</b> again. Trips are what a day actually costs: you have <b>${S.trips}</b> left, ` +
+      'and the ride home to the Bunker is free.</p>' +
+      '<p class="dim">That purchase put a little Heat on you. It is money moving that the law counts, not how ' +
+      'many times you pressed Buy.</p>',
+    want: (b) => S.loc !== b.loc && S.loc !== BUNKER},
+  {id: 'sell', hi: '#market', strip: 'Under what you hold it says <b>holding n @ cost</b>. Sell it green.',
+    t: 'Sell high', h: () =>
+      '<p>New district, new prices. Under anything you are holding, the market reads ' +
+      '<b>holding n @ what you paid</b> &mdash; <span class="green">green</span> when today beats it, ' +
+      '<span class="red">red</span> when it does not.</p>' +
+      '<p>Press <b>Sell</b> on the green one. If nothing is green, that is the lesson: some trips are ' +
+      'reconnaissance, and the price was better where you came from.</p>',
+    want: (b) => S.cash > b.cash && Object.keys(S.inv).length <= b.held},
+  {id: 'home', hi: 'travel', strip: 'That is the loop. <b>Tunnel out</b> to the Bunker &mdash; that trip is free.',
+    t: 'Heat, and the way home', h: () =>
+      '<p>That is the whole loop: buy where it is cheap, carry it, sell where it is dear, and do it again ' +
+      'before the prices move.</p>' +
+      `<p><b>Heat is what the law notices.</b> Yours is <b class="amber">${S.heat}%</b>. Under 40% it is the ` +
+      'local police. From 40% the FBI have the file, from 75% the NSA. The hotter you are, the more often ' +
+      'somebody is waiting where you surface.</p>' +
+      `<p><b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left. Press <b>Tunnel out</b> and pick ` +
+      'the Bunker; that one is always free.</p>',
+    want: () => S.loc === BUNKER},
+  {id: 'bed', hi: 'sleep', strip: 'Press <b>Sleep</b> to end the day.',
+    t: 'Sleep on it', h: () =>
+      '<p><b>Sleep</b> ends the day. Every market in the city rerolls, your Health and OpSec come back, and ' +
+      `your Heat drops ${HEAT_DECAY + 12} points.</p>` +
+      '<p>It is also the one moment the law can reach you at home, and the hotter you are the likelier that ' +
+      'is. Sleeping cheap means sleeping cool.</p>' +
+      '<p class="dim">Your debt grows overnight too. The Fixer, at the Hackerspace, is who you owe.</p>',
+    want: (b) => S.day > b.day},
+];
+const coachAt = () => (S.tut && COACH[S.tut.n]) || null;
+const coachOn = () => !!(S.tut && coachAt());
+// Snapshot of the things a step reads, taken before every action the player takes.
+const coachSnap = () => ({loc: S.loc, cash: S.cash, day: S.day, held: Object.keys(S.inv).length});
+
+// Offered once, on the first morning of a new save, straight after the opening text. Three answers and no
+// fourth: walk me through it, skip this, or never show me any of it.
+async function coachOffer() {
+  if (AUTO || wasTaught('tour')) return;
+  markTaught('tour');   // offered is offered: whatever is chosen here, the morning does not come round again
+  const pick = await dialog('First day', '<p>You owe money, you have a drive, and the city has six districts ' +
+    'that all price the same goods differently. That is the game.</p>' +
+    '<p>This can walk you through one real day &mdash; out, buy, carry, sell, home, sleep. It is your day: ' +
+    'you keep what you make and you keep what you lose. Six steps, and you can stop it at any point.</p>',
+    [{name: 'Walk me through it', note: 'about five minutes', value: 'go', cls: 'primary'},
+      {name: 'Skip it', note: 'first-time tips stay on', value: 'skip'},
+      {name: 'No tips at all', note: 'I have played this', value: 'none', cls: 'small'}]);
+  if (pick === 'none') { taughtAll(); saveCareer(); return; }
+  if (pick !== 'go') return;
+  S.tut = {n: 0, day0: S.day};
+  render();
+  return coachSay();
+}
+// The current step's dialogue. Shown when the step is entered, and again from the strip's own button.
+async function coachSay() {
+  const C = coachAt();
+  if (!C || AUTO) return;
+  render();
+  const out = await dialog(`${C.t} <span class="dim">${S.tut.n + 1}/${COACH.length}</span>`, C.h(),
+    [['Got it', 'ok', 'primary'], {name: 'Stop the tutorial', value: 'stop', cls: 'small'}]);
+  if (out === 'stop') return coachStop();
+}
+// Done with it, by choice or because the day it was teaching is over. Nothing is left half on: the strip
+// goes, the rings go, and the morning is never offered again (markTaught('tour') already happened).
+async function coachStop(finished) {
+  if (!S.tut) return;
+  S.tut = null;
+  render();
+  save();
+  if (!finished || AUTO) return;
+  return alertDlg('That is the day', '<p>Out, buy, carry, sell, home, sleep. Everything else in this game is ' +
+    'a way of doing that faster or a way of losing what you made doing it.</p>' +
+    '<p>Nothing else will be pointed at: the rest of it explains itself the first time it happens to you. ' +
+    'Your record (tap your level) holds the achievements, the skill tree and what the street thinks of you.</p>' +
+    '<p class="dim">The Fixer wants his money. Day two starts now.</p>');
+}
+// After every action the player takes: has this step been satisfied?
+async function coachAfter(before) {
+  if (!coachOn() || AUTO) return;
+  if (S.over) return coachStop();                       // the run ended mid-lesson: nothing to teach now
+  if (S.day > (S.tut.day0 || 1) + 1) return coachStop();   // it was one day, and the day has gone
+  if (!coachAt().want(before)) return;
+  S.tut.n++;
+  if (!coachAt()) return coachStop(true);
+  return coachSay();
+}
+// The strip above the tiles, and the ring round what the step wants pressed. Called from renderNow, so it
+// is redrawn with everything else and never gets out of step with the screen.
+function coachPaint() {
+  const box = $('#coach'), C = coachAt();
+  if (!box) return;
+  box.hidden = !C;
+  box.innerHTML = !C ? '' : `<span class="cstep">STEP ${S.tut.n + 1}/${COACH.length}</span>` +
+    `<span class="cwhat">${C.strip}</span>` +
+    '<button class="small" data-act="coachsay">Why?</button>' +
+    '<button class="small" data-act="coachoff">Stop</button>';
+  // The ring: the tile this step wants, or the panel it wants read.
+  document.querySelectorAll('.coachme').forEach(el => el.classList.remove('coachme'));
+  if (!C) return;
+  const want = C.hi.startsWith('#') ? $(C.hi) : $(`#actions [data-act="${C.hi}"]`);
+  if (want) want.classList.add('coachme');
 }
 
 // ---------- item pictures for lists ----------
@@ -9226,6 +9510,7 @@ function renderNow() {
       tile({act: 'wallet', kind: 'shop', icon: 'wallet', name: 'Cold wallet'});
   }
   $('#actions').innerHTML = acts;
+  coachPaint();   // TEACHING: the guided first day's step strip, and the ring round what it wants pressed
   $('#log').innerHTML = logs.join('');
   if (S.loc === BUNKER) $('#market').innerHTML = baseHtml() + stashHtml();   // at home the market panel becomes your base and your stash
 }
@@ -10045,6 +10330,16 @@ const ACTIONS = {
       '<p class="dim">A row shows what the next one sells for. The arrow says whether that is dear or cheap for ' +
       'that good, and the tick under it shows where the price sits in that good\'s usual range. The line under a ' +
       'name says how many are on the shelf, and what your own dealing has done to the price today.</p>');
+  },
+
+  // TEACHING: the two buttons on the guided first day's strip. "Why?" says the step again in full;
+  // "Stop" is the way out, and it is on the screen for every step, not only the first one.
+  async coachsay() { return coachSay(); },
+  async coachoff() {
+    if (!coachOn()) return;
+    if (await confirmDlg('Stop the tutorial', '<p>Stop the guided first day? The day carries on exactly as it ' +
+      'is &mdash; what you bought, what you spent and what the law has on you all stay. Nothing comes back.</p>',
+      'Stop it', 'Keep going')) return coachStop();
   },
 
   // Your syndicate's mission: the briefing, how far along you are, and anything you do from here
@@ -11640,7 +11935,8 @@ async function junkie() {
 
 // ---------- confrontations: the law, rival syndicates, and raids on rivals ----------
 // intro: an optional opening line, for when something in particular brought them (see gunFallout).
-function lawEncounter(intro) {
+async function lawEncounter(intro) {
+  await teach('law');   // TEACHING: the first time the law stops you
   const tier = lawTier(), L = LAW[tier];
   const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
     rnd(2, 3 + Math.floor(effDay() / 8))][tier];
@@ -12760,6 +13056,7 @@ const pocketable = () => GOODS.map(g => g[0]).filter(name => S.inv[name] && !POC
 async function pocketIn(E) {
   const room = pocketRoom(E), names = pocketable();
   if (room <= 0 || !names.length) return null;
+  await teach('pocket');   // TEACHING: what it costs, and the dysentery at the end of it
   const wont = Object.keys(POCKET_NO).filter(name => S.inv[name]);
   const html = `<p>There is one place on you ${E.name} will not search without a warrant and a strong stomach. ` +
     `It holds <b>${room}</b> more small thing${room === 1 ? '' : 's'}.</p>` +
@@ -14612,6 +14909,7 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
+  await teach('fight');   // TEACHING: the first fight explains volleys, and GUNFIRE's noise rule
   repFewer(E);   // REPUTATION: feared, and one of them decided not to be here. Never below one.
   S.fought = (S.fought || 0) + 1;   // LEGACY: fights this career, which is one of the things an ending reads
   // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
@@ -15676,9 +15974,14 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
   if (!b || busy || b.disabled) return;
   busy = true;
+  // TEACHING: the world as it was before this action, so the guided first day can tell what changed
+  // without any of the game's own code having to report it.
+  const wasTut = coachOn() ? coachSnap() : null;
   try {
     await ACTIONS[b.dataset.act](b.dataset.arg);
     await flushNotes();
+    if (wasTut) await coachAfter(wasTut);   // TEACHING: has this step been satisfied?
+    await teachWatch();                     // TEACHING: Heat turning dangerous, a skill point waiting
     if (S.over) { await finish(); newGame(); }
     await levelUpCheck();
   } finally {
@@ -17903,6 +18206,7 @@ async function dunPlay() {
 // Go in. Costs a trip; the run then lives on S.dun until it ends.
 async function dunEnter(L) {
   if (!DUN_TH[L.th] || S.trips < DUN.tripIn || dunRun()) return;
+  await teach('deep');   // TEACHING: the first deep run
   S.trips -= DUN.tripIn;
   const skin = DUN_TH[L.th].k;
   S.dun = {th: L.th, lead: L, floor: 1, room: 0, rooms: dunRooms(L, 1), m: DUN.start[skin],
@@ -18379,6 +18683,7 @@ async function wdFallout(why) {
 // ---------- the screen ----------
 Object.assign(ACTIONS, {
   async wardrive() {
+    await teach('wardrive');   // TEACHING: captures, sweeps, cracking, and what a honeypot is
     for (;;) {
       const list = wdFinds().slice().sort((a, b) => b.deep - a.deep);
       const q = wdPower(), kit = wdKit(), K = WARDRIVE.kits[kit];
@@ -21282,6 +21587,7 @@ async function startMenu() {
       render();
       await alertDlg('ZERO DAY HUSTLE', introText());
       if (!career.look) await ACTIONS.look();
+      await coachOffer();   // TEACHING: one walk through one real day, offered once and skippable
       return;
     }
     if (choice === 'del') {
