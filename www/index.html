@@ -11214,7 +11214,10 @@ document.addEventListener('keydown', e => {
   // answers are pinned at the foot where they can be seen the whole time.
   if (!overlay.hidden) {
     const text = dlg.querySelector('.body') || dlg;
-    if (text.scrollHeight > text.clientHeight + 2) {
+    // ...but only while there is still something to read THAT WAY. At either end the key carries on to the
+    // walk below, so a dialogue with more answers than there are number keys can still be answered by one.
+    const more = back ? text.scrollTop > 2 : text.scrollTop + text.clientHeight < text.scrollHeight - 2;
+    if (more && text.scrollHeight > text.clientHeight + 2) {
       e.preventDefault();
       text.scrollTop += back ? -34 : 34;
       return;
