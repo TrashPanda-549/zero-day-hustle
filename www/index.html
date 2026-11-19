@@ -134,7 +134,7 @@ button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,bor
    #app is display:none) never builds it: there, the step's own dialogue is the whole instruction. */
 #coach{display:flex;align-items:center;gap:var(--s2);padding:var(--s1) var(--s2);
   border:1px solid var(--yellow);border-left-width:3px;background:linear-gradient(180deg,rgba(252,238,10,.10),rgba(9,8,22,.92));
-  box-shadow:var(--sunk);font-size:12.5px;line-height:1.3}
+  box-shadow:var(--sunk);font-size:12.5px;line-height:1.3;margin-bottom:var(--s2)}
 #coach[hidden]{display:none}
 #coach .cstep{flex:none;font-size:10.5px;font-weight:bold;letter-spacing:1px;color:#000;background:var(--yellow);
   padding:0 5px;text-shadow:none}
@@ -789,9 +789,12 @@ button .ico.room{width:44px;height:26px}
   .tbox{max-width:560px}
 }
 @media (min-width:1200px) and (min-height:500px){
+  /* THE GUIDED FIRST DAY: the step strip gets its own row directly above the tiles. It is display:none
+     the rest of the time, so that row is 0 high and this is the layout it has always been. */
   #app{grid-template-columns:minmax(280px,23%) minmax(0,1fr) minmax(320px,27%);
-    grid-template-rows:auto auto auto auto minmax(0,1fr) auto;
-    grid-template-areas:"head head head" "art art art" "me trade news" "me trade jobs" "me trade log" "me actions log"}
+    grid-template-rows:auto auto auto auto minmax(0,1fr) auto auto;
+    grid-template-areas:"head head head" "art art art" "me trade news" "me trade jobs" "me trade log" "me coach log" "me actions log"}
+  #coach{grid-area:coach}
   /* you: the avatar stands tall above the level, health and stat chips */
   #colme{display:flex;flex-direction:column}
   #hud{display:contents}
@@ -8058,7 +8061,8 @@ const COACH = [
       '<p><b>PRODUCTS</b> is this district\'s price list, rolled fresh this morning. A cyan ' +
       '<span class="cyan">&#9660;</span> is cheap for that good, an amber <span class="amber">&#9650;</span> ' +
       'is dear, and the tick under the price shows where today sits in that good\'s usual range.</p>' +
-      `<p>Find a <span class="cyan">&#9660;</span> and press <b>Buy</b>. Your drive holds ` +
+      `<p>Find a <span class="cyan">&#9660;</span> and press <b>Buy</b>. A greyed-out Buy means there is ` +
+      'nothing on that shelf yet, or you cannot afford one: take the next row down. Your drive holds ' +
       `<b>${used()}/${cap()}</b> &mdash; one unit, one slot &mdash; and you have <b>${money(S.cash)}</b>.</p>` +
       '<p class="dim">Nobody here pays more than they are asking. The profit is in another district.</p>',
     want: (b) => Object.keys(S.inv).length > b.held || (S.cash < b.cash && Object.keys(S.inv).length > 0)},
