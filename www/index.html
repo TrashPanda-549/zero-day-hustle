@@ -8124,9 +8124,11 @@ const TEACH = {
 };
 
 // ---------- PART 1: the guided first day ----------
-// One real day, in six steps. Each step: what to say, what to press, and the condition that means they did
-// it. `want` is given the world as it was before the last action, so "they bought something" and "they sold
-// something" are read off what actually changed and no game code had to be touched to report it.
+// One real day, in six steps, and then one card that asks for nothing. Each step: what to say, what to
+// press, and the condition that means they did it. `want` is given the world as it was before the last
+// action, so "they bought something" and "they sold something" are read off what actually changed and no
+// game code had to be touched to report it. A step marked `last` finishes the tour when it is acknowledged,
+// and a step with no `hi` rings no tile; the dialogue's count is COACH.length, never a written-out number.
 const COACH = [
   {id: 'out', hi: 'travel', strip: 'Nothing is sold in the Bunker. Press <b>Tunnel out</b> and pick a district.',
     t: 'Day one', h: () =>
@@ -8180,6 +8182,25 @@ const COACH = [
       'is. Sleeping cheap means sleeping cool.</p>' +
       `<p class="dim">Your debt grows overnight too. The Fixer, at ${HOME}, is who you owe.</p>`,
     want: (b) => S.day > b.day},
+  // THE LAST CARD. Informational and terminal: a player on day two is still in debt and will usually not
+  // have scanner money, let alone car money, so this step asks for NOTHING. `last` makes acknowledging it
+  // finish the tour (see coachSay), and `want` is true anyway so an impatient player who just carries on
+  // finishes it too. It cannot be failed, cannot be waited on, and has no tile to ring (hi is empty).
+  // Every figure is read off WARDRIVE and GEAR_SPOTS, the blocks that own them.
+  {id: 'wd', hi: '', last: true,
+    strip: 'A scanner bolted to a car listens on every trip. The black market sells one.',
+    t: 'One last thing', h: () =>
+      '<p>Everything else in the city explains itself the first time it happens to you. One thing cannot, ' +
+      'because it only starts happening after you have bought the part, so here it is.</p>' +
+      '<p>A <b>wardriving scanner</b> bolts to a car and listens on every trip you take, whatever you went ' +
+      `out for. The cheap one is the <b>${WARDRIVE.kits[1].n}</b>, from ` +
+      `${money(WARDRIVE.kits[1].price)} at the black market (${GEAR_SPOTS.join(' or ')}). It wants a car ` +
+      '&mdash; not a bike, not a helicopter &mdash; and the slow boxy ones hear the most.</p>' +
+      `<p>What it picks up are <b>captures</b>. You can hold ${WARDRIVE.hold} of them, they go stale after ` +
+      `${WARDRIVE.keepDays} days, and cracking one pays in salvage or in an address worth a deep run. Some ` +
+      'are bait, and the card says the odds before you touch it.</p>' +
+      '<p class="dim">Nothing is waiting on you here. This one is only so you know it is there.</p>',
+    want: () => true},
 ];
 const coachAt = () => (S.tut && COACH[S.tut.n]) || null;
 const coachOn = () => !!(S.tut && coachAt());
@@ -8191,10 +8212,12 @@ const coachSnap = () => ({loc: S.loc, cash: S.cash, day: S.day, held: Object.key
 async function coachOffer() {
   if (AUTO || wasTaught('tour')) return;
   markTaught('tour');   // offered is offered: whatever is chosen here, the morning does not come round again
-  const pick = await dialog('First day', '<p>You owe money, you have a drive, and the city has six districts ' +
-    'that all price the same goods differently. That is the game.</p>' +
+  const pick = await dialog('First day', '<p>You owe money, you have a drive, and the city has ' +
+    `${LOCATIONS.filter(l => l !== BUNKER).length} districts that all price the same goods differently. ` +
+    'That is the game.</p>' +
     '<p>This can walk you through one real day &mdash; out, buy, carry, sell, home, sleep. It is your day: ' +
-    'you keep what you make and you keep what you lose. Six steps, and you can stop it at any point.</p>',
+    `you keep what you make and you keep what you lose. There are ${COACH.length} steps, and you can stop ` +
+    'it at any point.</p>',
     [{name: 'Walk me through it', note: 'about five minutes', value: 'go', cls: 'primary'},
       {name: 'Skip it', note: 'first-time tips stay on', value: 'skip'},
       {name: 'No tips at all', note: 'I have played this', value: 'none', cls: 'small'}]);
@@ -8212,6 +8235,9 @@ async function coachSay() {
   const out = await dialog(`${C.t} <span class="dim">${S.tut.n + 1}/${COACH.length}</span>`, C.h(),
     [['Got it', 'ok', 'primary'], {name: 'Stop the tutorial', value: 'stop', cls: 'small'}]);
   if (out === 'stop') return coachStop();
+  // The last card asks for nothing, so acknowledging it is what finishes the tour. Guarded on the step not
+  // having moved under us, and on S.tut still being there, so "Why?" on a finished tour cannot re-finish it.
+  if (C.last && S.tut && coachAt() === C) return coachStop(true);
 }
 // Done with it, by choice or because the day it was teaching is over. Nothing is left half on: the strip
 // goes, the rings go, and the morning is never offered again (markTaught('tour') already happened).
@@ -8249,7 +8275,7 @@ function coachPaint() {
     '<button class="small" data-act="coachoff">Stop</button>';
   // The ring: the tile this step wants, or the panel it wants read.
   document.querySelectorAll('.coachme').forEach(el => el.classList.remove('coachme'));
-  if (!C) return;
+  if (!C || !C.hi) return;   // a step with no `hi` wants nothing pressed, so nothing is ringed
   const want = C.hi.startsWith('#') ? $(C.hi) : $(`#actions [data-act="${C.hi}"]`);
   if (want) want.classList.add('coachme');
 }
