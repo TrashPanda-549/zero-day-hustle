@@ -3646,7 +3646,7 @@ const ACH = {
   dunbail: ['Knowing When to Stop', 'Walk out of a deep run carrying 10 goods or more', 150, () => stat('dunbail') >= 1],
   // WARDRIVING: five, in the same style. One for the first crack, one for a career of them, one for each of
   // the two things a cracked network can become, and one for the find that was watching back.
-  wd1: ['Password Is Password', 'Crack a network you found from a car', 100, () => stat('wdcrack') >= 1],
+  wd1: ['Password Is Password', 'Crack a network you found with a scanner of your own', 100, () => stat('wdcrack') >= 1],
   wd25: ['Drive-By Download', 'Crack 25 of them', 400, () => stat('wdcrack') >= 25],
   wddive: ['Address Found, Not Bought', 'Clear a deep run on an address you wardrove yourself', 300, () => stat('wddive') >= 1],
   wdsold: ['Her Clients Have Heard', 'Sell an address to a data broker', 100, () => stat('wdsold') >= 1],
@@ -7861,8 +7861,9 @@ function newGame() {
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
   S.leads = [];                  // DUNGEONS: addresses for deep runs (S.dun holds a run in progress)
-  // WARDRIVING: the scanner you own, the ride it is bolted to, the captures in hand, how hard each district
-  // has been swept and the days the broker bought one. Like the rides, it belongs to the run.
+  // WARDRIVING: the scanner you own, where it is ('' is the bag, which is a rung of the ladder and not a
+  // nowhere), the captures in hand, how hard each district has been swept and the days the broker bought
+  // one. Like the rides, it belongs to the run.
   S.wd = {kit: 0, on: '', finds: [], sweeps: {}, sold: []};
   S.hq = {};                     // BASE: what the stations have done today (the base itself belongs to the save)
   S.hit = null;                  // SNEAK REAPERS: the contract you are holding, one at a time (see REAP)
@@ -8103,7 +8104,7 @@ const TEACH = {
     '<div class="syn"><b class="amber">Honeypots</b><br><span class="dim">Some captures are bait: a network ' +
     'left open to see who walks in. The chance is printed on the card before you touch it ' +
     `(about ${WARDRIVE.bait[0]}% at the surface, +${WARDRIVE.bait[1]}% per depth, less your stealth gear). ` +
-    `Crack one and it hands the law your plate, your route and the times you drove it: a stop, ` +
+    `Crack one and it hands the law your hardware address, your route and the times you came past: a stop, ` +
     `+${WARDRIVE.potHeat}% Heat, and the district remembers.</span></div>`},
   // ===== the prison pocket, at the moment it is first offered. STUCK_ODDS and SICK_DAYS own these numbers.
   pocket: {t: 'The prison pocket', tone: 'danger', h: () =>
@@ -8185,20 +8186,25 @@ const COACH = [
       'is. Sleeping cheap means sleeping cool.</p>' +
       `<p class="dim">Your debt grows overnight too. The Fixer, at ${HOME}, is who you owe.</p>`,
     want: (b) => S.day > b.day},
-  // THE LAST CARD. Informational and terminal: a player on day two is still in debt and will usually not
-  // have scanner money, let alone car money, so this step asks for NOTHING. `last` makes acknowledging it
-  // finish the tour (see coachSay), and `want` is true anyway so an impatient player who just carries on
-  // finishes it too. It cannot be failed, cannot be waited on, and has no tile to ring (hi is empty).
-  // Every figure is read off WARDRIVE and GEAR_SPOTS, the blocks that own them.
+  // THE LAST CARD. Informational and terminal: a player on day two is still in debt and may not have
+  // scanner money yet, so this step asks for NOTHING. `last` makes acknowledging it finish the tour (see
+  // coachSay), and `want` is true anyway so an impatient player who just carries on finishes it too. It
+  // cannot be failed, cannot be waited on, and has no tile to ring (hi is empty).
+  // Every figure is read off WARDRIVE, WD_RIDE and GEAR_SPOTS, the blocks that own them. The one thing this
+  // card must get right is that there is no vehicle gate: a scanner and your own two feet are the feature.
   {id: 'wd', hi: '', last: true,
-    strip: 'A scanner on a car wardrives every trip. Sold at the black market.',
+    strip: 'A scanner wardrives on every trip, on foot included. Sold at the black market.',
     t: 'One last thing', h: () =>
       '<p>Everything else in the city explains itself the first time it happens to you. One thing cannot, ' +
       'because it only starts happening after you have bought the part, so here it is.</p>' +
-      '<p>A <b>wardriving scanner</b> bolts to a car and listens on every trip you take, whatever you went ' +
-      `out for. The cheap one is the <b>${WARDRIVE.kits[1].n}</b>, from ` +
-      `${money(WARDRIVE.kits[1].price)} at the black market (${GEAR_SPOTS.join(' or ')}). It wants a car ` +
-      '&mdash; not a bike, not a helicopter &mdash; and the slow boxy ones hear the most.</p>' +
+      `<p>A <b>wardriving scanner</b> is a tin can, a lead and a bag. The cheap one is the ` +
+      `<b>${WARDRIVE.kits[1].n}</b>, from ${money(WARDRIVE.kits[1].price)} at the black market ` +
+      `(${GEAR_SPOTS.join(' or ')}). Buy it today, walk out of the door, and it listens on every trip you ` +
+      'take, whatever you went out for. You need no car, no bike and no trip to the Garage to start.</p>' +
+      '<p>On foot you cover almost no ground, so it is a trickle. Every ride after that is an improvement ' +
+      'on walking rather than the price of admission: a bicycle a little, a crate on wheels more, and the ' +
+      'slow boxy ones &mdash; a van, an ice cream truck, a lawnmower &mdash; most of all. Anything fast, ' +
+      'loud or airborne hears less than you do walking, which is the joke and also the truth.</p>' +
       `<p>What it picks up are <b>captures</b>. You can hold ${WARDRIVE.hold} of them, they go stale after ` +
       `${WARDRIVE.keepDays} days, and cracking one pays in salvage or in an address worth a deep run. Some ` +
       'are bait, and the card says the odds before you touch it.</p>' +
@@ -18948,12 +18954,13 @@ async function wdCrack(f) {
     distSecure(WARDRIVE.potSec, f.at);
     S.mood = 'ouch';
     SND.play('alarm');
-    log(`<span class="red">That network was bait. It logged everything, including the plate. Heat +${heat}%.</span>`);
+    log(`<span class="red">That network was bait. It logged everything, down to the hardware address. Heat +${heat}%.</span>`);
     render();
     await alertDlg('It was watching back', '<p>The handshake goes through, the shell opens, and every single thing in it is ' +
-      'a prop. Somewhere a page of your captures, your timestamps and a photograph of your number plate is being read ' +
+      'a prop. Somewhere a page of your captures, your timestamps and a photograph of somebody who looks a lot ' +
+      'like you is being read ' +
       `by somebody who set this up on purpose.</p><p class="red">Heat +${heat}%. ${f.at} is wide awake.</p>`, 'danger');
-    await wdFallout(`A honeypot at ${f.at} handed them your plate, your route and the times you drove it.`);
+    await wdFallout(`A honeypot at ${f.at} handed them your hardware address, your route and the times you came past.`);
     return 'pot';
   }
   if (Math.random() * 100 >= wdOdds(f)) {
@@ -19062,9 +19069,11 @@ Object.assign(ACTIONS, {
             ? `${S.ride && wdState().on === S.ride ? `You are on the ${VEHICLES[S.ride][4]}, which collects` : 'You are carrying it, which collects'} ` +
               `<b class="green">${wdWord(q)}</b> on every trip you make.`
             : wdState().on
-              ? `<span class="red">It is on the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}, which you did not take out` +
-                `${S.ride && wdState().on === S.ride ? ' with a full tank' : ''}, so nothing is collecting.</span> ` +
-                'Move it to the bag at the Garage and it collects on foot.'
+              ? `<span class="red">${S.ride === wdState().on
+                ? `The ${VEHICLES[S.ride][4]} has a dry tank, so nothing is collecting.`
+                : `It is on the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}, which you did ` +
+                  'not take out, so nothing is collecting.'}</span> ' +
+                'Put it back in the bag at the Garage and it collects wherever you go, on foot included.'
               : '<span class="red">Nothing is collecting.</span>'}</p>`
           : `<p class="amber">You have no scanner. The black market at ${GEAR_SPOTS.join(' or ')} sells them.</p>`) +
         intel +
@@ -19086,7 +19095,7 @@ Object.assign(ACTIONS, {
         '<p class="dim">Crack it and it is an address for a network dive, plus whatever scrap is lying in it. ' +
         'Sell it and the money is immediate, smaller, and somebody else drives that street.</p>' +
         (f.bait >= 14 ? `<p class="${f.bait >= 25 ? 'red' : 'amber'}">This one answers a little too politely. ` +
-          `${f.bait}% of networks like it are bait, and bait hands the law your plate.</p>` : ''), opts);
+          `${f.bait}% of networks like it are bait, and bait hands the law everything it logged.</p>` : ''), opts);
       if (what === 'c') await wdCrack(f);
       else if (what === 's') await wdSell(f);
       else if (what === 'x') {
@@ -19148,10 +19157,10 @@ async function wdDrive(hops) {
       SND.play('alarm');
       log(`<span class="red">Something at ${dest} answered the probe with a question of its own. Heat +${heat}%.</span>`);
       render();
-      await alertDlg('Pulled over', `<p>The array picks up something at <b>${esc(dest)}</b> that answers every probe, ` +
+      await alertDlg('Stopped', `<p>The scanner picks up something at <b>${esc(dest)}</b> that answers every probe, ` +
         'politely, immediately, and asks for your MAC address twice. Three streets later there are headlights behind you ' +
         `that have been there a while.</p><p class="red">Heat +${heat}%. The sweep is over at hop ${num(done)}.</p>`, 'danger');
-      await wdFallout(`A honeypot at ${dest} had your plate before you had left the street.`);
+      await wdFallout(`A honeypot at ${dest} had your hardware address before you had left the street.`);
       stop = 'the law';
       break;
     }
@@ -19196,7 +19205,7 @@ async function wdAsk() {
     `<p class="dim">You can keep ${WARDRIVE.hold} captures at once (${num(wdFinds().length)} in the bag now); past that the ` +
     'oldest get thrown out, and cracking one costs a trip, so there is no point coming home with forty.</p>' +
     `<p class="amber">Going round the same streets with an aerial up is conspicuous. Every hop adds ` +
-    `${WARDRIVE.sec} security to the district it was in, and a capture that is bait can hand the law your plate ` +
+    `${WARDRIVE.sec} security to the district it was in, and a capture that is bait can hand the law your route ` +
     'and end the sweep where it happened. You keep whatever you collected up to that point.</p>' +
     (warm.length ? `<p class="red">Already watching: ${warm.map(l => `${l} (${distLawWord(l)})`).join(', ')}.</p>` : '') +
     '<p class="dim">Trips, fuel, Heat and whoever is waiting where you surface all work exactly as they do on an ' +
@@ -21045,10 +21054,10 @@ async function selfTest(games) {
       }
       // One run in three starts with a ride already in the garage, and on it.
       if (game % 3 === 1) { grantVehicle(pick(Object.keys(VEHICLES))); rideVehicle(S.rides[0], true); }
-      // WARDRIVING: and half of those start with something that can carry a scanner, and the scanner on it,
-      // so passive collection, the haul screen, the broker and the deliberate sweep are all played for real.
-      // (and the money for a few tanks: every ride that can carry a scanner has an engine, and a dry tank
-      //  gives no hops and collects nothing, so a bot that cannot afford fuel never wardrives at all)
+      // WARDRIVING: and half of those start with a good platform and the scanner bolted to it, so passive
+      // collection, the haul screen, the broker and the deliberate sweep are all played for real at a rate
+      // that fills a haul. (and the money for a few tanks: these three have engines, and a dry tank gives no
+      // hops and collects nothing, so a bot that cannot afford fuel would never wardrive on one at all)
       if (game % 3 === 1) {
         const id = pick(['granny', 'mower', 'golf']);   // the cheap tanks: $700 to $1,600 a day
         if (grantVehicle(id)) { rideVehicle(id, true); setScanner(pick([1, 2]), id); S.cash += 8000; }
