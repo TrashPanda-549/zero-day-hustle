@@ -8215,7 +8215,8 @@ async function coachOffer() {
   const pick = await dialog('First day', '<p>You owe money, you have a drive, and the city has ' +
     `${LOCATIONS.filter(l => l !== BUNKER).length} districts that all price the same goods differently. ` +
     'That is the game.</p>' +
-    '<p>This can walk you through one real day &mdash; out, buy, carry, sell, home, sleep. It is your day: ' +
+    '<p>This can walk you through one real day &mdash; out, buy, carry, sell, home, sleep, and one thing ' +
+    'worth knowing afterwards. It is your day: ' +
     `you keep what you make and you keep what you lose. There are ${COACH.length} steps, and you can stop ` +
     'it at any point.</p>',
     [{name: 'Walk me through it', note: 'about five minutes', value: 'go', cls: 'primary'},
