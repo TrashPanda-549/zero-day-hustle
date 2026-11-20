@@ -1870,6 +1870,9 @@ function dropVehicle(id) {
     if (S.ride === id) S.ride = '';
     delete S.gas[id];
   });
+  // WARDRIVING: the scanner is yours and the ride is not any more, so it comes off and goes in the bag,
+  // where it still collects. Otherwise it would be stranded on something you no longer own.
+  if (S.wd && S.wd.on === id) setScanner(wdKit(), '');
 }
 // Pay for today's tank. True if it is full afterwards (or never needed filling). Loud engines add their Heat here.
 function fuelUp(id) {
@@ -19282,6 +19285,9 @@ async function wdSelfTest() {
     setScanner(1, 'van');
     rideVehicle('', true);
     if (wdPower() || wdSweep('Campus Lab', false).length) fail('a kit bolted to a parked van collected', wdPower());
+    // ...and selling that van puts the scanner back in the bag rather than stranding it on somebody else's
+    dropVehicle('van');
+    if (wdState().on || !(wdPower() > 0)) fail('selling the ride stranded the scanner', wdState().on, wdPower());
     // a bicycle beats walking, and a helicopter is worse than walking
     fresh();
     setScanner(1, '');
