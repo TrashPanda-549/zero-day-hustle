@@ -19041,6 +19041,20 @@ async function wdSell(f) {
   return true;
 }
 
+// The one line on the haul screen that says what is collecting and, when nothing is, why. Nothing is only
+// ever a kit bolted to a ride you did not take out, or took out on an empty tank, so say which.
+function wdHaulLine(q) {
+  const on = wdState().on, name = VEHICLES[on] ? VEHICLES[on][4] : on;
+  if (q) {
+    const where = S.ride && on === S.ride ? `You are on the ${VEHICLES[S.ride][4]}, which collects` : 'You are carrying it, which collects';
+    return `${where} <b class="green">${wdWord(q)}</b> on every trip you make.`;
+  }
+  if (!on) return '<span class="red">Nothing is collecting.</span>';
+  return `<span class="red">${S.ride === on ? `The ${name} has a dry tank, so nothing is collecting.`
+    : `It is on the ${name}, which you did not take out, so nothing is collecting.`}</span> ` +
+    'Put it back in the bag at the Garage and it collects wherever you go, on foot included.';
+}
+
 // ---------- the law, after the fact ----------
 // GUNFIRE's gunFallout() is the model: the act is over, and then somebody turns up about it.
 async function wdFallout(why) {
@@ -19065,16 +19079,7 @@ Object.assign(ACTIONS, {
       const html = `<div class="syn">${withIcon(shopIcon('deep'), '<b>Wardriving</b><br><span class="dim">an aerial in a bag, and whatever you walk past</span>')}</div>` +
         (kit ? `<p>Kit: <b class="cyan">${K.n}</b>` +
           (wdState().on ? `, bolted to the <b>${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}</b>` : ', in the bag') +
-          `.<br>${q
-            ? `${S.ride && wdState().on === S.ride ? `You are on the ${VEHICLES[S.ride][4]}, which collects` : 'You are carrying it, which collects'} ` +
-              `<b class="green">${wdWord(q)}</b> on every trip you make.`
-            : wdState().on
-              ? `<span class="red">${S.ride === wdState().on
-                ? `The ${VEHICLES[S.ride][4]} has a dry tank, so nothing is collecting.`
-                : `It is on the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}, which you did ` +
-                  'not take out, so nothing is collecting.'}</span> ' +
-                'Put it back in the bag at the Garage and it collects wherever you go, on foot included.'
-              : '<span class="red">Nothing is collecting.</span>'}</p>`
+          `.<br>${wdHaulLine(q)}</p>`
           : `<p class="amber">You have no scanner. The black market at ${GEAR_SPOTS.join(' or ')} sells them.</p>`) +
         intel +
         (list.length ? '<p class="dim">CAPTURES &middot; tap one to work on it</p>' +
