@@ -18616,8 +18616,11 @@ async function startDungeon(kind, floors) {
   return dunEnter(L);
 }
 
-// ================== WARDRIVING: an antenna on the roof: START ==================
-// Unlocked by a car and a scanner. Everything it produces is ADDRESSES and SALVAGE: a cracked network is a
+// ================== WARDRIVING: an aerial in a bag: START ==================
+// Unlocked by a scanner and nothing else. A scanner is a thing in a bag with an aerial on it, so the day you
+// own one you can walk out and collect, and every ride after that is an improvement on walking rather than
+// the price of admission (see WD_RIDE for the ladder). Everything it produces is ADDRESSES and SALVAGE: a
+// cracked network is a
 // dive lead in the existing system (DUN.leadMax, DUN.leadDays, the same expiry, the same deep run), or it is
 // sold to a data broker for the one trickle of cash in the whole feature. The economy has been measured and
 // three features already reach into market depth, so this one is built not to be an income stream:
@@ -18634,13 +18637,14 @@ async function startDungeon(kind, floors) {
 // in district security. GUNFIRE is the model for the honeypot: an act with a chance of consequences after
 // the fact, and the chance is shown before you choose.
 const WARDRIVE = {
-  // --- the kit: bought at the black market, bolted to one ride at a time (S.wd.on), the way the suppressor
-  //     is threaded onto one weapon (GUNFIRE.suppPrice / S.supp). Prices are flat, before the shop's markup.
-  //     MEASURED: the tin can is an impulse price on purpose, because it is not the gate. The gate is the
-  //     car -- the cheapest thing at Otto's that can carry a scanner at all is the moped at $85k, and the
-  //     rides that are actually good at this start at the mobility scooter at $92k -- so pricing the can
-  //     like an investment only put a second wall in front of a feature nobody had met yet. The roof array
-  //     is the investment, and it is priced like one.
+  // --- the kit: bought at the black market. It lives in the bag, or bolted to one ride at a time (S.wd.on),
+  //     the way the suppressor is threaded onto one weapon (GUNFIRE.suppPrice / S.supp). Prices are flat,
+  //     before the shop's markup.
+  //     MEASURED: the tin can at $2,500 is the whole gate, and the gate is now a day-one one. It used to
+  //     stand behind a car -- the cheapest thing at Otto's was the moped at $85k -- which meant a player
+  //     bought the can and collected nothing for weeks. Walking collects (WD_RIDE.foot), so the can is the
+  //     only thing you have to buy, and it is priced as an impulse because that is what it is: it earns a
+  //     trickle of captures, not an income. The roof array at $55k is the investment and is priced like one.
   kits: [null,
     {n: 'Cantenna in a Pringles Tube', price: 2500, gain: 1, odds: 0, tag: 'CAN',
       about: 'A tin can, a bolt and a pigtail lead. It works, which is the offensive part.'},
@@ -18648,8 +18652,11 @@ const WARDRIVE = {
       about: 'Four radios, a GPS puck and a laptop in the footwell. Visible from space. Hears everything.'}],
   // --- collection, which runs on EVERY trip, so it must stay cheap: four multiplications and two rolls.
   // MEASURED against what a capture costs to use: cracking one is a trip and a few Botnet Hours, so a day
-  // of six trips can process three or four at the very most. A van with the roof array (quality 1.5, gain
-  // 1.9) collects about 1 a trip and 2 on a deliberate hop; a mower with the tin can about 0.4; a news
+  // of six trips can process three or four at the very most. Per ordinary trip, at an average district
+  // (rich ~1.03): on foot with the tin can about 0.2, so a day of walking is roughly ONE capture and a day
+  // spent sweeping on foot about two and a half -- a trickle you notice and want to improve, which is the
+  // whole point of the ladder. A cargo bike with the tin can about 0.3; a van with the roof array (quality
+  // 1.5, gain 1.9) about 1 a trip and 2 on a deliberate hop; a mower with the tin can about 0.4; a news
   // chopper about 0.09, which is the "barely" the ladder promises. Raising base makes the haul overflow,
   // not the player richer, because the lead cap and the broker's weekly fill are what bound the output.
   base: 0.35,       // captures a trip at ride quality 1, the cheap scanner, a district nobody has swept
@@ -18687,6 +18694,10 @@ const WARDRIVE = {
   //     address is worth about $24.5k run; she pays 36% of that, $8.8k, and three in a week with the glut
   //     is $19.3k -- under 2% of the week. The cap is what bounds it: without it a long sweep would be an
   //     income stream, which is the one thing this feature must not be. Re-measure if dayTake() moves.
+  //     MEASURED again for the day-one start: she pays a share of wdWorth(), and wdWorth() is all dunTake(),
+  //     which IS dayTake(), so her prices scale with the day exactly as the rest of the game does. On day 3
+  //     a day's take is $4k and a depth-2 address is worth about $390 run, so she pays about $160 for it --
+  //     4% of a day. There is no early-game windfall here to cap; the trickle is the trickle.
   caches: 1.0,      // caches a floor, for working out what an address is worth (dunRooms weights ~23%)
   sellShare: 0.40, sellDeep: 0.04, sellWeek: 3, sellWindow: 7, sellGlut: 0.7, standStep: 0.04,
   sellRep: 1,       // XP is the only other thing selling pays: this times the depth, times 10
