@@ -8091,7 +8091,10 @@ const TEACH = {
     'not a thing to save.</p>'},
   // ===== wardriving and the honeypot, read off WARDRIVE.
   wardrive: {t: 'Wardriving', tone: '', h: () =>
-    '<p>A scanner bolted to a ride listens on every trip you take, whatever you went out for. What it ' +
+    '<p>A scanner listens on every trip you take, whatever you went out for. Carried in the bag it works on ' +
+    'foot, which is where everyone starts; bolted to a ride at the Garage it gets that ride\'s aerial, boot ' +
+    'space and crawling speed. The slow boxy ones hear the most. Anything fast, loud or airborne hears less ' +
+    'than you do walking. What it ' +
     'collects is <b>captures</b>: a street, a network, a depth. A deliberate <b>sweep</b> spends trips doing ' +
     `nothing else and collects about ${WARDRIVE.sweepMult}&times; as fast. Captures go stale after ` +
     `${WARDRIVE.keepDays} days and you can hold ${WARDRIVE.hold}.</p>` +
@@ -9424,16 +9427,20 @@ async function garage() {
       `<span class="dim">room for ${garageSize()}, ${S.rides.length} in</span>`)}</div>` +
       `<p>A roller door, an oil stain and room for ${garageSize()} rides. You have ${tripsHtml()}.</p>` +
       `<div class="syn${S.ride ? ' pickable" data-pick="foot' : ''}"><b>On foot</b>${S.ride ? '' : ' <span class="green">&larr; today</span>'}<br>` +
-      `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span></div>`;
+      `<span class="dim">${TRIPS_PER_DAY} trips a day. Costs nothing, impresses nobody.</span>` +
+      // WARDRIVING: walking is the floor of the ladder, and the floor is not nothing.
+      (wdKit() ? `<br><span class="${wdState().on ? 'dim' : 'cyan'}">Wardrives ${wdWord(WD_RIDE.foot)}` +
+        `${wdState().on ? ' &middot; but the scanner is bolted to something else' : ' &middot; the scanner is in the bag'}</span>` : '') +
+      '</div>';
     for (const id of S.rides) {
       const on = id === S.ride, fuel = rideTwist(id, 'fuel'), dry = !tanked(id), ok = !on || dry;
       html += `<div class="syn${ok ? ' pickable' : ''}"${ok ? ` data-pick="${id}"` : ''}>` +
         rideCard(id, on ? '<span class="green">riding it</span>' : '<span class="dim">parked</span>') +
         (on ? '' : `<br>${rideWorth(id, 0)}`) +
-        // WARDRIVING: whether this one can carry the scanner, and whether it is the one wearing it.
-        (wdKit() ? `<br><span class="${WD_RIDE[id] ? (wdState().on === id ? 'cyan' : 'dim') : 'dim'}">` +
-          (WD_RIDE[id] ? `Wardrives ${wdWord(WD_RIDE[id])}${wdState().on === id ? ' &middot; the scanner is on this one' : ''}`
-            : 'Cannot carry the scanner') + '</span>' : '') +
+        // WARDRIVING: how good a platform this one is, and whether it is the one wearing the scanner.
+        (wdKit() ? `<br><span class="${wdState().on === id ? 'cyan' : 'dim'}">` +
+          `Wardrives ${wdWord(WD_RIDE[id] || 0)}${wdState().on === id ? ' &middot; the scanner is on this one' : ''}` +
+          `${(WD_RIDE[id] || 0) < WD_RIDE.foot ? ' &middot; worse than walking' : ''}</span>` : '') +
         (dry ? `<br><span class="${S.cash >= fuel ? 'amber' : 'red'}">${on ? 'Tank empty: tap to fill it' : 'Not filled today: getting on it costs a tank'}, ${money(fuel)}` +
           `${S.cash >= fuel ? '' : '. You cannot pay that, so it would add no hops today'}</span>` : '') + '</div>';
     }
@@ -9446,22 +9453,31 @@ async function garage() {
     const fitTo = S.rides.filter(id => WD_RIDE[id] && wdState().on !== id);
     const btns = [['Close', null, 'primary'], ...stationBtn('garage')];
     if (wdKit()) {
-      html += `<p class="${wdState().on ? 'cyan' : 'amber'}">Scanner: <b>${WARDRIVE.kits[wdKit()].n}</b>, ` +
+      const parked = wdState().on && wdState().on !== S.ride;
+      html += `<p class="${parked ? 'amber' : 'cyan'}">Scanner: <b>${WARDRIVE.kits[wdKit()].n}</b>, ` +
         (wdState().on ? `bolted to the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}`
-          : 'in a box on the floor') +
-        '. It lives on one ride at a time; moving it costs nothing but the half hour. Aircraft are hopeless at it ' +
-        'and nothing from the bike shop can carry it at all.</p>';
+          : 'in the bag') +
+        '. ' +
+        (parked ? `While it is on the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on} and you are ` +
+          `${S.ride ? `on the ${VEHICLES[S.ride][4]}` : 'on foot'}, nothing is collecting at all. ` : '') +
+        'In the bag it goes wherever you do and hears what a bag hears; bolted to a ride it gets that ride\'s ' +
+        'aerial, boot space and crawling speed, and only on the days you take that one out. It lives in one ' +
+        'place at a time and moving it costs nothing but the half hour. The slow boxy ones hear the most, and ' +
+        'anything fast, loud or airborne hears less than you do walking.</p>';
       for (const id of fitTo) btns.push({name: 'Bolt the scanner', note: `to the ${VEHICLES[id][4]}`, value: 'fit:' + id, icon: rideIcon(id)});
+      // ...and the way back off a ride, so bolting it to the van is never a one-way door out of warwalking.
+      if (wdState().on) btns.push({name: 'Put it in the bag', note: 'carry it on foot', value: 'fit:', icon: miscIcon('proxy')});
     }
     const choice = await dialog('Garage', html, btns);
     if (!choice) return;
     if (choice === 'base') { await stationDlg('garage', true); continue; }   // BASE: the Garage is a station
     if (String(choice).startsWith('fit:')) {
       const id = String(choice).slice(4);
-      if (!S.rides.includes(id) || !WD_RIDE[id]) continue;
+      if (id && (!S.rides.includes(id) || !WD_RIDE[id])) continue;
       setScanner(wdKit(), id);
       SND.play('buy');
-      log(`The ${WARDRIVE.kits[wdKit()].n} is on the ${VEHICLES[id][4]} now. It wardrives ${wdWord(WD_RIDE[id])}.`);
+      log(id ? `The ${WARDRIVE.kits[wdKit()].n} is on the ${VEHICLES[id][4]} now. It wardrives ${wdWord(WD_RIDE[id])}.`
+        : `The ${WARDRIVE.kits[wdKit()].n} is back in the bag. On foot it wardrives ${wdWord(WD_RIDE.foot)}.`);
       render();
       continue;
     }
@@ -10398,8 +10414,9 @@ const ACTIONS = {
       WARDRIVE.kits.forEach((K, tier) => {
         if (!K || wdKit() >= tier) return;
         offers.push({key: 'w' + tier, scan: tier, art: 'proxy', name: K.n, price: Math.round(K.price * scale),
-          text: `wardriving scanner: ${K.about} Bolt it to a car at the Garage. ` +
-            `Hears ${tier > 1 ? `about ${pct(K.gain - 1)}% more than the tin can` : 'what drives past it'}` +
+          text: `wardriving scanner: ${K.about} It works in a bag from the day you buy it; bolt it to a ride ` +
+            `at the Garage and it works better. ` +
+            `Hears ${tier > 1 ? `about ${pct(K.gain - 1)}% more than the tin can` : 'what you walk past'}` +
             `${K.odds ? `, and adds ${K.odds}% to cracking what it catches` : ''}` +
             (wdKit() ? ' (replaces the one you have)' : '')});
       });
@@ -10444,13 +10461,15 @@ const ACTIONS = {
         S[o.gadget]++;
         if (COOL[o.gadget]) { stock[o.gadget]--; coolBuys++; }
       } else if (o.scan) {
-        // WARDRIVING: it comes with him bolting it to whatever you arrived on, if that can take it.
-        setScanner(o.scan, wdRideQ(S.ride) > 0 ? S.ride : wdState().on);
+        // WARDRIVING: he bolts it to whatever you arrived on. Arrive on foot and it goes in the bag, which
+        // is a rung of the ladder in its own right, so there is nothing further to do before it collects.
+        setScanner(o.scan, S.ride && wdRideQ(S.ride) > 0 ? S.ride : wdState().on);
         castOnce('Ninepin', 1, `you bought the ${WARDRIVE.kits[o.scan].n.toLowerCase()} off him`);
         SND.play('loot');
         log(`Bought: <span class="cyan">${WARDRIVE.kits[o.scan].n}</span> for ${money(o.price)}.` +
-          (wdFitted() ? ` It is on the ${VEHICLES[S.ride][4]} and collecting from the next trip.`
-            : ' It needs bolting to a car that can carry it: the Garage at the Bunker.'));
+          (!wdPower() ? ' It is bolted to a ride you are not on, so get on that one or move it at the Garage.'
+            : S.ride && wdState().on === S.ride ? ` It is on the ${VEHICLES[S.ride][4]} and collecting from the next trip.`
+              : ' It is in the bag and collecting from the next trip. A ride makes it better.'));
       } else if (key === 'm') S.medkits++;
       else if (key === 'd') S.hp = 100;
       else if (o.item) {
@@ -10774,10 +10793,14 @@ const ACTIONS = {
       (shutList.length ? `<p class="red">Cordoned off today: <b>${shutList.join(', ')}</b>. There is no way in.</p>` : '') +
       board +
       // WARDRIVING: and the one line that says what the kit is doing, or why it is doing nothing.
-      (wdKit() ? `<p class="${wdPower() ? 'cyan' : 'dim'}">Scanner: ${WARDRIVE.kits[wdKit()].n}. ` +
-        (wdPower() ? `The ${VEHICLES[S.ride][4]} collects ${wdWord(wdPower())} on every trip you make.`
-          : S.ride ? `The ${VEHICLES[S.ride][4]} cannot carry it, so nothing is collecting.`
-            : 'It is bolted to a ride you are not on, so nothing is collecting.') + '</p>' : ''), buttons);
+      (wdKit() ? `<p class="${wdPower() ? 'cyan' : 'amber'}">Scanner: ${WARDRIVE.kits[wdKit()].n}. ` +
+        (wdPower()
+          ? `${S.ride && wdState().on === S.ride ? `The ${VEHICLES[S.ride][4]}` : 'In the bag it'} collects ` +
+            `${wdWord(wdPower())} on every trip you make.`
+          : S.ride && wdState().on === S.ride
+            ? `The ${VEHICLES[S.ride][4]} has a dry tank, so nothing is collecting.`
+            : `It is bolted to the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}, which you ` +
+              'did not take out, so nothing is collecting. Move it at the Garage, or go and get on that one.') + '</p>' : ''), buttons);
     if (!dest) return;
     if (dest === 'wd:go') return wdAsk();   // WARDRIVING: the deliberate sweep asks its own question
     await travelFx(S.loc, dest);
@@ -18800,7 +18823,7 @@ function wdSweep(place, deliberate) {
   W.sweeps = W.sweeps && typeof W.sweeps === 'object' ? W.sweeps : {};
   W.sweeps[place] = (W.sweeps[place] || 0) + 1;
   wdTally.swept++;
-  distSecure(WARDRIVE.sec, place);   // FACES: an antenna on the roof, twice round the same block
+  distSecure(WARDRIVE.sec, place);   // FACES: an aerial up, twice round the same block
   const out = [];
   for (let i = 0; i < got; i++) {
     const f = wdFind(place);
@@ -19032,15 +19055,22 @@ Object.assign(ACTIONS, {
           LOCATIONS.filter(l => l !== BUNKER && !evShut(l)).sort((a, b) => wdYield(b) - wdYield(a)).slice(0, 3)
             .map(l => `${l}${wdTired(l) ? ` <span class="dim">(swept ${num(wdTired(l))}x)</span>` : ''}`).join(' &middot; ') + '</p>'
         : '<p class="dim">An Intel Board would tell you which districts are worth sweeping.</p>';
-      const html = `<div class="syn">${withIcon(shopIcon('deep'), '<b>Wardriving</b><br><span class="dim">an antenna on the roof, and whatever drives past it</span>')}</div>` +
+      const html = `<div class="syn">${withIcon(shopIcon('deep'), '<b>Wardriving</b><br><span class="dim">an aerial in a bag, and whatever you walk past</span>')}</div>` +
         (kit ? `<p>Kit: <b class="cyan">${K.n}</b>` +
-          (wdState().on ? `, bolted to the <b>${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}</b>` : ', not bolted to anything') +
-          `.<br>${S.ride ? `You are on the ${VEHICLES[S.ride][4]}, which collects <b class="${q ? 'green' : 'red'}">${wdWord(q)}</b>.` : 'You are on foot, so nothing is collecting.'}</p>`
+          (wdState().on ? `, bolted to the <b>${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}</b>` : ', in the bag') +
+          `.<br>${q
+            ? `${S.ride && wdState().on === S.ride ? `You are on the ${VEHICLES[S.ride][4]}, which collects` : 'You are carrying it, which collects'} ` +
+              `<b class="green">${wdWord(q)}</b> on every trip you make.`
+            : wdState().on
+              ? `<span class="red">It is on the ${VEHICLES[wdState().on] ? VEHICLES[wdState().on][4] : wdState().on}, which you did not take out` +
+                `${S.ride && wdState().on === S.ride ? ' with a full tank' : ''}, so nothing is collecting.</span> ` +
+                'Move it to the bag at the Garage and it collects on foot.'
+              : '<span class="red">Nothing is collecting.</span>'}</p>`
           : `<p class="amber">You have no scanner. The black market at ${GEAR_SPOTS.join(' or ')} sells them.</p>`) +
         intel +
         (list.length ? '<p class="dim">CAPTURES &middot; tap one to work on it</p>' +
           list.map(f => `<div class="syn pickable" data-pick="f:${f.id}">${wdCard(f)}</div>`).join('')
-          : '<p class="dim">Nothing captured. Drive somewhere with the kit bolted to a car that can carry it.</p>') +
+          : '<p class="dim">Nothing captured yet. Go somewhere with the scanner on you and it fills up as you go.</p>') +
         `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today. Cracking one costs a trip and burns ` +
         `${WARDRIVE.crackGood} for the compute; with none in hand it takes ${WARDRIVE.slowTrips} trips and goes worse. ` +
         `A cracked network is a dive address like any other, or Lady Checksum buys it off you for a good deal less ` +
@@ -19086,7 +19116,7 @@ async function wdDrive(hops) {
   hops = Math.max(1, Math.min(Math.round(hops) || 1, S.trips));
   wdTally.sweeps++;
   let done = 0, got = 0, stop = '';
-  log(`<span class="cyan">Out with the antenna up: ${num(hops)} hop${hops === 1 ? '' : 's'}, finishing at the Bunker.</span>`);
+  log(`<span class="cyan">Out with the aerial up: ${num(hops)} hop${hops === 1 ? '' : 's'}, finishing at the Bunker.</span>`);
   for (let i = 0; i < hops && S.trips > 0 && !S.over && !S.busted; i++) {
     const where = LOCATIONS.filter(l => l !== BUNKER && l !== S.loc && !evShut(l));
     if (!where.length) break;
@@ -19139,7 +19169,7 @@ async function wdDrive(hops) {
     log(`${num(done)} hop${done === 1 ? '' : 's'}, ${num(got)} capture${got === 1 ? '' : 's'}` +
       `${stop ? `, cut short by ${stop}` : ''}. You are back at the Bunker with ${S.trips} trip${S.trips === 1 ? '' : 's'} left.`);
     render();
-    await alertDlg('Back at the Bunker', `<p>${num(done)} hop${done === 1 ? '' : 's'} driven, ` +
+    await alertDlg('Back at the Bunker', `<p>${num(done)} hop${done === 1 ? '' : 's'} covered, ` +
       `<b>${num(got)}</b> capture${got === 1 ? '' : 's'} in the bag${stop ? `, and it ended early because of ${stop}` : ''}.</p>` +
       `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today. Work the haul from <b>Wardriving</b>, ` +
       'or sleep and start again.</p>');
@@ -19156,14 +19186,16 @@ async function wdAsk() {
   for (const n of [1, 2, 3, 5, 8]) if (n < most) opts.push({name: `${n} hop${n === 1 ? '' : 's'}`, value: n});
   opts.push({name: 'Not today', value: null, cls: 'small'});
   const warm = LOCATIONS.filter(l => l !== BUNKER && distSec(l) >= 25);
-  const n = await dialog('Wardrive', `<p>Antenna up, laptop in the footwell, and round the blocks until the ` +
-    `${VEHICLES[S.ride][4]} needs a rest. It collects <b class="green">${wdWord(q)}</b>.</p>` +
+  const n = await dialog('Wardrive', `<p>${S.ride && wdState().on === S.ride
+    ? `Aerial up, laptop in the footwell, and round the blocks until the ${VEHICLES[S.ride][4]} needs a rest.`
+    : 'Aerial out of the bag, phone in your hand, and round the blocks until your feet complain.'} ` +
+    `It collects <b class="green">${wdWord(q)}</b>.</p>` +
     `<p>You have <b>${num(most)}</b> trip${most === 1 ? '' : 's'} left. Every hop spends one, and you finish at the ` +
     'Bunker, which is free. A hop on purpose finds about ' + `${pct(WARDRIVE.sweepMult - 1)}% more than a trip you ` +
     `were making anyway: all ${num(most)} should turn up around <b>${wdPlan(most)}</b> captures.</p>` +
     `<p class="dim">You can keep ${WARDRIVE.hold} captures at once (${num(wdFinds().length)} in the bag now); past that the ` +
     'oldest get thrown out, and cracking one costs a trip, so there is no point coming home with forty.</p>' +
-    `<p class="amber">Driving the same streets with an antenna on the roof is conspicuous. Every hop adds ` +
+    `<p class="amber">Going round the same streets with an aerial up is conspicuous. Every hop adds ` +
     `${WARDRIVE.sec} security to the district it was in, and a capture that is bait can hand the law your plate ` +
     'and end the sweep where it happened. You keep whatever you collected up to that point.</p>' +
     (warm.length ? `<p class="red">Already watching: ${warm.map(l => `${l} (${distLawWord(l)})`).join(', ')}.</p>` : '') +
@@ -19173,7 +19205,8 @@ async function wdAsk() {
   return wdDrive(n);
 }
 // ---------- WARDRIVING: the self test ----------
-// Collection fires where it should and nowhere else (no kit, wrong ride, a bicycle, a helicopter), the same
+// Collection fires where it should and nowhere else (a scanner on foot works, a scanner bolted to a ride you
+// left at home does not, a bicycle beats walking, a chopper does not), the same
 // streets pay less each time, cracking costs time or gear and never pays cash, a cracked network becomes a
 // dive lead inside the existing cap and expiry, the salvage is the game's own goods in small amounts, the
 // broker pays less than running it and only so many times a week, a sold address is gone, the honeypot
@@ -19200,30 +19233,55 @@ async function wdSelfTest() {
       W.sellShare > 0 && W.sellShare < 1 && W.sellGlut > 0 && W.sellGlut < 1 && W.sellWeek >= 1 &&
       W.sellWindow > 1 && W.kits.length === 3 && W.kits[2].price > W.kits[1].price && W.kits[2].gain > W.kits[1].gain &&
       W.salvage.every(n => GOODS.some(g => g[0] === n)) && GOODS.some(g => g[0] === W.crackGood))) fail('the tuning block does not hold', W);
+    const onFoot = WD_RIDE.foot;
+    if (!(onFoot > 0)) fail('walking collects nothing', onFoot);
     for (const [id, v] of Object.entries(VEHICLES)) {
       const q = WD_RIDE[id] || 0;
-      if (v[3] === 'bike' && q) fail('a bicycle can carry the kit', id);
-      if (v[3] === 'heli' && q > 0.6) fail('an aircraft is good at this', id, q);
-      if (v[3] === 'auto' && !q) fail('a car cannot wardrive at all', id);
+      if (!(q > 0)) fail('a ride cannot wardrive at all', id);
+      // the bike shop is a modest improvement on walking, and never better than the slow boxy middle
+      if (v[3] === 'bike' && !(q >= onFoot && q < WD_RIDE.granny)) fail('a bicycle is off the ladder', id, q);
+      // and the aircraft are the floor under walking, which is the joke the ladder tells
+      if (v[3] === 'heli' && !(q < onFoot)) fail('an aircraft is no worse than walking', id, q);
     }
     if (!(WD_RIDE.van > 1.2 && WD_RIDE.icecream > 1.2 && WD_RIDE.mower > 1 && WD_RIDE.golf > 1)) fail('the dull middle is not the good middle', WD_RIDE);
+    // the fast, loud, conspicuous ones are worse than your own two feet, on purpose
+    if (!(WD_RIDE.dirt < onFoot && WD_RIDE.moped < onFoot && WD_RIDE.muscle < onFoot)) fail('the fast and loud ones beat walking', WD_RIDE);
+    // the crates beat the backpacks, and the bike shop beats walking
+    if (!(WD_RIDE.cargo > WD_RIDE.fixie && WD_RIDE.trolley > WD_RIDE.board && WD_RIDE.board > onFoot)) fail('the bike shop ladder is upside down', WD_RIDE);
     if (Object.keys(WD_DIST).length !== LOCATIONS.length - 1 || Object.keys(WD_DIST).some(l => !LOCATIONS.includes(l) || l === BUNKER)) fail('the district table does not match the map');
-    // --- nothing collects without the kit, the ride, or a tank
+    // --- nothing collects without the kit; everything else collects something
     fresh();
     if (wdSweep('Campus Lab', false).length || wdPower()) fail('collected on foot with no kit');
-    ride('van', 1);
-    S.wd.on = '';
-    if (wdSweep('Campus Lab', false).length) fail('collected with the kit in a box');
-    setScanner(1, 'van');
-    if (!wdFitted() || !(wdPower() > 1)) fail('a van with a scanner is not collecting', wdPower());
-    // a bicycle cannot even wear it, and a helicopter wears it badly
+    // --- THE ENTRY POINT: a scanner and your own two feet, no ride, no Garage, no tank
+    setScanner(1, '');
+    if (!wdFitted() || !(wdPower() > 0)) fail('walking with a scanner is not collecting', wdPower());
+    const foot = wdPower();
+    await fixed(0, async () => { if (!wdSweep('Campus Lab', true).length) fail('a sweep on foot found nothing', foot); });
     fresh();
+    ride('van', 1);
+    if (!wdFitted() || !(wdPower() > 1)) fail('a van with a scanner is not collecting', wdPower());
+    const vanQ = wdPower();
+    // the bag follows you off the van, and hears what a bag hears rather than what the van hears
+    S.wd.on = '';
+    if (!(wdPower() > 0 && wdPower() < vanQ)) fail('the kit in the bag is not the foot rung', wdPower(), vanQ);
+    // ...but bolted to a ride you did not take out it collects nothing, which is the one blessed dead end
+    setScanner(1, 'van');
+    rideVehicle('', true);
+    if (wdPower() || wdSweep('Campus Lab', false).length) fail('a kit bolted to a parked van collected', wdPower());
+    // a bicycle beats walking, and a helicopter is worse than walking
+    fresh();
+    setScanner(1, '');
+    const bare = wdPower();
     grantVehicle('fixie'); rideVehicle('fixie', true); setScanner(1, 'fixie');
-    if (wdState().on || wdPower() || wdSweep('Campus Lab', false).length) fail('a bicycle wardrove', wdState().on, wdPower());
+    if (!(wdState().on === 'fixie' && wdPower() > bare)) fail('a bicycle is not better than walking', wdPower(), bare);
+    await fixed(0, async () => { if (!wdSweep('Campus Lab', true).length) fail('a bicycle collected nothing'); });
     fresh();
     ride('news', 2);
     const heli = wdPower();
     if (!(heli > 0 && heli < 0.6)) fail('a helicopter is not poor at this', heli);
+    // ...and worse than walking out of the door with the same scanner in a bag
+    setScanner(2, ''); rideVehicle('', true);
+    if (!(wdPower() > heli)) fail('a chopper is no worse than walking', heli, wdPower());
     fresh();
     ride('van', 1);
     const van = wdPower();
