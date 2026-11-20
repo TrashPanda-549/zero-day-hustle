@@ -18609,8 +18609,13 @@ async function startDungeon(kind, floors) {
 const WARDRIVE = {
   // --- the kit: bought at the black market, bolted to one ride at a time (S.wd.on), the way the suppressor
   //     is threaded onto one weapon (GUNFIRE.suppPrice / S.supp). Prices are flat, before the shop's markup.
+  //     MEASURED: the tin can is an impulse price on purpose, because it is not the gate. The gate is the
+  //     car -- the cheapest thing at Otto's that can carry a scanner at all is the moped at $85k, and the
+  //     rides that are actually good at this start at the mobility scooter at $92k -- so pricing the can
+  //     like an investment only put a second wall in front of a feature nobody had met yet. The roof array
+  //     is the investment, and it is priced like one.
   kits: [null,
-    {n: 'Cantenna in a Pringles Tube', price: 7000, gain: 1, odds: 0, tag: 'CAN',
+    {n: 'Cantenna in a Pringles Tube', price: 2500, gain: 1, odds: 0, tag: 'CAN',
       about: 'A tin can, a bolt and a pigtail lead. It works, which is the offensive part.'},
     {n: 'Roof Array (Four Radios, One Argument)', price: 55000, gain: 1.9, odds: 12, tag: 'ARR',
       about: 'Four radios, a GPS puck and a laptop in the footwell. Visible from space. Hears everything.'}],
