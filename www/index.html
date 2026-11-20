@@ -16,7 +16,17 @@
 :root{--bg:#06050d;--panel:#0f0d1f;--panel2:#17142e;--line:#2b2752;--fg:#d9e2ff;--dim:#7c81ab;
   --accent:#00e5ff;--cyan:#00e5ff;--pink:#ff2a6d;--magenta:#ff4fd8;--yellow:#fcee0a;--amber:#fcee0a;
   --green:#3dff9a;--red:#ff3b5c;
-  --cut:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px)}
+  --cut:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+  /* ===== HOUSE STYLE (1.35: the main screen wears the fight screen's chrome) =====
+     One spacing scale, one border language, one timing. Everything added below is built out of these, so
+     a change here moves the whole interface and nothing has its own private numbers. */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;        /* the only spacings anything new is allowed to use */
+  --edge:#3b3f7a;                               /* the window border the fight screen has always used */
+  --glass:linear-gradient(180deg,rgba(23,20,46,.97),rgba(9,8,22,.97));
+  --sunk:inset 0 0 0 1px #06050d,inset 0 0 0 2px rgba(0,229,255,.13),0 2px 0 #000;
+  --t:150ms;                                    /* every hover and press, nothing else */
+  /* the action-tile language: a kind sets these three and everything else follows (see ACTION TILES) */
+  --tk:var(--cyan);--tk-tint:rgba(0,229,255,.09);--tk-ink:#dff6ff}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg)}
 body{color:var(--fg);font:15px/1.35 ui-monospace,Consolas,"Cascadia Mono",Menlo,"Roboto Mono",monospace;
@@ -32,8 +42,12 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:200;
   background:repeating-linear-gradient(rgba(0,0,0,.2) 0 1px,transparent 1px 3px)}
 #app{max-width:760px;margin:0 auto;
   padding:calc(10px + env(safe-area-inset-top)) 12px calc(18px + env(safe-area-inset-bottom))}
-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.hbtns{display:flex;gap:6px}
+header{display:flex;align-items:center;justify-content:space-between;gap:var(--s2)}
+/* TOP BAR: Menu, Sound and New run are the same chrome as everything else, not three bare words */
+.hbtns{display:flex;gap:var(--s1)}
+.hbtns button.small{min-height:28px;padding:3px var(--s3);font-size:12px;letter-spacing:1.5px;
+  text-transform:uppercase;color:#9aa6ff;border:1px solid var(--edge);border-top-color:var(--cyan);
+  background:var(--glass);box-shadow:var(--sunk)}
 h1{margin:0;font-size:18px;letter-spacing:3px;font-weight:800;font-style:italic;color:#000;background:var(--yellow);
   padding:5px 22px 5px 10px;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);
   animation:glitch 4.5s infinite steps(1)}
@@ -54,6 +68,84 @@ button.primary:active:not(:disabled){background:#fff}
 button.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,42,109,.08);text-shadow:0 0 6px rgba(255,42,109,.5)}
 button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--line);color:var(--dim);
   background:transparent;text-shadow:none}
+button,.bopt,.chip,.row,.tile,.slottag{transition:background var(--t) linear,border-color var(--t) linear,
+  color var(--t) linear,box-shadow var(--t) linear}
+@media (hover:hover){button:not(:disabled):hover{background:rgba(0,229,255,.16);box-shadow:0 0 0 1px currentColor}
+  button.primary:not(:disabled):hover{background:#fff8a8}
+  button.small:not(:disabled):hover{color:var(--cyan);border-color:var(--cyan);background:rgba(0,229,255,.1)}}
+
+/* ===== PANEL CHROME =====
+   The one window the fight screen draws (.bw) is the window the whole game draws: dark glass, a cyan top
+   edge, the sunk inner rule, a yellow corner mark. .pw is the same thing for a panel that is not in a
+   fight; set --kc on it for the colour of the bottom edge (the fight screen calls that --fc). */
+.pw{position:relative;border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--kc,var(--cyan));background:var(--glass);box-shadow:var(--sunk)}
+.pw::after{content:"";position:absolute;right:3px;bottom:3px;width:6px;height:6px;border-right:1px solid var(--yellow);
+  border-bottom:1px solid var(--yellow);opacity:.75;pointer-events:none}
+
+/* ===== ACTION TILES =====
+   One tile for every choice the game offers, wherever it is offered: the row of things you can do on the
+   main screen (#actions), the options in a dialogue, a shop, a deep run or a fight (.bopts/.bopt).
+   A tile is: [glyph] [name / note] [badge]. The caller picks a KIND, not a colour:
+     .k-go    the one thing this screen is for (yellow)      .k-risk  it can go wrong (pink)
+     .k-shop  somewhere that takes your money (green)        .k-kit   something you already own (cyan)
+     .k-info  a list to look at, nothing happens (violet)
+   A kind only sets --tk (the ink and the edge), --tk-tint (the backing) and --tk-ink (the label), so a new
+   kind is three lines and nothing else has to know. Sizing lives on the grid (.tgrid), not on the tile, so
+   the same rules that keep the main screen's rows even keep a dialogue's rows even. */
+.k-go{--tk:var(--yellow);--tk-tint:rgba(252,238,10,.26);--tk-ink:#fffbdc}
+.k-risk{--tk:var(--pink);--tk-tint:rgba(255,42,109,.13);--tk-ink:#ffc2d2}
+.k-shop{--tk:var(--green);--tk-tint:rgba(61,255,154,.10);--tk-ink:#c6ffe2}
+.k-kit{--tk:var(--cyan);--tk-tint:rgba(0,229,255,.10);--tk-ink:#d4f6ff}
+.k-info{--tk:#9d8cff;--tk-tint:rgba(157,140,255,.10);--tk-ink:#d8d2ff}
+/* the grid: every tile the same height, a sensible smallest width, one gap */
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tw,168px),1fr));
+  grid-auto-rows:1fr;gap:var(--s2)}
+/* the tile itself */
+.tact{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;
+  gap:var(--s2);min-height:52px;padding:var(--s1) var(--s2);text-align:left;clip-path:none;
+  color:var(--tk-ink);border:1px solid var(--tk);border-left-width:3px;
+  background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.92));
+  box-shadow:var(--sunk);text-shadow:1px 1px 0 #000;letter-spacing:.3px}
+.tact::after{content:"";position:absolute;right:3px;bottom:3px;width:5px;height:5px;
+  border-right:1px solid var(--yellow);border-bottom:1px solid var(--yellow);opacity:.6;pointer-events:none}
+.tact>.ico{align-self:center}
+.tact .tl{display:block;min-width:0}
+.tact .tn{display:block;font-size:13.5px;line-height:1.2;overflow-wrap:anywhere;hyphens:auto}
+.tact .tsub{display:block;margin-top:1px;font-size:10.5px;line-height:1.15;letter-spacing:1px;
+  text-transform:uppercase;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tact.k-go{box-shadow:var(--sunk),0 0 14px -5px var(--yellow)}
+.tact.k-go .tn{font-weight:bold;letter-spacing:.8px}
+/* the badge: every count on a tile reads the same way, wherever the count came from */
+.tbadge{position:absolute;top:-1px;right:-1px;min-width:19px;padding:0 4px;font-style:normal;font-weight:bold;
+  font-size:10.5px;line-height:15px;text-align:center;color:#000;background:var(--tk);text-shadow:none;
+  clip-path:polygon(5px 0,100% 0,100% 100%,0 100%,0 5px)}
+@media (hover:hover){.tact:not(:disabled):hover{background:linear-gradient(180deg,var(--tk-tint),var(--tk-tint));
+    box-shadow:var(--sunk),0 0 10px -2px var(--tk);color:#fff}}
+.tact:active:not(:disabled){background:var(--tk);color:#000;text-shadow:none}
+.tact:active:not(:disabled) .tsub,.tact:active:not(:disabled) .tbadge{color:#000}
+.tact:active:not(:disabled) .tbadge{background:rgba(0,0,0,.25);color:#fff}
+.tact:disabled{opacity:.34;filter:saturate(.3)}
+
+/* ===== THE GUIDED FIRST DAY =====
+   One strip above the tiles saying what this step wants, and a ring round the tile it wants pressing.
+   Nothing new is invented here: the strip is a panel with a yellow edge, like every other panel, and the
+   ring is the same glow .tact.k-go already wears, turned up. It lives inside #app, so the handheld (where
+   #app is display:none) never builds it: there, the step's own dialogue is the whole instruction. */
+#coach{display:flex;align-items:center;gap:var(--s2);padding:var(--s1) var(--s2);
+  border:1px solid var(--yellow);border-left-width:3px;background:linear-gradient(180deg,rgba(252,238,10,.10),rgba(9,8,22,.92));
+  box-shadow:var(--sunk);font-size:12.5px;line-height:1.3;margin-bottom:var(--s2)}
+#coach[hidden]{display:none}
+#coach .cstep{flex:none;font-size:10.5px;font-weight:bold;letter-spacing:1px;color:#000;background:var(--yellow);
+  padding:0 5px;text-shadow:none}
+#coach .cwhat{flex:1 1 auto;min-width:0;color:var(--fg)}
+#coach .cwhat b{color:var(--yellow)}
+#coach button{flex:none}
+.tact.coachme{box-shadow:var(--sunk),0 0 0 2px var(--yellow),0 0 16px -2px var(--yellow);
+  animation:coachring 1.1s ease-in-out infinite alternate}
+@keyframes coachring{from{box-shadow:var(--sunk),0 0 0 2px var(--yellow),0 0 6px -2px var(--yellow)}
+  to{box-shadow:var(--sunk),0 0 0 2px var(--yellow),0 0 20px 0 var(--yellow)}}
+#market.coachme,#actions.coachme{outline:2px solid var(--yellow);outline-offset:2px}
 
 /* heads-up panel: avatar, level, health */
 #hud{display:grid;grid-template-columns:66px 1fr;gap:10px;margin-top:10px;align-items:stretch}
@@ -110,36 +202,86 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #career .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--magenta),var(--cyan))}
 #career .xp{color:var(--dim);white-space:nowrap}
 #vitals{margin:2px 0 0}
-.meter{display:grid;grid-template-columns:64px 1fr 58px;gap:8px;align-items:center;font-size:13px;margin:4px 0}
-.meter span:first-child{color:var(--dim);letter-spacing:1px;text-transform:uppercase;font-size:11px}
-.meter .track{height:11px;background:#000;border:1px solid var(--line);overflow:hidden;transform:skewX(-18deg)}
-.meter .track i{display:block;height:100%;transition:width .25s;box-shadow:0 0 8px currentColor}
-.meter b{text-align:right;white-space:nowrap}
+/* Health and OpSec are the same bar the fight screen draws (.bbar): the same skew, the same sunk track,
+   the same tabular figure on the end, so your vitals do not change shape when a fight starts. */
+.meter{display:grid;grid-template-columns:52px 1fr 46px;gap:var(--s2);align-items:center;font-size:12px;margin:var(--s1) 0}
+.meter span:first-child{color:#9aa6ff;letter-spacing:1px;text-transform:uppercase;font-size:10px}
+.meter .track{height:9px;background:#05061c;border:1px solid var(--edge);overflow:hidden;transform:skewX(-20deg)}
+.meter .track i{display:block;height:100%;transition:width .35s;box-shadow:0 0 8px currentColor}
+.meter b{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 
-#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(98px,1fr));gap:6px;margin-top:10px}
-.chip{background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--accent);padding:6px 8px;
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%)}
-.chip small{display:block;color:var(--dim);font-size:11px;letter-spacing:1px;text-transform:uppercase}
-.chip b{font-size:15px;font-weight:600;white-space:nowrap}
-#news{margin:10px 0 0}
-#news div{color:var(--yellow);padding:2px 0}
-#news div::before{content:">> ";color:var(--pink)}
+/* ===== THE STAT COLUMN =====
+   Sixteen figures in one flat grid read as sixteen unrelated things. They are dealt into four bands -
+   money, exposure, kit, standing - separated by a hairline in the band's own colour. The figure is the
+   big thing on a chip and the label is small and dim under it; colour is only used where it means
+   something (HEAT climbing, DEBT owed, CASH in hand), and the band's colour is a hairline on the left
+   edge of every chip in it. The whole column has to fit 1280x800 without scrolling, so the separator
+   costs no row of its own: it is a zero-height element whose line lies in the grid gap, and the band
+   word it used to carry is kept for screen readers only. */
+#stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:var(--s1);margin-top:var(--s1)}
+.bandrule{grid-column:1/-1;position:relative;height:2px;margin:0}
+.bandrule::after{content:"";position:absolute;left:0;right:0;top:1px;height:1px;
+  background:linear-gradient(90deg,var(--bk,var(--edge)),var(--bk,var(--edge)) 42%,transparent);
+  box-shadow:0 0 6px -1px var(--bk,transparent);opacity:.75}
+.bandrule span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.bandrule.money{--bk:#7ad7a8}.bandrule.exposure{--bk:#e07896}.bandrule.kit{--bk:#6fc6d8}.bandrule.standing{--bk:#9d8cff}
+.chip{position:relative;padding:1px var(--s2) 2px;background:linear-gradient(180deg,rgba(23,20,46,.85),rgba(9,8,22,.85));
+  border:1px solid var(--edge);border-left:2px solid var(--bk,var(--edge));
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%)}
+.chip[data-band=money]{--bk:rgba(61,255,154,.5)}.chip[data-band=exposure]{--bk:rgba(255,42,109,.5)}
+.chip[data-band=kit]{--bk:rgba(0,229,255,.45)}.chip[data-band=standing]{--bk:rgba(157,140,255,.45)}
+.chip small{display:block;color:var(--dim);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;line-height:1}
+.chip b{display:block;font-size:14px;font-weight:600;white-space:nowrap;line-height:1.1;font-variant-numeric:tabular-nums}
+.chip.big b{font-size:15px}
+/* a figure that moved since the screen was last drawn: which way it went, and one pulse */
+.chip .dlt{position:absolute;top:3px;right:4px;font-style:normal;font-size:8px;line-height:1;color:var(--cyan);opacity:.85}
+.chip.moved{animation:chipbump .45s ease-out}
+@keyframes chipbump{from{box-shadow:inset 0 0 0 1px var(--cyan),0 0 10px -3px var(--cyan)}to{box-shadow:none}}
+@media (prefers-reduced-motion:reduce){.chip.moved{animation:none}}
+/* ===== THE RIGHT COLUMN: news and the log =====
+   Two lists of lines, so what they need is a way to tell one kind of line from another at a glance and a
+   way to tell new from old. Every line gets one prefix glyph keyed to what kind it is, a day divider goes
+   in wherever the day turned over, and the further down the log a line is the dimmer it reads. */
+#news{margin:var(--s2) 0 0}
+#news div{position:relative;color:var(--yellow);padding:2px 0 2px 17px}
+#news div::before{content:"\00BB";position:absolute;left:1px;top:2px;color:var(--pink)}
 /* the syndicate mission: always open, and kept to a heading line and one block */
-#quest .qnow{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--pink);background:rgba(15,13,31,.92)}
+#quest .qnow{margin-top:var(--s2);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--pink);background:var(--glass);box-shadow:var(--sunk)}
 /* the heading is not tied to #quest: the handheld's JOBS screen copies this block out of it (see renderTiny) */
 .qnow>h3{display:flex;align-items:center;gap:8px;margin:0;padding:7px 10px 1px;font-size:13px;letter-spacing:2px;
   color:var(--pink);font-weight:normal}
 .qnow>h3 small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim);text-align:right}
 #quest .qnow .job{margin:6px}
-#market{margin-top:10px;border:1px solid var(--line);border-top:2px solid var(--accent);background:rgba(15,13,31,.92)}
-.row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px 9px;
-  border-bottom:1px solid var(--line)}
+/* the panels wear the fight screen's window: dark glass, a cyan top edge, the sunk inner rule */
+#market{margin-top:var(--s2);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--accent);background:var(--glass);box-shadow:var(--sunk)}
+/* ===== MARKET ROWS =====
+   Tighter, every other row tinted so the eye can hold its line across to the price, the dead rows (nothing
+   on sale) stepped back, and Buy/Sell as one segmented control instead of two separate buttons. */
+.row{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);align-items:center;padding:5px var(--s2);
+  border-bottom:1px solid rgba(43,39,82,.55)}
 .row:last-child{border-bottom:0}
-.row .name{font-weight:600}
-.row .sub{font-size:12px;color:var(--dim)}
-.row .price{text-align:right;white-space:nowrap}
-.row .btns{display:flex;gap:6px}
-.row .btns button{padding:6px 10px;min-width:52px}
+.row.alt{background:rgba(150,180,255,.045)}
+.row.dead{opacity:.55}
+.row.dead .name{font-weight:400;color:var(--dim)}
+@media (hover:hover){.row:hover{background:rgba(0,229,255,.05)}}
+.row .name{font-weight:600;letter-spacing:.3px}
+.row .sub{font-size:11.5px;color:var(--dim);line-height:1.3}
+.row .price{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.faint{opacity:.6}
+/* where today's price sits in this good's usual range: one dim tick, the same skew as every other bar */
+.pband{display:block;position:relative;width:54px;height:4px;margin:3px 0 1px auto;background:#05061c;
+  border:1px solid var(--edge);transform:skewX(-20deg)}
+.pband i{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--cyan);opacity:.75}
+.row .btns{display:flex;gap:0}
+.row .btns button{padding:5px 10px;min-width:52px;min-height:42px;clip-path:none}
+.row .btns button:first-child{border-right-width:0}
+.row .btns button:first-child:not(:disabled)+button:disabled{border-left-color:var(--accent)}
+/* the one-line reminder that replaced the four lines of market mechanics (ACTIONS.markethelp) */
+.mhint{display:flex;align-items:center;gap:var(--s2);padding:4px var(--s2) 6px;font-size:11.5px;color:var(--dim)}
+.mhint span{min-width:0}
+.mhint button.small{flex:none;min-height:26px;padding:2px 8px;font-size:11px;letter-spacing:.5px}
 .fold>summary{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;list-style:none;
   font-size:13px;letter-spacing:2px;color:var(--accent);user-select:none}
 .fold>summary::-webkit-details-marker{display:none}
@@ -147,7 +289,8 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .fold[open]>summary::before{content:"\25BE"}
 .fold[open]>summary{border-bottom:1px solid var(--line)}
 .fold>summary small{margin-left:auto;font-size:12px;letter-spacing:0;color:var(--dim)}
-#jobs .fold{margin-bottom:6px;border:1px solid var(--line);border-top:2px solid var(--yellow);background:rgba(15,13,31,.92)}
+#jobs .fold{margin-bottom:var(--s1);border:1px solid var(--edge);border-top:1px solid var(--cyan);
+  border-bottom:2px solid var(--yellow);background:var(--glass);box-shadow:var(--sunk)}
 #jobs .fold>summary{color:var(--yellow)}
 #jobs .fold .job{margin:6px}
 #jobs .fold .none{padding:8px 10px;font-size:12px;color:var(--dim)}
@@ -163,14 +306,40 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 .job.gig{border-left-color:var(--magenta)}
 .job.quest button{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,255,.06)}
 .job.quest button:active:not(:disabled){background:var(--cyan);color:#000}
-#actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-top:12px}
-#actions button{min-height:46px}
-/* SHOP TILES: an action button's tile is small enough to leave the label its room */
-#actions button.hasico{gap:5px;padding:4px 6px}
-#actions button.hasico .ico.room{width:34px;height:20px}
-#log{margin-top:14px;font-size:13px;color:var(--dim);border-top:1px dashed var(--line);padding-top:8px}
-#log div{padding:1px 0}
+/* ===== LOCATION ART BAND =====
+   A full-width strip under the banner and above everything about you, for a picture of wherever you are.
+   NOTHING IS DRAWN HERE YET: the band is empty, and an empty band takes no room at all (:empty), so the
+   screen today looks exactly as if it were not there. Whoever draws the art fills #locart with its own
+   markup (inline SVG or CSS; there are no image files in this game) and the band appears. It is a BAND,
+   not a hero image: the main screen is dense and has to stay usable, so the height is capped here and
+   nothing inside it may push it taller. Anything put in is clipped to the band. */
+#locart{position:relative;overflow:hidden;margin:var(--s2) 0 0;height:var(--artband,72px);
+  border:1px solid var(--edge);border-top:1px solid var(--cyan);border-bottom:2px solid var(--magenta);
+  background:#06050d;box-shadow:var(--sunk)}
+#locart:empty{display:none;margin:0;border:0}
+#locart>*{max-width:100%;max-height:100%}
+/* ONE scene fills the band. The picture is drawn on a 1600 x 100 canvas and placed with slice, so its
+   height always fits exactly and the sides are cropped to whatever the band is: see LOCATION ART. */
+#locart>svg.laband{display:block;width:100%;height:100%}
+
+/* what you can do here: the shared tile grid, nothing of its own but the margin and the glyph's size */
+#actions{margin-top:var(--s3);--tw:170px}
+#actions .ico.room{width:36px;height:21px}
+#log{margin-top:var(--s3);font-size:13px;color:var(--dim);border-top:1px solid var(--edge);padding-top:var(--s2)}
+#log div{position:relative;padding:1px 0 1px 17px}
+#log div::before{content:"\00B7";position:absolute;left:3px;top:1px;color:var(--edge)}
+#log div.red::before{content:"!";color:var(--pink)}
+#log div.green::before{content:"+";color:var(--green)}
+#log div.cyan::before{content:"\203A";color:var(--cyan)}
+#log div.amber::before,#log div.yellow::before{content:"*";color:var(--yellow)}
 #log div:first-child{color:var(--fg)}
+/* older lines step back, so the top of the log is where the eye goes */
+#log div:nth-child(n+5){opacity:.82}#log div:nth-child(n+9){opacity:.62}#log div:nth-child(n+13){opacity:.45}
+/* where the day turned over (see log()) */
+#log div.daymark{margin:var(--s1) 0 2px;padding:0;display:flex;align-items:center;gap:var(--s2);
+  font-size:9.5px;letter-spacing:2.5px;color:var(--dim);text-transform:uppercase}
+#log div.daymark::before{content:none}
+#log div.daymark::after{content:"";flex:1 1 auto;height:1px;background:linear-gradient(90deg,var(--edge),transparent)}
 
 /* dialogs */
 #overlay{position:fixed;inset:0;background:rgba(3,2,10,.84);display:flex;align-items:center;justify-content:center;
@@ -184,7 +353,26 @@ button.small{min-height:32px;padding:4px 10px;font-size:13px;border-color:var(--
 #dialog.danger{border-color:var(--pink);border-top-color:var(--pink)}
 #dialog.danger h2{color:var(--pink);text-shadow:0 0 10px rgba(255,42,109,.6)}
 #dialog p{margin:0 0 10px}
-.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px}
+/* A dialogue's answers are the same action tiles the main screen draws (see ACTION TILES): the same grid,
+   so the rows come out even, and the same kinds, so an answer that spends money or can go wrong says which
+   it is before it is pressed. .tfull is the answer that backs out: it sits across the foot of the grid
+   rather than orphaned on a row of its own at some other width. */
+.dbtns{display:grid;grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr));
+  grid-auto-rows:1fr;gap:var(--s2);margin-top:14px}
+.dbtns .tfull{grid-column:1/-1}
+/* The old button classes (primary, danger, small) are still on the answers, because the keyboard and the
+   handheld find the main answer by .primary. They must not out-shout the kind, so the tile's own look is
+   restated here at a weight that wins. */
+.dbtns .tact{background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.92));
+  border-color:var(--tk);color:var(--tk-ink);font-weight:normal;text-shadow:1px 1px 0 #000}
+.dbtns .tact.k-go .tn{font-weight:bold}
+.dbtns .tact:disabled{opacity:.34;filter:saturate(.3)}
+.dbtns .tact:active:not(:disabled){background:var(--tk);color:#000;text-shadow:none}
+@media (hover:hover){.dbtns .tact:not(:disabled):hover{background:linear-gradient(180deg,var(--tk-tint),var(--tk-tint));
+    border-color:var(--tk);box-shadow:var(--sunk),0 0 10px -2px var(--tk);color:#fff}}
+.dbtns .tact .ico{width:30px;height:30px}
+.dbtns .tact .ico.room{width:44px;height:26px}
+.dbtns .tact .ico.ride{width:44px;height:26px}
 .qty{display:flex;flex-direction:column;gap:10px;margin-top:6px}
 input[type=number],input[type=text]{font:inherit;font-size:18px;color:var(--yellow);background:#000;
   border:1px solid var(--accent);padding:8px 10px;width:100%;-webkit-user-select:text;user-select:text}
@@ -254,12 +442,18 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .bturn b.on{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
 .bturn b.on.foe{background:var(--pink);border-color:var(--pink)}
 /* a list of options with a pointer on the one that is picked out */
-.bopts{display:grid;grid-template-columns:1fr;gap:1px 6px}
-.bopt{position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:34px;padding:3px 6px 3px 23px;
-  cursor:pointer;line-height:1.2;border:1px solid transparent;text-shadow:1px 1px 0 #000}
+.bopts{display:grid;grid-template-columns:1fr;gap:1px 6px;grid-auto-rows:1fr}
+/* A fight's options are the same tile as everywhere else, in this window's shape: the kind sets the ink and
+   the edge (--tk), a move that can go wrong is pink, backing out is violet, and the yellow caret on .cur is
+   still the thing that says which one the keys are on. */
+.bopt{--tk:var(--cyan);--tk-tint:rgba(0,229,255,.10);--tk-ink:#d4f6ff;
+  position:relative;display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:34px;padding:3px 6px 3px 23px;
+  cursor:pointer;line-height:1.2;color:var(--tk-ink);border:1px solid var(--tk);border-left-width:3px;
+  background:linear-gradient(180deg,var(--tk-tint),rgba(9,8,22,.88));text-shadow:1px 1px 0 #000}
 .bopt > span{min-width:0;overflow-wrap:anywhere}
-.bopt small{flex:none;color:#aab1d8;font-size:11px;white-space:nowrap}
-.bopt.danger{color:#ff8fa3}.bopt.dim{color:var(--dim)}
+.bopt small{flex:none;color:#aab1d8;font-size:11px;white-space:nowrap;letter-spacing:.5px}
+.bopt.danger{--tk:var(--pink);--tk-tint:rgba(255,42,109,.13);--tk-ink:#ffc2d2}
+.bopt.dim{--tk:#9d8cff;--tk-tint:rgba(157,140,255,.10);--tk-ink:#d8d2ff}
 .bopt.cur{background:linear-gradient(90deg,rgba(252,238,10,.18),rgba(252,238,10,.03));border-color:rgba(252,238,10,.4);color:#fff}
 .bopt.cur.danger{color:#ffb3c0}
 .bopt.cur::before{content:"";position:absolute;left:6px;top:50%;width:11px;height:12px;margin-top:-6px;background:var(--yellow);
@@ -533,9 +727,11 @@ button .ico.room{width:44px;height:26px}
     padding:calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
       calc(12px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
     grid-template-columns:minmax(300px,36%) minmax(0,1fr);
-    grid-template-rows:auto auto auto minmax(96px,1fr);
-    grid-template-areas:"head head" "me trade" "news trade" "log trade"}
+    grid-template-rows:auto auto auto auto minmax(96px,1fr);
+    grid-template-areas:"head head" "art art" "me trade" "news trade" "log trade"}
   #app>header{grid-area:head;margin-bottom:10px}
+  /* LOCATION ART BAND: full width under the banner, a little taller where there is room */
+  #locart{grid-area:art;--artband:clamp(84px,12vh,132px);margin:0 0 var(--s3)}
   #colme{grid-area:me;display:block;min-width:0;min-height:0;overflow-y:auto}
   #coltrade{grid-area:trade;display:flex;flex-direction:column;min-width:0;min-height:0;overflow-y:auto}
   #colmarket{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;min-height:150px}
@@ -559,6 +755,7 @@ button .ico.room{width:44px;height:26px}
   #market>.fold::details-content{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));align-content:start}
   #market .fold>summary{position:sticky;top:0;z-index:1;background:#0f0d1f}
   #market .mnote{grid-column:1/-1}   /* the market-depth note above the product rows spans the grid */
+  .row .btns button{min-height:34px}  /* a pointer does not need a thumb-sized target */
   /* there is room, so the product list is always open here (folding it is for phones; the choice made there is kept) */
   @supports selector(::details-content){
     #market>.fold:not([open])::details-content{content-visibility:visible}
@@ -587,21 +784,24 @@ button .ico.room{width:44px;height:26px}
 
   /* dialogs, shops, inventory, menus: centred, a little wider, never taller than the window */
   #dialog{max-width:560px;max-height:100%}
-  .dbtns{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .dbtns{grid-template-columns:repeat(auto-fit,minmax(var(--tw,150px),1fr))}
   .bootbox{max-width:460px}
   .tbox{max-width:560px}
 }
 @media (min-width:1200px) and (min-height:500px){
+  /* THE GUIDED FIRST DAY: the step strip gets its own row directly above the tiles. It is display:none
+     the rest of the time, so that row is 0 high and this is the layout it has always been. */
   #app{grid-template-columns:minmax(280px,23%) minmax(0,1fr) minmax(320px,27%);
-    grid-template-rows:auto auto auto minmax(0,1fr) auto;
-    grid-template-areas:"head head head" "me trade news" "me trade jobs" "me trade log" "me actions log"}
+    grid-template-rows:auto auto auto auto minmax(0,1fr) auto auto;
+    grid-template-areas:"head head head" "art art art" "me trade news" "me trade jobs" "me trade log" "me coach log" "me actions log"}
+  #coach{grid-area:coach}
   /* you: the avatar stands tall above the level, health and stat chips */
   #colme{display:flex;flex-direction:column}
   #hud{display:contents}
   #ava{flex:1 1 200px;min-height:150px;max-height:470px}
   #hudr{flex:none;margin-top:10px}
-  #stats{flex:none;gap:4px;margin-top:8px;grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
-  #stats .chip{padding:4px 8px 3px}
+  #stats{flex:none;gap:3px;margin-top:var(--s2);grid-template-columns:repeat(auto-fit,minmax(112px,1fr))}
+  #stats .chip{padding:2px 7px 3px}
   #coltrade{display:contents}
   #colmarket{grid-area:trade;min-height:0}
   #news{margin:0;max-height:11em}
@@ -699,6 +899,12 @@ button .ico.room{width:44px;height:26px}
   #tiny .row::before{counter-increment:n;content:counter(n);color:var(--dim);font-size:11px;text-align:right}
   #tiny .row .name{font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #tiny .row .price{text-align:right;white-space:nowrap}
+  #tiny .pband,#tiny .mhint{display:none}   /* the range tick and the market hint cost a line here */
+  /* the big layout's banding and demoting do not apply: this screen is read on a cheap panel in daylight,
+     so every row keeps full contrast and no row is tinted */
+  #tiny .row.alt{background:none}
+  #tiny .row.dead{opacity:1}
+  #tiny .row.dead .name{color:inherit}
   #tiny .row .sub,#tiny .row .btns{display:none}
   /* what you are holding of it is the one line worth keeping on every row (the market's own notes are
      dimmed, and they wait until the row is the one you are on) */
@@ -716,10 +922,18 @@ button .ico.room{width:44px;height:26px}
   #tiny .figs{display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;margin-top:4px}
   #tiny .chip{display:block;padding:0 0 0 5px;border:0;border-left:2px solid var(--accent);
     background:none;clip-path:none}
-  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px}
+  /* line-height is pinned here so the handheld keeps the metrics it was tuned at, whatever the big
+     layout's chips do (they were tightened to keep the stat column inside 1280x800) */
+  #tiny .chip small{display:block;font-size:10px;letter-spacing:.5px;line-height:1.25}
   #tiny .chip b{display:block;font-size:17px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #tiny .figs .chip:nth-child(n+7){display:flex;justify-content:space-between;align-items:baseline;gap:4px}
-  #tiny .figs .chip:nth-child(n+7) b{font-size:12px}
+  /* the band headings and the "it moved" marks belong to the big layout; this screen is a flat list, and
+     the six figures you act on stay big (.big) while everything else is a line (exactly as before) */
+  #tiny .figs .bandrule,#tiny .chip .dlt{display:none}
+  #tiny .figs .chip{display:flex;justify-content:space-between;align-items:baseline;gap:4px}
+  #tiny .figs .chip b{font-size:12px}
+  #tiny .figs .chip.big{display:block}
+  #tiny .figs .chip.big b{font-size:17px}
+  #tiny .chip.moved{animation:none}
 
   /* the jobs, and the things you can do: a numbered list, one key each */
   #tiny .job{display:grid;grid-template-columns:15px minmax(0,1fr) auto;gap:0 6px;align-items:baseline;
@@ -739,15 +953,30 @@ button .ico.room{width:44px;height:26px}
   #tiny .acts button::before{counter-increment:n;content:counter(n) "  ";color:var(--yellow);font-weight:bold}
   #tiny .acts button:disabled{opacity:.4}
   #tiny .acts button.primary::before{color:#000}
-  /* SHOP TILES: a tile on an action button stays on the line here, at the height of the line */
-  #tiny .acts button.hasico{display:flex;align-items:center;gap:4px;padding:0 5px}
-  #tiny .acts button.hasico .ico.room{width:26px;height:15px}
-  #tiny .acts button.hasico > span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  /* ACTION TILES: the big layout's tile is a card; here it is a line again, the shape this screen has
+     always drawn - number, picture, name, note, count on the end - and in this screen's own colours, not
+     the kind colours. Nothing about the handheld's layout changes. */
+  #tiny .acts .tact{display:flex;align-items:center;gap:4px;min-height:0;padding:0 5px;
+    border:1px solid var(--accent);border-left-width:1px;background:rgba(0,229,255,.06);
+    color:var(--accent);box-shadow:none;text-shadow:none}
+  #tiny .acts .tact::after{content:none}
+  #tiny .acts .tact .ico.room{width:26px;height:15px}
+  #tiny .acts .tact .tl{display:flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden}
+  #tiny .acts .tact .tn{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts .tact .tsub{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #tiny .acts .tact .tbadge{position:static;margin-left:auto;padding:0;background:none;color:var(--yellow);
+    clip-path:none;font-size:11px;line-height:1.2}
+  #tiny .acts .tact.k-go{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
+  #tiny .acts .tact.k-go::before,#tiny .acts .tact.k-go .tsub,#tiny .acts .tact.k-go .tbadge{color:#000}
+  #tiny .acts .tact:focus{background:rgba(255,255,255,.22);color:#fff}
+  #tiny .acts .tact.k-go:focus{background:#fff;color:#000}
 
   /* the log and the news, read a page at a time */
   #tiny .logs{font-size:12px;line-height:1.3;padding:0 2px}
   #tiny .logs div{padding:1px 0}
   #tiny .logs .news div{color:var(--yellow)}
+  #tiny .logs .daymark{color:var(--yellow);font-size:11px;letter-spacing:1px}
 
   /* --- dialogs: shops, inventory, gear, the menu, break-ins, locks, rides --- */
   #overlay{padding:2px}
@@ -774,9 +1003,27 @@ button .ico.room{width:44px;height:26px}
      in the body that answers it (a save file, a deep run's address) is numbered in the same run */
   .dbtns button::before,.body [data-pick]:not(.tile):not(.slottag)::before{
     counter-increment:dbtn;content:counter(dbtn) "  ";opacity:.7;font-weight:bold}
-  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr}
+  .dbtns{gap:2px;margin-top:5px;grid-template-columns:1fr;grid-auto-rows:auto}
   .dbtns button{text-align:left;padding:1px 6px;line-height:1.3;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* An answer is a tile everywhere else; here it goes back to being a line - number, picture, name, note -
+     exactly the shape this screen has always drawn, in this screen's own colours, not the kind colours.
+     (The same treatment #tiny .acts .tact gets, and for the same reason.) */
+  .dbtns .tact{display:flex;align-items:center;gap:4px;min-height:0;padding:0 5px;
+    border:1px solid var(--accent);border-left-width:1px;background:rgba(0,229,255,.06);
+    color:var(--accent);box-shadow:none;text-shadow:none;grid-column:auto}
+  .dbtns .tact::after{content:none}
+  .dbtns .tact .tl{display:flex;align-items:baseline;gap:5px;min-width:0;overflow:hidden}
+  .dbtns .tact .tn{display:inline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tsub{display:inline;margin:0;font-size:11px;letter-spacing:0;text-transform:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbtns .tact .tbadge{position:static;margin-left:auto;padding:0;background:none;color:var(--yellow);
+    clip-path:none;font-size:11px;line-height:1.2}
+  .dbtns .tact.danger{border-color:var(--pink);color:var(--pink);background:rgba(255,42,109,.08)}
+  .dbtns .tact.primary{background:var(--yellow);border-color:var(--yellow);color:#000;font-weight:bold}
+  .dbtns .tact.primary::before,.dbtns .tact.primary .tsub,.dbtns .tact.primary .tbadge{color:#000}
+  .dbtns .tact:focus{background:rgba(255,255,255,.22);color:#fff}
+  .dbtns .tact.primary:focus{background:#fff;color:#000}
   .qty{gap:4px;margin-top:3px}
   input[type=number],input[type=text]{font-size:12px;padding:3px 5px}
   input[type=range]{height:18px}
@@ -869,10 +1116,14 @@ button .ico.room{width:44px;height:26px}
   .bgear{margin-top:2px;font-size:9.5px}
   .bturn{gap:3px;margin-top:2px;font-size:9.5px;letter-spacing:0}
   .bturn b{padding:0 3px}
+  /* the handheld's command panel is four lines tall: rows stay the height of their own text here, so a
+     command that wraps does not push the one under it off the screen */
+  .bopts{grid-auto-rows:auto}
   .bcmd .bopts{grid-template-columns:1fr 1fr;gap:1px 3px}
   /* an option is "Fire" plus the gun's name: in a 60px column the name goes on its own line under it
      instead of squeezing the label down to one letter a row */
-  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center}
+  .bopt{min-height:16px;padding:1px 3px 1px 13px;font-size:11.5px;text-shadow:none;flex-wrap:wrap;align-content:center;
+    border-left-width:2px}
   .bopt small{flex:1 1 auto;min-width:0;font-size:9.5px;white-space:normal;text-align:right;overflow-wrap:anywhere}
   .bopt.cur::before{left:2px;width:7px;height:8px;margin-top:-4px;animation:none}
   .bsub{left:2px;width:calc(100% - 4px);bottom:1px;max-height:150px;box-shadow:0 0 0 2px #04030b}
@@ -1013,6 +1264,9 @@ button .ico.room{width:44px;height:26px}
 </div>
 <div id="app">
   <header><h1>ZERO DAY HUSTLE</h1><span class="hbtns"><button class="small" data-act="menu">Menu</button><button class="small" data-act="sound">Sound</button><button class="small" data-act="restart">New run</button></span></header>
+  <!-- LOCATION ART BAND: per-location background art goes in here, drawn elsewhere. Left empty on
+       purpose; an empty band collapses to nothing (see #locart in the style sheet). -->
+  <div id="locart" aria-hidden="true"></div>
   <div id="colme" tabindex="0" role="group" aria-label="You">
   <div id="hud">
     <div id="ava" data-act="gearmenu" title="Gear" tabindex="0" role="button" aria-label="Gear"></div>
@@ -1031,7 +1285,9 @@ button .ico.room{width:44px;height:26px}
   <section id="market" tabindex="0" role="group" aria-label="Market"></section>
   </div>
   <section id="jobs" tabindex="0" role="group" aria-label="Jobs"></section>
-  <nav id="actions"></nav>
+  <!-- THE GUIDED FIRST DAY: the step strip, drawn by coachPaint(). Empty and hidden the rest of the time. -->
+  <section id="coach" hidden aria-live="polite"></section>
+  <nav id="actions" class="tgrid"></nav>
   </div>
   <section id="log" tabindex="0" role="group" aria-label="Log"></section>
 </div>
@@ -1083,7 +1339,8 @@ const GOODS = [
     'A release group dumped its whole archive. Warez are basically free!'],
 ];
 const LOCATIONS = ['The Hackerspace', 'Tor Bazaar', 'IRC Backchannel', 'Con Hallway', 'Campus Lab',
-  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'The Bunker'];
+  'Datacenter Dock', 'Cyber Cafe', 'Paste Alley', 'Strip Mall', 'Teardown Yard', 'Repair Arcade',
+  'Swapmeet Field', 'Multi-storey', 'Coach Station', 'The Bunker'];
 const HOME = LOCATIONS[0];
 // The Bunker is your hideout: no market, a stash for goods, a locker for gear, and a bed.
 // Rival crews can't reach you there, but the law can raid it whether you are home or not.
@@ -2904,6 +3161,7 @@ const newCareer = () => ({xp: 0, syn: null, gear: {}, bag: [], locker: [], stats
   ends: {},   // LEGACY: the endings this save has reached, {id: when}
   nem: [], nemGone: [],   // NEMESIS: the survivors still out there, and the stories that are finished
   street: 0, streetWhy: null, streetDay: {},   // REPUTATION: feared (-100) to trusted (+100); 0 is a stranger
+  taught: {},   // TEACHING: the explainers this save has already been shown, {id: the day it was shown}
   skills: {}, skBonus: 0});   // SKILL TREE: the routines unlocked, and any points handed out on top of levels
 let career = newCareer(), pendingLevel = 0;
 
@@ -3003,6 +3261,7 @@ async function levelUpCheck() {
       // SKILL TREE: a level is a skill point, so say so here, where you cannot miss it.
       (skLeft() ? `<p><span class="cyan">You have ${skLeft()} skill point${plural1(skLeft())} to spend.</span> ` +
         'Your record &rarr; Skill tree.</p>' : ''));
+    if (skLeft()) await teach('skills');   // TEACHING: the first point you can actually spend
     if (l >= 10 && !career.syn) await chooseSyndicate();
   }
   await achCheck();
@@ -3608,6 +3867,12 @@ function fixCareer() {
   if (!career.streetWhy || typeof career.streetWhy !== 'object' || typeof career.streetWhy.w !== 'string') career.streetWhy = null;
   else { career.streetWhy.w = career.streetWhy.w.slice(0, 90); career.streetWhy.n = Number(career.streetWhy.n) || 0; }
   if (!career.streetDay || typeof career.streetDay !== 'object' || Array.isArray(career.streetDay)) career.streetDay = {};
+  // TEACHING: from before the explainers, nothing has been shown yet -- but a save that has already played
+  // is not a beginner. An old save with a career behind it is marked as taught everywhere, so it notices no
+  // difference; a save file opened on the day the explainers arrived with nothing done yet gets them.
+  const noTaught = !career.taught || typeof career.taught !== 'object' || Array.isArray(career.taught);
+  if (noTaught) career.taught = {};
+  if (noTaught && (career.xp > 0 || Object.keys(career.stats).length || Object.keys(career.ach).length)) taughtAll();
   fixBase();   // BASE: from before the base, every station is at the level the Bunker always had
   fixSkills();   // SKILL TREE: from before the tree, nothing is unlocked and every point of the level is unspent
   nemFix();      // NEMESIS: from before the nemeses, nobody is out there; a damaged list is tidied, not trusted
@@ -4180,6 +4445,7 @@ const toolsFor = (lock, st) => Object.keys(TOOLS).filter(k => !toolBlock(k, lock
 // o: {head (a line above everything), edge (bonus to the chance), practice}.
 // Returns {res: 'open' | 'forced' | 'back' | 'alarm', key (the tool that did it), last (what the last try did)}.
 async function lockDialog(lock, st, o) {
+  await teach('lock');   // TEACHING: the first lock, at a door or at the practice board
   const name = LOCKS[lock][0];
   let last = '';
   for (;;) {
@@ -4440,6 +4706,7 @@ async function heistDone(M, st, clean) {
 // Play a break-in from wherever it stands. Returns when it is done, blown, or you back off.
 async function heistPlay(M) {
   if (!M || !heistReady(M)) return;
+  await teach('heist');   // TEACHING: the first break-in, and the Alert meter that runs through it
   const H = M.H, B = BREAKIN, st = heistState(M);
   st.loc = S.loc;
   let note = '';   // what the last stage did, shown at the top of the next one
@@ -6025,6 +6292,75 @@ function backdrop(loc) {
       '<rect x="8" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="158" y="204" width="34" height="26" fill="#0b1c2a" stroke="#00e5ff" stroke-opacity=".6"/>' +
       '<rect x="0" y="240" width="56" height="92" fill="#15132c"/><rect x="144" y="240" width="56" height="92" fill="#15132c"/>',
+    'Coach Station':
+      '<path d="M0 18 h200" stroke="#2a2a3a" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-opacity=".18" stroke-width="1.6">' +
+      [0, 40, 80, 120, 160].map(x => `<path d="M${x} 18 l20 -16 M${x + 20} 18 l-20 -16"/>`).join('') + '</g>' +
+      '<rect x="4" y="30" width="78" height="60" fill="#1a1b28"/><rect x="12" y="36" width="62" height="10" fill="#fcee0a" fill-opacity=".16"/>' +
+      '<rect x="12" y="52" width="62" height="20" fill="#0c4270" fill-opacity=".3"/>' +
+      '<rect x="10" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/><rect x="60" y="78" width="16" height="7" fill="#fcee0a" fill-opacity=".2"/>' +
+      '<rect x="118" y="34" width="78" height="56" fill="#1a1b28"/><rect x="126" y="40" width="62" height="10" fill="#fcee0a" fill-opacity=".12"/>' +
+      '<rect x="126" y="56" width="62" height="18" fill="#0c4270" fill-opacity=".25"/>' +
+      '<rect x="58" y="112" width="88" height="42" fill="#0a0a14" stroke="#2b2752"/>' +
+      [122, 132, 142].map((y, i) => `<path d="M66 ${y} h26 M100 ${y} h${36 - i * 9}" stroke="${i === 2 ? '#ff3b5c' : '#fcee0a'}" stroke-opacity=".28" stroke-width="4"/>`).join('') +
+      '<rect x="0" y="250" width="70" height="10" fill="#272c46"/><rect x="4" y="260" width="8" height="42" fill="#4a5068" fill-opacity=".4"/>' +
+      '<rect x="150" y="238" width="50" height="62" fill="#17182a" stroke="#2b2752"/><rect x="158" y="246" width="34" height="22" fill="#00e5ff" fill-opacity=".14"/>',
+    'Multi-storey':
+      '<path d="M0 24 h200" stroke="#282838" stroke-width="3"/>' +
+      '<path d="M0 8 h200 M0 15 h200" stroke="#4a5068" stroke-opacity=".2" stroke-width="3"/>' +
+      '<rect x="0" y="30" width="200" height="20" fill="#07080f"/>' +
+      [4, 26, 48, 70, 92, 114, 136, 158, 180].map((x, i) =>
+        `<rect x="${x}" y="${32 + (i % 3) * 3}" width="16" height="${18 - (i % 3) * 3}" fill="#0c0e18"/>` +
+        `<rect x="${x + 4}" y="${36 + (i % 3) * 3}" width="4" height="8" fill="${i % 2 ? '#00e5ff' : '#fcee0a'}" fill-opacity=".1"/>`).join('') +
+      '<rect x="0" y="50" width="200" height="10" fill="#16161f"/><path d="M0 50 h200" stroke="#2a2a3a" stroke-width="2"/>' +
+      '<rect x="4" y="24" width="26" height="82" fill="#1b1b28"/><rect x="4" y="56" width="26" height="12" fill="#fcee0a" fill-opacity=".1"/>' +
+      '<rect x="170" y="24" width="26" height="82" fill="#1b1b28"/><rect x="170" y="56" width="26" height="12" fill="#fcee0a" fill-opacity=".1"/>' +
+      '<rect x="0" y="238" width="76" height="44" fill="#1c1d2b"/><rect x="10" y="228" width="56" height="12" fill="#0e1424"/>' +
+      '<rect x="0" y="260" width="16" height="7" fill="#ff3b5c" fill-opacity=".3"/>' +
+      '<rect x="128" y="248" width="72" height="40" fill="#1a1b27"/><rect x="138" y="238" width="54" height="12" fill="#0e1424"/>' +
+      '<path d="M0 302 h200" stroke="#282838" stroke-width="4"/>',
+    'Swapmeet Field':
+      '<path d="M0 88 h200" stroke="#1b2033" stroke-width="3"/>' +
+      '<g fill="none" stroke="#4a5068" stroke-width="2">' +
+      '<path d="M26 88 V18" stroke-opacity=".45"/><path d="M26 34 l-18 54 M26 34 l18 54" stroke-opacity=".16"/>' +
+      '<path d="M6 16 h40" stroke-opacity=".45"/>' +
+      [10, 20, 30, 40].map((x, i) => `<path d="M${x} ${16 - [13, 11, 9, 7][i]} v${[13, 11, 9, 7][i] * 2}" stroke-opacity=".4"/>`).join('') +
+      '<path d="M120 34 v54 M192 34 v54" stroke-opacity=".3"/></g>' +
+      '<path d="M112 20 h88 l-9 14 h-79 z" fill="#1a1526"/>' +
+      '<rect x="114" y="58" width="84" height="6" fill="#3a2a1c"/>' +
+      '<rect x="122" y="38" width="30" height="20" fill="#1b1e32"/><rect x="126" y="42" width="18" height="11" fill="#fcee0a" fill-opacity=".28"/>' +
+      '<rect x="158" y="42" width="28" height="16" fill="#1b1e32"/><rect x="162" y="46" width="16" height="8" fill="#3dff9a" fill-opacity=".26"/>' +
+      '<rect x="0" y="212" width="80" height="8" fill="#3a2a1c"/>' +
+      '<rect x="8" y="188" width="30" height="24" fill="#1b1e32"/><rect x="46" y="194" width="28" height="18" fill="#1b1e32"/>' +
+      '<rect x="124" y="224" width="76" height="8" fill="#3a2a1c"/>' +
+      '<rect x="132" y="202" width="28" height="22" fill="#1b1e32"/>',
+    'Repair Arcade':
+      '<path d="M0 22 h200" stroke="#2b2752" stroke-width="3"/>' +
+      '<rect x="0" y="28" width="86" height="22" fill="#1a1430"/><rect x="8" y="33" width="70" height="12" fill="#ff4fd8" fill-opacity=".2"/>' +
+      '<rect x="114" y="28" width="86" height="22" fill="#1a1430"/><rect x="122" y="33" width="70" height="12" fill="#00e5ff" fill-opacity=".18"/>' +
+      '<rect x="6" y="62" width="78" height="54" fill="#15122a" stroke="#2b2752"/>' +
+      [70, 86, 102].map(y => `<path d="M12 ${y} h66" stroke="#c77dff" stroke-opacity=".22" stroke-width="7"/>`).join('') +
+      '<rect x="116" y="70" width="78" height="46" fill="#15122a" stroke="#2b2752"/>' +
+      [78, 94, 110].map(y => `<path d="M122 ${y} h66" stroke="#00e5ff" stroke-opacity=".18" stroke-width="7"/>`).join('') +
+      '<rect x="0" y="236" width="74" height="10" fill="#6f7694" fill-opacity=".25"/>' +
+      '<rect x="0" y="246" width="74" height="86" fill="#0b0918"/>' +
+      '<rect x="126" y="244" width="74" height="10" fill="#6f7694" fill-opacity=".2"/>' +
+      '<rect x="126" y="254" width="74" height="78" fill="#0b0918"/>' +
+      [8, 28, 48].map(x => `<rect x="${x}" y="252" width="14" height="10" fill="#00e5ff" fill-opacity=".18"/>`).join(''),
+    'Teardown Yard':
+      '<g fill="none" stroke="#2b2752" stroke-width="1.5">' +
+      [10, 22, 34, 46].map(y => `<path d="M0 ${y} h200"/>`).join('') +
+      [14, 38, 62, 86, 110, 134, 158, 182].map(x => `<path d="M${x} 2 v52"/>`).join('') + '</g>' +
+      '<path d="M0 56 h200" stroke="#2b2752" stroke-width="3"/>' +
+      '<rect x="6" y="64" width="62" height="15" fill="#1d1e30"/><rect x="6" y="83" width="62" height="15" fill="#191a2c"/>' +
+      '<rect x="4" y="102" width="66" height="6" fill="#3a2a1c"/>' +
+      '<rect x="132" y="72" width="62" height="15" fill="#1d1e30"/><rect x="132" y="91" width="62" height="15" fill="#191a2c"/>' +
+      '<rect x="130" y="110" width="66" height="6" fill="#3a2a1c"/>' +
+      '<path d="M84 58 h58 l-11 19 h-36 z" fill="#151624" stroke="#4a5068" stroke-opacity=".5"/>' +
+      '<rect x="10" y="202" width="56" height="42" fill="#1d2a33" stroke="#4a5068" stroke-opacity=".45"/>' +
+      '<rect x="138" y="214" width="54" height="36" fill="#191a28" stroke="#4a5068" stroke-opacity=".4"/>' +
+      '<rect x="148" y="222" width="32" height="15" fill="#fcee0a" fill-opacity=".16"/>' +
+      '<path d="M0 284 h200" stroke="#2b2752" stroke-width="4"/>',
     'Paste Alley':
       '<g stroke="#2b2752" fill="none">' + [20, 44, 68, 92, 116, 140, 164, 188, 212, 236, 260, 284, 308].map((y, i) =>
         `<path d="M0 ${y} h54 M146 ${y} h54 M${i % 2 ? 18 : 36} ${y} v24 M${i % 2 ? 164 : 182} ${y} v24"/>`).join('') + '</g>' +
@@ -6294,6 +6630,19 @@ function meter(label, value, max, text, color) {
     `<i style="width:${width}%;background:var(--${color})"></i></span><b class="${color}">${text}</b></div>`;
 }
 const vitals = () => meter('Health', S.hp, 100, S.hp + '%') + meter('OpSec', S.opsec, 100, S.opsec + '%');
+// THE STAT COLUMN: a reading aid, and nothing else. It remembers what each figure said the last time the
+// column was drawn, so a figure that has moved since can wear a small mark saying which way it went and
+// pulse once. Nothing here is saved, nothing reads it back, and it holds no game state.
+const chipWas = new Map();
+function chipDelta(label, value) {
+  const now = String(value).replace(/<[^>]*>/g, '').trim(), was = chipWas.get(label);
+  chipWas.set(label, now);
+  if (was === undefined || was === now) return '';
+  const fig = s => { const m = /-?[\d.,]+/.exec(s); return m ? Number(m[0].replace(/,/g, '')) : NaN; };
+  const a = fig(was), b = fig(now);
+  return !Number.isFinite(a) || !Number.isFinite(b) || a === b
+    ? '<i class="dlt">&#9679;</i>' : `<i class="dlt">${b > a ? '&#9650;' : '&#9660;'}</i>`;
+}
 const lawTier = () => S.heat >= 75 ? 2 : S.heat >= 40 ? 1 : 0;
 const rivals = () => Object.keys(SYNDICATES).filter(k => k !== career.syn && !hiddenSyn(k));   // SNEAK REAPERS: every hidden crew, not just the 404
 const noGrudges = () => ({ghost: 0, ledger: 0, null: 0, red: 0});
@@ -6503,6 +6852,11 @@ const DISTRICTS = {
   'Cyber Cafe': {who: 'the regulars in the back row', hot: 'The back row has started putting prices up before you sit down.'},
   'Paste Alley': {who: 'the dealers in the alley', hot: 'The alley has priced you in. It did not take long.'},
   'Strip Mall': {who: 'the traders here', hot: 'The unit next door has a photo of you by the till.'},
+  'Teardown Yard': {who: 'the yard crew', hot: 'The yard weighs everything twice when you are in it, and never the way you would.'},
+  'Repair Arcade': {who: 'the counter staff', hot: 'Every counter on the row has gone back to the laminated price. The laminated price went up.'},
+  'Swapmeet Field': {who: 'the table holders', hot: 'Word went down the tables. Everything you want has just become a collector\'s piece.'},
+  'Multi-storey': {who: 'the people who park up here', hot: 'Two cars start up and leave every time you come up the ramp.'},
+  'Coach Station': {who: 'the night staff', hot: 'The night staff have a description of you now, and it is an accurate one.'},
 };
 // The cast. kind decides what their standing does; say is one line per mood, '' meaning "whatever they
 // usually say"; look is [skin, hair colour, head gear, body gear] for the ones who had no picture before.
@@ -6571,22 +6925,22 @@ const CAST = {
       '"You pay. I appreciate a man who pays."',
       '"Take more if you need it. I know where you sleep anyway."']},
   // --- the junkies, each on the same corner every single day
-  'Twitch': {kind: 'junkie', at: ['Campus Lab', 'Cyber Cafe'], say: [
+  'Twitch': {kind: 'junkie', at: ['Campus Lab', 'Cyber Cafe', 'Repair Arcade'], say: [
     '"Not you. You got me jumped, man."', 'He keeps the backpack zipped.', '',
     '"You always buy. Here. Cheaper."', '"Saved you the one that works."']},
   'Needles': {kind: 'junkie', at: ['Paste Alley'], say: [
     '"Walk on. I have nothing for you."', 'The coat stays shut.', '',
     '"Sterile, for you. Properly sterile."', '"I put something aside. Do not tell the others."']},
-  'Brass': {kind: 'junkie', at: ['Strip Mall'], say: [
+  'Brass': {kind: 'junkie', at: ['Strip Mall', 'Multi-storey'], say: [
     'He rattles off down the alley before you can speak.', 'He keeps one hand in a pocket.', '',
     '"Fell off a truck. Your truck, if you like."', '"Boxes are open. Count them yourself. I trust you."']},
-  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel'], say: [
+  'Ragpicker': {kind: 'junkie', at: ['Con Hallway', 'IRC Backchannel', 'Coach Station'], say: [
     '"Nothing is your size. Nothing will ever be your size."', 'She pushes the trolley past you.', '',
     '"Your size, and I kept the tags on."', '"I hold things back for you. You know I do."']},
-  'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock'], say: [
+  'Dumpster Dave': {kind: 'junkie', at: ['Datacenter Dock', 'Teardown Yard'], say: [
     'He gets back in the skip and pulls the lid down.', 'He shows you one drive at a time.', '',
     '"Good stuff today. For you, good price."', '"I go through it twice now. Once for me, once for you."']},
-  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace'], say: [
+  'Glitch': {kind: 'junkie', at: ['Tor Bazaar', 'The Hackerspace', 'Swapmeet Field'], say: [
     'The blanket is folded up before you reach it.', 'Nothing on the blanket has a price today.', '',
     '"The hat says you are fine."', '"The hat says you are one of us."']},
 };
@@ -6916,7 +7270,11 @@ function rollContracts() {
 const payoutFor = c => Math.round(c.payout * (inSyn('red') ? 1.25 : 1) * skJobPay());
 const chanceFor = c => Math.max(10, Math.min(95,
   c.chance + Math.min(10, level()) + 2 * S.proxies - Math.floor(S.heat / 5) + (inSyn('red') ? 10 : 0) + bonus('charm') + skJobOdds()));
+let logDay = 0;   // the day the last line was written on, so the log can rule off where the day turned over
 function log(text, cls) {
+  // A day divider goes in above the first line of a new day (never above the very first line of a run).
+  if (logs.length && logDay && S.day !== logDay) logs.unshift(`<div class="daymark"><span>Day ${num(S.day)}</span></div>`);
+  logDay = S.day;
   logs.unshift(`<div${cls ? ` class="${cls}"` : ''}>${text}</div>`);
   logs.length = Math.min(logs.length, 14);
 }
@@ -7498,6 +7856,7 @@ function newGame() {
     dist: {}, kept: null,   // FACES: each district's temperature, and what the fence is holding back for you
     rides: [], ride: '', gas: {}, tripDebt: 0,   // rides owned, the one you are on, tanks filled today (see VEHICLES)
     over: false, busted: false, retired: false};   // ENDLESS: retired is the one ending that pays
+  S.tut = null;   // TEACHING: the guided first day, while one is running (see COACH)
   for (const k of Object.keys(GADGETS)) S[k] = S[k] || 0;
   S.picks = START_PICKS;   // a few lock picks to start with, like the medkits
   S.plants = []; S.drills = 0;   // break-ins: devices left behind, and tries used at the practice board today
@@ -7522,14 +7881,17 @@ function dialog(title, html, buttons, tone) {
     dlg.className = tone || '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div><div class="dbtns"></div>`;
     const box = dlg.querySelector('.dbtns');
-    for (const [label, value, cls, icon] of buttons) {   // icon: optional picture shown on the button
-      const el = document.createElement('button');
-      el.textContent = label;
-      if (cls) el.className = cls;
-      if (icon) { el.insertAdjacentHTML('afterbegin', icon); el.classList.add('hasico'); }
-      el.onclick = () => { overlay.hidden = true; resolve(value); };
-      box.appendChild(el);
-    }
+    // Every answer is an action tile (btnTile), so a dialogue's choices are the same shape, and read the
+    // same way, as the choices on the main screen. A caller still writes [label, value, class, icon].
+    const opts = btnOpts(buttons);
+    box.innerHTML = opts.map(btnTile).join('');
+    // The smallest tile width follows the longest note, so a note is not cut off by a grid that split into
+    // one column too many. (Capped, so a dialogue this wide still comes out in two columns.)
+    const wide = Math.max(0, ...opts.map(o => (o.note || '').length));
+    box.style.setProperty('--tw', (wide > 15 ? Math.min(250, 96 + wide * 7) : 150) + 'px');
+    [...box.children].forEach((el, i) => {
+      el.onclick = () => { overlay.hidden = true; resolve(opts[i].value); };
+    });
     // Anything in the body marked data-pick="value" also answers the dialog when tapped, and is a stop for
     // the Tab key as well, so a machine with no pointer can reach it.
     dlg.querySelectorAll('.body [data-pick]').forEach(el => {
@@ -7537,7 +7899,7 @@ function dialog(title, html, buttons, tone) {
       if (!el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', 'button'); }
     });
     if (AUTO) {   // the self-test picks any button or tappable thing at random
-      const all = buttons.map(b => b[1]).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
+      const all = opts.map(o => o.value).concat([...dlg.querySelectorAll('.body [data-pick]')].map(el => el.dataset.pick));
       // ...unless it is steering: autoPick answers from what is on offer, or returns undefined to leave it to chance.
       const want = autoPick ? autoPick(all, title) : undefined;
       return resolve(want !== undefined ? want : all[rnd(0, all.length - 1)]);
@@ -7561,7 +7923,7 @@ function askQty(title, html, max, opts) {
       <input id="qs" type="range" min="1" max="${max}" value="${max}"></div>
       <div class="quick"><button data-q="1">Min</button><button data-q="h">Half</button><button data-q="m">Max</button></div>
       <div class="total" id="qt"></div>
-      <div class="dbtns"><button id="qok" class="primary">${opts.ok || 'OK'}</button><button id="qcancel">Cancel</button></div>`;
+      <div class="dbtns">${btnTile({id: 'qok', cls: 'primary', name: opts.ok || 'OK'})}${btnTile({id: 'qcancel', name: 'Cancel'})}</div>`;
     const qn = $('#qn'), qs = $('#qs'), qt = $('#qt');
     const value = () => Math.max(0, Math.min(max, Math.floor(Number(qn.value) || 0)));
     const show = () => {
@@ -7600,7 +7962,7 @@ function askText(title, html) {
     dlg.className = '';
     dlg.innerHTML = `<h2>${title}</h2><div class="body">${html}</div>
       <input id="tx" type="text" maxlength="16" autocomplete="off" placeholder="anon">
-      <div class="dbtns"><button id="tok" class="primary">OK</button></div>`;
+      <div class="dbtns">${btnTile({id: 'tok', cls: 'primary', name: 'OK'})}</div>`;
     const done = () => { overlay.hidden = true; resolve($('#tx').value.trim()); };
     $('#tok').onclick = done;
     $('#tx').onkeydown = e => { if (e.key === 'Enter') done(); };
@@ -7608,6 +7970,315 @@ function askText(title, html) {
     overlay.hidden = false;
     $('#tx').focus();
   });
+}
+
+// ====================== TEACHING: the guided first day, and the first-time explainers ======================
+// Two things live here and nothing else does. Neither one changes a rule, a number or a signature: every
+// word below is read off the tuning blocks that already decide the thing being explained, so re-tuning the
+// game re-words the lesson and cannot leave it lying.
+//
+//   PART 1, the guided first day (COACH). A new save is offered one walk through one REAL day: out of the
+//   Bunker, buy somewhere cheap, carry it, sell it somewhere dear, come home, sleep. The player keeps what
+//   they earn and keeps what they lose. Each step is a short dialogue saying what just happened and what to
+//   press, plus a strip above the tiles (#coach) and a ring round the tile the step wants (.coachme). It is
+//   skippable from the first dialogue and from every step after it, and skipping leaves nothing half done.
+//
+//   PART 2, the first-time explainers (TEACH). The first time a mechanic actually happens to you, one modal
+//   says what happened, what it costs and what you can do. Once ever, written into the save the moment it
+//   is shown (career.taught, the same {id: day} shape as career.ach), so it never comes back -- and an old
+//   save that already has a career behind it is marked as taught everywhere and notices no difference.
+//
+// The self-test is left alone: nothing here runs under AUTO.
+const taughtIds = () => Object.keys(TEACH).concat(['tour']);
+const taughtAll = () => { for (const id of taughtIds()) career.taught[id] = career.taught[id] || 0; };
+const wasTaught = id => !!(career.taught && career.taught[id] !== undefined);
+// Write it down BEFORE the dialogue opens: a player who closes the window, reloads or dies mid-lesson has
+// still had it, and a lesson that cannot be shown twice cannot be shown twice by accident either.
+function markTaught(id) {
+  if (!career.taught || typeof career.taught !== 'object') career.taught = {};
+  career.taught[id] = S && S.day ? S.day : 0;
+  saveCareer();
+}
+// One explainer, once. Returns true if it was actually shown.
+async function teach(id) {
+  if (AUTO || !TEACH[id] || wasTaught(id)) return false;
+  markTaught(id);
+  const T = TEACH[id];
+  await alertDlg(T.t, T.h(), T.tone);
+  return true;
+}
+// The two that have no single call site of their own: they are conditions, so they are watched after every
+// action the player takes (see the click handler).
+async function teachWatch() {
+  if (AUTO || S.over) return;
+  if (S.heat >= 40 && !wasTaught('heat')) await teach('heat');
+  if (skLeft() > 0 && !wasTaught('skills')) await teach('skills');
+}
+
+// ---------- the explainers ----------
+// Short. What just happened, what it costs, what you can do. Every figure comes from the block that owns it.
+const TEACH = {
+  // ===== GUNFIRE: the one the player asked for by name. Everything here is read off the GUNFIRE block and
+  // gunFallout(): per shot, not per fight; capped; the law excluded from its own rule; the can fits 'gun'.
+  fight: {t: 'Fighting', tone: '', h: () => {
+    const can = money(GUNFIRE.suppPrice);
+    return '<p>A fight is volleys. Each round you choose one thing &mdash; swing or shoot, throw something, ' +
+      'run a script, or run &mdash; and everyone still standing answers. Health does not come back on its own: ' +
+      'a medkit, a street doc or a night in the Bunker, and nothing else.</p>' +
+      '<p>Running is a real answer and usually works. Losing a street fight costs you cash and goods; ' +
+      'losing to the law costs you more than that.</p>' +
+      `<div class="syn"><b class="amber">Weapons make noise, and noise brings the law</b><br>` +
+      `<span class="dim">Fire a gun at anyone who is not the police, the FBI or the NSA and somebody phones it in. ` +
+      `It is counted per shot, not per fight: <b>+${GUNFIRE.first}%</b> for the first volley, ` +
+      `<b>+${GUNFIRE.perShot}%</b> for every round that leaves the barrel after it, ` +
+      `${GUNFIRE.heavy}&times; that for military hardware, and never more than <b>${GUNFIRE.cap}%</b> for one fight. ` +
+      `If it comes up, the law is waiting when the fight is over, at whatever tier your Heat has earned.</span></div>` +
+      '<p>A blade, a bat and your hands are silent. So is hacking, and so is a network dive: there is no ' +
+      'gunfire in cyberspace. Shooting at the law does not count either &mdash; they are already here.</p>' +
+      `<p>A <b>suppressor</b> takes the rule off you completely. From ${can} at ${GUN_STORE} in ${GUN_SPOT}, ` +
+      `or the arms dealer's van at a markup. It costs <b>${GUNFIRE.suppHit}%</b> off your chance to hit, it is ` +
+      'threaded onto the one gun you were carrying when you bought it, and it will not fit military hardware.</p>';
+  }},
+  // ===== the law, at the first stop. The numbers are lawTier(), LAW and what an arrest actually does.
+  law: {t: 'The law', tone: 'danger', h: () =>
+    '<p>Heat is a figure the law reads. Under <b>40%</b> it is the Metro Cyber Unit. From 40% the FBI have ' +
+    'the file. From <b>75%</b> it is the NSA, and they do not fine people.</p>' +
+    '<p>You can fight them or run from them, same as anyone. Lose to the police and they seize every good ' +
+    'you carry, take <b>25%</b> of your cash and put you away for 2 days. The FBI take half your cash and ' +
+    '4 days. Lose to the NSA and the run is over.</p>' +
+    '<p class="dim">Two things survive an arrest: the cold wallet, which they never find, and anything in ' +
+    'your prison pocket. The Bunker stash does not travel with you, which is the point of it.</p>'},
+  // ===== Heat crossing 40%, where the tier changes and the stop stops being a police matter.
+  heat: {t: 'Heat', tone: '', h: () =>
+    `<p>Your Heat is <b class="amber">${S.heat}%</b>. That is the line: from 40% the file belongs to the FBI, ` +
+    'and from 75% to the NSA. Higher Heat means more stops, bigger ones, and a worse night at home.</p>' +
+    '<p>It comes off every deal you make &mdash; big money moving, not the number of trades &mdash; off alarms, ' +
+    'gunfire and anything the city notices. A night in the Bunker is the biggest single thing that takes it ' +
+    `back down${heatFloor() ? `, though a career this long never goes below ${heatFloor()}%` : ''}; the Sleep ` +
+    'dialogue says how far before you commit to it.</p>' +
+    '<p>If you cannot wait that long: <b>Lower Heat</b> uses what you carry (burner phones, a VPN, a lie-low ' +
+    'kit), the black market sells more of it, and a fake ID starts you over as somebody else.</p>'},
+  // ===== break-ins: the Alert economy, read off BREAKIN.
+  heist: {t: 'Breaking in', tone: '', h: () =>
+    `<p>A break-in is four stages: the approach, the lock, the job inside, the way out. One meter runs ` +
+    `through all of them &mdash; <b>Alert</b>, and at <b>${BREAKIN.alarmAt || 100}%</b> somebody answers the alarm.</p>` +
+    `<p><b>Case it</b> costs a trip and buys you ${BREAKIN.casedEdge}% on the lock and the job, an easier way out ` +
+    `and a clean meter. <b>Go in blind</b> costs nothing and starts you at ${BREAKIN.blind}% because you do not ` +
+    'know where the cameras are.</p>' +
+    '<p>Every miss at the lock, every rushed job and every shelf you help yourself to puts the meter up. ' +
+    'Backing out before the alarm costs nothing but the trip, and the place settles overnight.</p>'},
+  // ===== the lock itself: tools, odds, what a miss costs. Fires at a door or at the practice board.
+  lock: {t: 'Locks', tone: '', h: () =>
+    `<p>A lock is a list of tools and a percentage each. The chance is <b>${BREAKIN.base}%</b>, plus ` +
+    `${BREAKIN.perLevel}% a lock-picking level and whatever the tool itself is worth, minus ` +
+    `${BREAKIN.perDiff}% for each pip of difficulty on the lock.</p>` +
+    '<p>Quiet tools are picks, a paperclip, a bump key, a pick gun, an RFID cloner for electronic locks. ' +
+    'A <b>crowbar</b> opens almost anything and is not quiet: a forced door is heard, and it costs you ' +
+    `${BREAKIN.forced}% Alert on the spot.</p>` +
+    '<p>A miss costs the try, some Alert, and sometimes the tool: a pick that snaps leaves its tip in the ' +
+    'lock about a third of the time, and that lock is finished for the night. Hits and misses both teach ' +
+    `you: lock picking is the one skill that levels by doing. The <b>lock board</b> in the Bunker gives you ` +
+    `${BREAKIN.drills} free tries a day with no alarm attached.</p>`},
+  // ===== deep runs, read off DUN.
+  deep: {t: 'Deep runs', tone: '', h: () =>
+    `<p>A deep run is an address, floor by floor. ${DUN.tripIn} trip to go in, ${DUN.tripDown} more for each ` +
+    'floor down. Deeper floors hold better things and harder ones.</p>' +
+    '<p>One meter again: <b>Alert</b> in a building, <b>Trace</b> in a network dive. It climbs when you force ' +
+    'a door, botch a sneak or loot a cache, and it comes down a little each time you go deeper. At 100% ' +
+    'whatever lives there knows exactly where you are.</p>' +
+    '<p>You can walk out at the end of any floor and keep everything you are carrying. Addresses go cold ' +
+    `after ${DUN.leadDays} days, and you can hold ${DUN.leadMax} at a time, so an address is a thing to spend, ` +
+    'not a thing to save.</p>'},
+  // ===== wardriving and the honeypot, read off WARDRIVE.
+  wardrive: {t: 'Wardriving', tone: '', h: () =>
+    '<p>A scanner bolted to a ride listens on every trip you take, whatever you went out for. What it ' +
+    'collects is <b>captures</b>: a street, a network, a depth. A deliberate <b>sweep</b> spends trips doing ' +
+    `nothing else and collects about ${WARDRIVE.sweepMult}&times; as fast. Captures go stale after ` +
+    `${WARDRIVE.keepDays} days and you can hold ${WARDRIVE.hold}.</p>` +
+    `<p>Cracking one costs a trip and some ${WARDRIVE.crackGood}, or two trips and worse odds if you have none. ` +
+    'What comes out is salvage, or an address for a deep run.</p>' +
+    '<div class="syn"><b class="amber">Honeypots</b><br><span class="dim">Some captures are bait: a network ' +
+    'left open to see who walks in. The chance is printed on the card before you touch it ' +
+    `(about ${WARDRIVE.bait[0]}% at the surface, +${WARDRIVE.bait[1]}% per depth, less your stealth gear). ` +
+    `Crack one and it hands the law your plate, your route and the times you drove it: a stop, ` +
+    `+${WARDRIVE.potHeat}% Heat, and the district remembers.</span></div>`},
+  // ===== the prison pocket, at the moment it is first offered. STUCK_ODDS and SICK_DAYS own these numbers.
+  pocket: {t: 'The prison pocket', tone: 'danger', h: () =>
+    `<p>There is one place on you nobody searches. It holds <b>${POCKET_CAP}</b> small things, and what goes ` +
+    'in survives a search, an arrest and a drive wipe.</p>' +
+    `<p>It costs you the round. And about <b>${Math.round(STUCK_ODDS * 100)}%</b> of the time, some of what ` +
+    'went in does not come back out.</p>' +
+    '<p class="red">Goods stuck in there cannot be sold, used or moved, and they still count as carried. ' +
+    `Sleeping on them makes you ill: ${SICK_DAYS} nights, and the last one is dysentery, which kills you and ` +
+    `ends the run.</p><p>A <b>street doc</b> at the black market (${docSpots()}) takes them out for ` +
+    `${money(EXTRACT_FEE)} and patches you to full Health while he is in there. Go before you sleep.</p>`},
+  // ===== the first unspent skill point.
+  skills: {t: 'Skill points', tone: '', h: () =>
+    `<p>You have <b class="cyan">${skLeft()}</b> skill point${plural1(skLeft())} to spend. Every level hands ` +
+    'you one, and they carry over between runs: they belong to the save, not to the day.</p>' +
+    '<p>They buy <b>routines</b> &mdash; daemons that are always running, scripts that appear on the battle ' +
+    'screen, street tricks. Five branches that pull in different directions, each one a straight line: a ' +
+    'node needs the one before it and a level of its own.</p>' +
+    '<p>Nothing expires, so an unspent point is not wasted. The <b>Skill tree</b> tile shows up while you ' +
+    'have any; after that it lives on your record.</p>'},
+};
+
+// ---------- PART 1: the guided first day ----------
+// One real day, in six steps, and then one card that asks for nothing. Each step: what to say, what to
+// press, and the condition that means they did it. `want` is given the world as it was before the last
+// action, so "they bought something" and "they sold something" are read off what actually changed and no
+// game code had to be touched to report it. A step marked `last` finishes the tour when it is acknowledged,
+// and a step with no `hi` rings no tile; the dialogue's count is COACH.length, never a written-out number.
+const COACH = [
+  {id: 'out', hi: 'travel', strip: 'Nothing is sold in the Bunker. Press <b>Tunnel out</b> and pick a district.',
+    t: 'Day one', h: () =>
+      '<p>You wake up in the Bunker owing money. Nothing is bought or sold in here: this is where you sleep, ' +
+      'where the stash sits, and where the law has to find you first.</p>' +
+      `<p>The markets are out there. Press <b>Tunnel out</b> and pick a district. You have <b>${S.trips}</b> ` +
+      'trips today, and every district has its own prices.</p>',
+    want: () => S.loc !== BUNKER},
+  {id: 'buy', hi: '#market', strip: 'Find a good with a cyan <b>&#9660;</b> and press <b>Buy</b>.',
+    t: 'Buy low', h: () =>
+      '<p><b>PRODUCTS</b> is this district\'s price list, rolled fresh this morning. A cyan ' +
+      '<span class="cyan">&#9660;</span> is cheap for that good, an amber <span class="amber">&#9650;</span> ' +
+      'is dear, and the tick under the price shows where today sits in that good\'s usual range.</p>' +
+      `<p>Find a <span class="cyan">&#9660;</span> and press <b>Buy</b>. A greyed-out Buy means there is ` +
+      'nothing on that shelf yet, or you cannot afford one: take the next row down. Your drive holds ' +
+      `<b>${used()}/${cap()}</b> &mdash; one unit, one slot &mdash; and you have <b>${money(S.cash)}</b>.</p>` +
+      '<p class="dim">Nobody here pays more than they are asking. The profit is in another district.</p>',
+    want: (b) => Object.keys(S.inv).length > b.held || (S.cash < b.cash && Object.keys(S.inv).length > 0)},
+  {id: 'move', hi: 'travel', strip: 'You are holding stock, not profit. <b>Tunnel out</b> somewhere else.',
+    t: 'Carry it', h: () =>
+      '<p>You are holding stock, not profit. The same good is priced differently in every district, and the ' +
+      'only way to know is to be standing there.</p>' +
+      `<p>Press <b>Tunnel out</b> again. Trips are what a day actually costs: you have <b>${S.trips}</b> left, ` +
+      'and the ride home to the Bunker is free.</p>' +
+      '<p class="dim">That purchase put a little Heat on you. It is money moving that the law counts, not how ' +
+      'many times you pressed Buy.</p>',
+    want: (b) => S.loc !== b.loc && S.loc !== BUNKER},
+  {id: 'sell', hi: '#market', strip: 'Under what you hold it says <b>holding n @ cost</b>. Sell it green.',
+    t: 'Sell high', h: () =>
+      '<p>New district, new prices. Under anything you are holding, the market reads ' +
+      '<b>holding n @ what you paid</b> &mdash; <span class="green">green</span> when today beats it, ' +
+      '<span class="red">red</span> when it does not.</p>' +
+      '<p>Press <b>Sell</b> on the green one. If nothing is green, that is the lesson: some trips are ' +
+      'reconnaissance, and the price was better where you came from.</p>',
+    want: (b) => S.cash > b.cash && Object.keys(S.inv).length <= b.held},
+  {id: 'home', hi: 'travel', strip: 'That is the loop. <b>Tunnel out</b> to the Bunker &mdash; that trip is free.',
+    t: 'Heat, and the way home', h: () =>
+      '<p>That is the whole loop: buy where it is cheap, carry it, sell where it is dear, and do it again ' +
+      'before the prices move.</p>' +
+      `<p><b>Heat is what the law notices.</b> Yours is <b class="amber">${S.heat}%</b>. Under 40% it is the ` +
+      'local police. From 40% the FBI have the file, from 75% the NSA. The hotter you are, the more often ' +
+      'somebody is waiting where you surface.</p>' +
+      `<p><b>${S.trips}</b> trip${S.trips === 1 ? '' : 's'} left. Press <b>Tunnel out</b> and pick ` +
+      'the Bunker; that one is always free.</p>',
+    want: () => S.loc === BUNKER},
+  {id: 'bed', hi: 'sleep', strip: 'Press <b>Sleep</b> to end the day.',
+    t: 'Sleep on it', h: () =>
+      '<p><b>Sleep</b> ends the day. Every market in the city rerolls, your Health and OpSec come back, and ' +
+      'your Heat cools. The dialogue says by exactly how much before you agree to it.</p>' +
+      '<p>It is also the one moment the law can reach you at home, and the hotter you are the likelier that ' +
+      'is. Sleeping cheap means sleeping cool.</p>' +
+      `<p class="dim">Your debt grows overnight too. The Fixer, at ${HOME}, is who you owe.</p>`,
+    want: (b) => S.day > b.day},
+  // THE LAST CARD. Informational and terminal: a player on day two is still in debt and will usually not
+  // have scanner money, let alone car money, so this step asks for NOTHING. `last` makes acknowledging it
+  // finish the tour (see coachSay), and `want` is true anyway so an impatient player who just carries on
+  // finishes it too. It cannot be failed, cannot be waited on, and has no tile to ring (hi is empty).
+  // Every figure is read off WARDRIVE and GEAR_SPOTS, the blocks that own them.
+  {id: 'wd', hi: '', last: true,
+    strip: 'A scanner on a car wardrives every trip. Sold at the black market.',
+    t: 'One last thing', h: () =>
+      '<p>Everything else in the city explains itself the first time it happens to you. One thing cannot, ' +
+      'because it only starts happening after you have bought the part, so here it is.</p>' +
+      '<p>A <b>wardriving scanner</b> bolts to a car and listens on every trip you take, whatever you went ' +
+      `out for. The cheap one is the <b>${WARDRIVE.kits[1].n}</b>, from ` +
+      `${money(WARDRIVE.kits[1].price)} at the black market (${GEAR_SPOTS.join(' or ')}). It wants a car ` +
+      '&mdash; not a bike, not a helicopter &mdash; and the slow boxy ones hear the most.</p>' +
+      `<p>What it picks up are <b>captures</b>. You can hold ${WARDRIVE.hold} of them, they go stale after ` +
+      `${WARDRIVE.keepDays} days, and cracking one pays in salvage or in an address worth a deep run. Some ` +
+      'are bait, and the card says the odds before you touch it.</p>' +
+      '<p class="dim">Nothing is waiting on you here. This one is only so you know it is there.</p>',
+    want: () => true},
+];
+const coachAt = () => (S.tut && COACH[S.tut.n]) || null;
+const coachOn = () => !!(S.tut && coachAt());
+// Snapshot of the things a step reads, taken before every action the player takes.
+const coachSnap = () => ({loc: S.loc, cash: S.cash, day: S.day, held: Object.keys(S.inv).length});
+
+// Offered once, on the first morning of a new save, straight after the opening text. Three answers and no
+// fourth: walk me through it, skip this, or never show me any of it.
+async function coachOffer() {
+  if (AUTO || wasTaught('tour')) return;
+  markTaught('tour');   // offered is offered: whatever is chosen here, the morning does not come round again
+  const pick = await dialog('First day', '<p>You owe money, you have a drive, and the city has ' +
+    `${LOCATIONS.filter(l => l !== BUNKER).length} districts that all price the same goods differently. ` +
+    'That is the game.</p>' +
+    '<p>This can walk you through one real day &mdash; out, buy, carry, sell, home, sleep, and one thing ' +
+    'worth knowing afterwards. It is your day: ' +
+    `you keep what you make and you keep what you lose. There are ${COACH.length} steps, and you can stop ` +
+    'it at any point.</p>',
+    [{name: 'Walk me through it', note: 'about five minutes', value: 'go', cls: 'primary'},
+      {name: 'Skip it', note: 'first-time tips stay on', value: 'skip'},
+      {name: 'No tips at all', note: 'I have played this', value: 'none', cls: 'small'}]);
+  if (pick === 'none') { taughtAll(); saveCareer(); return; }
+  if (pick !== 'go') return;
+  S.tut = {n: 0, day0: S.day};
+  render();
+  return coachSay();
+}
+// The current step's dialogue. Shown when the step is entered, and again from the strip's own button.
+async function coachSay() {
+  const C = coachAt();
+  if (!C || AUTO) return;
+  render();
+  const out = await dialog(`${C.t} <span class="dim">${S.tut.n + 1}/${COACH.length}</span>`, C.h(),
+    [['Got it', 'ok', 'primary'], {name: 'Stop the tutorial', value: 'stop', cls: 'small'}]);
+  if (out === 'stop') return coachStop();
+  // The last card asks for nothing, so acknowledging it is what finishes the tour. Guarded on the step not
+  // having moved under us, and on S.tut still being there, so "Why?" on a finished tour cannot re-finish it.
+  if (C.last && S.tut && coachAt() === C) return coachStop(true);
+}
+// Done with it, by choice or because the day it was teaching is over. Nothing is left half on: the strip
+// goes, the rings go, and the morning is never offered again (markTaught('tour') already happened).
+async function coachStop(finished) {
+  if (!S.tut) return;
+  S.tut = null;
+  render();
+  save();
+  if (!finished || AUTO) return;
+  return alertDlg('That is the day', '<p>Out, buy, carry, sell, home, sleep. Everything else in this game is ' +
+    'a way of doing that faster or a way of losing what you made doing it.</p>' +
+    '<p>Nothing else will be pointed at: the rest of it explains itself the first time it happens to you. ' +
+    'Your record (tap your level) holds the achievements, the skill tree and what the street thinks of you.</p>' +
+    '<p class="dim">The Fixer wants his money. Day two starts now.</p>');
+}
+// After every action the player takes: has this step been satisfied?
+async function coachAfter(before) {
+  if (!coachOn() || AUTO) return;
+  if (S.over) return coachStop();                       // the run ended mid-lesson: nothing to teach now
+  if (S.day > (S.tut.day0 || 1) + 1) return coachStop();   // it was one day, and the day has gone
+  if (!coachAt().want(before)) return;
+  S.tut.n++;
+  if (!coachAt()) return coachStop(true);
+  return coachSay();
+}
+// The strip above the tiles, and the ring round what the step wants pressed. Called from renderNow, so it
+// is redrawn with everything else and never gets out of step with the screen.
+function coachPaint() {
+  const box = $('#coach'), C = coachAt();
+  if (!box) return;
+  box.hidden = !C;
+  box.innerHTML = !C ? '' : `<span class="cstep">STEP ${S.tut.n + 1}/${COACH.length}</span>` +
+    `<span class="cwhat">${C.strip}</span>` +
+    '<button class="small" data-act="coachsay">Why?</button>' +
+    '<button class="small" data-act="coachoff">Stop</button>';
+  // The ring: the tile this step wants, or the panel it wants read.
+  document.querySelectorAll('.coachme').forEach(el => el.classList.remove('coachme'));
+  if (!C || !C.hi) return;   // a step with no `hi` wants nothing pressed, so nothing is ringed
+  const want = C.hi.startsWith('#') ? $(C.hi) : $(`#actions [data-act="${C.hi}"]`);
+  if (want) want.classList.add('coachme');
 }
 
 // ---------- item pictures for lists ----------
@@ -7833,6 +8504,660 @@ const SHOP_ART = (() => {
 // A shop tile for a list, a card or a button. Same box and the same CSS sizes as a Bunker room, by design.
 const shopIcon = key => (SHOP_ART[key]
   ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key]}</svg>` : '');
+
+// ---------- ACTION TILES ----------
+// Every other thing you can do on the main screen gets a picture too, so the row of tiles is one set and
+// not two with pictures and six without. Same 88 x 50 box, same primitives and the same palette as the shop
+// tiles above; these are simpler, because on a tile they are drawn 36px wide and detail only turns to mush.
+// Built once at load. Nothing here is game state and nothing here is drawn per frame.
+const ACT_ART = (() => {
+  const INK = '#0b0a19', GREY = '#c9d1d5', STEEL = '#8a8fa8', DARK = '#2a2f45', BLUE = '#0c4270', WOOD = '#6b4a2a';
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 1}"${o || ''}/>`;
+  const c = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const sk = col => ` stroke="${col}"`;
+  const sh = (d, f, st, o) => `<path d="${d}" fill="${f}"${st ? sk(st) : ''}${o || ''}/>`;
+  return {
+    // Tunnel out. Three rings of the tunnel going away from you and a packet on its way down it.
+    travel: r(6, 4, 76, 42, INK, sk('#2b2752')) +
+      r(10, 8, 68, 34, BLUE, sk('#00e5ff') + ' stroke-width=".8"') +
+      r(20, 13, 48, 24, '#101a3a', sk('#00e5ff') + ' stroke-width=".8"') +
+      r(30, 18, 28, 14, '#17142e', sk('#00e5ff') + ' stroke-width=".8"') +
+      r(39, 23, 11, 4, '#fcee0a') + p('M34 25 h-9 M59 25 h9', '#00e5ff', 1.4),
+    // Sleep. A bunk with the covers turned down, and three pixels of snoring going up.
+    sleep: r(8, 22, 4, 22, STEEL) + r(8, 26, 62, 4, '#4a5068') + r(8, 30, 62, 12, '#17142e', sk(STEEL)) +
+      r(13, 19, 17, 7, GREY) + r(10, 42, 4, 6, '#4a5068') + r(63, 42, 4, 6, '#4a5068') +
+      r(56, 14, 6, 6, '#fcee0a', ' opacity=".85"') + r(66, 8, 5, 5, '#fcee0a', ' opacity=".6"') +
+      r(75, 3, 4, 4, '#fcee0a', ' opacity=".4"'),
+    // The Bunker. A low block with lit windows, the door you come in by, and the mast on the roof.
+    base: p('M44 3 v9', '#00e5ff', 1.4) + c(44, 3, 2, '#ff3b5c') +
+      r(10, 12, 68, 4, '#4a5068') + r(10, 16, 68, 30, '#17142e', sk('#4a5068')) +
+      r(16, 22, 10, 8, BLUE, sk('#00e5ff') + ' stroke-width=".7"') + r(30, 22, 10, 8, BLUE, sk('#00e5ff') + ' stroke-width=".7"') +
+      r(44, 22, 10, 8, '#101426', sk('#4a5068') + ' stroke-width=".7"') +
+      r(60, 28, 14, 18, INK, sk('#fcee0a')) + c(71, 38, 1.4, '#fcee0a'),
+    // Hack a rival. Somebody else's rack, and a bolt straight through it.
+    raid: r(12, 6, 42, 38, '#101426', sk(STEEL)) +
+      [10, 18, 26, 34].map(y => r(16, y, 34, 5, '#17142e', sk('#4a5068') + ' stroke-width=".7"') + c(46, y + 2.5, 1.2, '#3dff9a')).join('') +
+      sh('M64 3 l-16 24 h11 l-9 20 l26 -28 h-11 z', '#fcee0a', INK),
+    // Wardriving. The van, the antenna on the roof, and what it is listening to.
+    wardrive: r(12, 24, 46, 16, BLUE, sk('#00e5ff')) + sh('M58 28 h10 l6 6 v6 h-16 z', '#17142e', '#00e5ff') +
+      r(16, 28, 10, 7, '#101a3a') + p('M30 24 v-9', GREY, 1.4) +
+      [6, 11, 16].map((rad, i) => p(`M${30 - rad} 15 a${rad} ${rad} 0 0 1 ${rad * 2} 0`, '#fcee0a', 1.2, ` opacity="${0.9 - i * 0.26}"`)).join('') +
+      c(22, 43, 4, 'none', sk(GREY) + ' stroke-width="1.6"') + c(63, 43, 4, 'none', sk(GREY) + ' stroke-width="1.6"'),
+    // Inventory. The bag's lid open and what is in it, laid out in its pockets.
+    inventory: r(10, 8, 68, 36, '#17142e', sk(STEEL)) + r(34, 3, 20, 6, '#4a5068') + p('M10 18 h68', STEEL, 1) +
+      [[16, 22, BLUE], [38, 22, '#101426'], [60, 22, BLUE], [16, 33, '#101426'], [38, 33, BLUE], [60, 33, '#101426']]
+        .map(([x, y, f]) => r(x, y, 18, 9, f, sk('#00e5ff') + ' stroke-width=".7"')).join(''),
+    // Achievements. The cup, with a star cut out of it.
+    ach: sh('M28 8 h32 v13 q0 12 -16 14 q-16 -2 -16 -14 z', '#fcee0a', INK) +
+      p('M28 11 h-8 v6 q0 6 8 7 M60 11 h8 v6 q0 6 -8 7', '#fcee0a', 1.8) +
+      r(40, 34, 8, 6, STEEL) + r(29, 40, 30, 6, STEEL, sk(INK)) +
+      sh('M44 12 l2.7 5.6 6.1 .9 -4.4 4.3 1 6.1 -5.4 -2.9 -5.4 2.9 1 -6.1 -4.4 -4.3 6.1 -.9 z', INK),
+    // Use a medkit. The case, open at the top, with the one marking it needs.
+    medkit: r(36, 9, 16, 5, STEEL) + r(13, 14, 62, 30, '#e9e9f0', sk(STEEL)) + r(13, 14, 62, 6, '#ff3b5c') +
+      r(40, 23, 8, 17, '#ff3b5c') + r(36, 27, 16, 9, '#ff3b5c'),
+    // A fake ID. A card with somebody on it who does not exist.
+    fakeid: r(8, 10, 72, 32, '#17142e', sk('#00e5ff')) + r(8, 10, 72, 6, '#00e5ff') +
+      r(14, 21, 18, 17, BLUE, sk(STEEL)) + c(23, 27, 4, GREY) + sh('M16 38 q7 -8 14 0 z', GREY) +
+      p('M38 23 h34 M38 29 h34 M38 35 h22', STEEL, 1.6),
+    // The black market. An awning, a crate, a screen with something on it and a box you do not open.
+    gear: sh('M5 6 h78 l-7 10 h-64 z', '#ff2a6d', INK) +
+      [0, 1, 2, 3, 4, 5].map(i => r(11 + i * 11, 16, 11, 4, i % 2 ? INK : '#ff2a6d')).join('') +
+      r(12, 24, 64, 3, '#4a5068') +
+      r(15, 27, 24, 17, WOOD, sk('#c98f6b')) + p('M15 27 l24 17 M39 27 l-24 17', '#c98f6b', 0.7) +
+      r(45, 30, 13, 14, '#101426', sk('#00e5ff')) + c(51.5, 37, 2, '#3dff9a') + r(62, 33, 13, 11, '#17142e', sk('#fcee0a')),
+    // The arms dealer. A crate with the lid off, and what was in it on the counter.
+    dealer: r(6, 30, 76, 14, WOOD, sk('#c98f6b')) + p('M6 30 l76 14 M82 30 l-76 14', '#c98f6b', 0.7) +
+      p('M12 20 h50 l7 -7', STEEL, 3) + r(20, 20, 11, 7, DARK) + p('M34 23 v7 h9', STEEL, 2.4) +
+      r(66, 9, 4, 13, STEEL) + c(72, 15, 3, '#ff3b5c'),
+    // The street doc. A table, a lamp over it, and the one tool you hope is clean.
+    clinic: r(5, 26, 58, 5, STEEL) + r(7, 31, 54, 12, '#17142e', sk('#4a5068')) + r(9, 20, 18, 6, GREY) +
+      r(35, 12, 5, 14, '#ff3b5c') + r(30, 16, 15, 5, '#ff3b5c') +
+      p('M70 9 v19', STEEL, 1.6) + sh('M61 4 h18 l-5 8 h-8 z', '#fcee0a', INK) + c(70, 32, 6, '#fcee0a', ' opacity=".22"'),
+    // The gun store. The thing on the counter and the boxes behind it.
+    gun: r(5, 32, 78, 12, WOOD, sk('#c98f6b')) +
+      sh('M12 13 h35 v8 h-9 l-3 10 h-9 l-2 -10 h-12 z', DARK, STEEL) +
+      [0, 1, 2].map(i => r(57 + i * 8, 14, 5, 14, '#fcee0a', sk(INK))).join(''),
+    // The outfitter. Three things on a rail, none of them your size.
+    outfit: p('M6 9 h76', STEEL, 1.6) +
+      [[22, BLUE], [45, '#5a6b3a'], [68, '#ff2a6d']].map(([x, f]) =>
+        p(`M${x} 9 v6`, STEEL, 1) + sh(`M${x - 13} 16 l13 -2 l13 2 l-3 7 l-3 -3 v22 h-14 v-22 l-3 3 z`, f, INK)).join(''),
+    // Change ammo. Four of them standing in a row.
+    ammo: [0, 1, 2, 3].map(i => {
+      const x = 15 + i * 16;
+      return sh(`M${x} 17 q5 -11 11 0 v13 h-11 z`, '#fcee0a', INK) + r(x, 30, 11, 13, '#c98f6b', sk(INK)) +
+        p(`M${x} 35 h11`, INK, 0.8);
+    }).join(''),
+    // The Fixer. A desk, the book he writes it in, and the screen that says how much.
+    broker: r(6, 28, 76, 5, '#4a5068') + r(12, 33, 10, 13, '#4a5068') + r(66, 33, 10, 13, '#4a5068') +
+      r(15, 11, 30, 17, '#17142e', sk(GREY)) + p('M19 17 h22 M19 22 h22', GREY, 1.2) +
+      r(53, 13, 22, 15, '#3dff9a', sk(INK)) + p('M64 14 v13 M59 18 h10 M59 23 h10', INK, 1.5),
+    // The cold wallet. A key you keep off the network.
+    wallet: r(16, 9, 40, 31, '#17142e', sk('#00e5ff')) + r(22, 15, 28, 13, BLUE, sk('#00e5ff') + ' stroke-width=".7"') +
+      p('M26 21 h20', '#3dff9a', 1.8) + r(30, 32, 12, 5, DARK) +
+      p('M56 23 h11', STEEL, 2) + c(72, 23, 5, 'none', sk('#fcee0a') + ' stroke-width="2"') +
+      p('M72 28 v8 M72 33 h4', '#fcee0a', 1.6),
+  };
+})();
+// A tile picture for an action, taken from either set: the places you go into, then everything else.
+const actIcon = key => (SHOP_ART[key] || ACT_ART[key]
+  ? `<svg class="ico room shop" viewBox="0 0 88 50" shape-rendering="crispEdges" aria-hidden="true">${SHOP_ART[key] || ACT_ART[key]}</svg>` : '');
+// ---------- LOCATION ART ----------
+// One wide, short picture of every place you can stand in, drawn into the band under the banner (#locart in
+// the style sheet). Same chunky pixel language and the same palette as the shop and action tiles above, just
+// drawn at band scale. It is ATMOSPHERE: it sits over a screen that is mostly numbers, so everything here is
+// painted muted and dark on purpose and then washed over - once to fade the band's own edges away, once to
+// tint it by how hot the district has got. If it ever pulls your eye off a market row it has failed.
+// The canvas is 1600 x 100 and it is drawn with preserveAspectRatio slice, so the HEIGHT always fits the band
+// and the SIDES are what gets cropped: on a phone you see the middle third of it, on a desktop nearly all.
+// Every scene therefore keeps its subject in the middle (x 550-1050) and fills its flanks with more of the
+// same place. Built once at load; nothing in here is game state and nothing in here is drawn per frame.
+const LOC_ART = (() => {
+  const NIGHT = '#0b0a19', WALL = '#17142e', ROOM = '#12102a', DEEP = '#101426', SEAM = '#2b2752',
+    STEEL = '#4a5068', PALE = '#6f7694', BLUE = '#0c4270', CY = '#00e5ff', MG = '#ff2a6d',
+    VI = '#c77dff', YL = '#fcee0a', GR = '#3dff9a', RED = '#ff3b5c', WOOD = '#3a2a1c';
+  const op = v => ` opacity="${v}"`;
+  const r = (x, y, w, h, f, o) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${f}"${o || ''}/>`;
+  const p = (d, c, w, o) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w || 2}"${o || ''}/>`;
+  const sh = (d, f, o) => `<path d="${d}" fill="${f}"${o || ''}/>`;
+  const ci = (x, y, rad, f, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="${f}"${o || ''}/>`;
+  const cs = (x, y, rad, c, w, o) => `<circle cx="${x}" cy="${y}" r="${rad}" fill="none" stroke="${c}" stroke-width="${w || 2}"${o || ''}/>`;
+  // n copies of one thing, every step units from x0. Every scene fills its flanks with this and nothing else.
+  const row = (x0, step, n, fn) => { let s = ''; for (let i = 0; i < n; i++) s += fn(x0 + i * step, i); return s; };
+  // a lit pane, and a single indicator. Dim by default: a band of bright windows would read as a dashboard.
+  const win = (x, y, w, h, col, o) => r(x, y, w, h, col, op(o === undefined ? 0.22 : o));
+  const led = (x, y, col, o) => r(x, y, 3, 3, col, op(o === undefined ? 0.5 : o));
+  // somebody, at band scale: a head and a coat, no face. Same trick as the figures in a fight.
+  const fig = (x, y, col, o) => r(x + 5, y, 8, 7, col, op(o === undefined ? 0.5 : o)) +
+    sh(`M${x} ${y + 8} h18 v${28 - 8} h-18 z`, col, op((o === undefined ? 0.5 : o) * 0.8));
+  // a rack of kit with its lights down one edge: the datacenter and the bunker are both built out of these
+  const rack = (x, y, w, h, lit) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1c1a30') +
+    r(x + 3, y + 3, w - 6, h - 6, '#07060f') +
+    row(y + 7, 9, Math.floor((h - 10) / 9), yy => led(x + w - 9, yy, lit || GR, .7) + r(x + 6, yy, w - 20, 3, '#36325e', op(.9)));
+  // a CRT seen from the front, with something on it. The one shape half these rooms are furnished with
+  const crt = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1c1a30') +
+    r(x + 3, y + 3, w - 6, h - 8, col || BLUE, op(.45)) + r(x + 4, y + h - 3, w - 8, 3, STEEL, op(.6));
+  // a sign hung off the ceiling on two rods: a dark plate, an arrow, and a room name too small to read
+  const sign = (x, y, col) => r(x - 2, y - 2, 104, 20, '#05040b', op(.9)) + r(x, y, 100, 16, '#191330') +
+    sh(`M${x + 10} ${y + 8} l11 -6 v12 z`, col, op(.5)) + r(x + 28, y + 3, 58, 4, PALE, op(.28)) +
+    r(x + 28, y + 9, 36, 3, col, op(.34));
+  // a pull-up banner on its splayed foot. A hall is a hall; a hall lined with these is a conference
+  const banner = (x, y, h, col) => r(x - 2, y - 2, 42, h + 4, '#05040b', op(.85)) + r(x, y, 38, h, '#1e1739') +
+    r(x + 4, y + 4, 30, 12, col, op(.22)) + r(x + 5, y + 21, 28, 3, PALE, op(.2)) +
+    r(x + 5, y + 27, 17, 3, PALE, op(.14)) + r(x + 5, y + 33, 12, Math.max(4, h - 38), col, op(.16)) +
+    sh(`M${x + 8} ${y + h} h22 l8 7 h-38 z`, STEEL, op(.45));
+  // somebody with a badge on. Narrower than a fig and with legs under it, because at this size a figure
+  // without a neck and a gap between its feet reads as a cabinet. Each part sits on its own shadow.
+  const att = (x, y, col, o) => { const a = o === undefined ? .5 : o;
+    return r(x + 2, y - 1, 10, 9, '#05040b', op(.9)) + r(x - 1, y + 7, 16, 15, '#05040b', op(.9)) +
+      r(x + 1, y + 21, 6, 10, '#05040b', op(.9)) + r(x + 8, y + 21, 6, 10, '#05040b', op(.9)) +
+      r(x + 3, y, 8, 7, PALE, op(a * 1.15)) + r(x, y + 8, 14, 13, PALE, op(a * .85)) +
+      r(x + 2, y + 22, 4, 8, PALE, op(a * .6)) + r(x + 9, y + 22, 4, 8, PALE, op(a * .6)) +
+      r(x + 4, y + 12, 6, 4, col, op(.5)); };
+  // one thing drawn bigger. The nearer you are standing the larger you are, which is all the depth this needs
+  const near = (x, y, s, inner) => `<g transform="translate(${x} ${y}) scale(${s})">${inner}</g>`;
+  // a whiteboard: the palest thing in any of these rooms, with the last diagram still up and a pen tray
+  const board = (x, y, w, h) => r(x - 2, y - 2, w + 4, h + 4, '#2c3146', op(.55)) + r(x, y, w, h, '#c9d1d5', op(.105)) +
+    p(`M${x + 9} ${y + 7} h${Math.round(w * .34)} M${x + 9} ${y + 13} h${Math.round(w * .22)} M${x + 9} ${y + 19} h${Math.round(w * .3)} M${x + 9} ${y + 25} h${Math.round(w * .16)}`, '#0c1020', 2, op(.5)) +
+    p(`M${x + w - 48} ${y + 7} h26 v13 h-26 z M${x + w - 35} ${y + 20} v6 h15 M${x + w - 24} ${y + 23} l6 3 l-6 3`, '#0c1020', 2, op(.44)) +
+    r(x + 8, y + h, w - 16, 3, STEEL, op(.5));
+  // the last slide, still up on the screen at the front: a title, three bullets and a chart nobody explained
+  const slide = (x, y, w, h) => r(x - 3, y - 5, w + 6, 5, STEEL, op(.6)) + r(x - 2, y - 2, w + 4, h + 4, STEEL, op(.3)) +
+    r(x, y, w, h, '#0c1a2e') + r(x, y, w, h, '#cfe6ff', op(.07)) +
+    r(x + 14, y + 7, Math.round(w * .42), 6, CY, op(.34)) +
+    row(y + 20, 9, 3, (yy, i) => r(x + 20, yy, 4, 4, YL, op(.48)) + r(x + 30, yy, Math.round(w * (.4 - i * .07)), 4, PALE, op(.44))) +
+    row(x + w - 88, 16, 5, (xx, i) => r(xx, y + h - 8 - [9, 17, 12, 22, 15][i], 10, [9, 17, 12, 22, 15][i], VI, op(.36)));
+  // a bench instrument: a box with a readout and two knobs. What makes a bench a lab bench and not a desk
+  const instr = (x, y, w, h, col) => r(x - 2, y - 2, w + 4, h + 4, '#05040b') + r(x, y, w, h, '#1b1e32') +
+    r(x + 4, y + 4, w - 20, h - 8, col, op(.32)) + ci(x + w - 8, y + 6, 3, STEEL, op(.55)) +
+    ci(x + w - 8, y + h - 6, 3, STEEL, op(.55));
+  // the back of a seat. A room with rows of them is a room somebody gets taught in
+  const seat = (x, y, w, h) => r(x, y, w, h, '#05040b', op(.9)) + r(x + 2, y + 2, w - 4, h - 4, '#272c46', op(.9)) +
+    p(`M${x + Math.round(w / 2)} ${y + h} v7`, STEEL, 2.4, op(.45));
+
+  return {
+    // THE HACKERSPACE. A pegboard wall, parts bins above, one bench the whole length of the room, and in the
+    // middle of it a scope with a trace on it, a printer part way through a job and a lamp over a hot iron.
+    'The Hackerspace': r(0, 0, 1600, 100, WALL) + r(0, 0, 1600, 54, DEEP) + r(0, 0, 1600, 54, 'url(#lapeg)') +
+      p('M0 5 h1600', STEEL, 2, op(.25)) +
+      // parts bins on the top shelf, and the tools hung on the board under them
+      row(0, 200, 8, (x, i) => r(x + 12, 8, 76, 16, '#06050c', op(.9)) + r(x + 14, 10, 72, 12, '#1d1a32') +
+        win(x + 36, 13, 28, 6, i % 2 ? CY : YL, .2) + led(x + 20, 14, GR, .5)) +
+      row(0, 100, 16, (x, i) => i % 2 ? p(`M${x + 30} 28 v16 M${x + 24} 44 h12`, STEEL, 2.4, op(.5))
+        : p(`M${x + 30} 28 v12 M${x + 26} 28 h8 v-4 h-8 z`, STEEL, 2.4, op(.4))) +
+      r(0, 54, 1600, 3, SEAM) +
+      row(50, 180, 9, (x, i) => crt(x, 36, 54, 26, i % 2 ? BLUE : '#16203a') + led(x + 46, 57, i % 2 ? CY : YL, .5)) +
+      r(0, 62, 1600, 6, PALE, op(.38)) + row(40, 150, 11, x => r(x, 68, 6, 32, SEAM, op(.65))) +
+      r(0, 68, 1600, 32, '#07060f', op(.9)) +
+      // what lives under a bench: boxes of parts, a spool, and a bin that never gets emptied
+      row(0, 150, 11, (x, i) => r(x + 20, 76, 44, 24, '#171530', op(.9)) + r(x + 26, 80, 32, 5, i % 2 ? CY : YL, op(.14)) +
+        (i % 3 ? r(x + 76, 82, 30, 18, '#121020', op(.9)) + p(`M${x + 76} 86 h30`, STEEL, 2, op(.25))
+          : cs(x + 92, 88, 11, STEEL, 3, op(.3)) + cs(x + 92, 88, 4, STEEL, 2, op(.3)))) +
+      crt(596, 26, 96, 36, DEEP) + p('M606 46 q10 -11 20 0 t20 0 t20 0 t20 0', GR, 2, op(.45)) +
+      r(716, 20, 88, 42, NIGHT) + r(724, 28, 72, 28, DEEP, op(.85)) + r(740, 44, 40, 10, PALE, op(.22)) +
+      p('M732 34 h56', CY, 2, op(.3)) + led(796, 24, MG, .45) +
+      p('M940 6 v14', STEEL, 3, op(.6)) + sh('M918 20 h44 l-9 11 h-26 z', STEEL, op(.55)) + ci(940, 42, 22, YL, op(.06)) +
+      r(886, 56, 116, 6, NIGHT, op(.8)) + p('M966 56 l22 -13', MG, 3, op(.45)) + led(988, 41, MG, .6),
+
+    // TOR BAZAAR. A covered run of stalls with striped awnings, a counter and a screen on each. The one in
+    // the middle is open: layers of an onion painted over it, a lit case, and whoever is minding it.
+    'Tor Bazaar': r(0, 0, 1600, 100, NIGHT) + r(0, 0, 1600, 100, 'url(#lagrid)') +
+      row(0, 160, 10, (x, i) => sh(`M${x + 6} 16 h148 l-16 22 h-116 z`, i % 2 ? '#241036' : '#1b1030') +
+        row(x + 14, 19, 7, xx => win(xx, 22, 10, 16, i % 2 ? MG : VI, .18)) +
+        r(x + 26, 56, 108, 7, SEAM, op(.55)) + r(x + 26, 63, 108, 37, DEEP, op(.6)) +
+        crt(x + 46, 40, 30, 16, DEEP) + led(x + 58, 44, i % 2 ? CY : GR, .4)) +
+      cs(800, 36, 30, VI, 2, op(.22)) + cs(800, 36, 21, VI, 2, op(.3)) + cs(800, 36, 12, MG, 2, op(.38)) +
+      ci(800, 36, 4, MG, op(.45)) +
+      r(700, 54, 200, 9, SEAM, op(.75)) + r(700, 63, 200, 37, NIGHT, op(.85)) +
+      row(712, 44, 4, x => r(x, 66, 32, 22, WOOD, op(.7)) + p(`M${x} 66 l32 22 M${x + 32} 66 l-32 22`, '#6b4a2a', 1, op(.4))) +
+      fig(880, 34, PALE, .3) + fig(614, 36, PALE, .22) + fig(1010, 36, PALE, .22) +
+      r(0, 94, 1600, 6, '#06040e'),
+
+    // IRC BACKCHANNEL. No room at all, only the channel: a wall of lines with a nick column down the left of
+    // each, a topic bar across the top, and three terminals somebody left logged in.
+    'IRC Backchannel': r(0, 0, 1600, 100, '#07060f') +
+      r(0, 2, 1600, 11, '#141228', op(.95)) + row(16, 20, 78, x => r(x, 5, 12, 4, CY, op(.2))) +
+      p('M0 13 h1600', SEAM, 2, op(.8)) +
+      // the channel itself, scrolling away either side of the terminals: a nick, then what they said
+      row(0, 1, 3, (_, pane) => { const x0 = [8, 560, 1066][pane], wide = pane === 1 ? 460 : 520;
+        return row(0, 1, 9, (_, i) => { const y = 20 + i * 8, n = 1 + ((i + pane) * 7) % 5;
+          return r(x0, y, 40 + n * 7, 4, i % 3 ? CY : GR, op(.2)) +
+            r(x0 + 62 + n * 7, y, Math.min(wide - 70 - n * 7, 180 + ((i * 97 + pane * 53) % 300)), 4, PALE, op(.14)); }); }) +
+      // three machines somebody left logged in, pulled up over the channel behind them
+      crt(596, 20, 124, 60, DEEP) + row(0, 1, 6, (_, i) => r(606, 28 + i * 8, 40 + ((i * 53) % 60), 3, GR, op(.45))) +
+      crt(738, 26, 104, 54, DEEP) + row(0, 1, 5, (_, i) => r(748, 34 + i * 8, 34 + ((i * 41) % 46), 3, CY, op(.4))) +
+      crt(858, 22, 116, 58, DEEP) + row(0, 1, 6, (_, i) => r(868, 30 + i * 8, 38 + ((i * 29) % 52), 3, MG, op(.32))) +
+      r(560, 84, 470, 5, SEAM, op(.75)) +
+      // the input line at the bottom, with the cursor sitting on it
+      r(0, 90, 1600, 10, '#121028', op(.9)) + p('M0 90 h1600', SEAM, 2, op(.7)) +
+      row(40, 200, 8, x => r(x, 93, 110, 4, PALE, op(.12)) + r(x + 118, 93, 5, 4, YL, op(.3))),
+
+    // CON HALLWAY. The corridor between two tracks: way-finding hung off the ceiling, a pull-up banner on
+    // every pier, the registration desk with the queue still at it, and the carpet you would know anywhere.
+    'Con Hallway': r(0, 0, 1600, 100, WALL) + r(0, 0, 1600, 62, ROOM) +
+      // the ceiling, and the signs that say which track is which, hung off it on their drop rods
+      r(0, 0, 1600, 7, NIGHT) + p('M0 7 h1600', STEEL, 2, op(.35)) +
+      row(0, 200, 9, (x, i) => p(`M${x + 42} 7 v6 M${x + 114} 7 v6`, STEEL, 2, op(.5)) + sign(x + 28, 13, i % 2 ? CY : YL)) +
+      // the wall it runs along: a session door in every bay, with the lamp over it on
+      row(0, 200, 9, (x, i) => r(x + 136, 16, 58, 40, '#110c20', op(.92)) +
+        r(x + 141, 21, 48, 30, i % 2 ? MG : VI, op(.09)) + led(x + 188, 36, GR, .3)) +
+      r(0, 56, 1600, 6, SEAM, op(.65)) +
+      r(0, 62, 1600, 38, '#1b1026') + r(0, 62, 1600, 38, 'url(#lacarpet)') +
+      // a banner stand everywhere there is wall to put one against, except where the desk is
+      row(0, 110, 15, (x, i) => (x + 18 > 700 && x + 18 < 1080) ? '' : banner(x + 18, 30, 40, [MG, CY, VI, YL][i % 4])) +
+      // the rest of the hall, milling about between sessions: every one of them wearing the same lanyard
+      row(56, 128, 13, (x, i) => near(x + (i % 3) * 20, 56 + (i % 3) * 5, .95 + (i % 4) * .1,
+        att(0, 0, [CY, MG, VI, YL][i % 4], .36 + (i % 3) * .07))) +
+      // REGISTRATION: the backdrop, the three of them behind it, their screens, and the counter in front
+      r(742, 16, 316, 40, '#1a1030', op(.95)) + r(746, 20, 308, 12, MG, op(.24)) +
+      row(752, 76, 4, (x, i) => r(x, 38, 64, 12, [CY, VI, YL, MG][i % 4], op(.12))) +
+      att(822, 27, CY, .46) + att(902, 25, YL, .44) + att(982, 27, MG, .42) +
+      r(756, 56, 292, 8, PALE, op(.32)) + r(756, 64, 292, 30, '#0f0a1c', op(.92)) +
+      row(756, 97, 4, x => r(x, 64, 3, 30, SEAM, op(.5))) + r(760, 88, 284, 3, CY, op(.1)) +
+      crt(776, 40, 40, 16, BLUE) + crt(856, 40, 40, 16, DEEP) + crt(936, 40, 40, 16, BLUE) +
+      // the queue for it, nearest first. It starts where you are standing and it is not moving
+      near(548, 48, 1.5, att(0, 0, MG, .58)) + near(600, 51, 1.4, att(0, 0, CY, .54)) +
+      near(648, 54, 1.3, att(0, 0, YL, .52)) + near(692, 57, 1.2, att(0, 0, VI, .5)) +
+      near(732, 60, 1.1, att(0, 0, CY, .46)) +
+      // and the stand on either side of you, close enough that you can read the top line
+      near(466, 20, 1.3, banner(0, 0, 46, CY)) + near(1082, 22, 1.25, banner(0, 0, 46, MG)),
+
+    // CAMPUS LAB. A teaching lab you can also be lectured in: benches stepped down in tiers toward the
+    // front, the last slide still up on the screen, a whiteboard nobody wiped, and tubes that never go off.
+    'Campus Lab': r(0, 0, 1600, 100, '#121426') + r(0, 0, 1600, 54, '#161a30') +
+      row(60, 170, 10, x => r(x, 1, 110, 4, PALE, op(.16)) + r(x, 5, 110, 3, '#e9e9f0', op(.07))) +
+      // the front wall: a whiteboard in every bay and a door at the end of each, nobody uses either
+      row(0, 300, 6, (x, i) => board(x + 30, 12, 130, 30) + r(x + 212, 10, 40, 44, '#0c0e1a', op(.9)) +
+        r(x + 216, 14, 32, 36, '#15182c', op(.9)) + r(x + 220, 18, 11, 18, BLUE, op(.16)) + led(x + 243, 32, STEEL, .5)) +
+      // the screen over the middle of it, the board beside it, and the projector that is still on
+      r(526, 0, 352, 56, CY, op(.045)) + slide(540, 8, 320, 40) + board(900, 12, 150, 30) +
+      r(688, 0, 34, 9, '#0f1222') + r(694, 2, 24, 5, STEEL, op(.35)) + led(716, 3, RED, .45) +
+      // two who stayed behind at the back bench, seen over the top of it
+      near(748, 22, 1, att(0, 0, CY, .42)) + near(898, 24, 1, att(0, 0, VI, .38)) +
+      // the back tier: one bench the width of the room, the same machine on every place, a meter between
+      r(0, 50, 1600, 7, PALE, op(.26)) + r(0, 57, 1600, 13, '#0a0c18', op(.9)) +
+      row(0, 150, 11, (x, i) => crt(x + 18, 32, 44, 18, i % 3 ? '#16203a' : BLUE) +
+        instr(x + 78, 36, 38, 14, i % 2 ? CY : GR)) +
+      row(40, 150, 11, x => r(x, 57, 7, 13, SEAM, op(.5))) +
+      p('M0 70 h1600', PALE, 2, op(.22)) +
+      // the front tier, one step down and nearer, so its kit stands in front of the last bench's skirt
+      row(0, 150, 11, (x, i) => crt(x + 115, 52, 52, 20, i % 3 ? BLUE : '#16203a') +
+        instr(x + 183, 56, 46, 16, i % 2 ? GR : CY)) +
+      r(0, 72, 1600, 8, PALE, op(.3)) + r(0, 80, 1600, 20, '#090b16', op(.92)) +
+      row(0, 150, 11, x => r(x + 120, 73, 44, 5, '#c9d1d5', op(.18))) +
+      row(115, 150, 11, x => r(x, 80, 8, 20, SEAM, op(.5))) +
+      // and the row in front of you, from behind, which nobody has sat in yet
+      row(0, 118, 15, x => seat(x + 20, 86, 58, 14)),
+
+    // DATACENTER DOCK. The goods entrance: a roller door part way up, racks waiting on pallets in the cold
+    // air, cages either side and the whole row of them humming. Where the deep runs start.
+    'Datacenter Dock': r(0, 0, 1600, 100, '#0a0c16') +
+      // the roller doors, part way up all the way along, and the cage uprights between the bays
+      r(0, 0, 1600, 20, '#0c0e1a') + row(0, 1, 5, (_, i) => r(0, 1 + i * 4, 1600, 3, '#1d2134', op(.9))) +
+      p('M0 20 h1600', '#2d3350', 3) +
+      row(0, 190, 9, x => r(x, 20, 7, 62, STEEL, op(.45))) +
+      row(26, 190, 9, (x, i) => rack(x, 26, 58, 56, i % 3 ? GR : CY)) +
+      // the bay you are standing in: the door higher, the racks still on their pallets, the pump truck
+      r(560, 0, 480, 14, '#0b0d18') + row(0, 1, 3, (_, i) => r(560, 1 + i * 4, 480, 3, '#232841', op(.95))) +
+      r(560, 14, 480, 5, '#3a4165') + r(560, 19, 480, 4, YL, op(.2)) +
+      rack(596, 28, 64, 54, GR) + rack(672, 28, 64, 54, CY) + rack(748, 28, 64, 54, GR) +
+      rack(824, 32, 56, 50, CY) + rack(892, 32, 56, 50, GR) +
+      row(0, 1, 5, (_, i) => r([592, 668, 744, 820, 888][i], 82, [72, 72, 72, 64, 64][i], 6, WOOD, op(.8))) +
+      r(956, 56, 72, 28, '#13162a') + r(960, 60, 64, 20, '#07080f') +
+      p('M968 56 v-16 h36', STEEL, 3, op(.5)) + led(1016, 62, YL, .6) + ci(964, 88, 5, '#05040a') + ci(1020, 88, 5, '#05040a') +
+      r(0, 88, 1600, 12, '#07080f') + p('M0 88 h1600', '#2d3350', 2, op(.8)) +
+      row(0, 80, 20, x => r(x, 92, 54, 3, STEEL, op(.14))) +
+      p('M560 88 h480', YL, 4, op(.14)),
+
+    // CYBER CAFE. Booths down both sides, the sign in the window, a counter with the machine that pays for
+    // the place, and screens that have all been on since before you got here.
+    'Cyber Cafe': r(0, 0, 1600, 100, '#14101f') + r(0, 0, 1600, 30, '#1a1226') +
+      row(0, 160, 10, (x, i) => r(x + 8, 4, 144, 20, DEEP, op(.75)) +
+        r(x + 20, 9, 120, 10, i % 2 ? MG : CY, op(.1))) +
+      r(560, 2, 480, 26, '#200e2a', op(.9)) +
+      r(596, 9, 180, 10, MG, op(.3)) + r(788, 9, 90, 10, CY, op(.26)) + r(890, 9, 122, 10, VI, op(.22)) +
+      r(0, 30, 1600, 3, SEAM, op(.6)) +
+      row(0, 148, 11, (x, i) => r(x + 6, 36, 136, 8, SEAM, op(.5)) + r(x + 6, 44, 136, 56, '#0e0b18', op(.6)) +
+        crt(x + 22, 20, 46, 22, i % 2 ? BLUE : DEEP) + fig(x + 86, 40, PALE, .16) +
+        row(x + 14, 54, 3, xx => r(xx, 70, 16, 4, STEEL, op(.2)))) +
+      crt(600, 38, 72, 34, BLUE) + crt(686, 40, 64, 32, DEEP) + crt(766, 38, 72, 34, BLUE) +
+      fig(624, 24, PALE, .3) + fig(706, 26, PALE, .26) + fig(792, 24, PALE, .28) +
+      r(870, 52, 150, 10, WOOD, op(.6)) + r(870, 62, 150, 34, NIGHT, op(.8)) +
+      row(884, 22, 5, x => r(x, 44, 10, 8, PALE, op(.14))) + crt(978, 34, 40, 18, GR) +
+      r(0, 96, 1600, 4, '#06040e'),
+
+    // PASTE ALLEY. Round the back: brick, every flat surface papered over with whatever was dumped today, a
+    // fire escape going up into nothing, a skip, and one lamp doing the work of six.
+    'Paste Alley': r(0, 0, 1600, 100, '#141220') + r(0, 0, 1600, 100, 'url(#labrick)') +
+      p('M0 4 h1600', '#07060c', 9) +
+      // the fire escape, bolted on the back of somebody else's building
+      p('M300 10 v76 M470 10 v76', STEEL, 3, op(.4)) + row(14, 22, 4, y => p(`M300 ${y} h170`, STEEL, 3, op(.3))) +
+      row(14, 22, 4, y => row(306, 14, 12, x => p(`M${x} ${y} v-9`, STEEL, 1.4, op(.16)))) +
+      // every flat surface papered over with whatever was dumped today: a sheet, and lines of it
+      row(0, 108, 15, (x, i) => { const y = 12 + (i % 3) * 8, w = 56 + (i % 2) * 20, h = 32 + (i % 3) * 8;
+        return r(x + 6, y, w, h, '#06050c', op(.8)) + r(x + 8, y + 2, w - 4, h - 4, i % 4 ? '#2a2440' : '#352a44', op(.85)) +
+          row(0, 1, 3, (_, k) => r(x + 14, y + 8 + k * 9, w - 24 - ((i + k) % 3) * 10, 4, i % 3 ? CY : MG, op(.22))); }) +
+      p('M940 2 v10', STEEL, 3, op(.6)) + sh('M920 12 h40 l-8 10 h-24 z', STEEL, op(.65)) +
+      ci(940, 30, 36, YL, op(.05)) + ci(940, 24, 18, YL, op(.06)) +
+      // the skip, the bags beside it and the pallets nobody came back for
+      r(596, 54, 188, 42, '#05040a') + r(600, 56, 180, 38, '#1e2a36') + r(600, 56, 180, 7, STEEL, op(.45)) +
+      p('M612 70 h156 M612 82 h156', '#0b1118', 3) + r(640, 46, 44, 10, '#2a3442') +
+      row(812, 26, 3, x => sh(`M${x} 96 q4 -22 13 -22 q9 0 13 22 z`, '#15131f')) +
+      r(880, 68, 64, 28, WOOD, op(.7)) + row(886, 15, 4, x => r(x, 72, 9, 20, '#05040a', op(.7))) +
+      r(0, 92, 1600, 8, '#07060c') + row(40, 170, 10, x => r(x, 93, 100, 4, BLUE, op(.13))),
+
+    // STRIP MALL. A run of units under one long awning, half of them still trading, a pylon sign out front
+    // and the lot in between. Lit the way a car park is lit, which is badly.
+    'Strip Mall': r(0, 0, 1600, 100, '#0c0c18') + r(0, 0, 1600, 10, '#0a0a12') +
+      row(0, 160, 10, (x, i) => r(x + 4, 10, 152, 38, '#15141f', op(.9)) +
+        r(x + 16, 16, 128, 9, i % 3 === 2 ? STEEL : (i % 2 ? YL : CY), op(i % 3 === 2 ? .1 : .16)) +
+        r(x + 20, 30, 120, 16, i % 3 === 2 ? NIGHT : BLUE, op(i % 3 === 2 ? .8 : .22)) +
+        row(x + 24, 40, 3, xx => r(xx, 34, 14, 12, NIGHT, op(.5)))) +
+      sh('M0 48 h1600 v6 h-1600 z', SEAM, op(.65)) + row(30, 160, 10, x => r(x, 54, 5, 10, SEAM, op(.5))) +
+      r(560, 8, 480, 42, '#17161f', op(.95)) +
+      r(576, 14, 180, 11, MG, op(.22)) + r(768, 14, 120, 11, CY, op(.2)) + r(900, 14, 124, 11, YL, op(.16)) +
+      r(576, 30, 448, 16, BLUE, op(.2)) + row(592, 72, 6, x => r(x, 32, 48, 12, NIGHT, op(.45))) +
+      r(1100, 6, 10, 56, STEEL, op(.35)) + r(1068, 6, 74, 26, DEEP, op(.9)) +
+      r(1076, 11, 58, 7, YL, op(.2)) + r(1076, 22, 40, 5, MG, op(.18)) +
+      // the lot: bays painted on it, the lamps doing what they can, and what is still parked out there
+      r(0, 64, 1600, 36, '#0a0a12') + row(0, 56, 29, x => r(x + 10, 70, 3, 26, PALE, op(.09))) +
+      row(40, 160, 10, x => ci(x, 72, 16, YL, op(.05))) +
+      row(0, 1, 5, (_, i) => { const x = [120, 640, 790, 1040, 1420][i], w = [96, 118, 104, 110, 92][i];
+        return r(x, 76, w, 18, '#05050a') + r(x + 2, 78, w - 4, 14, i % 2 ? '#1a1b2a' : '#20202e') +
+          r(x + w * .22, 70, w * .56, 8, '#12131f') + r(x + w * .24, 72, w * .52, 5, BLUE, op(.3)) +
+          led(x + 4, 82, YL, .3) + led(x + w - 7, 82, RED, .3); }),
+
+    // COACH STATION. Half past two under the canopy: coaches nose-in along the bays, a board with three
+    // services on it and one that is not running, a bench bolted down, and a machine that only takes coins.
+    'Coach Station': r(0, 0, 1600, 100, '#0d0c18') +
+      // the canopy, the trusses holding it up, and the strips that are still lit at this hour
+      r(0, 0, 1600, 16, '#13131f') +
+      row(0, 80, 21, x => p(`M${x} 16 l20 -14 M${x + 20} 16 l-20 -14`, STEEL, 1.4, op(.15))) +
+      p('M0 16 h1600', '#2a2a3a', 3) + row(40, 200, 8, x => r(x, 18, 120, 3, '#e9e9f0', op(.06))) +
+      // the bays: the front of a coach in each one, the blind over it, and the bay number above that
+      row(0, 152, 11, (x, i) => r(x + 10, 30, 128, 56, '#05040a', op(.85)) + r(x + 14, 32, 120, 52, '#1a1b28') +
+        r(x + 22, 36, 104, 9, i % 3 === 2 ? STEEL : YL, op(i % 3 === 2 ? .09 : .13)) +
+        r(x + 22, 50, 104, 18, BLUE, op(.11)) +
+        r(x + 20, 74, 20, 6, YL, op(.15)) + r(x + 108, 74, 20, 6, YL, op(.15)) +
+        r(x + 60, 20, 28, 10, '#05040a', op(.9)) + r(x + 62, 22, 24, 6, CY, op(.11))) +
+      // the board, hung off the canopy. Three services, and the one in red that is not running
+      r(620, 16, 206, 38, '#05040a', op(.95)) + r(624, 18, 198, 34, '#0a0a14') +
+      p('M644 16 v-4 M802 16 v-4', STEEL, 2.4, op(.4)) +
+      row(24, 11, 3, (y, i) => r(632, y, 28, 5, YL, op(.17)) +
+        r(668, y, 86 - i * 18, 5, i === 2 ? RED : YL, op(i === 2 ? .2 : .13)) +
+        r(778, y, 34, 5, i === 2 ? RED : CY, op(.12))) +
+      // the one at the stand in front of you, with its blind lit and its door standing open
+      r(862, 24, 174, 64, '#05040a') + r(866, 26, 166, 60, '#1d1e2c') +
+      r(878, 30, 142, 12, YL, op(.26)) + r(878, 48, 142, 22, BLUE, op(.2)) +
+      r(876, 76, 24, 7, YL, op(.26)) + r(1000, 76, 24, 7, YL, op(.26)) +
+      r(936, 46, 26, 40, '#0b0b14', op(.95)) + r(938, 50, 22, 24, CY, op(.07)) +
+      // whoever is still waiting at this hour, and the bench they are bolted to
+      att(590, 44, CY, .28) + att(690, 46, MG, .24) +
+      r(556, 60, 190, 4, STEEL, op(.2)) + r(556, 70, 190, 5, STEEL, op(.26)) +
+      p('M566 75 v11 M736 75 v11', STEEL, 2.4, op(.22)) +
+      // the machine that still only takes coins
+      r(770, 44, 42, 44, '#05040a') + r(774, 46, 34, 40, '#17182a') +
+      r(778, 50, 26, 22, CY, op(.08)) + row(778, 9, 3, x => r(x, 52, 7, 18, '#07060f', op(.8))) +
+      r(778, 76, 26, 5, STEEL, op(.22)) +
+      // the concourse, and the line you are not meant to stand the far side of
+      r(0, 86, 1600, 14, '#09090f') + p('M0 86 h1600', '#2a2a3a', 2, op(.65)) +
+      r(0, 91, 1600, 3, YL, op(.09)),
+
+    // MULTI-STOREY. Level six, which nobody uses: poured concrete, services clipped to the soffit, the city
+    // a long way off through the gap in the wall, and two cars nose to tail in the end bay with one running.
+    'Multi-storey': r(0, 0, 1600, 100, '#101018') + r(0, 0, 1600, 100, 'url(#laconc)') +
+      // the deck above you, what is clipped to it, and the tubes that are still lit
+      r(0, 0, 1600, 22, '#15151f') +
+      row(0, 1, 2, (_, i) => p(`M0 ${7 + i * 6} h1600`, STEEL, 3, op(.2 - i * .07))) +
+      row(60, 240, 7, x => r(x, 14, 110, 4, '#e9e9f0', op(.07))) +
+      p('M0 22 h1600', '#282838', 3) +
+      // the gap over the perimeter wall, and the city it is a long way above
+      r(0, 28, 1600, 22, '#07080f') +
+      row(0, 46, 35, (x, i) => r(x, 30 + (i % 4) * 3, 22, 20 - (i % 4) * 3, '#0c0e18', op(.9)) +
+        row(x + 4, 8, 2, (xx, k) => win(xx, 34 + (i % 4) * 3, 4, 9, (i + k) % 3 ? CY : YL, .07))) +
+      r(0, 50, 1600, 12, '#16161f') + p('M0 50 h1600', '#2a2a3a', 2.4, op(.8)) +
+      // the columns, numbered, every one of them exactly the same as the last one
+      row(0, 190, 9, x => r(x + 10, 22, 30, 60, '#05040a', op(.8)) + r(x + 13, 22, 24, 60, '#1b1b28') +
+        r(x + 13, 44, 24, 11, YL, op(.1)) + r(x + 16, 60, 18, 3, PALE, op(.13))) +
+      // the end bay: two tubes still lit over it, and the lines painted on the deck
+      r(548, 62, 512, 38, YL, op(.028)) +
+      p('M556 96 v-30 M806 96 v-30 M1046 96 v-30', PALE, 3, op(.1)) +
+      // the one that is running: a body, a cabin on it, glass, and the lamps you can see from the ramp
+      r(582, 66, 206, 22, '#05040a') + r(586, 68, 198, 18, '#1f2131') +
+      r(620, 50, 130, 18, '#05040a') + r(624, 52, 122, 14, '#161a2a') + r(630, 55, 110, 8, BLUE, op(.3)) +
+      r(590, 74, 24, 7, RED, op(.34)) + r(756, 74, 24, 7, RED, op(.34)) +
+      r(586, 86, 198, 4, RED, op(.06)) +
+      ci(618, 88, 9, '#05040a') + ci(752, 88, 9, '#05040a') +
+      cs(618, 88, 5, STEEL, 2, op(.25)) + cs(752, 88, 5, STEEL, 2, op(.25)) +
+      // and the one that has been on level six since Tuesday
+      r(826, 68, 186, 20, '#05040a') + r(830, 70, 178, 16, '#1a1b27') +
+      r(860, 54, 116, 16, '#05040a') + r(864, 56, 108, 12, '#12141f') + r(870, 59, 96, 6, '#0e1424', op(.6)) +
+      r(834, 76, 20, 6, RED, op(.12)) + r(984, 76, 20, 6, RED, op(.12)) +
+      ci(858, 88, 8, '#05040a') + ci(980, 88, 8, '#05040a') +
+      // whoever is waiting between them, and the machine that will not take a note
+      near(790, 36, 1.55, att(0, 0, CY, .3)) +
+      r(1030, 40, 20, 48, '#05040a') + r(1032, 42, 16, 44, '#1e1f2c') + win(1035, 46, 10, 11, GR, .22) +
+      // the deck itself, and the arrow that says the only way off it is down
+      r(0, 88, 1600, 12, '#0c0c14') + p('M0 88 h1600', '#282838', 2, op(.6)) +
+      row(0, 190, 9, x => sh(`M${x + 44} 92 h14 v-3 l9 5 l-9 5 v-3 h-14 z`, PALE, op(.08))),
+
+    // SWAPMEET FIELD. A radio rally on a showground, early: trestle tables of other people's workshops,
+    // estate cars backed up to them, a marquee over the good stuff, and a beam on a mast nobody is using.
+    'Swapmeet Field': r(0, 0, 1600, 100, '#0a0c18') + r(0, 0, 1600, 44, '#0c0f1c') +
+      // the masts on the far side of the field, guyed, with a lamp on the top of each
+      row(0, 230, 8, (x, i) => p(`M${x} 44 v-${26 + (i % 3) * 8}`, STEEL, 2, op(.2)) +
+        p(`M${x} ${18 - (i % 3) * 8} l-16 ${26 + (i % 3) * 8} M${x} ${18 - (i % 3) * 8} l16 ${26 + (i % 3) * 8}`, STEEL, 1, op(.11)) +
+        led(x - 1, 16 - (i % 3) * 8, RED, .28)) +
+      p('M0 44 h1600', '#1b2033', 3) +
+      // the rows: a trestle table, somebody else's workshop laid out on it, and the coat standing behind it
+      row(0, 164, 11, (x, i) => r(x + 10, 60, 136, 6, WOOD, op(.55)) +
+        p(`M${x + 22} 66 v22 M${x + 134} 66 v22`, WOOD, 2.4, op(.35)) +
+        row(x + 16, 34, 4, (xx, k) => r(xx, 48, 28, 12, '#05040a') + r(xx + 2, 50, 24, 8, (i + k) % 3 ? '#1c1f31' : '#232739') +
+          led(xx + 19, 53, (i + k) % 2 ? GR : YL, .28)) +
+        fig(x + 62, 30, PALE, .13) +
+        (i % 3 ? '' : r(x + 102, 54, 54, 26, '#141726', op(.9)) + r(x + 106, 48, 46, 8, STEEL, op(.26)))) +
+      // the marquee over the tables worth queueing for, and what is on them
+      sh('M548 20 h266 l-15 16 h-236 z', '#1a1526') + p('M548 20 h266', STEEL, 2.4, op(.38)) +
+      row(0, 1, 9, (_, i) => sh(`M${556 + i * 29} 36 l7 8 l7 -8 z`, '#241c34')) +
+      p('M562 36 v52 M798 36 v52', STEEL, 2.4, op(.3)) +
+      r(554, 60, 254, 7, WOOD, op(.65)) + r(554, 67, 254, 23, '#0a0a14', op(.85)) +
+      `<g opacity=".34">${instr(572, 38, 56, 22, YL) + instr(640, 40, 48, 20, GR) + instr(700, 36, 62, 24, CY)}</g>` +
+      att(774, 36, YL, .32) +
+      // the tannoy on its pole, aimed at nobody in particular
+      p('M864 88 v-56', STEEL, 2.6, op(.35)) + sh('M852 24 l26 -8 v26 l-26 -8 z', STEEL, op(.28)) +
+      // the mast, guyed into the grass, with a beam on it that is bigger than the field needs
+      p('M986 88 v-72', STEEL, 3, op(.45)) + p('M986 26 l-56 62 M986 26 l56 62', STEEL, 1.4, op(.16)) +
+      p('M940 16 h94', STEEL, 2.4, op(.4)) +
+      row(0, 1, 6, (_, i) => { const x = 944 + i * 18, h = [13, 12, 10, 9, 8, 7][i];
+        return p(`M${x} ${16 - h} v${h * 2}`, STEEL, 2, op(.36)); }) +
+      // the grass, and the ruts the cars have already put in it
+      r(0, 88, 1600, 12, '#0a0e12') + p('M0 88 h1600', '#1b2033', 2, op(.8)) +
+      row(0, 120, 14, x => r(x, 93, 72, 3, '#2a2f22', op(.28))),
+
+    // REPAIR ARCADE. A mall floor of unlock-and-screen counters: lit fascias, a pegboard of everything that
+    // is not a phone, glass cases full of handsets that are, and a man who can do yours in twenty minutes.
+    'Repair Arcade': r(0, 0, 1600, 100, '#121020') +
+      // the suspended ceiling, the tubes sitting in it, and the dead space under them
+      r(0, 0, 1600, 18, '#171428') + r(0, 0, 1600, 18, 'url(#latile)') +
+      row(30, 180, 10, x => r(x, 6, 116, 4, '#e9e9f0', op(.06))) +
+      p('M0 18 h1600', SEAM, 2, op(.6)) + r(0, 18, 1600, 8, '#06050d', op(.85)) +
+      // the row: a dim fascia, a dark unit behind it, a glass case and somebody sitting the day out
+      row(0, 148, 11, (x, i) => r(x + 4, 26, 140, 74, '#06050d', op(.85)) + r(x + 8, 26, 132, 16, '#19142c') +
+        r(x + 16, 30, 116, 8, i % 3 === 2 ? CY : (i % 2 ? MG : VI), op(.11)) +
+        r(x + 8, 44, 132, 28, '#0e0b1a', op(.9)) +
+        row(x + 14, 40, 3, xx => r(xx, 48, 30, 8, i % 2 ? CY : YL, op(.07))) +
+        fig(x + 92, 46, PALE, .12) +
+        r(x + 8, 72, 132, 4, PALE, op(.12)) + r(x + 8, 76, 132, 24, '#0a0814', op(.95)) +
+        row(x + 18, 34, 3, xx => r(xx, 80, 24, 12, '#101428', op(.9)) + r(xx + 3, 83, 18, 6, CY, op(.07)))) +
+      // the counter in front of you: it stands forward of the row, so its fascia is taller
+      r(548, 22, 504, 78, '#06050d', op(.92)) + r(552, 24, 496, 20, '#1d1636') +
+      r(572, 29, 180, 10, MG, op(.16)) + r(766, 29, 116, 10, CY, op(.13)) + r(896, 29, 136, 10, YL, op(.1)) +
+      // the pegboard behind it, hung with everything in the trade that is not a phone
+      r(556, 46, 488, 24, '#15122a', op(.95)) + r(556, 46, 488, 24, 'url(#lapeg)') +
+      row(564, 31, 16, (x, i) => r(x, 49, 20, 18, '#07060f', op(.9)) + r(x + 3, 52, 14, 12, i % 3 ? VI : CY, op(.1))) +
+      att(636, 42, CY, .3) + att(748, 44, MG, .24) +
+      // the glass: one pale edge the length of the counter, and the trays laid out under it
+      r(556, 70, 488, 5, PALE, op(.22)) + r(556, 75, 488, 25, '#0b0918', op(.95)) +
+      row(566, 56, 5, (x, i) => r(x, 79, 44, 16, '#101428') +
+        row(x + 4, 11, 4, xx => r(xx, 82, 7, 9, i % 2 ? CY : MG, op(.13)))) +
+      // the lamp pulled over the one he has open, which is the only bright thing on the floor
+      p('M872 46 v10 h14', STEEL, 2.4, op(.45)) + sh('M882 56 h28 l-6 9 h-16 z', STEEL, op(.45)) +
+      ci(898, 78, 24, YL, op(.055)) + r(887, 72, 22, 4, CY, op(.22)) +
+      // and whoever is standing at the glass, nearer than anything else on the row
+      near(946, 30, 1.55, att(0, 0, YL, .3)) +
+      p('M0 98 h1600', SEAM, 2, op(.5)),
+
+    // TEARDOWN YARD. Behind the wire: pallets of machines nobody is switching on again, the conveyor that
+    // feeds the shredder, the skip it fills, and the portacabin with the kettle on beside the weighbridge.
+    'Teardown Yard': r(0, 0, 1600, 100, '#0a0b12') +
+      // the fence down the back of the yard, and the coil of wire along the top of it
+      r(0, 0, 1600, 36, '#0c0d16') + r(0, 0, 1600, 36, 'url(#lagrid)') +
+      row(0, 100, 17, x => r(x, 4, 4, 32, STEEL, op(.2))) +
+      row(0, 44, 37, x => cs(x, 6, 6, STEEL, 1.3, op(.15))) +
+      p('M0 36 h1600', STEEL, 2.4, op(.3)) +
+      // the stacks: three dead machines to a pallet, and the pallet holding them off the mud
+      row(0, 176, 10, (x, i) => row(0, 1, 3, (_, k) =>
+          r(x + 12, 58 - k * 15, 76, 14, '#05040a') + r(x + 14, 60 - k * 15, 72, 10, (i + k) % 2 ? '#191a2c' : '#1e1f33') +
+          row(x + 18, 10, 6, xx => r(xx, 63 - k * 15, 6, 4, '#07080f', op(.9))) +
+          led(x + 80, 63 - k * 15, STEEL, .22)) +
+        r(x + 10, 73, 80, 5, WOOD, op(.6)) + row(x + 14, 25, 4, xx => r(xx, 78, 8, 6, WOOD, op(.4)))) +
+      // the conveyor climbing into the hopper, with a box on it every other slat
+      p('M548 88 L706 50', STEEL, 4, op(.45)) + p('M548 96 L706 58', STEEL, 4, op(.35)) +
+      row(0, 1, 8, (_, i) => { const x = 556 + i * 21, y = 86 - i * 5;
+        return p(`M${x} ${y} l0 8`, STEEL, 1.6, op(.28)) +
+          (i % 2 ? r(x - 7, y - 12, 17, 12, '#05040a') + r(x - 5, y - 10, 13, 8, '#1b1c2d') + r(x - 3, y - 8, 9, 3, CY, op(.14)) : ''); }) +
+      // the shredder: a hopper that takes it, a body that does it, and two lights that say so
+      sh('M694 28 h134 l-23 26 h-88 z', '#151624') + p('M694 28 h134', STEEL, 2.4, op(.4)) +
+      r(710, 54, 100, 34, '#05040a') + r(714, 56, 92, 30, '#1a1b2b') +
+      row(720, 14, 6, x => r(x, 60, 7, 22, '#07080f', op(.9))) +
+      led(796, 60, YL, .45) + led(796, 70, RED, .3) +
+      // the skip it fills, and the bales stacked out of it
+      r(834, 50, 126, 38, '#05040a') + r(838, 52, 118, 34, '#1d2a33') + r(838, 52, 118, 6, STEEL, op(.38)) +
+      row(844, 27, 4, x => r(x, 62, 21, 20, '#0d1218', op(.9))) +
+      // the portacabin: the one lit window in the yard, and whoever is sitting in it
+      r(972, 34, 104, 52, '#05040a') + r(976, 36, 96, 48, '#191a28') +
+      r(976, 36, 96, 5, STEEL, op(.32)) + win(986, 46, 44, 20, YL, .15) + fig(1000, 48, PALE, .24) +
+      r(1044, 48, 20, 36, '#0f1018') + r(976, 84, 96, 4, STEEL, op(.28)) +
+      // the mud, and the weighbridge plate set into it
+      r(0, 88, 1600, 12, '#07080e') + p('M0 88 h1600', STEEL, 2, op(.28)) +
+      r(842, 90, 228, 8, '#12131d') + p('M842 90 h228 M842 98 h228', STEEL, 1.6, op(.3)) +
+      row(0, 90, 18, x => r(x, 94, 46, 2, STEEL, op(.09))),
+
+    // THE BUNKER. Home: poured concrete, pipework along the ceiling, the stash stacked where you left it, the
+    // rack you built, the bunk, and the door that is the only way in. The one place nobody else gets to walk.
+    'The Bunker': r(0, 0, 1600, 100, '#16141f') + r(0, 0, 1600, 100, 'url(#laconc)') +
+      // the pipework that runs the length of the ceiling, and the one strip light hung off it
+      row(0, 1, 3, (_, i) => p(`M0 ${5 + i * 7} h1600`, STEEL, 5, op(.3 - i * .07))) +
+      row(120, 320, 5, x => r(x, 3, 9, 22, STEEL, op(.3))) +
+      row(60, 300, 6, x => r(x, 12, 150, 5, '#e9e9f0', op(.08))) +
+      // down both walls: the racks you built and the stash you have not shifted yet
+      row(0, 190, 9, (x, i) => i % 2 ? rack(x + 10, 28, 50, 52, i % 4 ? GR : CY)
+        : row(x + 10, 36, 3, xx => r(xx, 48, 32, 32, '#05040a') + r(xx + 2, 50, 28, 28, '#3a2a1c') +
+          p(`M${xx + 2} 50 l28 28 M${xx + 30} 50 l-28 28`, '#6b4a2a', 1.6, op(.5)))) +
+      // the door. The only way in, and the reason nobody else gets to walk around in here
+      r(592, 14, 92, 70, '#05040a') + r(596, 18, 84, 62, '#23202f') + r(604, 26, 68, 46, '#0b0a14') +
+      cs(638, 49, 13, STEEL, 4, op(.6)) + p('M638 36 v26 M625 49 h26', STEEL, 3, op(.5)) +
+      r(600, 74, 76, 6, STEEL, op(.35)) + ci(638, 49, 28, CY, op(.05)) +
+      rack(700, 24, 64, 56, GR) + rack(776, 28, 56, 52, CY) +
+      // the bunk, made up the way it always is
+      r(848, 44, 146, 8, '#05040a') + r(850, 46, 142, 5, PALE, op(.3)) +
+      r(848, 52, 146, 16, '#1d2a3a') + r(852, 48, 40, 8, '#c9d1d5', op(.18)) +
+      r(848, 68, 146, 5, STEEL, op(.3)) + r(852, 73, 7, 14, SEAM, op(.6)) + r(984, 73, 7, 14, SEAM, op(.6)) +
+      p('M1014 8 v20', CY, 3, op(.45)) + ci(1014, 8, 5, RED, op(.4)) +
+      r(0, 88, 1600, 12, '#0b0a13') + p('M0 88 h1600', STEEL, 2, op(.25)) +
+      row(0, 110, 15, x => r(x, 92, 96, 3, STEEL, op(.11))),
+  };
+})();
+// The patterns every scene builds its walls and floors out of, and the two washes over the top of them all.
+const LA_DEFS = '<defs>' +
+  '<pattern id="lapeg" width="16" height="16" patternUnits="userSpaceOnUse"><rect x="6" y="6" width="3" height="3" fill="#2b2752" opacity=".8"/></pattern>' +
+  '<pattern id="lagrid" width="40" height="20" patternUnits="userSpaceOnUse"><path d="M0 0 h40 M0 0 v20" fill="none" stroke="#2b2752" stroke-width="1" opacity=".35"/></pattern>' +
+  '<pattern id="labrick" width="32" height="12" patternUnits="userSpaceOnUse"><path d="M0 0 h32 M0 6 h32 M8 0 v6 M24 6 v6" fill="none" stroke="#1d1a26" stroke-width="1.4"/></pattern>' +
+  '<pattern id="latile" width="28" height="14" patternUnits="userSpaceOnUse"><path d="M0 0 h28 M0 0 v14" fill="none" stroke="#1a1c30" stroke-width="1.2"/></pattern>' +
+  '<pattern id="lacarpet" width="12" height="12" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="#241530" opacity=".7"/><rect x="6" y="6" width="6" height="6" fill="#241530" opacity=".7"/></pattern>' +
+  '<pattern id="laconc" width="56" height="34" patternUnits="userSpaceOnUse"><path d="M0 0 h56 M0 0 v34" fill="none" stroke="#17162a" stroke-width="1.6"/></pattern>' +
+  '<pattern id="lascan" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="1" fill="#000" opacity=".3"/></pattern>' +
+  // the band's own edges: the art dissolves into them, which is also what hides where the sides got cropped
+  '<linearGradient id="lax" x1="0" x2="1"><stop offset="0" stop-color="#06050d" stop-opacity=".92"/>' +
+  '<stop offset=".22" stop-color="#06050d" stop-opacity="0"/><stop offset=".78" stop-color="#06050d" stop-opacity="0"/>' +
+  '<stop offset="1" stop-color="#06050d" stop-opacity=".92"/></linearGradient>' +
+  '<linearGradient id="lay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#06050d" stop-opacity=".5"/>' +
+  '<stop offset=".22" stop-color="#06050d" stop-opacity="0"/><stop offset=".76" stop-color="#06050d" stop-opacity="0"/>' +
+  '<stop offset="1" stop-color="#06050d" stop-opacity=".62"/></linearGradient></defs>';
+// THE DISTRICT WASH. One colour over the whole band, keyed to the game's own four words for how much law is
+// on a place (SEC_WORD, which distLawWord picks with floor(security / 25)): open is cool and blue, noticed
+// and then watched warm up to amber, locked down goes red. Same artwork every time - a haze, not a filter.
+// It is laid on as a gradient, heaviest along the top and bottom of the band and nearly gone across the
+// middle, so it reads as the light in the room rather than as a filter dropped over the whole picture.
+const LA_WASH = {open: ['#0c4270', .15], noticed: ['#ff8a1e', .1], watched: ['#ff8a1e', .17], 'locked down': ['#ff3b5c', .24]};
+const locSvg = (scene, wash) =>
+  '<svg class="laband" viewBox="0 0 1600 100" preserveAspectRatio="xMidYMid slice" shape-rendering="crispEdges" aria-hidden="true">' +
+  LA_DEFS +
+  `<linearGradient id="lawash" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${wash[0]}" stop-opacity="${wash[1]}"/>` +
+  `<stop offset=".5" stop-color="${wash[0]}" stop-opacity="${(wash[1] * 0.3).toFixed(3)}"/>` +
+  `<stop offset="1" stop-color="${wash[0]}" stop-opacity="${wash[1]}"/></linearGradient>` +
+  scene +
+  '<rect width="1600" height="100" fill="url(#lascan)"/>' +
+  '<rect width="1600" height="100" fill="url(#lawash)"/>' +
+  '<rect width="1600" height="100" fill="url(#lax)"/><rect width="1600" height="100" fill="url(#lay)"/></svg>';
+// Paint the band. Decoration: it is aria-hidden, it is rebuilt only when the place or its temperature has
+// actually changed, and a place with no picture leaves the band empty, which collapses it (see #locart).
+let locPainted = null;
+function locArt() {
+  const el = $('#locart');
+  if (!el) return;
+  const place = S.loc, word = place === BUNKER ? 'open' : distLawWord(place), key = place + '/' + word;
+  if (key === locPainted) return;
+  locPainted = key;
+  el.innerHTML = LOC_ART[place] ? locSvg(LOC_ART[place], LA_WASH[word] || LA_WASH.open) : '';
+}
+// ONE ACTION TILE. Everything on the main screen's row of tiles is built with this and nothing else, so a
+// tile cannot be a different shape from the tile beside it. See ACTION TILES in the style sheet.
+//   act/arg  what pressing it does (the usual data-act / data-arg)
+//   kind     go | risk | shop | kit | info - what sort of thing this is, which picks the colour
+//   icon     a key into SHOP_ART or ACT_ART
+//   name     the label.  note: the small dim line under it.  badge: a count, shown as a badge
+const tile = ({act, arg, kind, icon, name, note, badge, off}) =>
+  `<button class="tact k-${kind}" data-act="${act}"${arg === undefined ? '' : ` data-arg="${arg}"`}${off ? ' disabled' : ''}>` +
+  actIcon(icon) + `<span class="tl"><span class="tn">${name}</span>${note ? `<small class="tsub">${note}</small>` : ''}</span>` +
+  (badge === undefined || badge === null || badge === '' ? '' : `<i class="tbadge">${badge}</i>`) + '</button>';
+
+// A name that carried its count in brackets ("Deep run (2 addresses)", "Smoke bomb (3)") split into the
+// tile's slots, so a count is a badge everywhere and brackets nowhere. Used by the main screen's tiles and
+// by every dialogue answer that was written with a bracket on the end.
+const label = s => {
+  const m = /^(.*?) \((.*)\)$/.exec(String(s));
+  if (!m) return {name: String(s)};
+  if (/^\d+$/.test(m[2])) return {name: m[1], badge: m[2]};
+  const n = /^(\d+)\s+(.*)$/.exec(m[2]);
+  return n ? {name: m[1], badge: n[1], note: n[2]} : {name: m[1], note: m[2]};
+};
+// ONE DIALOGUE ANSWER, built from the same parts as a tile on the main screen. The kind is worked out from
+// what the caller already said: primary is the thing the dialogue is for, danger is the thing that can go
+// wrong, an answer that only backs out is a nothing-happens violet, and everything else is cyan.
+const DECLINE = /^(back|close|cancel|not (now|yet|today|this|right now)|no\b|no,|never ?mind|nope|leave\b|stay\b|skip\b|maybe later|done\b|walk away|forget it|get out|turn back|head for the door)/i;
+const btnKind = o => o.kind || (/\bprimary\b/.test(o.cls || '') ? 'go'
+  : /\bdanger\b/.test(o.cls || '') ? 'risk'
+  : DECLINE.test(o.name || '') || (o.value === null && /\bsmall\b/.test(o.cls || '')) ? 'info' : 'kit');
+const btnTile = o =>
+  `<button class="tact k-${btnKind(o)}${o.cls ? ' ' + o.cls : ''}${o.wide ? ' tfull' : ''}"` +
+  `${o.id ? ` id="${o.id}"` : ''}${o.off ? ' disabled' : ''}` +
+  ` title="${esc(o.name)}${o.note ? ' — ' + esc(o.note) : ''}">` +
+  (o.icon || '') + `<span class="tl"><span class="tn">${esc(o.name)}</span>` +
+  (o.note ? `<small class="tsub">${esc(o.note)}</small>` : '') + '</span>' +
+  (o.badge === undefined || o.badge === null || o.badge === '' ? '' : `<i class="tbadge">${esc(o.badge)}</i>`) +
+  '</button>';
+// A dialogue's buttons as they are written at the call sites: either the old [label, value, class, icon]
+// or, where the label needed cutting into slots by hand, {name, note, badge, kind, icon, value, cls}.
+const btnOpts = buttons => {
+  const opts = buttons.map(b => Array.isArray(b)
+    ? Object.assign(label(b[0]), {value: b[1], cls: b[2], icon: b[3]})
+    : Object.assign({}, b));
+  // The last answer, when it only backs out, goes across the foot instead of sitting alone on a short row.
+  const last = opts[opts.length - 1];
+  if (opts.length > 2 && last && last.wide === undefined && btnKind(last) === 'info') last.wide = true;
+  return opts;
+};
 
 // ---------- weapon shops ----------
 // kinds: which weapon kinds this shop sells. markup: price multiplier on everything except military hardware.
@@ -8060,8 +9385,8 @@ async function rideShop(key) {
     let trade = false;
     if (mine) {
       const price = priceOf(choice), swap = Math.max(0, price - tradeIn), opts = [];
-      if (S.cash >= swap) opts.push([`Trade in the ${mine[0]}: pay ${money(swap)}`, 't', 'primary', rideIcon(S.ride)]);
-      if (!full && S.cash >= price) opts.push([`Keep it, send it home: pay ${money(price)}`, 'k']);
+      if (S.cash >= swap) opts.push({name: `Trade in the ${mine[0]}`, note: `pay ${money(swap)}`, value: 't', cls: 'primary', kind: 'shop', icon: rideIcon(S.ride)});
+      if (!full && S.cash >= price) opts.push({name: 'Keep it, send it home', note: `pay ${money(price)}`, value: 'k', kind: 'shop'});
       opts.push(['Cancel', null, 'small']);
       const how = await dialog(v[0], `<div class="syn">${rideCard(choice, `<span class="amber">${money(price)}</span>`)}</div>` +
         `<p>You came on the <b>${mine[0]}</b>. It is worth <b>${money(tradeIn)}</b> as a trade-in.</p>` +
@@ -8126,7 +9451,7 @@ async function garage() {
           : 'in a box on the floor') +
         '. It lives on one ride at a time; moving it costs nothing but the half hour. Aircraft are hopeless at it ' +
         'and nothing from the bike shop can carry it at all.</p>';
-      for (const id of fitTo) btns.push([`Bolt the scanner to the ${VEHICLES[id][4]}`, 'fit:' + id]);
+      for (const id of fitTo) btns.push({name: 'Bolt the scanner', note: `to the ${VEHICLES[id][4]}`, value: 'fit:' + id, icon: rideIcon(id)});
     }
     const choice = await dialog('Garage', html, btns);
     if (!choice) return;
@@ -8195,7 +9520,9 @@ async function bagItem(index) {
   const act = await dialog(it.name, `<div class="syn">${itemHtml(it)}${swapDiff(it)}</div>` +
     (worn ? `<p class="dim">Replaces what you are wearing:</p><div class="syn">${itemHtml(worn)}</div>`
       : `<p class="dim">Your ${SLOTS[it.slot][0].toLowerCase()} slot is empty.</p>`),
-    [['Wear it', 'e', 'primary'], [`Scrap for ${money(scrapValue(it))}`, 's', 'danger'], ['Back', null, 'small']]);
+    [{name: 'Wear it', value: 'e', cls: 'primary'},
+      {name: 'Scrap', note: `for ${money(scrapValue(it))}`, value: 's', cls: 'danger'},
+      {name: 'Back', value: null, cls: 'small'}]);
   if (act === 'e' && tooFull(it.slot, it)) {
     await alertDlg('Too much to carry', tooFull(it.slot, it));
   } else if (act === 'e') {
@@ -8296,68 +9623,96 @@ function renderNow() {
   $('#dayloc').innerHTML = `DAY <b>${num(S.day)}</b> &middot; <span class="cyan">${S.loc}</span>` +
     ` &middot; ${tripsHtml()}` +
     (word ? ` &middot; <span class="${press01() >= 0.66 ? 'red' : 'amber'}">${word}</span>` : '');
+  // The picture of wherever you are, washed by how much law is on the place (see LOCATION ART). Decoration.
+  locArt();
+  // THE STAT COLUMN: [label, figure, colour, band, big]. The band deals the chip into one of the four
+  // groups the column is laid out in (see THE STAT COLUMN in the style sheet); big is the handful of
+  // figures the handheld's VITALS screen draws large, and is exactly the six it has always drawn large.
   const chips = [
-    ['Cash', money(S.cash), 'green'], ['Wallet', money(S.wallet), ''],
-    ['Debt', money(S.debt), S.debt ? 'red' : ''],
+    ['Cash', money(S.cash), 'green', 'money', 1], ['Wallet', money(S.wallet), '', 'money', 1],
+    ['Debt', money(S.debt), S.debt ? 'red' : '', 'money', 1],
+    ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : '', 'exposure', 1],
+    ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
+      lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : '', 'exposure'],
+    ['Proxies', S.proxies, '', 'exposure', 1],
     // The amount takes the colour of the backpack you wear; the label goes amber when there is no room left.
-    [free() <= 0 ? '<span class="amber">Drive full</span>' : 'Drive', `${used()}/${cap()}`, bagClass()],
-    ['Heat', S.heat + '%', S.heat >= 60 ? 'red' : S.heat >= 30 ? 'amber' : ''],
-    ['Proxies', S.proxies, ''],
-    ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', ''],
+    [free() <= 0 ? '<span class="amber">Drive full</span>' : 'Drive', `${used()}/${cap()}`, bagClass(), 'kit', 1],
+    ['Weapon', WEAPONS[S.weapon] ? WEAPONS[S.weapon][0] : 'None', '', 'kit'],
     ['Ammo', !usesAmmo(WEAPONS[S.weapon]) ? 'n/a' : activeAmmo() ? `${AMMO[activeAmmo()][4]} x${S.ammo[activeAmmo()]}` : 'EMPTY',
-      usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : ''],
-    ['Ride', !VEHICLES[S.ride] ? 'On foot' : tanked(S.ride) ? `+${rideHops()} a day` : 'No fuel', !VEHICLES[S.ride] ? '' : tanked(S.ride) ? 'green' : 'red'],
-    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', ''],
+      usesAmmo(WEAPONS[S.weapon]) && !activeAmmo() ? 'red' : '', 'kit'],
+    ['Ride', !VEHICLES[S.ride] ? 'On foot' : tanked(S.ride) ? `+${rideHops()} a day` : 'No fuel',
+      !VEHICLES[S.ride] ? '' : tanked(S.ride) ? 'green' : 'red', 'kit'],
+    ['Gadgets', Object.keys(GADGETS).filter(k => S[k] && !COOL[k] && !TOOLS[k]).map(k => `${S[k]} ${GADGETS[k][4]}`).join(' ') || 'None', '', 'kit'],
     // Entry tools carried, and the lock picking skill with how far along its level is.
     // (Short, so it fits a phone: the picks, and how many other tools. The inventory says which.)
-    ['Tools', toolChip(), ''],
-    ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber'],
-    ['Armour', bonus('armor') + '%', ''],
-    ['Medkits', S.medkits, ''],
-    ['Wanted by', '&#9733;'.repeat(LAW[lawTier()].stars) + ' ' + LAW[lawTier()].short,
-      lawTier() === 2 ? 'red' : lawTier() === 1 ? 'amber' : ''],
+    ['Tools', toolChip(), '', 'kit'],
+    ['Armour', bonus('armor') + '%', '', 'kit'],
+    ['Medkits', S.medkits, '', 'kit'],
+    ['Lock picking', `L${lockInfo().level}` + (lockInfo().need ? ` <span class="dim">${Math.floor(lockInfo().into / lockInfo().need * 100)}%</span>` : ''), 'amber', 'standing'],
   ];
   // ENDLESS: how hard the street is pressing, shown only once the month is over (and on the handheld too,
   // which builds its VITALS screen from these chips).
-  if (word) chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%`, press01() >= 0.66 ? 'red' : 'amber']);
+  if (word) chips.push(['Pressure', `${word} ${Math.round(press01() * 100)}%`, press01() >= 0.66 ? 'red' : 'amber', 'exposure']);
   // SKILL TREE: points waiting to be spent, shown only while there are any.
-  if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan']);
+  if (skLeft()) chips.push(['Skill points', skLeft(), 'cyan', 'standing']);
   // FACES: how this district feels about you, shown wherever the vitals are (the handheld builds its VITALS
   // screen from these chips too). Nothing at all while the street is quiet and open.
   if (S.loc !== BUNKER && (distTrade(S.loc) >= 10 || distSec(S.loc) >= 25)) {
     chips.push(['District', `${distWord(S.loc)}${distSec(S.loc) >= 25 ? ` &middot; ${distLawWord(S.loc)}` : ''}`,
-      distTrade(S.loc) >= 60 || distSec(S.loc) >= 75 ? 'red' : 'amber']);
+      distTrade(S.loc) >= 60 || distSec(S.loc) >= 75 ? 'red' : 'amber', 'exposure']);
   }
   // Heat items carried (just how many: the Lower Heat list says which), and any that are still running.
-  if (coolCount()) chips.push(['Heat kit', coolCount(), '']);
-  if (coverText()) chips.push(['Cover', coverText(), 'cyan']);
-  if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green']);   // devices left behind on break-ins
+  if (coolCount()) chips.push(['Heat kit', coolCount(), '', 'kit']);
+  if (coverText()) chips.push(['Cover', coverText(), 'cyan', 'exposure']);
+  if (S.plants && S.plants.length) chips.push(['Planted', `${S.plants.length} paying`, 'green', 'standing']);   // devices left behind on break-ins
   chips.push(...baseChips());   // BASE: builds under way, a power cut
   // Goods stuck in the prison pocket, and how many more nights you can sleep on them.
   if (stuckTotal()) {
     chips.push([S.sick >= 3 ? 'Dysentery' : 'Stuck inside', `${stuckTotal()} &middot; ${sickLeft() <= 1 ? 'see a doc NOW' : nights(sickLeft() - 1)}`,
-      S.sick >= 3 ? 'red' : 'amber']);
+      S.sick >= 3 ? 'red' : 'amber', 'standing']);
   }
   $('#vitals').innerHTML = vitals();
   $('#ava').innerHTML = avatarSvg({fill: true}) + rideIcon(S.ride);   // the whole figure, so everything worn shows, and your ride
-  $('#stats').innerHTML = chips.map(([k, v, cls]) =>
-    `<div class="chip"><small>${k}</small><b class="${cls}">${v}</b></div>`).join('');
+  // THE STAT COLUMN: the chips are dealt into their bands, in band order, each band under its own
+  // hairline in the band's colour. The band word rides along for screen readers only - it is hidden,
+  // because four heading lines cost more height than the column has at 1280x800 (see the style sheet).
+  // A chip whose figure moved since the last draw wears a mark and pulses once (chipDelta).
+  $('#stats').innerHTML = [['money', 'Money'], ['exposure', 'Exposure'], ['kit', 'Kit'], ['standing', 'Standing']]
+    .map(([band, title]) => {
+      const mine = chips.filter(ch => (ch[3] || 'standing') === band);
+      if (!mine.length) return '';
+      return `<div class="bandrule ${band}"><span>${title}</span></div>` + mine.map(([k, v, cls, , big]) => {
+        const mark = chipDelta(k, v);
+        return `<div class="chip${big ? ' big' : ''}${mark ? ' moved' : ''}" data-band="${band}">` +
+          `<small>${k}</small><b class="${cls}">${v}</b>${mark}</div>`;
+      }).join('');
+    }).join('');
   // LIVE NEWS: what is actually happening in the city goes above the market's own scarcity lines, and it
   // shows at the Bunker too, where there is no market to report on.
   $('#news').innerHTML = evNews().concat(S.news).map(n => `<div>${n}</div>`).join('');
   const onSale = GOODS.filter(([name]) => S.prices[name]).length, holding = Object.keys(S.inv).length;
   $('#market').innerHTML = fold('goods', 'PRODUCTS', `${onSale} on sale` + (holding ? ` &middot; holding ${holding}` : ''),
-    '<div class="sub dim mnote" style="padding:2px 4px 6px">Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
-    'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the days go on: the first month fastest, and slowly after that.</div>' +
+    // The four lines on how market depth works used to sit here on every screen forever. They are in the
+    // help now (ACTIONS.markethelp, which says exactly the same thing); this is the one-line reminder.
+    '<div class="mnote mhint"><span>Deep markets only: your own dealing moves the price here.</span>' +
+    '<button class="small" data-act="markethelp">How markets work</button></div>' +
     // FACES: and this district's own temperature, which says why today's shelves look the way they do.
     // (a note, not a .row: the handheld numbers the rows, and this is not something you can act on)
     (S.loc === BUNKER ? '' : `<div class="sub mnote" style="padding:2px 4px 6px"><b class="${distTrade(S.loc) >= 60 ? 'red' : distTrade(S.loc) >= 20 ? 'amber' : 'dim'}">` +
       `${S.loc.toUpperCase()} &middot; ${distWord(S.loc)}, ${distLawWord(S.loc)}</b>${distLine(S.loc)}</div>`) +
-    GOODS.map(([name]) => {
+    GOODS.map(([name, low, high], gi) => {
     const price = S.prices[name], held = S.inv[name] || 0, flag = S.flags[name];
+    // Which way this price has gone, on EVERY row that has moved and not only the ones that spiked or
+    // crashed: a spike or a crash keeps its bright arrow, and a price simply dear or cheap for this good
+    // gets the same arrow, faint. The figures are the good's own range, which is already in GOODS.
+    const mid = (low + high) / 2, dear = price >= mid * 1.12, cheap = price && price <= mid * 0.88;
+    const arrow = flag === 'up' || dear ? '&#9650; ' : flag === 'down' || cheap ? '&#9660; ' : '';
+    const acls = flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : dear ? 'amber faint' : cheap ? 'cyan faint' : '';
+    // ...and where today's price sits in that range, as one dim tick. No history is kept anywhere in the
+    // game, so this is a position, not a line over past days.
+    const at = price ? Math.round(clampN((price - low) / (high - low), 0, 1) * 100) : 0;
     const priceHtml = price
-      ? `<span class="${flag === 'up' ? 'amber' : flag === 'down' ? 'cyan' : ''}">` +
-        `${flag === 'up' ? '&#9650; ' : flag === 'down' ? '&#9660; ' : ''}${money(price)}</span>`
+      ? `<span class="${acls}">${arrow}${money(price)}</span>`
       : '<span class="dim">no market</span>';
     let sub = '';
     if (held) {
@@ -8384,44 +9739,64 @@ function renderNow() {
     const second = held && !price
       ? `<button class="danger" data-act="dump" data-arg="${name}">Dump</button>`
       : `<button data-act="sell" data-arg="${name}"${held && price ? '' : ' disabled'}>Sell</button>`;
-    return `<div class="row"><div><div class="name">${name}</div>${sub}</div>
-      <div class="price">${priceHtml}${askHtml}</div>
-      <div class="btns"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
+    return `<div class="row${gi % 2 ? ' alt' : ''}${price ? '' : ' dead'}"><div><div class="name">${name}</div>${sub}</div>
+      <div class="price">${priceHtml}${askHtml}` +
+      (price ? `<span class="pband" title="where this price sits in the usual range for ${name}"><i style="left:${at}%"></i></span>` : '') +
+      `</div>
+      <div class="btns seg"><button data-act="buy" data-arg="${name}"${canBuy ? '' : ' disabled'}>Buy</button>${second}</div></div>`;
   }).join(''));
-  let acts = '<button class="primary" data-act="travel">Tunnel out</button>';
+  // ===== ACTION TILES =====
+  // Every tile is built by tile() and nothing else, so no tile can be a different shape from the one next
+  // to it. What is said here is WHAT KIND of thing each one is (go / risk / shop / kit / info); the look
+  // that follows from that is in the style sheet. label() takes a name that carried its count in brackets
+  // ("Deep run (2 addresses)") and splits it, so a count is a badge everywhere and brackets nowhere.
+  let acts = tile({act: 'travel', kind: 'go', icon: 'travel', name: 'Tunnel out'});
   if (S.loc === BUNKER) {
     // BASE: the locker, the lock board and the garage are rooms in the cutaway now (one tap, as before);
     // this one button lists every station.
     const up = BASE_IDS.filter(id => stationState(id) === 'ready').length;
-    acts += '<button data-act="sleep">Sleep (end the day)</button>' +
-      `<button data-act="base">Base${up ? ` (${up} to build)` : baseJobs().length ? ' (building)' : ''}</button>`;
+    acts += tile({act: 'sleep', kind: 'go', icon: 'sleep', name: 'Sleep', note: 'end the day'}) +
+      tile({act: 'base', kind: 'kit', icon: 'base', name: 'Base',
+        badge: up || '', note: up ? 'to build' : baseJobs().length ? 'building' : ''});
     // ENDLESS: the only ending that pays, and it is always on the Bunker's wall once it is possible.
     // (RETIRE SAFETY: it is no longer a button here, next to Tunnel out. It lives on your record, last of all.)
   }
   for (const [key, [name, spot, what]] of Object.entries(RIDE_SHOPS)) {
-    // SHOP TILES: each shop's own picture on its button (and so on the handheld DO screen, which copies these)
-    if (S.loc === spot) acts += `<button class="hasico" data-act="${key}shop">${shopIcon(key)}<span>${name} (${what})</span></button>`;
+    // SHOP TILES: each shop's own picture on its tile (and so on the handheld DO screen, which copies these)
+    if (S.loc === spot) acts += tile({act: `${key}shop`, kind: 'shop', icon: key, name, note: what});
   }
-  acts += `<button data-act="raid"${S.raided ? ' disabled' : ''}>Hack a rival</button>`;
-  acts += `<button class="hasico" data-act="dungeon">${shopIcon('deep')}<span>${dunButton()}</span></button>`;   // DUNGEONS: deep runs
+  acts += tile({act: 'raid', kind: 'risk', icon: 'raid', name: 'Hack a rival', off: S.raided});
+  acts += tile({act: 'dungeon', kind: 'risk', icon: 'deep', ...label(dunButton())});   // DUNGEONS: deep runs
   // WARDRIVING: the haul screen, offered once there is a scanner or anything in the bag to work on
-  if (wdKit() || wdFinds().length) acts += `<button data-act="wardrive">${wdButton()}</button>`;
-  acts += `<button data-act="inventory">Inventory (${career.bag.length} in bag)</button>`;
+  if (wdKit() || wdFinds().length) acts += tile({act: 'wardrive', kind: 'risk', icon: 'wardrive', ...label(wdButton())});
+  acts += tile({act: 'inventory', kind: 'info', icon: 'inventory', name: 'Inventory',
+    badge: career.bag.length, note: 'in bag'});
   // SKILL TREE: a way straight in while points are unspent (it lives on your record the rest of the time).
-  if (skLeft()) acts += `<button class="hasico" data-act="skills">${shopIcon('skills')}<span>Skill tree (${skLeft()} to spend)</span></button>`;
-  acts += `<button data-act="achievements">Achievements (${achCount()}/${Object.keys(ACH).length})</button>`;
-  if (S.medkits) acts += `<button data-act="medkit"${S.hp >= 100 ? ' disabled' : ''}>Use medkit (${S.medkits})</button>`;
-  if (S.fakeid) acts += `<button data-act="fakeid"${S.heat <= heatFloor() ? ' disabled' : ''}>Use ${GADGETS.fakeid[0]} (${S.fakeid})</button>`;
-  if (coolCount()) acts += `<button class="hasico" data-act="cooloff">${shopIcon('cool')}<span>Lower Heat (${coolCount()})</span></button>`;
-  if (GEAR_SPOTS.includes(S.loc)) acts += '<button data-act="gear">Black market</button><button data-act="dealer">Arms dealer</button>';
-  if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) acts += `<button class="danger" data-act="clinic">Street doc: get them out (${stuckTotal()})</button>`;
-  if (S.loc === GUN_SPOT) {
-    acts += `<button data-act="gunstore">${GUN_STORE} (guns, ammo)</button>` +
-      `<button data-act="outfitter">${OUTFITTER} (clothing, bags, armour)</button>`;
+  if (skLeft()) acts += tile({act: 'skills', kind: 'kit', icon: 'skills', name: 'Skill tree', badge: skLeft(), note: 'to spend'});
+  acts += tile({act: 'achievements', kind: 'info', icon: 'ach', name: 'Achievements',
+    badge: achCount(), note: `of ${Object.keys(ACH).length}`});
+  if (S.medkits) acts += tile({act: 'medkit', kind: 'kit', icon: 'medkit', name: 'Use medkit', badge: S.medkits, off: S.hp >= 100});
+  if (S.fakeid) acts += tile({act: 'fakeid', kind: 'kit', icon: 'fakeid', name: `Use ${GADGETS.fakeid[0]}`,
+    badge: S.fakeid, off: S.heat <= heatFloor()});
+  if (coolCount()) acts += tile({act: 'cooloff', kind: 'kit', icon: 'cool', name: 'Lower Heat', badge: coolCount()});
+  if (GEAR_SPOTS.includes(S.loc)) {
+    acts += tile({act: 'gear', kind: 'shop', icon: 'gear', name: 'Black market'}) +
+      tile({act: 'dealer', kind: 'shop', icon: 'dealer', name: 'Arms dealer'});
   }
-  if (Object.values(S.ammo).some(q => q > 0)) acts += '<button data-act="ammo">Change ammo</button>';
-  if (S.loc === HOME) acts += '<button data-act="broker">The Fixer (debt)</button><button data-act="wallet">Cold wallet</button>';
+  if (GEAR_SPOTS.includes(S.loc) && stuckTotal()) {
+    acts += tile({act: 'clinic', kind: 'risk', icon: 'clinic', name: 'Street doc', note: 'get them out', badge: stuckTotal()});
+  }
+  if (S.loc === GUN_SPOT) {
+    acts += tile({act: 'gunstore', kind: 'shop', icon: 'gun', name: GUN_STORE, note: 'guns, ammo'}) +
+      tile({act: 'outfitter', kind: 'shop', icon: 'outfit', name: OUTFITTER, note: 'clothing, bags, armour'});
+  }
+  if (Object.values(S.ammo).some(q => q > 0)) acts += tile({act: 'ammo', kind: 'kit', icon: 'ammo', name: 'Change ammo'});
+  if (S.loc === HOME) {
+    acts += tile({act: 'broker', kind: 'shop', icon: 'broker', name: 'The Fixer', note: 'debt'}) +
+      tile({act: 'wallet', kind: 'shop', icon: 'wallet', name: 'Cold wallet'});
+  }
   $('#actions').innerHTML = acts;
+  coachPaint();   // TEACHING: the guided first day's step strip, and the ring round what it wants pressed
   $('#log').innerHTML = logs.join('');
   if (S.loc === BUNKER) $('#market').innerHTML = baseHtml() + stashHtml();   // at home the market panel becomes your base and your stash
 }
@@ -8458,8 +9833,9 @@ const ACTIONS = {
       const which = await dialog(`Sell ${name}`, `<p>You hold ${num(all)} ${name}. ${num(marked)} of them carry a tag:</p>` +
         `<div class="syn">${tagHtml}<br><span class="dim">Buyers pay ${pct(TAG_CUT)}% less for those: ` +
         `<s>${money(list)}</s> <b class="amber">${money(low)}</b> each. Nobody asks why. Everybody knows why.</span></div>`,
-        [[`Sell clean ones (${num(clean)}) from ${money(list)}`, 'c', 'primary'], [`Sell tagged ones (${num(marked)}) from ${money(low)}`, 't'],
-          ['Cancel', null, 'small']]);
+        [{name: 'Sell clean ones', badge: num(clean), note: `from ${money(list)}`, value: 'c', cls: 'primary'},
+          {name: 'Sell tagged ones', badge: num(marked), note: `from ${money(low)}`, value: 't'},
+          {name: 'Cancel', value: null, cls: 'small'}]);
       if (!which) return;
       cut = which === 't';
     }
@@ -8652,7 +10028,7 @@ const ACTIONS = {
         head('Gear bag', `${career.bag.length}/${BAG_SIZE}`) + `<div class="tiles">${bagHtml}</div>` +
         none('Tap anything to see it, use it, wear it or scrap it. &#9650; marks gear rarer than what you are wearing.');
       const buttons = [['Loadout', 'gear']];
-      if (junk.length) buttons.push([`Scrap ${junk.length} Common for ${money(junkCash)}`, 'junk', 'danger']);
+      if (junk.length) buttons.push({name: 'Scrap Common', badge: junk.length, note: `for ${money(junkCash)}`, value: 'junk', cls: 'danger'});
       buttons.push(['Close', null, 'primary']);
       const choice = await dialog('Inventory', html, buttons);
       if (choice === null) return;
@@ -9052,9 +10428,12 @@ const ACTIONS = {
           `So anything that makes them stop asking costs ${Math.round((hot - 1) * 100)}% more today."</p>` : '') +
           `<p class="dim">Whatever lowers Heat is in short supply: each market gets a few a day. ${QUICK_NOTE}</p>` : '') +
         `<p class="dim">Looking for weapons? The arms dealer is right here, and ${GUN_STORE} is at the ${GUN_SPOT}.</p>`;
+      // SHOP TILES: everything on sale here is a shop tile (green), whatever its label used to look like.
       const buttons = offers.filter(o => S.cash >= o.price)
-        .map(o => [o.key === 'd' ? 'See Doc Wick' : `Buy ${o.name}`, o.key, o.cls, o.item ? gearIcon(o.item) : miscIcon(o.art)]);
-      if (stuckTotal()) buttons.unshift([`Doc Wick: get them out (${stuckTotal()})`, 'clinic', 'danger', miscIcon('doc')]);
+        .map(o => Object.assign(label(o.key === 'd' ? 'See Doc Wick' : `Buy ${o.name}`),
+          {value: o.key, cls: o.cls, kind: o.cls ? undefined : 'shop', icon: o.item ? gearIcon(o.item) : miscIcon(o.art)}));
+      if (stuckTotal()) buttons.unshift({name: 'Doc Wick', note: 'get them out', badge: stuckTotal(),
+        value: 'clinic', cls: 'danger', icon: miscIcon('doc')});
       buttons.push(['Leave', null, 'small']);
       const key = await dialog('Black market', html, buttons);
       if (!key) return;
@@ -9227,6 +10606,28 @@ const ACTIONS = {
     await startMenu();
   },
 
+  // How market depth works. This used to be four lines at the top of the product list on every screen
+  // forever; the list keeps a one-line reminder and the words themselves live here, unchanged.
+  async markethelp() {
+    await alertDlg('How markets work',
+      '<p>Nobody here can move unlimited weight. Sell a lot of one thing and the price sags; ' +
+      'buy a lot and it climbs. It comes back over a day or two, and the markets deal bigger as the days go on: ' +
+      'the first month fastest, and slowly after that.</p>' +
+      '<p class="dim">A row shows what the next one sells for. The arrow says whether that is dear or cheap for ' +
+      'that good, and the tick under it shows where the price sits in that good\'s usual range. The line under a ' +
+      'name says how many are on the shelf, and what your own dealing has done to the price today.</p>');
+  },
+
+  // TEACHING: the two buttons on the guided first day's strip. "Why?" says the step again in full;
+  // "Stop" is the way out, and it is on the screen for every step, not only the first one.
+  async coachsay() { return coachSay(); },
+  async coachoff() {
+    if (!coachOn()) return;
+    if (await confirmDlg('Stop the tutorial', '<p>Stop the guided first day? The day carries on exactly as it ' +
+      'is &mdash; what you bought, what you spent and what the law has on you all stay. Nothing comes back.</p>',
+      'Stop it', 'Keep going')) return coachStop();
+  },
+
   // Your syndicate's mission: the briefing, how far along you are, and anything you do from here
   // (handing over a delivery, starting the final breach).
   async syndicate() {
@@ -9335,17 +10736,21 @@ const ACTIONS = {
     const others = LOCATIONS.filter(l => l !== S.loc && (!tired || l === BUNKER));
     // LIVE NEWS: a district the city has cordoned off is not on the list at all.
     const shutList = others.filter(l => evShut(l));
-    const buttons = others.filter(l => !evShut(l)).map(l =>
-      // FACES: distTag() adds the district's temperature, so the choice is made before you travel. It goes
-      // before what is sold there, because on a 320-pixel screen the end of a long label is cut off.
+    const buttons = others.filter(l => !evShut(l)).map(l => ({
+      // FACES: distTag() adds the district's temperature, so the choice is made before you travel. It is on
+      // the name, with what is sold there on the small line under it, and the headline, if there is one,
+      // last: a tile keeps the district's name whole however narrow the screen gets.
       // LIVE NEWS: and after that, whatever headline is running there.
-      [l + distTag(l) + (l === HOME ? ' (Fixer, wallet)' : l === BUNKER ? ' (your hideout, free trip)'
-        : GEAR_SPOTS.includes(l) ? ' (black market, arms dealer)' : l === GUN_SPOT ? ' (guns, ammo, clothing, bags)'
-          : rideSpot(l) ? ` (${rideSpot(l)[2]})` : '') + (evAt(l) ? ` [${evAt(l)[0]}]` : ''), l]);
+      name: l + distTag(l),
+      note: [l === HOME ? 'Fixer, wallet' : l === BUNKER ? 'your hideout, free trip'
+        : GEAR_SPOTS.includes(l) ? 'black market, arms dealer' : l === GUN_SPOT ? 'guns, ammo, clothing, bags'
+          : rideSpot(l) ? rideSpot(l)[2] : '', evAt(l) ? evAt(l)[0] : ''].filter(Boolean).join(' · '),
+      value: l,
+    }));
     // WARDRIVING: a deliberate sweep is a choice made here, beside the destinations, and only when the kit
     // is actually bolted to a car that can carry it. Otherwise it is one dim line saying why not.
-    if (wdReady()) buttons.push([`Wardrive (spend hops, finish at the Bunker)`, 'wd:go', 'primary']);
-    buttons.push(['Stay here', null, 'small']);
+    if (wdReady()) buttons.push({name: 'Wardrive', note: 'spend hops, finish at the Bunker', value: 'wd:go', cls: 'primary'});
+    buttons.push({name: 'Stay here', value: null, cls: 'small'});
     if (shutList.length) { evTally.shut++; tally('evshut'); }   // LIVE NEWS
     // FACES: the state of every district, and why it is in that state. Nothing new on screen: this is the
     // travel dialogue it has always been, with the temperatures written into it.
@@ -9818,7 +11223,7 @@ function rangeGame(kind, moving) {
       `<svg class="rangebox" id="rg" viewBox="0 0 240 150">${targetSvg([], 120, '<g id="rgx" transform="translate(120 75)"><circle r="7" fill="none" stroke="#3dff9a" stroke-width="1.4"/><path d="M-12 0 h8 M4 0 h8 M0 -12 v8 M0 4 v8" stroke="#3dff9a" stroke-width="1.4"/></g>')}</svg>` +
       `<p id="rgs"></p><p class="dim">The sight drifts. ${verb === 'FIRE' ? 'Fire' : verb === 'THROW' ? 'Throw' : 'Swing'} when it crosses the middle: tap the target, or use the button. ` +
       'It drifts less the better you get.</p></div>' +
-      `<div class="dbtns"><button id="rgf" class="primary">${verb}</button><button id="rgk" class="small">Skip the aiming</button></div>`;
+      `<div class="dbtns">${btnTile({id: 'rgf', cls: 'primary', name: verb})}${btnTile({id: 'rgk', cls: 'small', name: 'Skip the aiming'})}</div>`;
     const sight = $('#rgx'), tgt = $('#rgt'), holes = $('#rgh'), say = $('#rgs');
     const status = () => { say.innerHTML = `Shot <b>${Math.min(MARKS.strings, shots.length + 1)}</b> of ${MARKS.strings} &middot; score <b class="amber">${shots.reduce((sum, h) => sum + h.score, 0)}</b>`; };
     const frame = now => {
@@ -10168,7 +11573,10 @@ document.addEventListener('keydown', e => {
   // answers are pinned at the foot where they can be seen the whole time.
   if (!overlay.hidden) {
     const text = dlg.querySelector('.body') || dlg;
-    if (text.scrollHeight > text.clientHeight + 2) {
+    // ...but only while there is still something to read THAT WAY. At either end the key carries on to the
+    // walk below, so a dialogue with more answers than there are number keys can still be answered by one.
+    const more = back ? text.scrollTop > 2 : text.scrollTop + text.clientHeight < text.scrollHeight - 2;
+    if (more && text.scrollHeight > text.clientHeight + 2) {
       e.preventDefault();
       text.scrollTop += back ? -34 : 34;
       return;
@@ -10816,7 +12224,8 @@ async function junkie() {
 
 // ---------- confrontations: the law, rival syndicates, and raids on rivals ----------
 // intro: an optional opening line, for when something in particular brought them (see gunFallout).
-function lawEncounter(intro) {
+async function lawEncounter(intro) {
+  await teach('law');   // TEACHING: the first time the law stops you
   const tier = lawTier(), L = LAW[tier];
   const n = [rnd(1, 2 + Math.floor(effDay() / 10)), rnd(2, 3 + Math.floor(effDay() / 8)),
     rnd(2, 3 + Math.floor(effDay() / 8))][tier];
@@ -11936,6 +13345,7 @@ const pocketable = () => GOODS.map(g => g[0]).filter(name => S.inv[name] && !POC
 async function pocketIn(E) {
   const room = pocketRoom(E), names = pocketable();
   if (room <= 0 || !names.length) return null;
+  await teach('pocket');   // TEACHING: what it costs, and the dysentery at the end of it
   const wont = Object.keys(POCKET_NO).filter(name => S.inv[name]);
   const html = `<p>There is one place on you ${E.name} will not search without a warrant and a strong stomach. ` +
     `It holds <b>${room}</b> more small thing${room === 1 ? '' : 's'}.</p>` +
@@ -12366,7 +13776,10 @@ const BTL = (() => {
   const mix = (a, b, t) => { const A = rgb(a), B = rgb(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   const SCENES = {'The Hackerspace': ['racks', '#c77dff'], 'Tor Bazaar': ['market', '#3dff9a'], 'IRC Backchannel': ['alley', '#00e5ff'],
     'Con Hallway': ['market', '#fcee0a'], 'Campus Lab': ['racks', '#3dff9a'], 'Datacenter Dock': ['racks', '#00e5ff'],
-    'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8']};
+    'Cyber Cafe': ['market', '#ff4fd8'], 'Paste Alley': ['alley', '#ff4fd8'], 'Strip Mall': ['street', '#ff4fd8'],
+    'Teardown Yard': ['racks', '#fcee0a'], 'Repair Arcade': ['market', '#00e5ff'],
+    'Swapmeet Field': ['market', '#fcee0a'], 'Multi-storey': ['street', '#00e5ff'],
+    'Coach Station': ['street', '#c77dff']};
   function paint(kind, w, col, o) {
     const c = document.createElement('canvas');
     c.width = w; c.height = H;
@@ -13788,6 +15201,7 @@ async function fight(E) {
   // ENDLESS: crews and task forces turn up in bigger numbers the longer a career runs. This is the ceiling,
   // so however late it is the fight screen always holds a crowd a player can actually beat.
   if (Number.isFinite(E.n)) E.n = clampN(Math.round(E.n), 1, ENDLESS.foeMax);
+  await teach('fight');   // TEACHING: the first fight explains volleys, and GUNFIRE's noise rule
   repFewer(E);   // REPUTATION: feared, and one of them decided not to be here. Never below one.
   S.fought = (S.fought || 0) + 1;   // LEGACY: fights this career, which is one of the things an ending reads
   // NEMESIS: a survivor who came back for you gets the raid bed, the tensest one the score has.
@@ -14852,9 +16266,14 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
   if (!b || busy || b.disabled) return;
   busy = true;
+  // TEACHING: the world as it was before this action, so the guided first day can tell what changed
+  // without any of the game's own code having to report it.
+  const wasTut = coachOn() ? coachSnap() : null;
   try {
     await ACTIONS[b.dataset.act](b.dataset.arg);
     await flushNotes();
+    if (wasTut) await coachAfter(wasTut);   // TEACHING: has this step been satisfied?
+    await teachWatch();                     // TEACHING: Heat turning dangerous, a skill point waiting
     if (S.over) { await finish(); newGame(); }
     await levelUpCheck();
   } finally {
@@ -16318,21 +17737,21 @@ const DUN = {
 // k: 'site' or 'dive'. at: the locations a lead can point to. guard: 'sec', 'law' or a syndicate key
 // ('own' means the crew that owns the system, picked per lead). word: what a floor is called.
 const DUN_TH = {
-  tower: {k: 'site', n: 'the Vexcorp tower', at: ['Datacenter Dock', 'Campus Lab', 'Con Hallway'], guard: 'sec',
+  tower: {k: 'site', n: 'the Vexcorp tower', at: ['Datacenter Dock', 'Campus Lab', 'Con Hallway', 'Repair Arcade'], guard: 'sec',
     word: 'floor', boss: 'the executive floor', bossWho: 'Corporate Response', deep: 'Sub-basement'},
-  depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley'], guard: 'sec',
+  depot: {k: 'site', n: 'the bonded depot', at: ['Datacenter Dock', 'Strip Mall', 'Paste Alley', 'Teardown Yard', 'Multi-storey'], guard: 'sec',
     word: 'floor', boss: 'the bonded cage', bossWho: 'Night Shift', deep: 'Loading level'},
-  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe'], guard: 'law',
+  precinct: {k: 'site', n: 'the evidence annex', at: ['Strip Mall', 'Campus Lab', 'Cyber Cafe', 'Multi-storey', 'Coach Station'], guard: 'law',
     word: 'floor', boss: 'the evidence vault', bossWho: 'the duty shift', deep: 'Basement'},
-  squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar'], guard: 'own',
+  squat: {k: 'site', n: 'the crew squat', at: ['Paste Alley', 'IRC Backchannel', 'Tor Bazaar', 'Repair Arcade'], guard: 'own',
     word: 'floor', boss: 'the back room', bossWho: 'the house crew', deep: 'Cellar'},
-  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace'], guard: 'own',
+  bank: {k: 'dive', n: 'a clearing-house mainframe', at: ['Tor Bazaar', 'Cyber Cafe', 'The Hackerspace', 'Coach Station'], guard: 'own',
     word: 'layer', boss: 'the ledger core', bossWho: 'Vault ICE', deep: 'Cold storage'},
-  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel'], guard: 'own',
+  grid: {k: 'dive', n: 'a utility control net', at: ['Campus Lab', 'Datacenter Dock', 'IRC Backchannel', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the control core', bossWho: 'Governor ICE', deep: 'Deep plant'},
-  archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe'], guard: 'own',
+  archive: {k: 'dive', n: 'a dead archive', at: ['The Hackerspace', 'Paste Alley', 'Cyber Cafe', 'Teardown Yard'], guard: 'own',
     word: 'layer', boss: 'the index core', bossWho: 'Librarian ICE', deep: 'Dead sector'},
-  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar'], guard: 'own',
+  blacksite: {k: 'dive', n: 'an unlisted black site', at: ['Con Hallway', 'Campus Lab', 'Tor Bazaar', 'Swapmeet Field'], guard: 'own',
     word: 'layer', boss: 'the clean core', bossWho: 'Black ICE', deep: 'Null space'},
 };
 const DUN_IDS = Object.keys(DUN_TH);
@@ -17079,6 +18498,7 @@ async function dunPlay() {
 // Go in. Costs a trip; the run then lives on S.dun until it ends.
 async function dunEnter(L) {
   if (!DUN_TH[L.th] || S.trips < DUN.tripIn || dunRun()) return;
+  await teach('deep');   // TEACHING: the first deep run
   S.trips -= DUN.tripIn;
   const skin = DUN_TH[L.th].k;
   S.dun = {th: L.th, lead: L, floor: 1, room: 0, rooms: dunRooms(L, 1), m: DUN.start[skin],
@@ -17158,9 +18578,10 @@ Object.assign(ACTIONS, {
           'and they turn up in other people\'s paperwork.</p>') +
         `<p class="dim">${S.trips} trip${S.trips === 1 ? '' : 's'} left today.</p>`;
       const buttons = here.filter(() => S.trips >= DUN.tripIn).map(L =>
-        [`Go in: ${DUN_TH[L.th].n} (${L.deep} ${DUN_TH[L.th].word}s)`, 'go:' + list.indexOf(L), 'primary']);
+        ({name: `Go in: ${DUN_TH[L.th].n}`, badge: L.deep, note: `${DUN_TH[L.th].word}s`,
+          value: 'go:' + list.indexOf(L), cls: 'primary', icon: shopIcon('deep')}));
       if (S.trips >= DUN.lookTrips && list.length < DUN.leadMax) {
-        buttons.push([`Go looking for an address (${DUN.lookTrips} trip)`, 'look']);
+        buttons.push({name: 'Go looking for an address', badge: DUN.lookTrips, note: 'trip', value: 'look'});
       }
       buttons.push(['Leave it', null, buttons.length ? 'small' : 'primary']);
       const pickOne = await dialog('Deep run', html, buttons);
@@ -17215,8 +18636,13 @@ async function startDungeon(kind, floors) {
 const WARDRIVE = {
   // --- the kit: bought at the black market, bolted to one ride at a time (S.wd.on), the way the suppressor
   //     is threaded onto one weapon (GUNFIRE.suppPrice / S.supp). Prices are flat, before the shop's markup.
+  //     MEASURED: the tin can is an impulse price on purpose, because it is not the gate. The gate is the
+  //     car -- the cheapest thing at Otto's that can carry a scanner at all is the moped at $85k, and the
+  //     rides that are actually good at this start at the mobility scooter at $92k -- so pricing the can
+  //     like an investment only put a second wall in front of a feature nobody had met yet. The roof array
+  //     is the investment, and it is priced like one.
   kits: [null,
-    {n: 'Cantenna in a Pringles Tube', price: 7000, gain: 1, odds: 0, tag: 'CAN',
+    {n: 'Cantenna in a Pringles Tube', price: 2500, gain: 1, odds: 0, tag: 'CAN',
       about: 'A tin can, a bolt and a pigtail lead. It works, which is the offensive part.'},
     {n: 'Roof Array (Four Radios, One Argument)', price: 55000, gain: 1.9, odds: 12, tag: 'ARR',
       about: 'Four radios, a GPS puck and a laptop in the footwell. Visible from space. Hears everything.'}],
@@ -17289,6 +18715,11 @@ const WD_DIST = {
   'Cyber Cafe': {rich: 1.2, deep: 0, why: 'a street of cafes, each with a router from the box it came in'},
   'Paste Alley': {rich: 1.1, deep: 1, why: 'flats over the lockups, and a lot of cameras on a lot of wifi'},
   'Strip Mall': {rich: 1.25, deep: 0, why: 'tills, signage and a nail bar with the password on the wall'},
+  'Teardown Yard': {rich: 0.6, deep: 2, why: 'nine hundred machines, none of them plugged in, and one weighbridge that is'},
+  'Repair Arcade': {rich: 1.3, deep: 0, why: 'thirty counters, thirty routers, and one password on thirty laminated cards'},
+  'Swapmeet Field': {rich: 0.75, deep: 2, why: 'a field, and three hundred people who built the thing they are transmitting with'},
+  'Multi-storey': {rich: 1.0, deep: 1, why: 'six decks of nothing, and whatever the offices next door leak down the stairwell'},
+  'Coach Station': {rich: 1.15, deep: 0, why: 'free wifi, a departure board, and four hundred phones that only stop here'},
 };
 let wdTally = {swept: 0, hops: 0, found: 0, cracked: 0, failed: 0, pot: 0, sold: 0, dived: 0, stale: 0,
   full: 0, sweeps: 0, cut: 0, nokit: 0};   // counted for the self-test
@@ -17554,6 +18985,7 @@ async function wdFallout(why) {
 // ---------- the screen ----------
 Object.assign(ACTIONS, {
   async wardrive() {
+    await teach('wardrive');   // TEACHING: captures, sweeps, cracking, and what a honeypot is
     for (;;) {
       const list = wdFinds().slice().sort((a, b) => b.deep - a.deep);
       const q = wdPower(), kit = wdKit(), K = WARDRIVE.kits[kit];
@@ -17581,7 +19013,7 @@ Object.assign(ACTIONS, {
       const f = wdFinds().find(x => 'f:' + x.id === choice);
       if (!f) continue;
       const price = wdPrice(f.deep), opts = [['Crack it', 'c', 'primary']];
-      if (price) opts.push([`Sell it to the broker: ${money(price)}`, 's']);
+      if (price) opts.push({name: 'Sell it to the broker', note: money(price), value: 's', kind: 'shop'});
       opts.push(['Throw it away', 'x', 'danger'], ['Back', null, 'small']);
       const what = await dialog('A capture', `<div class="syn">${wdCard(f)}</div>` +
         '<p class="dim">Crack it and it is an address for a network dive, plus whatever scrap is lying in it. ' +
@@ -17681,9 +19113,11 @@ async function wdDrive(hops) {
 async function wdAsk() {
   if (!wdReady()) return;
   const most = S.trips, q = wdPower();
-  const opts = [[`Use the rest: ${num(most)} hop${most === 1 ? '' : 's'}, finish at the Bunker`, most, 'primary']];
-  for (const n of [1, 2, 3, 5, 8]) if (n < most) opts.push([`${n} hop${n === 1 ? '' : 's'}`, n]);
-  opts.push(['Not today', null, 'small']);
+  // The answers are tiles: the count is the badge, so every one of them is the same two tidy lines and the
+  // obvious answer is not three lines tall beside a one-line "1 hop".
+  const opts = [{name: 'Use the rest', badge: num(most), note: 'finish at the Bunker', value: most, cls: 'primary'}];
+  for (const n of [1, 2, 3, 5, 8]) if (n < most) opts.push({name: `${n} hop${n === 1 ? '' : 's'}`, value: n});
+  opts.push({name: 'Not today', value: null, cls: 'small'});
   const warm = LOCATIONS.filter(l => l !== BUNKER && distSec(l) >= 25);
   const n = await dialog('Wardrive', `<p>Antenna up, laptop in the footwell, and round the blocks until the ` +
     `${VEHICLES[S.ride][4]} needs a rest. It collects <b class="green">${wdWord(q)}</b>.</p>` +
@@ -20274,6 +21708,7 @@ function loadSave(n) {
       nem: record.nem, nemGone: record.nemGone,   // NEMESIS: nemFix() tidies these (see fixCareer)
       // REPUTATION: where the street had you, and why. fixCareer() starts a save from before it at 0.
       street: record.street, streetWhy: record.streetWhy, streetDay: record.streetDay,
+      taught: record.taught,   // TEACHING: the explainers this save has been shown (fixCareer tidies it)
       skills: record.skills, skBonus: record.skBonus};   // SKILL TREE: fixSkills() tidies these (see fixCareer)
     if (record.look && typeof record.look === 'object') career.look = record.look;
     reslotCareer();   // gas masks are face items now, watches and braces go on the wrist
@@ -20305,6 +21740,9 @@ function loadSave(n) {
   S.shop = S.shop || [];
   for (const k of ['stuck', 'stuckCost', 'tag', 'stashTag']) S[k] = S[k] && typeof S[k] === 'object' ? S[k] : {};
   S.sick = Number.isInteger(S.sick) ? S.sick : 0;
+  // TEACHING: a guided first day that was running when the game was shut carries on; anything else there
+  // is junk and is thrown away, so a bad save cannot leave a step strip pointing at nothing.
+  if (!(S.tut && Number.isInteger(S.tut.n) && S.tut.n >= 0 && S.tut.n < COACH.length)) S.tut = null;
   fixTags();
   for (const m of [S, ...Object.values(S.markets)]) { reslot(m.shop); reslot(m.store); }
   if (S.armor && !career.gear.body) {
@@ -20455,12 +21893,14 @@ async function startMenu() {
       (full ? `<p class="amber">All ${MAX_SAVES} save files are in use. Delete one to start a new game.</p>` : '');
     const buttons = [];
     if (slot && list[slot]) buttons.push(['Back to the game', 'back', 'primary']);
-    else if (ids.includes(last)) buttons.push([`Continue: ${list[last].name || 'anon'}`, `load:${last}`, 'primary']);
+    else if (ids.includes(last)) buttons.push({name: 'Continue', note: list[last].name || 'anon', value: `load:${last}`, cls: 'primary'});
     if (!full) buttons.push(['New game', 'new', buttons.length ? '' : 'primary']);
     if (ids.length) buttons.push(['Delete a save', 'del', 'small']);
     // Desktop app only (window.zdhDesktop comes from its preload script): full screen on or off, and quit.
     const desk = !AUTO && window.zdhDesktop;
-    if (desk) buttons.push([`Full screen: ${desk.isFullScreen() ? 'ON' : 'OFF'}${/Mac/.test(navigator.platform) ? '' : ' (F11)'}`, 'fullscreen', 'small'], ['Quit', 'quit', 'small']);
+    if (desk) buttons.push({name: 'Full screen', badge: desk.isFullScreen() ? 'ON' : 'OFF',
+      note: /Mac/.test(navigator.platform) ? '' : 'F11', value: 'fullscreen', cls: 'small'},
+      {name: 'Quit', value: 'quit', cls: 'small', kind: 'risk'});
     const choice = await dialog('ZERO DAY HUSTLE', html, buttons);
     if (choice === 'fullscreen') {
       desk.setFullScreen(!desk.isFullScreen());
@@ -20481,6 +21921,7 @@ async function startMenu() {
       render();
       await alertDlg('ZERO DAY HUSTLE', introText());
       if (!career.look) await ACTIONS.look();
+      await coachOffer();   // TEACHING: one walk through one real day, offered once and skippable
       return;
     }
     if (choice === 'del') {
