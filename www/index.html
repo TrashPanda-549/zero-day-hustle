@@ -18691,14 +18691,33 @@ const WARDRIVE = {
   sellShare: 0.40, sellDeep: 0.04, sellWeek: 3, sellWindow: 7, sellGlut: 0.7, standStep: 0.04,
   sellRep: 1,       // XP is the only other thing selling pays: this times the depth, times 10
 };
-// How good each ride is at this. 0 means it cannot carry the kit at all.
-// THE LADDER: bicycles and unicycles cannot take a roof array, a bolted tripod or a laptop in a footwell, so
-// the whole bike shop is out. Aircraft are poor: too fast and too high to hear a doorbell radio, and a
-// helicopter cannot crawl a residential street at all. The good ones are the slow, dull, boxy middle of the
-// auto shop -- which is the point: the mower, the golf cart, the mobility scooter and the hatchback are the
-// rungs nobody wanted, and a van or an ice cream truck that crawls a street playing a jingle is the best
-// platform in the game. The fast and loud ones (dirt bike, muscle car) are bad at it and conspicuous with it.
+// How good each platform is at this, walking included. `foot` is the rung you are on with no ride at all,
+// and it is the FLOOR of the ladder, not a zero: a scanner is a thing in a bag with an aerial on it, so it
+// works the moment you own it. Nothing here is 0, because there is no ride you cannot walk alongside.
+// THE LADDER, and the two things it is actually made of:
+//   * HOW MUCH GROUND YOU COVER, and how slowly. A network has to be in earshot long enough to answer, so
+//     the perfect platform crawls a residential street for an hour. Walking is thorough and covers almost
+//     nothing. Anything fast goes past a street before it has heard it.
+//   * WHAT YOU CAN CARRY. A bag holds a tin can, a phone and a battery. A crate holds a proper aerial, a
+//     laptop and a battery that lasts the day. A footwell holds all of it plus the argument about it.
+// The penalty on a two-wheeler was never about hands: the kit is in a bag on your back, and you are holding
+// nothing. So the whole bike shop is a modest, genuine improvement on walking -- several times the ground at
+// a speed that still catches things -- and the two with a crate (the shopping trolley and the cargo bike) are
+// the best of them, because the aerial and the laptop stop riding on your spine. The quick ones (the fixie,
+// the recumbent) give some of that back by not lingering, and the tall ones (penny-farthing, giraffe) buy a
+// little of it back by putting the aerial two metres up.
+// Above the bike shop are the slow, dull, boxy middle of the auto shop -- which is the point: the mower, the
+// golf cart, the mobility scooter and the hatchback are the rungs nobody wanted, and a van or an ice cream
+// truck that crawls a street playing a jingle is the best platform in the game.
+// BELOW WALKING, and this is deliberate: the fast, loud, conspicuous ones (dirt bike, moped, muscle car) are
+// worse than your own two feet, because they are too quick to catch much and too loud to do it quietly. The
+// moped is the first engine you can afford and it is worse at this than the bicycle you already had. Aircraft
+// are the worst of the lot: too high and too fast to hear a doorbell radio, and a helicopter cannot crawl a
+// residential street at all.
 const WD_RIDE = {
+  foot: 0.55,
+  board: 0.6, uni: 0.6, scooter: 0.65, trolley: 0.8, fixie: 0.7, penny: 0.7, cargo: 0.85, euni: 0.75,
+  recumbent: 0.65, giraffe: 0.7,
   moped: 0.3, granny: 0.9, mower: 1.1, dirt: 0.2, golf: 1.1, hatch: 0.95, van: 1.5, icecream: 1.6,
   muscle: 0.4, sedan: 1.15, monster: 0.7,
   chair: 0.4, gyro: 0.2, jetpack: 0.15, blimp: 0.5, news: 0.25, cop: 0.25, chinook: 0.2, black: 0.2,
@@ -18729,18 +18748,25 @@ let wdBusy = false, wdForce = false;   // a law stop in progress; and the debug 
 const wdState = () => (S.wd && typeof S.wd === 'object' ? S.wd : (S.wd = {kit: 0, on: '', finds: [], sweeps: {}, sold: []}));
 const wdFinds = () => { const W = wdState(); return Array.isArray(W.finds) ? W.finds : (W.finds = []); };
 const wdKit = () => { const n = Math.round(wdState().kit || 0); return WARDRIVE.kits[n] ? n : 0; };
-// How good the ride you are on is at this: 0 on foot, 0 on anything from the bike shop, 0 with a dry tank.
-const wdRideQ = id => (VEHICLES[id] && tanked(id) ? (WD_RIDE[id] || 0) : 0);
-// Is the kit bolted to the ride you are actually on? (The suppressor's rule: change ride, leave it behind.)
-const wdFitted = () => !!wdKit() && !!S.ride && wdState().on === S.ride && wdRideQ(S.ride) > 0;
-// Collecting at all, and how well. 0 means nothing is collected: no kit, wrong ride, or a bicycle.
-const wdPower = () => (wdFitted() ? wdRideQ(S.ride) * WARDRIVE.kits[wdKit()].gain : 0);
+// How good the platform you are on is at this. '' (no ride) is the foot rung, not a zero. A dry tank is a
+// zero, because the ride is not going anywhere today and neither is anything bolted to it.
+const wdRideQ = id => (!id ? (WD_RIDE.foot || 0) : (VEHICLES[id] && tanked(id) ? (WD_RIDE[id] || 0) : 0));
+// Where the kit actually is, and what that is worth. S.wd.on is the ride it is bolted to, or '' for the bag.
+// In the bag it goes wherever you do and hears what a bag hears, which is the foot rung whatever you are on;
+// bolted, it gets that ride's rung, and only on the days you take that ride out. (The suppressor's rule:
+// change ride, leave it behind -- except that walking out with the bag is always allowed.)
+const wdHere = () => (!wdKit() ? 0 : wdState().on ? (wdState().on === S.ride ? wdRideQ(S.ride) : 0) : wdRideQ(''));
+// Is the kit with you and working at all?
+const wdFitted = () => wdHere() > 0;
+// Collecting at all, and how well. 0 means nothing: no kit, a dry tank, or it is bolted to a ride you left in.
+const wdPower = () => (wdKit() ? wdHere() * WARDRIVE.kits[wdKit()].gain : 0);
 const wdWord = q => (q <= 0 ? 'nothing' : q < 0.3 ? 'barely' : q < 0.7 ? 'poorly' : q < 1.05 ? 'well' : q < 1.4 ? 'very well' : 'superbly');
-// For the debug menu and the self-test: own a scanner outright, and bolt it to a ride.
+// For the debug menu and the self-test: own a scanner outright, and bolt it to a ride (or '' for the bag).
 function setScanner(tier, ride) {
   const W = wdState();
   W.kit = WARDRIVE.kits[Math.round(tier) || 0] ? Math.round(tier) : 0;
-  // A ride that cannot carry the kit cannot wear it, so there is no such thing as a scanner on a unicycle.
+  // Anything but a real ride with a rating means the bag, which is where a scanner starts and where it
+  // works without a Garage, a tank or a penny spent on wheels.
   if (ride !== undefined) W.on = VEHICLES[ride] && WD_RIDE[ride] > 0 ? ride : '';
   return {kit: W.kit, on: W.on};
 }
